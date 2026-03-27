@@ -18,8 +18,6 @@ public class MacosTodoWatcher : Form {
     private DateTime startTime;
     private string appName = "MacosTodoWatcherApp"; 
     private bool isPositionLocked = false; 
-    
-    // 【新增】備份資料夾路徑
     private string backupDirectory = "";
 
     private static Color BgColor = Color.FromArgb(245, 245, 247); 
@@ -28,6 +26,9 @@ public class MacosTodoWatcher : Form {
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public MacosTodoWatcher() {
+        // 【關鍵修復】強制系統建立畫面神經連結，防止背景隱藏時當機
+        IntPtr forceHandle = this.Handle;
+
         startTime = DateTime.Now; 
 
         this.Text = "通知中心";
@@ -78,10 +79,7 @@ public class MacosTodoWatcher : Form {
         
         menu.MenuItems.Add("-");
         menu.MenuItems.Add("➕ 新增監控資料夾...", new EventHandler(OnAddFolderClick));
-        
-        // 【新增】設定自動備份資料夾按鈕
         menu.MenuItems.Add("📁 設定自動備份資料夾...", new EventHandler(OnSetBackupFolder));
-        
         menu.MenuItems.Add("⚙️ 管理監控與狀態...", new EventHandler(ShowManageWindow));
         menu.MenuItems.Add("-");
         menu.MenuItems.Add("結束程式", new EventHandler(delegate { trayIcon.Dispose(); Application.Exit(); }));
@@ -93,12 +91,9 @@ public class MacosTodoWatcher : Form {
         this.Load += new EventHandler(delegate { this.Hide(); });
     }
 
-    // ==========================================
-    // 【新增】自動備份核心邏輯
-    // ==========================================
     private void OnSetBackupFolder(object sender, EventArgs e) {
         FolderBrowserDialog fbd = new FolderBrowserDialog();
-        fbd.Description = "請選擇自動備份的目標資料夾：\n(設定後，所有新檔案或異動都會自動複製到這裡)";
+        fbd.Description = "請選擇自動備份的目標資料夾：";
         if (fbd.ShowDialog() == DialogResult.OK) {
             backupDirectory = fbd.SelectedPath;
             SaveBackupConfig();
@@ -129,36 +124,26 @@ public class MacosTodoWatcher : Form {
 
     private void AutoBackupFile(string sourceFile) {
         if (string.IsNullOrEmpty(backupDirectory) || !Directory.Exists(backupDirectory)) return;
-        
-        // 防呆：避免備份資料夾自己備份自己 (無限迴圈)
         string sourceDir = Path.GetDirectoryName(sourceFile);
         if (sourceDir.Equals(backupDirectory, StringComparison.OrdinalIgnoreCase)) return;
 
-        // 使用背景執行緒進行備份，避免卡住畫面
         System.Threading.ThreadPool.QueueUserWorkItem(new System.Threading.WaitCallback(delegate(object state) {
             string destFile = Path.Combine(backupDirectory, Path.GetFileName(sourceFile));
-            int retries = 5; // 最多重試 5 次 (針對正在下載的大型檔案)
-            
+            int retries = 5; 
             while (retries > 0) {
                 try {
-                    System.Threading.Thread.Sleep(1000); // 稍微等待檔案寫入完成
+                    System.Threading.Thread.Sleep(1000); 
                     if (File.Exists(sourceFile)) {
-                        File.Copy(sourceFile, destFile, true); // true 代表自動覆蓋舊備份
+                        File.Copy(sourceFile, destFile, true); 
                     }
-                    break; // 成功則跳出迴圈
+                    break; 
                 } catch {
                     retries--;
-                    if (retries == 0) {
-                        // 如果重試5次還是失敗，就放棄(可能是檔案被長期佔用)
-                    }
                 }
             }
         }));
     }
 
-    // ==========================================
-    // 視窗控制邏輯
-    // ==========================================
     protected override void WndProc(ref Message m) {
         const int WM_NCLBUTTONDOWN = 0x00A1; 
         const int HTCAPTION = 2;             
@@ -180,9 +165,6 @@ public class MacosTodoWatcher : Form {
         }
     }
 
-    // ==========================================
-    // 其餘系統功能 (設定、開機、面板)
-    // ==========================================
     private bool IsRunOnStartup() {
         try {
             using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false)) {
@@ -219,7 +201,7 @@ public class MacosTodoWatcher : Form {
 
     private void ShowManageWindow(object sender, EventArgs e) {
         Form mgr = new Form() {
-            Text = "管理監控清單與狀態", Width = 450, Height = 400, // 高度加高容納備份資訊
+            Text = "管理監控清單與狀態", Width = 450, Height = 400, 
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterScreen,
             MaximizeBox = false, MinimizeBox = false, BackColor = Color.White
@@ -230,7 +212,6 @@ public class MacosTodoWatcher : Form {
         string bkStr = string.IsNullOrEmpty(backupDirectory) ? "尚未設定" : backupDirectory;
 
         Label lblStat = new Label() {
-            // 【新增】顯示當前備份資料夾狀態
             Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchers.Count.ToString() + " 個\n💾 自動備份至：" + bkStr,
             Location = new Point(20, 15), AutoSize = true, Font = new Font(MainFont, FontStyle.Bold),
             ForeColor = Color.FromArgb(60, 60, 60)
@@ -305,7 +286,8 @@ public class MacosTodoWatcher : Form {
         try {
             FileSystemWatcher w = new FileSystemWatcher(newPath);
             w.Filter = "*.*";
-            w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
+            // 【關鍵修復】擴大監控範圍，確保所有變動都能被抓到
+            w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size;
             w.Created += new FileSystemEventHandler(OnFileEvent);
             w.Changed += new FileSystemEventHandler(OnFileEvent);
             w.Deleted += new FileSystemEventHandler(OnFileDeleted);
@@ -325,7 +307,6 @@ public class MacosTodoWatcher : Form {
         foreach (string line in lines) {
             string path = line.Trim();
             
-            // 【新增】讀取備份資料夾設定
             if (path.StartsWith("BackupDir=", StringComparison.OrdinalIgnoreCase)) {
                 backupDirectory = path.Substring(10).Trim();
                 continue;
@@ -335,7 +316,8 @@ public class MacosTodoWatcher : Form {
             try {
                 FileSystemWatcher w = new FileSystemWatcher(path);
                 w.Filter = "*.*";
-                w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
+                // 【關鍵修復】擴大監控範圍
+                w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size;
                 w.Created += new FileSystemEventHandler(OnFileEvent);
                 w.Changed += new FileSystemEventHandler(OnFileEvent);
                 w.Deleted += new FileSystemEventHandler(OnFileDeleted);
@@ -346,7 +328,9 @@ public class MacosTodoWatcher : Form {
     }
 
     private void OnFileEvent(object source, FileSystemEventArgs e) {
-        // 【新增】觸發事件時，呼叫備份與清單更新
+        // 【診斷修復】第一時間跳出右下角氣泡提示！
+        trayIcon.ShowBalloonTip(1500, "偵測到檔案變動", "檔案: " + Path.GetFileName(e.FullPath), ToolTipIcon.Info);
+
         AutoBackupFile(e.FullPath);
         SyncAdd(e.FullPath); 
     }
@@ -356,7 +340,13 @@ public class MacosTodoWatcher : Form {
     }
 
     private void SyncAdd(string path) {
-        if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(SyncAdd), path); return; }
+        if (!this.IsHandleCreated) return; // 保護機制
+
+        if (this.InvokeRequired) { 
+            // 【相容修復】確保舊版編譯器也能正確執行畫面更新
+            this.BeginInvoke(new Action<string>(SyncAdd), new object[] { path }); 
+            return; 
+        }
         if (currentFiles.Contains(path) || Directory.Exists(path)) return;
         currentFiles.Add(path);
 
@@ -391,7 +381,12 @@ public class MacosTodoWatcher : Form {
     }
 
     private void RemoveFromFileList(string path) {
-        if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(RemoveFromFileList), path); return; }
+        if (!this.IsHandleCreated) return;
+
+        if (this.InvokeRequired) { 
+            this.BeginInvoke(new Action<string>(RemoveFromFileList), new object[] { path }); 
+            return; 
+        }
         if (currentFiles.Contains(path)) {
             currentFiles.Remove(path);
             Control cardToRemove = null;
