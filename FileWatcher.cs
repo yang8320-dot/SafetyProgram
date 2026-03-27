@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using Microsoft.Win32; // 【新增】用來處理開機自動執行
 
 public class MacosTodoWatcher : Form {
     private List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
@@ -14,8 +15,8 @@ public class MacosTodoWatcher : Form {
     private Label titleLabel;
     private HashSet<string> currentFiles = new HashSet<string>();
     
-    // 記錄程式啟動時間
     private DateTime startTime;
+    private string appName = "MacosTodoWatcherApp"; // 登錄檔使用的名稱
 
     private static Color BgColor = Color.FromArgb(245, 245, 247); 
     private static Color CardColor = Color.White;
@@ -23,7 +24,7 @@ public class MacosTodoWatcher : Form {
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public MacosTodoWatcher() {
-        startTime = DateTime.Now; // 記錄啟動時間
+        startTime = DateTime.Now; 
 
         this.Text = "通知中心";
         this.Width = 360;
@@ -53,10 +54,19 @@ public class MacosTodoWatcher : Form {
         // --- 系統托盤與右鍵選單 ---
         trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "檔案監控 (macOS Style)" };
         ContextMenu menu = new ContextMenu();
+        
         menu.MenuItems.Add("顯示待辦清單", new EventHandler(delegate { this.Show(); this.WindowState = FormWindowState.Normal; }));
         menu.MenuItems.Add("-");
+        
+        // 【新增】開機自動執行的開關
+        MenuItem startupMenu = new MenuItem("開機自動執行");
+        startupMenu.Checked = IsRunOnStartup(); // 程式啟動時自動檢查狀態
+        startupMenu.Click += new EventHandler(ToggleStartup);
+        menu.MenuItems.Add(startupMenu);
+        
+        menu.MenuItems.Add("-");
         menu.MenuItems.Add("➕ 新增監控資料夾...", new EventHandler(OnAddFolderClick));
-        menu.MenuItems.Add("⚙️ 管理監控與狀態...", new EventHandler(ShowManageWindow)); // 【新增】管理面板
+        menu.MenuItems.Add("⚙️ 管理監控與狀態...", new EventHandler(ShowManageWindow));
         menu.MenuItems.Add("-");
         menu.MenuItems.Add("結束程式", new EventHandler(delegate { trayIcon.Dispose(); Application.Exit(); }));
         trayIcon.ContextMenu = menu;
@@ -68,7 +78,47 @@ public class MacosTodoWatcher : Form {
     }
 
     // ==========================================
-    // 1. 管理狀態面板與移除功能
+    // 【新增】開機自動執行邏輯
+    // ==========================================
+    private bool IsRunOnStartup() {
+        try {
+            using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false)) {
+                if (rk != null) {
+                    object value = rk.GetValue(appName);
+                    if (value != null) {
+                        // 檢查登錄檔內的路徑是否跟現在程式的路徑一樣 (避免移動檔案後失效)
+                        string regPath = value.ToString().Replace("\"", "");
+                        return regPath.Equals(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase);
+                    }
+                }
+            }
+        } catch {}
+        return false;
+    }
+
+    private void ToggleStartup(object sender, EventArgs e) {
+        MenuItem item = (MenuItem)sender;
+        item.Checked = !item.Checked; // 切換打勾狀態
+
+        try {
+            using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true)) {
+                if (item.Checked) {
+                    // 加上引號以防路徑有空白
+                    rk.SetValue(appName, "\"" + Application.ExecutablePath + "\"");
+                    trayIcon.ShowBalloonTip(3000, "設定成功", "程式已設定為開機自動執行！", ToolTipIcon.Info);
+                } else {
+                    rk.DeleteValue(appName, false);
+                    trayIcon.ShowBalloonTip(3000, "設定成功", "已取消開機自動執行。", ToolTipIcon.Info);
+                }
+            }
+        } catch (Exception ex) {
+            MessageBox.Show("設定開機啟動失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            item.Checked = !item.Checked; // 如果失敗，把勾勾復原
+        }
+    }
+
+    // ==========================================
+    // 管理狀態面板與移除功能
     // ==========================================
     private void ShowManageWindow(object sender, EventArgs e) {
         Form mgr = new Form() {
@@ -78,7 +128,6 @@ public class MacosTodoWatcher : Form {
             MaximizeBox = false, MinimizeBox = false, BackColor = Color.White
         };
         
-        // 計算運行時間
         TimeSpan uptime = DateTime.Now - startTime;
         string upStr = string.Format("{0}天 {1}小時 {2}分鐘", uptime.Days, uptime.Hours, uptime.Minutes);
         
@@ -89,16 +138,10 @@ public class MacosTodoWatcher : Form {
         };
         mgr.Controls.Add(lblStat);
 
-        // 列表顯示監控路徑
-        ListBox lb = new ListBox() {
-            Location = new Point(20, 65), Width = 390, Height = 170, Font = MainFont
-        };
-        foreach(var w in watchers) {
-            lb.Items.Add(w.Path);
-        }
+        ListBox lb = new ListBox() { Location = new Point(20, 65), Width = 390, Height = 170, Font = MainFont };
+        foreach(var w in watchers) { lb.Items.Add(w.Path); }
         mgr.Controls.Add(lb);
 
-        // 移除按鈕
         Button btnRemove = new Button() {
             Text = "🗑️ 移除選取的資料夾", Location = new Point(20, 250), Width = 180, Height = 35,
             FlatStyle = FlatStyle.Flat, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold)
@@ -121,27 +164,20 @@ public class MacosTodoWatcher : Form {
     }
 
     private void RemoveWatchPath(string pathToRemove) {
-        // 停止並移除該監控器
         FileSystemWatcher toRemove = null;
         foreach(var w in watchers) {
-            if(w.Path.Equals(pathToRemove, StringComparison.OrdinalIgnoreCase)) {
-                toRemove = w; break;
-            }
+            if(w.Path.Equals(pathToRemove, StringComparison.OrdinalIgnoreCase)) { toRemove = w; break; }
         }
         if(toRemove != null) {
             toRemove.EnableRaisingEvents = false;
             toRemove.Dispose();
             watchers.Remove(toRemove);
         }
-        
-        // 重寫 config.txt 剔除該路徑
         if(File.Exists(configFile)) {
             string[] lines = File.ReadAllLines(configFile);
             List<string> newLines = new List<string>();
             foreach(string l in lines) {
-                if(!l.Trim().Equals(pathToRemove, StringComparison.OrdinalIgnoreCase)) {
-                    newLines.Add(l);
-                }
+                if(!l.Trim().Equals(pathToRemove, StringComparison.OrdinalIgnoreCase)) { newLines.Add(l); }
             }
             File.WriteAllLines(configFile, newLines.ToArray());
         }
@@ -149,16 +185,12 @@ public class MacosTodoWatcher : Form {
     }
 
     // ==========================================
-    // 2. 新增監控資料夾
+    // 新增監控資料夾
     // ==========================================
     private void OnAddFolderClick(object sender, EventArgs e) {
         FolderBrowserDialog fbd = new FolderBrowserDialog();
         fbd.Description = "請選擇要新增監控的資料夾：";
-        
-        if (fbd.ShowDialog() == DialogResult.OK) {
-            string newPath = fbd.SelectedPath;
-            AddNewPath(newPath);
-        }
+        if (fbd.ShowDialog() == DialogResult.OK) { AddNewPath(fbd.SelectedPath); }
         fbd.Dispose();
     }
 
@@ -184,7 +216,7 @@ public class MacosTodoWatcher : Form {
             w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
             w.Created += new FileSystemEventHandler(OnFileEvent);
             w.Changed += new FileSystemEventHandler(OnFileEvent);
-            w.Deleted += new FileSystemEventHandler(OnFileDeleted); // 加入刪除監控
+            w.Deleted += new FileSystemEventHandler(OnFileDeleted);
             w.EnableRaisingEvents = true;
             watchers.Add(w);
             trayIcon.ShowBalloonTip(3000, "新增成功", "已開始監控：\n" + newPath, ToolTipIcon.Info);
@@ -192,7 +224,7 @@ public class MacosTodoWatcher : Form {
     }
 
     // ==========================================
-    // 3. 系統初始化與事件綁定
+    // 系統初始化與事件綁定
     // ==========================================
     private void LoadConfig() {
         if (!File.Exists(configFile)) {
@@ -204,41 +236,32 @@ public class MacosTodoWatcher : Form {
         foreach (string line in lines) {
             string path = line.Trim();
             if (path == "" || path.StartsWith("#") || !Directory.Exists(path)) continue;
-
             try {
                 FileSystemWatcher w = new FileSystemWatcher(path);
                 w.Filter = "*.*";
                 w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
                 w.Created += new FileSystemEventHandler(OnFileEvent);
                 w.Changed += new FileSystemEventHandler(OnFileEvent);
-                w.Deleted += new FileSystemEventHandler(OnFileDeleted); // 加入刪除監控
+                w.Deleted += new FileSystemEventHandler(OnFileDeleted);
                 w.EnableRaisingEvents = true;
                 watchers.Add(w);
             } catch {}
         }
     }
 
-    private void OnFileEvent(object source, FileSystemEventArgs e) {
-        SyncAdd(e.FullPath);
-    }
-
-    // 【新增】如果實體檔案被刪除，觸發此事件
-    private void OnFileDeleted(object source, FileSystemEventArgs e) {
-        RemoveFromFileList(e.FullPath);
-    }
+    private void OnFileEvent(object source, FileSystemEventArgs e) { SyncAdd(e.FullPath); }
+    private void OnFileDeleted(object source, FileSystemEventArgs e) { RemoveFromFileList(e.FullPath); }
 
     // ==========================================
-    // 4. UI 面板操作 (新增與自動移除)
+    // UI 面板操作
     // ==========================================
     private void SyncAdd(string path) {
-        if (this.InvokeRequired) { 
-            this.BeginInvoke(new Action<string>(SyncAdd), path); return; 
-        }
+        if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(SyncAdd), path); return; }
         if (currentFiles.Contains(path) || Directory.Exists(path)) return;
         currentFiles.Add(path);
 
         Panel card = new Panel() { Width = 310, Height = 60, BackColor = CardColor, Margin = new Padding(0, 0, 0, 10) };
-        card.Tag = path; // 【關鍵】把路徑存在 Tag 裡，方便稍後尋找刪除
+        card.Tag = path;
 
         card.Paint += new PaintEventHandler(delegate(object s, PaintEventArgs ev) {
             using (GraphicsPath p = GetRoundedPath(new Rectangle(0, 0, card.Width-1, card.Height-1), 10)) {
@@ -258,7 +281,7 @@ public class MacosTodoWatcher : Form {
 
         btn.Click += new EventHandler(delegate {
             try { Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch {}
-            RemoveFromFileList(path); // 點擊查看後移除
+            RemoveFromFileList(path);
         });
 
         card.Controls.Add(name); card.Controls.Add(info); card.Controls.Add(btn);
@@ -267,36 +290,21 @@ public class MacosTodoWatcher : Form {
         if (!this.Visible) { this.Opacity = 1; this.Show(); }
     }
 
-    // 【新增】專門負責將檔案從 UI 清單中移除
     private void RemoveFromFileList(string path) {
-        if (this.InvokeRequired) { 
-            this.BeginInvoke(new Action<string>(RemoveFromFileList), path); return; 
-        }
+        if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(RemoveFromFileList), path); return; }
         if (currentFiles.Contains(path)) {
             currentFiles.Remove(path);
-            
-            // 找出綁定該路徑的 UI 卡片
             Control cardToRemove = null;
             foreach(Control c in fileListPanel.Controls) {
-                if(c.Tag != null && c.Tag.ToString() == path) {
-                    cardToRemove = c; break;
-                }
+                if(c.Tag != null && c.Tag.ToString() == path) { cardToRemove = c; break; }
             }
-            
-            // 刪除 UI 卡片
-            if(cardToRemove != null) {
-                fileListPanel.Controls.Remove(cardToRemove);
-                cardToRemove.Dispose();
-            }
-            
+            if(cardToRemove != null) { fileListPanel.Controls.Remove(cardToRemove); cardToRemove.Dispose(); }
             UpdateCount();
             if (fileListPanel.Controls.Count == 0) this.Hide();
         }
     }
 
-    private void UpdateCount() { 
-        titleLabel.Text = "📋 待處理項目：" + fileListPanel.Controls.Count.ToString(); 
-    }
+    private void UpdateCount() { titleLabel.Text = "📋 待處理項目：" + fileListPanel.Controls.Count.ToString(); }
 
     private GraphicsPath GetRoundedPath(Rectangle r, int rad) {
         GraphicsPath p = new GraphicsPath(); int d = rad * 2;
