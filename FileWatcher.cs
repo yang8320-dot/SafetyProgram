@@ -5,7 +5,7 @@ using System.Windows.Forms;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using Microsoft.Win32; // 【新增】用來處理開機自動執行
+using Microsoft.Win32;
 
 public class MacosTodoWatcher : Form {
     private List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
@@ -16,7 +16,11 @@ public class MacosTodoWatcher : Form {
     private HashSet<string> currentFiles = new HashSet<string>();
     
     private DateTime startTime;
-    private string appName = "MacosTodoWatcherApp"; // 登錄檔使用的名稱
+    private string appName = "MacosTodoWatcherApp"; 
+    private bool isPositionLocked = false; 
+    
+    // 【新增】備份資料夾路徑
+    private string backupDirectory = "";
 
     private static Color BgColor = Color.FromArgb(245, 245, 247); 
     private static Color CardColor = Color.White;
@@ -29,7 +33,9 @@ public class MacosTodoWatcher : Form {
         this.Text = "通知中心";
         this.Width = 360;
         this.Height = 450;
-        this.FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        this.FormBorderStyle = FormBorderStyle.Sizable; 
+        this.MaximizeBox = true;
+        this.MinimizeBox = true;
         this.StartPosition = FormStartPosition.Manual;
         this.TopMost = true;
         this.ShowInTaskbar = false;
@@ -58,14 +64,24 @@ public class MacosTodoWatcher : Form {
         menu.MenuItems.Add("顯示待辦清單", new EventHandler(delegate { this.Show(); this.WindowState = FormWindowState.Normal; }));
         menu.MenuItems.Add("-");
         
-        // 【新增】開機自動執行的開關
-        MenuItem startupMenu = new MenuItem("開機自動執行");
-        startupMenu.Checked = IsRunOnStartup(); // 程式啟動時自動檢查狀態
+        MenuItem startupMenu = new MenuItem("✅ 開機自動執行");
+        startupMenu.Checked = IsRunOnStartup(); 
         startupMenu.Click += new EventHandler(ToggleStartup);
         menu.MenuItems.Add(startupMenu);
         
+        MenuItem lockMenu = new MenuItem("📌 鎖定視窗位置");
+        lockMenu.Click += new EventHandler(delegate {
+            isPositionLocked = !isPositionLocked;
+            lockMenu.Checked = isPositionLocked;
+        });
+        menu.MenuItems.Add(lockMenu);
+        
         menu.MenuItems.Add("-");
         menu.MenuItems.Add("➕ 新增監控資料夾...", new EventHandler(OnAddFolderClick));
+        
+        // 【新增】設定自動備份資料夾按鈕
+        menu.MenuItems.Add("📁 設定自動備份資料夾...", new EventHandler(OnSetBackupFolder));
+        
         menu.MenuItems.Add("⚙️ 管理監控與狀態...", new EventHandler(ShowManageWindow));
         menu.MenuItems.Add("-");
         menu.MenuItems.Add("結束程式", new EventHandler(delegate { trayIcon.Dispose(); Application.Exit(); }));
@@ -78,7 +94,94 @@ public class MacosTodoWatcher : Form {
     }
 
     // ==========================================
-    // 【新增】開機自動執行邏輯
+    // 【新增】自動備份核心邏輯
+    // ==========================================
+    private void OnSetBackupFolder(object sender, EventArgs e) {
+        FolderBrowserDialog fbd = new FolderBrowserDialog();
+        fbd.Description = "請選擇自動備份的目標資料夾：\n(設定後，所有新檔案或異動都會自動複製到這裡)";
+        if (fbd.ShowDialog() == DialogResult.OK) {
+            backupDirectory = fbd.SelectedPath;
+            SaveBackupConfig();
+            MessageBox.Show("備份資料夾已設定為：\n" + backupDirectory, "設定成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        fbd.Dispose();
+    }
+
+    private void SaveBackupConfig() {
+        if (!File.Exists(configFile)) return;
+        string[] lines = File.ReadAllLines(configFile);
+        List<string> newLines = new List<string>();
+        bool backupSet = false;
+
+        foreach (string line in lines) {
+            if (line.StartsWith("BackupDir=", StringComparison.OrdinalIgnoreCase)) {
+                newLines.Add("BackupDir=" + backupDirectory);
+                backupSet = true;
+            } else {
+                newLines.Add(line);
+            }
+        }
+        if (!backupSet) {
+            newLines.Insert(0, "BackupDir=" + backupDirectory);
+        }
+        File.WriteAllLines(configFile, newLines.ToArray());
+    }
+
+    private void AutoBackupFile(string sourceFile) {
+        if (string.IsNullOrEmpty(backupDirectory) || !Directory.Exists(backupDirectory)) return;
+        
+        // 防呆：避免備份資料夾自己備份自己 (無限迴圈)
+        string sourceDir = Path.GetDirectoryName(sourceFile);
+        if (sourceDir.Equals(backupDirectory, StringComparison.OrdinalIgnoreCase)) return;
+
+        // 使用背景執行緒進行備份，避免卡住畫面
+        System.Threading.ThreadPool.QueueUserWorkItem(new System.Threading.WaitCallback(delegate(object state) {
+            string destFile = Path.Combine(backupDirectory, Path.GetFileName(sourceFile));
+            int retries = 5; // 最多重試 5 次 (針對正在下載的大型檔案)
+            
+            while (retries > 0) {
+                try {
+                    System.Threading.Thread.Sleep(1000); // 稍微等待檔案寫入完成
+                    if (File.Exists(sourceFile)) {
+                        File.Copy(sourceFile, destFile, true); // true 代表自動覆蓋舊備份
+                    }
+                    break; // 成功則跳出迴圈
+                } catch {
+                    retries--;
+                    if (retries == 0) {
+                        // 如果重試5次還是失敗，就放棄(可能是檔案被長期佔用)
+                    }
+                }
+            }
+        }));
+    }
+
+    // ==========================================
+    // 視窗控制邏輯
+    // ==========================================
+    protected override void WndProc(ref Message m) {
+        const int WM_NCLBUTTONDOWN = 0x00A1; 
+        const int HTCAPTION = 2;             
+        const int WM_SYSCOMMAND = 0x0112;    
+        const int SC_MOVE = 0xF010;          
+
+        if (isPositionLocked) {
+            if (m.Msg == WM_SYSCOMMAND && (m.WParam.ToInt32() & 0xfff0) == SC_MOVE) return;
+            if (m.Msg == WM_NCLBUTTONDOWN && m.WParam.ToInt32() == HTCAPTION) return;
+        }
+        base.WndProc(ref m);
+    }
+
+    protected override void OnResize(EventArgs e) {
+        base.OnResize(e);
+        if (this.WindowState == FormWindowState.Minimized) {
+            this.Hide(); 
+            this.WindowState = FormWindowState.Normal; 
+        }
+    }
+
+    // ==========================================
+    // 其餘系統功能 (設定、開機、面板)
     // ==========================================
     private bool IsRunOnStartup() {
         try {
@@ -86,7 +189,6 @@ public class MacosTodoWatcher : Form {
                 if (rk != null) {
                     object value = rk.GetValue(appName);
                     if (value != null) {
-                        // 檢查登錄檔內的路徑是否跟現在程式的路徑一樣 (避免移動檔案後失效)
                         string regPath = value.ToString().Replace("\"", "");
                         return regPath.Equals(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase);
                     }
@@ -98,12 +200,10 @@ public class MacosTodoWatcher : Form {
 
     private void ToggleStartup(object sender, EventArgs e) {
         MenuItem item = (MenuItem)sender;
-        item.Checked = !item.Checked; // 切換打勾狀態
-
+        item.Checked = !item.Checked;
         try {
             using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true)) {
                 if (item.Checked) {
-                    // 加上引號以防路徑有空白
                     rk.SetValue(appName, "\"" + Application.ExecutablePath + "\"");
                     trayIcon.ShowBalloonTip(3000, "設定成功", "程式已設定為開機自動執行！", ToolTipIcon.Info);
                 } else {
@@ -112,17 +212,14 @@ public class MacosTodoWatcher : Form {
                 }
             }
         } catch (Exception ex) {
-            MessageBox.Show("設定開機啟動失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            item.Checked = !item.Checked; // 如果失敗，把勾勾復原
+            MessageBox.Show("設定開機啟動失敗：" + ex.Message, "錯誤");
+            item.Checked = !item.Checked; 
         }
     }
 
-    // ==========================================
-    // 管理狀態面板與移除功能
-    // ==========================================
     private void ShowManageWindow(object sender, EventArgs e) {
         Form mgr = new Form() {
-            Text = "管理監控清單與狀態", Width = 450, Height = 350,
+            Text = "管理監控清單與狀態", Width = 450, Height = 400, // 高度加高容納備份資訊
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterScreen,
             MaximizeBox = false, MinimizeBox = false, BackColor = Color.White
@@ -130,20 +227,22 @@ public class MacosTodoWatcher : Form {
         
         TimeSpan uptime = DateTime.Now - startTime;
         string upStr = string.Format("{0}天 {1}小時 {2}分鐘", uptime.Days, uptime.Hours, uptime.Minutes);
-        
+        string bkStr = string.IsNullOrEmpty(backupDirectory) ? "尚未設定" : backupDirectory;
+
         Label lblStat = new Label() {
-            Text = "⏱️ 程式已運行：" + upStr + "\n📁 當前監控數量：" + watchers.Count.ToString() + " 個資料夾",
+            // 【新增】顯示當前備份資料夾狀態
+            Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchers.Count.ToString() + " 個\n💾 自動備份至：" + bkStr,
             Location = new Point(20, 15), AutoSize = true, Font = new Font(MainFont, FontStyle.Bold),
             ForeColor = Color.FromArgb(60, 60, 60)
         };
         mgr.Controls.Add(lblStat);
 
-        ListBox lb = new ListBox() { Location = new Point(20, 65), Width = 390, Height = 170, Font = MainFont };
+        ListBox lb = new ListBox() { Location = new Point(20, 85), Width = 390, Height = 170, Font = MainFont };
         foreach(var w in watchers) { lb.Items.Add(w.Path); }
         mgr.Controls.Add(lb);
 
         Button btnRemove = new Button() {
-            Text = "🗑️ 移除選取的資料夾", Location = new Point(20, 250), Width = 180, Height = 35,
+            Text = "🗑️ 移除選取的資料夾", Location = new Point(20, 270), Width = 180, Height = 35,
             FlatStyle = FlatStyle.Flat, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold)
         };
         btnRemove.FlatAppearance.BorderSize = 0;
@@ -153,13 +252,10 @@ public class MacosTodoWatcher : Form {
                 string selPath = lb.SelectedItem.ToString();
                 RemoveWatchPath(selPath);
                 lb.Items.RemoveAt(lb.SelectedIndex);
-                lblStat.Text = "⏱️ 程式已運行：" + upStr + "\n📁 當前監控數量：" + watchers.Count.ToString() + " 個資料夾";
-            } else {
-                MessageBox.Show("請先選擇要移除的資料夾。", "提示");
-            }
+                lblStat.Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchers.Count.ToString() + " 個\n💾 自動備份至：" + bkStr;
+            } else { MessageBox.Show("請先選擇要移除的資料夾。", "提示"); }
         });
         mgr.Controls.Add(btnRemove);
-
         mgr.ShowDialog();
     }
 
@@ -181,12 +277,8 @@ public class MacosTodoWatcher : Form {
             }
             File.WriteAllLines(configFile, newLines.ToArray());
         }
-        trayIcon.ShowBalloonTip(3000, "移除成功", "已停止監控：\n" + pathToRemove, ToolTipIcon.Info);
     }
 
-    // ==========================================
-    // 新增監控資料夾
-    // ==========================================
     private void OnAddFolderClick(object sender, EventArgs e) {
         FolderBrowserDialog fbd = new FolderBrowserDialog();
         fbd.Description = "請選擇要新增監控的資料夾：";
@@ -223,18 +315,22 @@ public class MacosTodoWatcher : Form {
         } catch {}
     }
 
-    // ==========================================
-    // 系統初始化與事件綁定
-    // ==========================================
     private void LoadConfig() {
         if (!File.Exists(configFile)) {
-            File.WriteAllText(configFile, "# 請透過右下角圖示右鍵「新增監控資料夾」\r\n");
+            File.WriteAllText(configFile, "# 請透過右下角圖示設定\r\n");
             return;
         }
 
         string[] lines = File.ReadAllLines(configFile);
         foreach (string line in lines) {
             string path = line.Trim();
+            
+            // 【新增】讀取備份資料夾設定
+            if (path.StartsWith("BackupDir=", StringComparison.OrdinalIgnoreCase)) {
+                backupDirectory = path.Substring(10).Trim();
+                continue;
+            }
+
             if (path == "" || path.StartsWith("#") || !Directory.Exists(path)) continue;
             try {
                 FileSystemWatcher w = new FileSystemWatcher(path);
@@ -249,12 +345,16 @@ public class MacosTodoWatcher : Form {
         }
     }
 
-    private void OnFileEvent(object source, FileSystemEventArgs e) { SyncAdd(e.FullPath); }
-    private void OnFileDeleted(object source, FileSystemEventArgs e) { RemoveFromFileList(e.FullPath); }
+    private void OnFileEvent(object source, FileSystemEventArgs e) {
+        // 【新增】觸發事件時，呼叫備份與清單更新
+        AutoBackupFile(e.FullPath);
+        SyncAdd(e.FullPath); 
+    }
+    
+    private void OnFileDeleted(object source, FileSystemEventArgs e) { 
+        RemoveFromFileList(e.FullPath); 
+    }
 
-    // ==========================================
-    // UI 面板操作
-    // ==========================================
     private void SyncAdd(string path) {
         if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(SyncAdd), path); return; }
         if (currentFiles.Contains(path) || Directory.Exists(path)) return;
