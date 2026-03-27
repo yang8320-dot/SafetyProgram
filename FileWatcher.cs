@@ -10,8 +10,6 @@ using Microsoft.Win32;
 public class MacosTodoWatcher : Form {
     private Timer scanTimer;
     private int scanIntervalMs = 1500; 
-    
-    // 【新增】監控深度控制變數 (預設 -1 代表無限層)
     private int maxScanDepth = -1; 
     
     private List<string> watchPaths = new List<string>();
@@ -90,7 +88,6 @@ public class MacosTodoWatcher : Form {
         timerMenu.MenuItems.Add("自訂計時掃描...", new EventHandler(OnCustomTimerClick));
         menu.MenuItems.Add(timerMenu);
         
-        // 【新增】監控深度選單
         MenuItem depthMenu = new MenuItem("📂 子資料夾監控深度");
         depthMenu.MenuItems.Add("僅當前資料夾 (0層)", new EventHandler(delegate { SetMaxDepth(0); }));
         depthMenu.MenuItems.Add("向下 1 層", new EventHandler(delegate { SetMaxDepth(1); }));
@@ -120,8 +117,28 @@ public class MacosTodoWatcher : Form {
     }
 
     // ==========================================
-    // 【新增】監控深度設定與演算法
+    // 計時與深度設定
     // ==========================================
+    private void SetScanInterval(int ms) {
+        scanIntervalMs = ms;
+        if (scanTimer != null) scanTimer.Interval = scanIntervalMs;
+        SaveConfig();
+        trayIcon.ShowBalloonTip(2000, "設定更新", "掃描頻率已更改為 " + (ms / 1000.0).ToString() + " 秒", ToolTipIcon.Info);
+    }
+
+    // 【補回遺漏的方法】自訂計時掃描點擊事件
+    private void OnCustomTimerClick(object sender, EventArgs e) {
+        string input = ShowInputBox("請輸入掃描間隔 (秒)：", "自訂掃描頻率", (scanIntervalMs / 1000).ToString());
+        if (!string.IsNullOrEmpty(input)) {
+            int sec;
+            if (int.TryParse(input, out sec) && sec > 0) {
+                SetScanInterval(sec * 1000);
+            } else {
+                MessageBox.Show("請輸入有效的正整數數字！", "錯誤");
+            }
+        }
+    }
+
     private void SetMaxDepth(int depth) {
         maxScanDepth = depth;
         SaveConfig();
@@ -141,14 +158,15 @@ public class MacosTodoWatcher : Form {
         }
     }
 
-    // 輔助類別：用來記錄當前掃描到第幾層
+    // ==========================================
+    // 檔案遞迴搜尋與掃描核心
+    // ==========================================
     private class DirNode {
         public string Path;
         public int Depth;
         public DirNode(string p, int d) { Path = p; Depth = d; }
     }
 
-    // 【核心演算法】依照指定深度遞迴取得所有檔案
     private List<string> GetFilesByDepth(string rootPath, int maxDepth) {
         List<string> files = new List<string>();
         Queue<DirNode> queue = new Queue<DirNode>();
@@ -160,23 +178,17 @@ public class MacosTodoWatcher : Form {
                 string[] dirFiles = Directory.GetFiles(current.Path);
                 foreach (string f in dirFiles) { files.Add(f); }
 
-                // 如果還沒達到最大層數，就把子資料夾加入排隊名單
                 if (maxDepth == -1 || current.Depth < maxDepth) {
                     string[] subDirs = Directory.GetDirectories(current.Path);
                     foreach (string subDir in subDirs) {
                         queue.Enqueue(new DirNode(subDir, current.Depth + 1));
                     }
                 }
-            } catch {
-                // 如果遇到沒有權限的系統隱藏資料夾，直接忽略不報錯
-            }
+            } catch { }
         }
         return files;
     }
 
-    // ==========================================
-    // 掃描與比對引擎
-    // ==========================================
     private void QuietlyIndexDirectory(string dir) {
         if (!Directory.Exists(dir)) return;
         List<string> files = GetFilesByDepth(dir, maxScanDepth);
@@ -237,16 +249,6 @@ public class MacosTodoWatcher : Form {
         scanTimer.Start(); 
     }
 
-    // ==========================================
-    // 檔案操作與介面事件
-    // ==========================================
-    private void SetScanInterval(int ms) {
-        scanIntervalMs = ms;
-        if (scanTimer != null) scanTimer.Interval = scanIntervalMs;
-        SaveConfig();
-        trayIcon.ShowBalloonTip(2000, "設定更新", "掃描頻率已更改為 " + (ms / 1000.0).ToString() + " 秒", ToolTipIcon.Info);
-    }
-
     private void OnFileChanged(string fullPath) {
         trayIcon.ShowBalloonTip(1500, "偵測到檔案變動", "檔案: " + Path.GetFileName(fullPath), ToolTipIcon.Info);
         AutoBackupFile(fullPath);
@@ -257,6 +259,9 @@ public class MacosTodoWatcher : Form {
         RemoveFromFileList(fullPath); 
     }
 
+    // ==========================================
+    // UI 元件與設定讀寫
+    // ==========================================
     public static string ShowInputBox(string prompt, string title, string defaultValue) {
         Form form = new Form() { Width = 350, Height = 175, FormBorderStyle = FormBorderStyle.FixedDialog, Text = title, StartPosition = FormStartPosition.CenterScreen, MaximizeBox = false, MinimizeBox = false };
         Label textLabel = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true };
@@ -284,7 +289,7 @@ public class MacosTodoWatcher : Form {
     private void SaveConfig() {
         List<string> lines = new List<string>();
         lines.Add("ScanInterval=" + scanIntervalMs.ToString());
-        lines.Add("MaxDepth=" + maxScanDepth.ToString()); // 寫入深度設定
+        lines.Add("MaxDepth=" + maxScanDepth.ToString()); 
         if (!string.IsNullOrEmpty(backupDirectory)) {
             lines.Add("BackupDir=" + backupDirectory);
         }
@@ -314,6 +319,9 @@ public class MacosTodoWatcher : Form {
         }));
     }
 
+    // ==========================================
+    // 視窗行為與登錄檔操作
+    // ==========================================
     protected override void WndProc(ref Message m) {
         const int WM_NCLBUTTONDOWN = 0x00A1; 
         const int HTCAPTION = 2;             
