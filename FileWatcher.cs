@@ -15,14 +15,12 @@ public class MacosTodoWatcher : Form {
     private Label titleLabel;
     private HashSet<string> currentFiles = new HashSet<string>();
 
-    // Apple 設計規範配色
     private static Color BgColor = Color.FromArgb(245, 245, 247); 
     private static Color CardColor = Color.White;
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public MacosTodoWatcher() {
-        // 視窗基本設定
         this.Text = "通知中心";
         this.Width = 360;
         this.Height = 450;
@@ -32,11 +30,9 @@ public class MacosTodoWatcher : Form {
         this.ShowInTaskbar = false;
         this.BackColor = BgColor;
 
-        // 定位在右下角
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
-        // 標題區
         titleLabel = new Label() { 
             Text = "📋 待處理項目：0", Dock = DockStyle.Top, Height = 50, 
             TextAlign = ContentAlignment.MiddleCenter,
@@ -45,46 +41,58 @@ public class MacosTodoWatcher : Form {
         };
         this.Controls.Add(titleLabel);
 
-        // 清單容器
         fileListPanel = new FlowLayoutPanel() { 
             Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(12, 0, 12, 10), BackColor = BgColor 
         };
         this.Controls.Add(fileListPanel);
 
-        // 右下角托盤圖示
         trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "檔案監控 (macOS Style)" };
         ContextMenu menu = new ContextMenu();
-        menu.MenuItems.Add("顯示清單", (s, e) => { this.Show(); this.WindowState = FormWindowState.Normal; });
-        menu.MenuItems.Add("結束程式", (s, e) => { trayIcon.Dispose(); Application.Exit(); });
+        menu.MenuItems.Add("顯示清單", new EventHandler(delegate { this.Show(); this.WindowState = FormWindowState.Normal; }));
+        menu.MenuItems.Add("結束程式", new EventHandler(delegate { trayIcon.Dispose(); Application.Exit(); }));
         trayIcon.ContextMenu = menu;
 
         LoadConfig();
         this.Opacity = 0; 
-        Load += (s, e) => this.Hide();
+        this.Load += new EventHandler(delegate { this.Hide(); });
     }
 
     private void LoadConfig() {
         if (!File.Exists(configFile)) return;
-        foreach (var path in File.ReadAllLines(configFile).Select(l => l.Trim()).Where(l => Directory.Exists(l))) {
-            var w = new FileSystemWatcher(path) { Filter = "*.*", EnableRaisingEvents = true };
+        string[] lines = File.ReadAllLines(configFile);
+        foreach (string line in lines) {
+            string path = line.Trim();
+            if (path == "" || path.StartsWith("#") || !Directory.Exists(path)) continue;
+
+            FileSystemWatcher w = new FileSystemWatcher(path);
+            w.Filter = "*.*";
             w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
-            w.Created += (s, e) => SyncAdd(e.FullPath);
-            w.Changed += (s, e) => SyncAdd(e.FullPath);
+            w.Created += new FileSystemEventHandler(OnFileEvent);
+            w.Changed += new FileSystemEventHandler(OnFileEvent);
+            w.EnableRaisingEvents = true;
             watchers.Add(w);
         }
     }
 
+    private void OnFileEvent(object source, FileSystemEventArgs e) {
+        SyncAdd(e.FullPath);
+    }
+
     private void SyncAdd(string path) {
-        if (this.InvokeRequired) { this.BeginInvoke((MethodInvoker)(() => SyncAdd(path))); return; }
+        if (this.InvokeRequired) { 
+            this.BeginInvoke(new Action<string>(SyncAdd), path); 
+            return; 
+        }
         if (currentFiles.Contains(path) || Directory.Exists(path)) return;
         currentFiles.Add(path);
 
-        // 卡片容器 (圓角模擬)
         Panel card = new Panel() { Width = 310, Height = 60, BackColor = CardColor, Margin = new Padding(0, 0, 0, 10) };
-        card.Paint += (s, e) => {
-            using (GraphicsPath p = GetRoundedPath(new Rectangle(0, 0, card.Width-1, card.Height-1), 10))
-            { e.Graphics.SmoothingMode = SmoothingMode.AntiAlias; e.Graphics.DrawPath(new Pen(Color.FromArgb(230, 230, 230)), p); }
-        };
+        card.Paint += new PaintEventHandler(delegate(object s, PaintEventArgs ev) {
+            using (GraphicsPath p = GetRoundedPath(new Rectangle(0, 0, card.Width-1, card.Height-1), 10)) {
+                ev.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                ev.Graphics.DrawPath(new Pen(Color.FromArgb(230, 230, 230)), p);
+            }
+        });
 
         Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(15, 12), Width = 210, Font = MainFont, AutoEllipsis = true };
         Label info = new Label() { Text = DateTime.Now.ToString("HH:mm") + " • 新變動", Location = new Point(15, 34), ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8) };
@@ -95,13 +103,16 @@ public class MacosTodoWatcher : Form {
         };
         btn.FlatAppearance.BorderSize = 0;
 
-        btn.Click += (s, e) => {
-            try { Process.Start("explorer.exe", $"/select,\"{path}\""); } catch {}
+        btn.Click += new EventHandler(delegate {
+            try { 
+                // 這裡改用傳統字串相加，避開 $ 符號
+                Process.Start("explorer.exe", "/select,\"" + path + "\""); 
+            } catch {}
             fileListPanel.Controls.Remove(card);
             currentFiles.Remove(path);
             if (fileListPanel.Controls.Count == 0) this.Hide();
             UpdateCount();
-        };
+        });
 
         card.Controls.Add(name); card.Controls.Add(info); card.Controls.Add(btn);
         fileListPanel.Controls.Add(card);
@@ -109,13 +120,26 @@ public class MacosTodoWatcher : Form {
         if (!this.Visible) { this.Opacity = 1; this.Show(); }
     }
 
-    private void UpdateCount() { titleLabel.Text = $"📋 待處理項目：{fileListPanel.Controls.Count}"; }
+    private void UpdateCount() { 
+        // 這裡改用傳統字串相加
+        titleLabel.Text = "📋 待處理項目：" + fileListPanel.Controls.Count.ToString(); 
+    }
+
     private GraphicsPath GetRoundedPath(Rectangle r, int rad) {
         GraphicsPath p = new GraphicsPath(); int d = rad * 2;
         p.AddArc(r.X, r.Y, d, d, 180, 90); p.AddArc(r.Right-d, r.Y, d, d, 270, 90);
         p.AddArc(r.Right-d, r.Bottom-d, d, d, 0, 90); p.AddArc(r.X, r.Bottom-d, d, d, 90, 90);
         p.CloseFigure(); return p;
     }
-    protected override void OnFormClosing(FormClosingEventArgs e) { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; this.Hide(); } base.OnFormClosing(e); }
-    [STAThread] public static void Main() { Application.EnableVisualStyles(); Application.Run(new MacosTodoWatcher()); }
+
+    protected override void OnFormClosing(FormClosingEventArgs e) { 
+        if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; this.Hide(); } 
+        base.OnFormClosing(e); 
+    }
+
+    [STAThread] 
+    public static void Main() { 
+        Application.EnableVisualStyles(); 
+        Application.Run(new MacosTodoWatcher()); 
+    }
 }
