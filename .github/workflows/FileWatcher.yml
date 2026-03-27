@@ -1,0 +1,20 @@
+name: Build CSharp EXE
+
+on: [push, workflow_dispatch] # 當你上傳檔案或手動點擊時執行
+
+jobs:
+  build:
+    runs-on: windows-latest # 讓 GitHub 開一台 Windows 給你用
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Compile EXE
+        run: |
+          # 呼叫微軟伺服器裡的編譯器
+          C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /r:System.Drawing.dll /out:FileWatcher.exe FileWatcher.cs
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: MyCompiledProgram
+          path: FileWatcher.exe
