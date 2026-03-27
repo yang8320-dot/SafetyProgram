@@ -8,7 +8,15 @@ using System.Drawing.Drawing2D;
 using Microsoft.Win32;
 
 public class MacosTodoWatcher : Form {
-    private List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
+    private Timer scanTimer;
+    private int scanIntervalMs = 1500; 
+    
+    // 【新增】監控深度控制變數 (預設 -1 代表無限層)
+    private int maxScanDepth = -1; 
+    
+    private List<string> watchPaths = new List<string>();
+    private Dictionary<string, DateTime> knownFiles = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
     private NotifyIcon trayIcon;
     private string configFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.txt");
     private FlowLayoutPanel fileListPanel;
@@ -26,9 +34,7 @@ public class MacosTodoWatcher : Form {
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public MacosTodoWatcher() {
-        // 【關鍵修復】強制系統建立畫面神經連結，防止背景隱藏時當機
         IntPtr forceHandle = this.Handle;
-
         startTime = DateTime.Now; 
 
         this.Text = "通知中心";
@@ -59,7 +65,7 @@ public class MacosTodoWatcher : Form {
         this.Controls.Add(fileListPanel);
 
         // --- 系統托盤與右鍵選單 ---
-        trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "檔案監控 (macOS Style)" };
+        trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "檔案監控 (掃描模式)" };
         ContextMenu menu = new ContextMenu();
         
         menu.MenuItems.Add("顯示待辦清單", new EventHandler(delegate { this.Show(); this.WindowState = FormWindowState.Normal; }));
@@ -76,6 +82,22 @@ public class MacosTodoWatcher : Form {
             lockMenu.Checked = isPositionLocked;
         });
         menu.MenuItems.Add(lockMenu);
+        menu.MenuItems.Add("-");
+
+        MenuItem timerMenu = new MenuItem("⏱️ 掃描頻率設定");
+        timerMenu.MenuItems.Add("即時掃描 (1 秒)", new EventHandler(delegate { SetScanInterval(1000); }));
+        timerMenu.MenuItems.Add("一般掃描 (5 秒)", new EventHandler(delegate { SetScanInterval(5000); }));
+        timerMenu.MenuItems.Add("自訂計時掃描...", new EventHandler(OnCustomTimerClick));
+        menu.MenuItems.Add(timerMenu);
+        
+        // 【新增】監控深度選單
+        MenuItem depthMenu = new MenuItem("📂 子資料夾監控深度");
+        depthMenu.MenuItems.Add("僅當前資料夾 (0層)", new EventHandler(delegate { SetMaxDepth(0); }));
+        depthMenu.MenuItems.Add("向下 1 層", new EventHandler(delegate { SetMaxDepth(1); }));
+        depthMenu.MenuItems.Add("向下 2 層", new EventHandler(delegate { SetMaxDepth(2); }));
+        depthMenu.MenuItems.Add("無限層 (預設)", new EventHandler(delegate { SetMaxDepth(-1); }));
+        depthMenu.MenuItems.Add("自訂層數...", new EventHandler(OnCustomDepthClick));
+        menu.MenuItems.Add(depthMenu);
         
         menu.MenuItems.Add("-");
         menu.MenuItems.Add("➕ 新增監控資料夾...", new EventHandler(OnAddFolderClick));
@@ -85,10 +107,167 @@ public class MacosTodoWatcher : Form {
         menu.MenuItems.Add("結束程式", new EventHandler(delegate { trayIcon.Dispose(); Application.Exit(); }));
         trayIcon.ContextMenu = menu;
 
+        scanTimer = new Timer();
+        scanTimer.Tick += new EventHandler(PerformScan);
+        
         LoadConfig();
         
+        scanTimer.Interval = scanIntervalMs;
+        scanTimer.Start();
+
         this.Opacity = 0; 
         this.Load += new EventHandler(delegate { this.Hide(); });
+    }
+
+    // ==========================================
+    // 【新增】監控深度設定與演算法
+    // ==========================================
+    private void SetMaxDepth(int depth) {
+        maxScanDepth = depth;
+        SaveConfig();
+        string msg = depth == -1 ? "無限層 (全部子資料夾)" : "向下 " + depth.ToString() + " 層";
+        trayIcon.ShowBalloonTip(2000, "深度設定更新", "子資料夾監控深度已設定為：\n" + msg, ToolTipIcon.Info);
+    }
+
+    private void OnCustomDepthClick(object sender, EventArgs e) {
+        string input = ShowInputBox("請輸入監控深度 (整數)：\n(0 代表不看子資料夾，-1 代表無限層)", "自訂監控深度", maxScanDepth.ToString());
+        if (!string.IsNullOrEmpty(input)) {
+            int d;
+            if (int.TryParse(input, out d) && d >= -1) {
+                SetMaxDepth(d);
+            } else {
+                MessageBox.Show("請輸入有效的整數數字 (>= -1)！", "錯誤");
+            }
+        }
+    }
+
+    // 輔助類別：用來記錄當前掃描到第幾層
+    private class DirNode {
+        public string Path;
+        public int Depth;
+        public DirNode(string p, int d) { Path = p; Depth = d; }
+    }
+
+    // 【核心演算法】依照指定深度遞迴取得所有檔案
+    private List<string> GetFilesByDepth(string rootPath, int maxDepth) {
+        List<string> files = new List<string>();
+        Queue<DirNode> queue = new Queue<DirNode>();
+        queue.Enqueue(new DirNode(rootPath, 0));
+
+        while (queue.Count > 0) {
+            DirNode current = queue.Dequeue();
+            try {
+                string[] dirFiles = Directory.GetFiles(current.Path);
+                foreach (string f in dirFiles) { files.Add(f); }
+
+                // 如果還沒達到最大層數，就把子資料夾加入排隊名單
+                if (maxDepth == -1 || current.Depth < maxDepth) {
+                    string[] subDirs = Directory.GetDirectories(current.Path);
+                    foreach (string subDir in subDirs) {
+                        queue.Enqueue(new DirNode(subDir, current.Depth + 1));
+                    }
+                }
+            } catch {
+                // 如果遇到沒有權限的系統隱藏資料夾，直接忽略不報錯
+            }
+        }
+        return files;
+    }
+
+    // ==========================================
+    // 掃描與比對引擎
+    // ==========================================
+    private void QuietlyIndexDirectory(string dir) {
+        if (!Directory.Exists(dir)) return;
+        List<string> files = GetFilesByDepth(dir, maxScanDepth);
+        foreach (string f in files) {
+            try { knownFiles[f] = File.GetLastWriteTime(f); } catch {}
+        }
+    }
+
+    private void PerformScan(object sender, EventArgs e) {
+        if (watchPaths.Count == 0) return;
+        scanTimer.Stop(); 
+
+        HashSet<string> currentDiskFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string dir in watchPaths) {
+            if (!Directory.Exists(dir)) continue;
+
+            List<string> files = GetFilesByDepth(dir, maxScanDepth);
+            foreach (string file in files) {
+                currentDiskFiles.Add(file);
+                try {
+                    DateTime lastWrite = File.GetLastWriteTime(file);
+                    bool isNewOrChanged = false;
+                    
+                    if (!knownFiles.ContainsKey(file)) {
+                        isNewOrChanged = true; 
+                    } else if (knownFiles[file] != lastWrite) {
+                        isNewOrChanged = true; 
+                    }
+
+                    if (isNewOrChanged) {
+                        knownFiles[file] = lastWrite; 
+                        OnFileChanged(file); 
+                    }
+                } catch {}
+            }
+        }
+
+        List<string> deleted = new List<string>();
+        foreach (string knownPath in knownFiles.Keys) {
+            bool belongsToWatch = false;
+            foreach (string dir in watchPaths) {
+                if (knownPath.StartsWith(dir, StringComparison.OrdinalIgnoreCase)) {
+                    belongsToWatch = true; break;
+                }
+            }
+
+            if (belongsToWatch && !currentDiskFiles.Contains(knownPath)) {
+                deleted.Add(knownPath);
+            }
+        }
+
+        foreach (string del in deleted) {
+            knownFiles.Remove(del);
+            OnFileDeleted(del); 
+        }
+
+        scanTimer.Start(); 
+    }
+
+    // ==========================================
+    // 檔案操作與介面事件
+    // ==========================================
+    private void SetScanInterval(int ms) {
+        scanIntervalMs = ms;
+        if (scanTimer != null) scanTimer.Interval = scanIntervalMs;
+        SaveConfig();
+        trayIcon.ShowBalloonTip(2000, "設定更新", "掃描頻率已更改為 " + (ms / 1000.0).ToString() + " 秒", ToolTipIcon.Info);
+    }
+
+    private void OnFileChanged(string fullPath) {
+        trayIcon.ShowBalloonTip(1500, "偵測到檔案變動", "檔案: " + Path.GetFileName(fullPath), ToolTipIcon.Info);
+        AutoBackupFile(fullPath);
+        SyncAdd(fullPath); 
+    }
+    
+    private void OnFileDeleted(string fullPath) { 
+        RemoveFromFileList(fullPath); 
+    }
+
+    public static string ShowInputBox(string prompt, string title, string defaultValue) {
+        Form form = new Form() { Width = 350, Height = 175, FormBorderStyle = FormBorderStyle.FixedDialog, Text = title, StartPosition = FormStartPosition.CenterScreen, MaximizeBox = false, MinimizeBox = false };
+        Label textLabel = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true };
+        TextBox textBox = new TextBox() { Left = 20, Top = 65, Width = 290, Text = defaultValue };
+        Button confirmation = new Button() { Text = "確定", Left = 150, Width = 75, Top = 100, DialogResult = DialogResult.OK };
+        Button cancel = new Button() { Text = "取消", Left = 235, Width = 75, Top = 100, DialogResult = DialogResult.Cancel };
+        confirmation.Click += new EventHandler(delegate { form.Close(); });
+        cancel.Click += new EventHandler(delegate { form.Close(); });
+        form.Controls.Add(textBox); form.Controls.Add(confirmation); form.Controls.Add(cancel); form.Controls.Add(textLabel);
+        form.AcceptButton = confirmation; form.CancelButton = cancel;
+        return form.ShowDialog() == DialogResult.OK ? textBox.Text : "";
     }
 
     private void OnSetBackupFolder(object sender, EventArgs e) {
@@ -96,36 +275,29 @@ public class MacosTodoWatcher : Form {
         fbd.Description = "請選擇自動備份的目標資料夾：";
         if (fbd.ShowDialog() == DialogResult.OK) {
             backupDirectory = fbd.SelectedPath;
-            SaveBackupConfig();
+            SaveConfig();
             MessageBox.Show("備份資料夾已設定為：\n" + backupDirectory, "設定成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         fbd.Dispose();
     }
 
-    private void SaveBackupConfig() {
-        if (!File.Exists(configFile)) return;
-        string[] lines = File.ReadAllLines(configFile);
-        List<string> newLines = new List<string>();
-        bool backupSet = false;
-
-        foreach (string line in lines) {
-            if (line.StartsWith("BackupDir=", StringComparison.OrdinalIgnoreCase)) {
-                newLines.Add("BackupDir=" + backupDirectory);
-                backupSet = true;
-            } else {
-                newLines.Add(line);
-            }
+    private void SaveConfig() {
+        List<string> lines = new List<string>();
+        lines.Add("ScanInterval=" + scanIntervalMs.ToString());
+        lines.Add("MaxDepth=" + maxScanDepth.ToString()); // 寫入深度設定
+        if (!string.IsNullOrEmpty(backupDirectory)) {
+            lines.Add("BackupDir=" + backupDirectory);
         }
-        if (!backupSet) {
-            newLines.Insert(0, "BackupDir=" + backupDirectory);
+        foreach (string path in watchPaths) {
+            lines.Add(path);
         }
-        File.WriteAllLines(configFile, newLines.ToArray());
+        File.WriteAllLines(configFile, lines.ToArray());
     }
 
     private void AutoBackupFile(string sourceFile) {
         if (string.IsNullOrEmpty(backupDirectory) || !Directory.Exists(backupDirectory)) return;
         string sourceDir = Path.GetDirectoryName(sourceFile);
-        if (sourceDir.Equals(backupDirectory, StringComparison.OrdinalIgnoreCase)) return;
+        if (sourceDir.StartsWith(backupDirectory, StringComparison.OrdinalIgnoreCase)) return;
 
         System.Threading.ThreadPool.QueueUserWorkItem(new System.Threading.WaitCallback(delegate(object state) {
             string destFile = Path.Combine(backupDirectory, Path.GetFileName(sourceFile));
@@ -137,9 +309,7 @@ public class MacosTodoWatcher : Form {
                         File.Copy(sourceFile, destFile, true); 
                     }
                     break; 
-                } catch {
-                    retries--;
-                }
+                } catch { retries--; }
             }
         }));
     }
@@ -168,12 +338,9 @@ public class MacosTodoWatcher : Form {
     private bool IsRunOnStartup() {
         try {
             using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false)) {
-                if (rk != null) {
-                    object value = rk.GetValue(appName);
-                    if (value != null) {
-                        string regPath = value.ToString().Replace("\"", "");
-                        return regPath.Equals(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase);
-                    }
+                if (rk != null && rk.GetValue(appName) != null) {
+                    string regPath = rk.GetValue(appName).ToString().Replace("\"", "");
+                    return regPath.Equals(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase);
                 }
             }
         } catch {}
@@ -194,14 +361,14 @@ public class MacosTodoWatcher : Form {
                 }
             }
         } catch (Exception ex) {
-            MessageBox.Show("設定開機啟動失敗：" + ex.Message, "錯誤");
+            MessageBox.Show("設定失敗：" + ex.Message, "錯誤");
             item.Checked = !item.Checked; 
         }
     }
 
     private void ShowManageWindow(object sender, EventArgs e) {
         Form mgr = new Form() {
-            Text = "管理監控清單與狀態", Width = 450, Height = 400, 
+            Text = "管理監控清單與狀態", Width = 450, Height = 420, 
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterScreen,
             MaximizeBox = false, MinimizeBox = false, BackColor = Color.White
@@ -210,16 +377,18 @@ public class MacosTodoWatcher : Form {
         TimeSpan uptime = DateTime.Now - startTime;
         string upStr = string.Format("{0}天 {1}小時 {2}分鐘", uptime.Days, uptime.Hours, uptime.Minutes);
         string bkStr = string.IsNullOrEmpty(backupDirectory) ? "尚未設定" : backupDirectory;
+        string freqStr = (scanIntervalMs / 1000.0).ToString() + " 秒";
+        string depthStr = maxScanDepth == -1 ? "無限層 (全部)" : "向下 " + maxScanDepth.ToString() + " 層";
 
         Label lblStat = new Label() {
-            Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchers.Count.ToString() + " 個\n💾 自動備份至：" + bkStr,
+            Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchPaths.Count.ToString() + " 個\n💾 自動備份至：" + bkStr + "\n📡 掃描頻率：" + freqStr + "\n📂 監控深度：" + depthStr,
             Location = new Point(20, 15), AutoSize = true, Font = new Font(MainFont, FontStyle.Bold),
             ForeColor = Color.FromArgb(60, 60, 60)
         };
         mgr.Controls.Add(lblStat);
 
-        ListBox lb = new ListBox() { Location = new Point(20, 85), Width = 390, Height = 170, Font = MainFont };
-        foreach(var w in watchers) { lb.Items.Add(w.Path); }
+        ListBox lb = new ListBox() { Location = new Point(20, 115), Width = 390, Height = 140, Font = MainFont };
+        foreach(var w in watchPaths) { lb.Items.Add(w); }
         mgr.Controls.Add(lb);
 
         Button btnRemove = new Button() {
@@ -231,33 +400,14 @@ public class MacosTodoWatcher : Form {
         btnRemove.Click += new EventHandler(delegate {
             if(lb.SelectedIndex != -1) {
                 string selPath = lb.SelectedItem.ToString();
-                RemoveWatchPath(selPath);
+                watchPaths.Remove(selPath);
                 lb.Items.RemoveAt(lb.SelectedIndex);
-                lblStat.Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchers.Count.ToString() + " 個\n💾 自動備份至：" + bkStr;
+                SaveConfig();
+                lblStat.Text = "⏱️ 程式已運行：" + upStr + "\n📁 監控中資料夾：" + watchPaths.Count.ToString() + " 個\n💾 自動備份至：" + bkStr + "\n📡 掃描頻率：" + freqStr + "\n📂 監控深度：" + depthStr;
             } else { MessageBox.Show("請先選擇要移除的資料夾。", "提示"); }
         });
         mgr.Controls.Add(btnRemove);
         mgr.ShowDialog();
-    }
-
-    private void RemoveWatchPath(string pathToRemove) {
-        FileSystemWatcher toRemove = null;
-        foreach(var w in watchers) {
-            if(w.Path.Equals(pathToRemove, StringComparison.OrdinalIgnoreCase)) { toRemove = w; break; }
-        }
-        if(toRemove != null) {
-            toRemove.EnableRaisingEvents = false;
-            toRemove.Dispose();
-            watchers.Remove(toRemove);
-        }
-        if(File.Exists(configFile)) {
-            string[] lines = File.ReadAllLines(configFile);
-            List<string> newLines = new List<string>();
-            foreach(string l in lines) {
-                if(!l.Trim().Equals(pathToRemove, StringComparison.OrdinalIgnoreCase)) { newLines.Add(l); }
-            }
-            File.WriteAllLines(configFile, newLines.ToArray());
-        }
     }
 
     private void OnAddFolderClick(object sender, EventArgs e) {
@@ -269,81 +419,53 @@ public class MacosTodoWatcher : Form {
 
     private void AddNewPath(string newPath) {
         if (!Directory.Exists(newPath)) return;
-        if (File.Exists(configFile)) {
-            string[] lines = File.ReadAllLines(configFile);
-            foreach (string line in lines) {
-                if (line.Trim().Equals(newPath, StringComparison.OrdinalIgnoreCase)) {
-                    MessageBox.Show("這個資料夾已經在監控清單中了！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+        
+        foreach (string p in watchPaths) {
+            if (p.Equals(newPath, StringComparison.OrdinalIgnoreCase)) {
+                MessageBox.Show("這個資料夾已經在監控清單中了！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
         }
-        try {
-            string prefix = File.Exists(configFile) ? "\r\n" : "";
-            File.AppendAllText(configFile, prefix + newPath);
-        } catch {}
-
-        try {
-            FileSystemWatcher w = new FileSystemWatcher(newPath);
-            w.Filter = "*.*";
-            // 【關鍵修復】擴大監控範圍，確保所有變動都能被抓到
-            w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size;
-            w.Created += new FileSystemEventHandler(OnFileEvent);
-            w.Changed += new FileSystemEventHandler(OnFileEvent);
-            w.Deleted += new FileSystemEventHandler(OnFileDeleted);
-            w.EnableRaisingEvents = true;
-            watchers.Add(w);
-            trayIcon.ShowBalloonTip(3000, "新增成功", "已開始監控：\n" + newPath, ToolTipIcon.Info);
-        } catch {}
+        
+        watchPaths.Add(newPath);
+        QuietlyIndexDirectory(newPath); 
+        SaveConfig();
+        
+        trayIcon.ShowBalloonTip(3000, "新增成功", "已開始掃描：\n" + newPath, ToolTipIcon.Info);
     }
 
     private void LoadConfig() {
-        if (!File.Exists(configFile)) {
-            File.WriteAllText(configFile, "# 請透過右下角圖示設定\r\n");
-            return;
-        }
+        if (!File.Exists(configFile)) return;
 
         string[] lines = File.ReadAllLines(configFile);
         foreach (string line in lines) {
-            string path = line.Trim();
+            string text = line.Trim();
+            if (text == "" || text.StartsWith("#")) continue;
             
-            if (path.StartsWith("BackupDir=", StringComparison.OrdinalIgnoreCase)) {
-                backupDirectory = path.Substring(10).Trim();
+            if (text.StartsWith("ScanInterval=", StringComparison.OrdinalIgnoreCase)) {
+                int.TryParse(text.Substring(13), out scanIntervalMs);
+                if (scanIntervalMs < 500) scanIntervalMs = 500; 
                 continue;
             }
-
-            if (path == "" || path.StartsWith("#") || !Directory.Exists(path)) continue;
-            try {
-                FileSystemWatcher w = new FileSystemWatcher(path);
-                w.Filter = "*.*";
-                // 【關鍵修復】擴大監控範圍
-                w.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size;
-                w.Created += new FileSystemEventHandler(OnFileEvent);
-                w.Changed += new FileSystemEventHandler(OnFileEvent);
-                w.Deleted += new FileSystemEventHandler(OnFileDeleted);
-                w.EnableRaisingEvents = true;
-                watchers.Add(w);
-            } catch {}
+            if (text.StartsWith("MaxDepth=", StringComparison.OrdinalIgnoreCase)) {
+                int.TryParse(text.Substring(9), out maxScanDepth);
+                continue;
+            }
+            if (text.StartsWith("BackupDir=", StringComparison.OrdinalIgnoreCase)) {
+                backupDirectory = text.Substring(10).Trim();
+                continue;
+            }
+            if (Directory.Exists(text)) {
+                watchPaths.Add(text);
+                QuietlyIndexDirectory(text); 
+            }
         }
     }
 
-    private void OnFileEvent(object source, FileSystemEventArgs e) {
-        // 【診斷修復】第一時間跳出右下角氣泡提示！
-        trayIcon.ShowBalloonTip(1500, "偵測到檔案變動", "檔案: " + Path.GetFileName(e.FullPath), ToolTipIcon.Info);
-
-        AutoBackupFile(e.FullPath);
-        SyncAdd(e.FullPath); 
-    }
-    
-    private void OnFileDeleted(object source, FileSystemEventArgs e) { 
-        RemoveFromFileList(e.FullPath); 
-    }
-
     private void SyncAdd(string path) {
-        if (!this.IsHandleCreated) return; // 保護機制
+        if (!this.IsHandleCreated) return; 
 
         if (this.InvokeRequired) { 
-            // 【相容修復】確保舊版編譯器也能正確執行畫面更新
             this.BeginInvoke(new Action<string>(SyncAdd), new object[] { path }); 
             return; 
         }
