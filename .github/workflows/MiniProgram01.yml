@@ -8,18 +8,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4  # 【升級到 v4】
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2  # 【升級到 v2】
+        uses: actions/checkout@v4
 
       - name: Compile C# Multi-Files
+        # 【關鍵修復】直接指定編譯器的「絕對路徑」，保證絕對找得到！
         run: |
           cd MiniProgram01
-          csc.exe /target:winexe /out:MiniProgram01.exe /optimize+ /win32icon:NONE *.cs
+          C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:MiniProgram01.exe /optimize+ *.cs
 
       - name: Upload EXE
-        uses: actions/upload-artifact@v4  # 【升級到 v4】徹底解決報錯！
+        uses: actions/upload-artifact@v4
         with:
           name: MiniProgram01-App
           path: MiniProgram01/MiniProgram01.exe
