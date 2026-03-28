@@ -45,49 +45,51 @@ public class App_RecurringTasks : UserControl {
         this.Padding = new Padding(10);
 
         // ==========================================
-        // 【全新排版】加高頂部面板，將擁擠的元件分層放置
+        // 【終極防跑版】加高面板至 200px，改為 5 層式排版
         // ==========================================
-        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 165 }; 
+        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 200 }; 
         
-        // 第一排：任務內容
+        // --- 第 1 層 (Y=10)：任務內容 ---
         Label lblName = new Label() { Text = "任務內容：", Location = new Point(5, 12), AutoSize = true, Font = MainFont };
-        txtName = new TextBox() { Location = new Point(85, 10), Width = 260, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
+        txtName = new TextBox() { Location = new Point(85, 10), Width = 255, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
 
-        // 第二排：月份 與 日期 (給予超大寬度，不怕字體放大)
+        // --- 第 2 層 (Y=45)：月份 與 日期 ---
         Label lblMonth = new Label() { Text = "月份：", Location = new Point(5, 47), AutoSize = true, Font = MainFont };
-        cmbMonth = new ComboBox() { Location = new Point(55, 45), Width = 80, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbMonth = new ComboBox() { Location = new Point(60, 45), Width = 85, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbMonth.Items.Add("每個月");
         for (int i = 1; i <= 12; i++) cmbMonth.Items.Add(i + "月");
         cmbMonth.SelectedIndex = 0;
 
-        Label lblDate = new Label() { Text = "日期：", Location = new Point(145, 47), AutoSize = true, Font = MainFont };
-        cmbDate = new ComboBox() { Location = new Point(195, 45), Width = 150, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // 給予日期選單超大空間
+        Label lblDate = new Label() { Text = "日期：", Location = new Point(155, 47), AutoSize = true, Font = MainFont };
+        cmbDate = new ComboBox() { Location = new Point(205, 45), Width = 135, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDate.Items.Add("每天");
         for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i + "號");
         cmbDate.Items.AddRange(new string[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日", "工作日", "週末" });
         cmbDate.SelectedIndex = 0;
 
-        // 第三排：時間 與 建立按鈕 (移到下一行，版面瞬間清爽)
+        // --- 第 3 層 (Y=80)：獨立一行的時間設定 ---
         Label lblTime = new Label() { Text = "時間：", Location = new Point(5, 82), AutoSize = true, Font = MainFont };
-        dtpTime = new DateTimePicker() { Location = new Point(55, 80), Width = 80, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        dtpTime = new DateTimePicker() { Location = new Point(60, 80), Width = 85, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
+        // --- 第 4 層 (Y=115)：霸氣的滿版新增按鈕 ---
         Button btnAdd = new Button() { 
-            Text = "+ 建立週期任務", Location = new Point(145, 79), Width = 200, Height = 28, 
+            Text = "+ 建立週期任務", Location = new Point(5, 115), Width = 335, Height = 32, 
             FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand 
         };
         btnAdd.FlatAppearance.BorderSize = 0;
         btnAdd.Click += new EventHandler(delegate { AddRecurringTask(); });
 
-        // 第四排：預告設定 (與上方稍微拉開一點距離)
-        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 127), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
-        cmbDigest = new ComboBox() { Location = new Point(85, 125), Width = 95, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // --- 第 5 層 (Y=160)：總覽預告 ---
+        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 162), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
+        cmbDigest = new ComboBox() { Location = new Point(85, 160), Width = 85, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDigest.Items.AddRange(new string[] { "不提醒", "每週一", "每月1號" });
         cmbDigest.SelectedIndex = 0;
 
-        dtpDigestTime = new DateTimePicker() { Location = new Point(185, 125), Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        dtpDigestTime = new DateTimePicker() { Location = new Point(175, 160), Width = 70, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
         Button btnSaveDigest = new Button() { 
-            Text = "儲存設定", Location = new Point(255, 124), Width = 90, Height = 26, 
+            Text = "儲存設定", Location = new Point(250, 159), Width = 90, Height = 26, 
             FlatStyle = FlatStyle.Flat, BackColor = Color.LightGray, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold)
         };
         btnSaveDigest.FlatAppearance.BorderSize = 0;
@@ -98,6 +100,7 @@ public class App_RecurringTasks : UserControl {
             MessageBox.Show("總覽預告設定已儲存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
         };
 
+        // 將所有元件加入面板
         topPanel.Controls.Add(lblName); topPanel.Controls.Add(txtName);
         topPanel.Controls.Add(lblMonth); topPanel.Controls.Add(cmbMonth);
         topPanel.Controls.Add(lblDate); topPanel.Controls.Add(cmbDate);
