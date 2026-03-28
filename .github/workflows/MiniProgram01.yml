@@ -1,0 +1,27 @@
+name: Build MiniProgram01
+
+on:
+  push:
+    paths:
+      - 'MiniProgram01/**'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Compile C# Multi-Files
+        run: |
+          cd MiniProgram01
+          csc.exe /target:winexe /out:MiniProgram01.exe /optimize+ /win32icon:NONE *.cs
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v3
+        with:
+          name: MiniProgram01-App
+          path: MiniProgram01/MiniProgram01.exe
