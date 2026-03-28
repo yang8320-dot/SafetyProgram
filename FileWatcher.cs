@@ -58,8 +58,23 @@ public class MacosTodoWatcher : Form {
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
-        // 加入一點點底部邊界線的視覺效果，讓標題跟內容區分更明確
-        Panel titleContainer = new Panel() { Dock = DockStyle.Top, Height = 50, BackColor = BgColor };
+        // ==========================================
+        // 【核心修正】引入 TableLayoutPanel 強制分割區域，避免重疊
+        // ==========================================
+        TableLayoutPanel mainLayout = new TableLayoutPanel() {
+            Dock = DockStyle.Fill,
+            RowCount = 2,
+            ColumnCount = 1,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        // 第一列：標題列固定 51 px (50+1邊框)
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 51F));
+        // 第二列：剩下空間全給清單
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        this.Controls.Add(mainLayout);
+
+        Panel titleContainer = new Panel() { Dock = DockStyle.Fill, Margin = new Padding(0), BackColor = BgColor };
         titleLabel = new Label() { 
             Text = "待處理項目：0", Dock = DockStyle.Fill, 
             TextAlign = ContentAlignment.MiddleCenter,
@@ -69,16 +84,19 @@ public class MacosTodoWatcher : Form {
         Panel titleBorder = new Panel() { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(220, 220, 220) };
         titleContainer.Controls.Add(titleLabel);
         titleContainer.Controls.Add(titleBorder);
-        this.Controls.Add(titleContainer);
+        
+        mainLayout.Controls.Add(titleContainer, 0, 0); // 放入第一列
 
         fileListPanel = new FlowLayoutPanel() { 
             Dock = DockStyle.Fill, 
             AutoScroll = true, 
-            // 將 Padding 設回 0，改用內部卡片的 Margin 來控制距離
+            Margin = new Padding(0),
             Padding = new Padding(0), 
             BackColor = BgColor 
         };
-        this.Controls.Add(fileListPanel);
+        
+        mainLayout.Controls.Add(fileListPanel, 0, 1); // 放入第二列
+        // ==========================================
 
         trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "檔案監控 (掃描模式)" };
         ContextMenu menu = new ContextMenu();
@@ -425,26 +443,23 @@ public class MacosTodoWatcher : Form {
         currentFiles.Add(path);
 
         Panel card = new Panel();
-        // 微調寬度，預留空間給捲軸，避免出現水平橫向捲軸
-        card.Size = new Size(315, 42);
-        card.MinimumSize = new Size(315, 42); 
+        card.Size = new Size(320, 42);
+        card.MinimumSize = new Size(320, 42); 
         card.BackColor = CardColor;
-        // 【核心修正】：利用 Margin 給予 上、下、左、右 空間，防止被容器邊緣吃掉
-        card.Margin = new Padding(15, 12, 10, 5); 
+        
+        // 確保每張卡片上、下、左都保持完美的安全間距
+        card.Margin = new Padding(12, 10, 5, 5); 
         card.BorderStyle = BorderStyle.FixedSingle; 
         card.Tag = path;
 
-        // 配合縮小的寬度重新安排按鈕座標
-        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 11), Width = 150, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
-        
-        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(165, 13), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8.5f) };
-        
-        Button btnView = new Button() { Text = "查看", Location = new Point(215, 7), Width = 50, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
+        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 11), Width = 160, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
+        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(175, 13), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8.5f) };
+        Button btnView = new Button() { Text = "查看", Location = new Point(225, 7), Width = 50, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
         btnView.FlatAppearance.BorderSize = 0;
         btnView.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 102, 204); 
         btnView.Click += new EventHandler(delegate { try { Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch {} RemoveFromFileList(path); });
 
-        Button btnClose = new Button() { Text = "✕", Location = new Point(275, 7), Width = 28, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
+        Button btnClose = new Button() { Text = "✕", Location = new Point(282, 7), Width = 28, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
         btnClose.FlatAppearance.BorderSize = 0;
         btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 230, 230); 
         btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(255, 200, 200); 
