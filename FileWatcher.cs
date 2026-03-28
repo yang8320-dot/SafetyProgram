@@ -58,9 +58,6 @@ public class MacosTodoWatcher : Form {
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
-        // ==========================================
-        // 【核心修正】引入 TableLayoutPanel 強制分割區域，避免重疊
-        // ==========================================
         TableLayoutPanel mainLayout = new TableLayoutPanel() {
             Dock = DockStyle.Fill,
             RowCount = 2,
@@ -68,9 +65,7 @@ public class MacosTodoWatcher : Form {
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
-        // 第一列：標題列固定 51 px (50+1邊框)
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 51F));
-        // 第二列：剩下空間全給清單
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         this.Controls.Add(mainLayout);
 
@@ -85,7 +80,7 @@ public class MacosTodoWatcher : Form {
         titleContainer.Controls.Add(titleLabel);
         titleContainer.Controls.Add(titleBorder);
         
-        mainLayout.Controls.Add(titleContainer, 0, 0); // 放入第一列
+        mainLayout.Controls.Add(titleContainer, 0, 0); 
 
         fileListPanel = new FlowLayoutPanel() { 
             Dock = DockStyle.Fill, 
@@ -95,8 +90,7 @@ public class MacosTodoWatcher : Form {
             BackColor = BgColor 
         };
         
-        mainLayout.Controls.Add(fileListPanel, 0, 1); // 放入第二列
-        // ==========================================
+        mainLayout.Controls.Add(fileListPanel, 0, 1); 
 
         trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "檔案監控 (掃描模式)" };
         ContextMenu menu = new ContextMenu();
@@ -115,11 +109,20 @@ public class MacosTodoWatcher : Form {
         menu.MenuItems.Add(lockMenu);
         menu.MenuItems.Add("-");
 
+        // ==========================================
+        // 【新增選單】擴充掃描頻率選項
+        // ==========================================
         MenuItem timerMenu = new MenuItem("掃描頻率設定");
         timerMenu.MenuItems.Add("即時掃描 (1 秒)", new EventHandler(delegate { SetScanInterval(1000); }));
         timerMenu.MenuItems.Add("一般掃描 (5 秒)", new EventHandler(delegate { SetScanInterval(5000); }));
+        timerMenu.MenuItems.Add("稍微放寬 (10 秒)", new EventHandler(delegate { SetScanInterval(10000); }));
+        timerMenu.MenuItems.Add("省電模式 (30 秒)", new EventHandler(delegate { SetScanInterval(30000); }));
+        timerMenu.MenuItems.Add("低頻模式 (1 分鐘)", new EventHandler(delegate { SetScanInterval(60000); }));
+        timerMenu.MenuItems.Add("極低頻模式 (5 分鐘)", new EventHandler(delegate { SetScanInterval(300000); }));
+        timerMenu.MenuItems.Add("-"); // 加入分隔線
         timerMenu.MenuItems.Add("自訂計時掃描...", new EventHandler(OnCustomTimerClick));
         menu.MenuItems.Add(timerMenu);
+        // ==========================================
         
         MenuItem depthMenu = new MenuItem("子資料夾監控深度");
         depthMenu.MenuItems.Add("僅當前資料夾 (0層)", new EventHandler(delegate { SetMaxDepth(0); }));
@@ -167,7 +170,10 @@ public class MacosTodoWatcher : Form {
         scanIntervalMs = ms;
         if (scanTimer != null) scanTimer.Interval = scanIntervalMs;
         SaveConfig();
-        trayIcon.ShowBalloonTip(2000, "設定更新", "掃描頻率已更改為 " + (ms / 1000.0).ToString() + " 秒", ToolTipIcon.Info);
+        
+        // 修正提示文字，讓超過 60 秒的顯示更直覺
+        string timeStr = ms >= 60000 ? (ms / 60000.0) + " 分鐘" : (ms / 1000.0) + " 秒";
+        trayIcon.ShowBalloonTip(2000, "設定更新", "掃描頻率已更改為 " + timeStr, ToolTipIcon.Info);
     }
 
     private void OnCustomTimerClick(object sender, EventArgs e) {
@@ -447,7 +453,6 @@ public class MacosTodoWatcher : Form {
         card.MinimumSize = new Size(320, 42); 
         card.BackColor = CardColor;
         
-        // 確保每張卡片上、下、左都保持完美的安全間距
         card.Margin = new Padding(12, 10, 5, 5); 
         card.BorderStyle = BorderStyle.FixedSingle; 
         card.Tag = path;
