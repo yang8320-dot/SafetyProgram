@@ -32,7 +32,6 @@ public class MacosTodoWatcher : Form {
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public MacosTodoWatcher() {
-        IntPtr forceHandle = this.Handle;
         startTime = DateTime.Now; 
 
         this.Text = "通知中心";
@@ -67,8 +66,11 @@ public class MacosTodoWatcher : Form {
         ContextMenu menu = new ContextMenu();
         
         menu.MenuItems.Add("顯示待辦清單", new EventHandler(delegate { this.Show(); this.WindowState = FormWindowState.Normal; }));
-        menu.MenuItems.Add("-");
         
+        // 【新增】強制掃描除錯按鈕
+        menu.MenuItems.Add("⚡ 強制立即掃描 (測試用)", new EventHandler(OnForceScanClick));
+        
+        menu.MenuItems.Add("-");
         MenuItem startupMenu = new MenuItem("✅ 開機自動執行");
         startupMenu.Checked = IsRunOnStartup(); 
         startupMenu.Click += new EventHandler(ToggleStartup);
@@ -111,9 +113,35 @@ public class MacosTodoWatcher : Form {
         
         scanTimer.Interval = scanIntervalMs;
         scanTimer.Start();
+    }
 
-        this.Opacity = 0; 
-        this.Load += new EventHandler(delegate { this.Hide(); });
+    // 【關鍵修復】使用最底層的方法隱藏視窗，確保系統一定會配發 UI 執行緒資源
+    protected override void SetVisibleCore(bool value) {
+        if (!this.IsHandleCreated) {
+            this.CreateHandle();
+            value = false; 
+        }
+        base.SetVisibleCore(value);
+    }
+
+    // ==========================================
+    // 除錯與強制掃描功能
+    // ==========================================
+    private void OnForceScanClick(object sender, EventArgs e) {
+        PerformScan(null, null); // 強制執行一次掃描
+        
+        // 統計目前監控到的檔案總數
+        int totalDiskFiles = 0;
+        foreach (string dir in watchPaths) {
+            if (Directory.Exists(dir)) {
+                totalDiskFiles += GetFilesByDepth(dir, maxScanDepth).Count;
+            }
+        }
+
+        string report = string.Format("掃描完畢！\n\n監控資料夾數：{0}\n記憶體已記錄檔案數：{1}\n硬碟實際掃描到檔案數：{2}", 
+            watchPaths.Count, knownFiles.Count, totalDiskFiles);
+            
+        MessageBox.Show(report, "強制掃描報告", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     // ==========================================
@@ -126,16 +154,12 @@ public class MacosTodoWatcher : Form {
         trayIcon.ShowBalloonTip(2000, "設定更新", "掃描頻率已更改為 " + (ms / 1000.0).ToString() + " 秒", ToolTipIcon.Info);
     }
 
-    // 【補回遺漏的方法】自訂計時掃描點擊事件
     private void OnCustomTimerClick(object sender, EventArgs e) {
         string input = ShowInputBox("請輸入掃描間隔 (秒)：", "自訂掃描頻率", (scanIntervalMs / 1000).ToString());
         if (!string.IsNullOrEmpty(input)) {
             int sec;
-            if (int.TryParse(input, out sec) && sec > 0) {
-                SetScanInterval(sec * 1000);
-            } else {
-                MessageBox.Show("請輸入有效的正整數數字！", "錯誤");
-            }
+            if (int.TryParse(input, out sec) && sec > 0) { SetScanInterval(sec * 1000); } 
+            else { MessageBox.Show("請輸入有效的正整數數字！", "錯誤"); }
         }
     }
 
@@ -150,11 +174,8 @@ public class MacosTodoWatcher : Form {
         string input = ShowInputBox("請輸入監控深度 (整數)：\n(0 代表不看子資料夾，-1 代表無限層)", "自訂監控深度", maxScanDepth.ToString());
         if (!string.IsNullOrEmpty(input)) {
             int d;
-            if (int.TryParse(input, out d) && d >= -1) {
-                SetMaxDepth(d);
-            } else {
-                MessageBox.Show("請輸入有效的整數數字 (>= -1)！", "錯誤");
-            }
+            if (int.TryParse(input, out d) && d >= -1) { SetMaxDepth(d); } 
+            else { MessageBox.Show("請輸入有效的整數數字 (>= -1)！", "錯誤"); }
         }
     }
 
@@ -184,7 +205,7 @@ public class MacosTodoWatcher : Form {
                         queue.Enqueue(new DirNode(subDir, current.Depth + 1));
                     }
                 }
-            } catch { }
+            } catch { } // 遇到無權限資料夾直接略過，不報錯
         }
         return files;
     }
@@ -199,7 +220,7 @@ public class MacosTodoWatcher : Form {
 
     private void PerformScan(object sender, EventArgs e) {
         if (watchPaths.Count == 0) return;
-        scanTimer.Stop(); 
+        if (scanTimer != null) scanTimer.Stop(); 
 
         HashSet<string> currentDiskFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -246,11 +267,11 @@ public class MacosTodoWatcher : Form {
             OnFileDeleted(del); 
         }
 
-        scanTimer.Start(); 
+        if (scanTimer != null) scanTimer.Start(); 
     }
 
     private void OnFileChanged(string fullPath) {
-        trayIcon.ShowBalloonTip(1500, "偵測到檔案變動", "檔案: " + Path.GetFileName(fullPath), ToolTipIcon.Info);
+        trayIcon.ShowBalloonTip(3000, "偵測到檔案變動", "檔案: " + Path.GetFileName(fullPath), ToolTipIcon.Info);
         AutoBackupFile(fullPath);
         SyncAdd(fullPath); 
     }
@@ -310,18 +331,13 @@ public class MacosTodoWatcher : Form {
             while (retries > 0) {
                 try {
                     System.Threading.Thread.Sleep(1000); 
-                    if (File.Exists(sourceFile)) {
-                        File.Copy(sourceFile, destFile, true); 
-                    }
+                    if (File.Exists(sourceFile)) { File.Copy(sourceFile, destFile, true); }
                     break; 
                 } catch { retries--; }
             }
         }));
     }
 
-    // ==========================================
-    // 視窗行為與登錄檔操作
-    // ==========================================
     protected override void WndProc(ref Message m) {
         const int WM_NCLBUTTONDOWN = 0x00A1; 
         const int HTCAPTION = 2;             
@@ -471,8 +487,6 @@ public class MacosTodoWatcher : Form {
     }
 
     private void SyncAdd(string path) {
-        if (!this.IsHandleCreated) return; 
-
         if (this.InvokeRequired) { 
             this.BeginInvoke(new Action<string>(SyncAdd), new object[] { path }); 
             return; 
@@ -511,8 +525,6 @@ public class MacosTodoWatcher : Form {
     }
 
     private void RemoveFromFileList(string path) {
-        if (!this.IsHandleCreated) return;
-
         if (this.InvokeRequired) { 
             this.BeginInvoke(new Action<string>(RemoveFromFileList), new object[] { path }); 
             return; 
