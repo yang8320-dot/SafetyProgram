@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using Microsoft.Win32;
-using System.Runtime.InteropServices; // 新增：為了呼叫 DPI API
+using System.Runtime.InteropServices; 
 
 public class MacosTodoWatcher : Form {
     private Timer scanTimer;
@@ -37,7 +37,6 @@ public class MacosTodoWatcher : Form {
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
-    // 匯入 Windows API 來解決高解析度螢幕下的文字模糊問題
     [DllImport("user32.dll")]
     private static extern bool SetProcessDPIAware();
 
@@ -46,7 +45,7 @@ public class MacosTodoWatcher : Form {
         startTime = DateTime.Now; 
 
         this.Text = "通知中心";
-        this.Width = 380; // 稍微加寬，確保 DPI 縮放後文字不會被截斷
+        this.Width = 380; 
         this.Height = 420;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
         this.MaximizeBox = true;
@@ -59,19 +58,24 @@ public class MacosTodoWatcher : Form {
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
+        // 加入一點點底部邊界線的視覺效果，讓標題跟內容區分更明確
+        Panel titleContainer = new Panel() { Dock = DockStyle.Top, Height = 50, BackColor = BgColor };
         titleLabel = new Label() { 
-            Text = "待處理項目：0", Dock = DockStyle.Top, Height = 50, 
+            Text = "待處理項目：0", Dock = DockStyle.Fill, 
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font(MainFont.FontFamily, 10.5f, FontStyle.Bold),
             ForeColor = Color.FromArgb(50, 50, 50)
         };
-        this.Controls.Add(titleLabel);
+        Panel titleBorder = new Panel() { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(220, 220, 220) };
+        titleContainer.Controls.Add(titleLabel);
+        titleContainer.Controls.Add(titleBorder);
+        this.Controls.Add(titleContainer);
 
         fileListPanel = new FlowLayoutPanel() { 
             Dock = DockStyle.Fill, 
             AutoScroll = true, 
-            // 修正：將上方的 Padding 從 0 改為 10，解決第一個卡片上邊框被吃掉的問題
-            Padding = new Padding(10, 10, 10, 10), 
+            // 將 Padding 設回 0，改用內部卡片的 Margin 來控制距離
+            Padding = new Padding(0), 
             BackColor = BgColor 
         };
         this.Controls.Add(fileListPanel);
@@ -421,25 +425,26 @@ public class MacosTodoWatcher : Form {
         currentFiles.Add(path);
 
         Panel card = new Panel();
-        // 稍微調大卡片尺寸，適應高 DPI 解析度
-        card.Size = new Size(330, 42);
-        card.MinimumSize = new Size(330, 42); 
+        // 微調寬度，預留空間給捲軸，避免出現水平橫向捲軸
+        card.Size = new Size(315, 42);
+        card.MinimumSize = new Size(315, 42); 
         card.BackColor = CardColor;
-        card.Margin = new Padding(0, 0, 0, 8); // 加大間距
+        // 【核心修正】：利用 Margin 給予 上、下、左、右 空間，防止被容器邊緣吃掉
+        card.Margin = new Padding(15, 12, 10, 5); 
         card.BorderStyle = BorderStyle.FixedSingle; 
         card.Tag = path;
 
-        // 重新調整元件的座標，避免字體稍微變大時擠壓在一起
-        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 11), Width = 175, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
+        // 配合縮小的寬度重新安排按鈕座標
+        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 11), Width = 150, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
         
-        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(190, 13), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8.5f) };
+        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(165, 13), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8.5f) };
         
-        Button btnView = new Button() { Text = "查看", Location = new Point(235, 7), Width = 50, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
+        Button btnView = new Button() { Text = "查看", Location = new Point(215, 7), Width = 50, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
         btnView.FlatAppearance.BorderSize = 0;
         btnView.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 102, 204); 
         btnView.Click += new EventHandler(delegate { try { Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch {} RemoveFromFileList(path); });
 
-        Button btnClose = new Button() { Text = "✕", Location = new Point(292, 7), Width = 28, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
+        Button btnClose = new Button() { Text = "✕", Location = new Point(275, 7), Width = 28, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
         btnClose.FlatAppearance.BorderSize = 0;
         btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 230, 230); 
         btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(255, 200, 200); 
@@ -474,14 +479,9 @@ public class MacosTodoWatcher : Form {
 
     [STAThread] 
     public static void Main() { 
-        // 【修正核心】宣告應用程式支援高 DPI，解決透過 Github Actions 或指令編譯出來的程式字體模糊問題
         if (Environment.OSVersion.Version.Major >= 6) { SetProcessDPIAware(); }
-        
         Application.EnableVisualStyles(); 
-        
-        // 【修正核心】關閉相容性文字渲染，強制使用較清晰的 GDI+ 文字渲染引擎
         Application.SetCompatibleTextRenderingDefault(false); 
-        
         Application.Run(new MacosTodoWatcher()); 
     }
 }
