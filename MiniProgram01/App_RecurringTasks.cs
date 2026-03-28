@@ -13,9 +13,9 @@ public class App_RecurringTasks : UserControl {
     
     // UI 元件
     private TextBox txtName;
-    private ComboBox cmbMonth; // 全新：月份下拉選單
-    private ComboBox cmbDate;  // 全新：日期下拉選單
-    private DateTimePicker dtpTime; // 時間選擇器
+    private ComboBox cmbMonth; 
+    private ComboBox cmbDate;  
+    private DateTimePicker dtpTime; 
     private ListBox listTasks;
     
     // 預告系統專用 UI 與變數
@@ -30,8 +30,8 @@ public class App_RecurringTasks : UserControl {
 
     private class RecurringTask {
         public string Name;
-        public string MonthStr;  // 記錄月份 (每個月, 1月...)
-        public string DateStr;   // 記錄日期 (每天, 1號, 星期一...)
+        public string MonthStr;  
+        public string DateStr;   
         public string TimeStr; 
         public string LastTriggeredDate; 
     }
@@ -45,49 +45,49 @@ public class App_RecurringTasks : UserControl {
         this.Padding = new Padding(10);
 
         // ==========================================
-        // 【全新介面排版】精算 X 座標，完美塞入三個選單
+        // 【全新排版】加高頂部面板，將擁擠的元件分層放置
         // ==========================================
-        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 155 }; 
+        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 165 }; 
         
         // 第一排：任務內容
         Label lblName = new Label() { Text = "任務內容：", Location = new Point(5, 12), AutoSize = true, Font = MainFont };
-        txtName = new TextBox() { Location = new Point(85, 10), Width = 275, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
+        txtName = new TextBox() { Location = new Point(85, 10), Width = 260, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
 
-        // 第二排：月份、日期、時間 (三個選單)
+        // 第二排：月份 與 日期 (給予超大寬度，不怕字體放大)
         Label lblMonth = new Label() { Text = "月份：", Location = new Point(5, 47), AutoSize = true, Font = MainFont };
-        cmbMonth = new ComboBox() { Location = new Point(48, 45), Width = 75, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbMonth = new ComboBox() { Location = new Point(55, 45), Width = 80, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbMonth.Items.Add("每個月");
         for (int i = 1; i <= 12; i++) cmbMonth.Items.Add(i + "月");
         cmbMonth.SelectedIndex = 0;
 
-        Label lblDate = new Label() { Text = "日期：", Location = new Point(128, 47), AutoSize = true, Font = MainFont };
-        cmbDate = new ComboBox() { Location = new Point(171, 45), Width = 80, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        Label lblDate = new Label() { Text = "日期：", Location = new Point(145, 47), AutoSize = true, Font = MainFont };
+        cmbDate = new ComboBox() { Location = new Point(195, 45), Width = 150, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDate.Items.Add("每天");
         for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i + "號");
         cmbDate.Items.AddRange(new string[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日", "工作日", "週末" });
         cmbDate.SelectedIndex = 0;
 
-        Label lblTime = new Label() { Text = "時間：", Location = new Point(256, 47), AutoSize = true, Font = MainFont };
-        dtpTime = new DateTimePicker() { Location = new Point(299, 45), Width = 60, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        // 第三排：時間 與 建立按鈕 (移到下一行，版面瞬間清爽)
+        Label lblTime = new Label() { Text = "時間：", Location = new Point(5, 82), AutoSize = true, Font = MainFont };
+        dtpTime = new DateTimePicker() { Location = new Point(55, 80), Width = 80, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
-        // 第三排：新增按鈕
         Button btnAdd = new Button() { 
-            Text = "+ 建立週期任務", Location = new Point(85, 80), Width = 275, Height = 28, 
+            Text = "+ 建立週期任務", Location = new Point(145, 79), Width = 200, Height = 28, 
             FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand 
         };
         btnAdd.FlatAppearance.BorderSize = 0;
         btnAdd.Click += new EventHandler(delegate { AddRecurringTask(); });
 
-        // 第四排：預告設定
-        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 122), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
-        cmbDigest = new ComboBox() { Location = new Point(85, 120), Width = 95, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // 第四排：預告設定 (與上方稍微拉開一點距離)
+        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 127), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
+        cmbDigest = new ComboBox() { Location = new Point(85, 125), Width = 95, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDigest.Items.AddRange(new string[] { "不提醒", "每週一", "每月1號" });
         cmbDigest.SelectedIndex = 0;
 
-        dtpDigestTime = new DateTimePicker() { Location = new Point(185, 120), Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        dtpDigestTime = new DateTimePicker() { Location = new Point(185, 125), Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
         Button btnSaveDigest = new Button() { 
-            Text = "儲存設定", Location = new Point(255, 119), Width = 105, Height = 26, 
+            Text = "儲存設定", Location = new Point(255, 124), Width = 90, Height = 26, 
             FlatStyle = FlatStyle.Flat, BackColor = Color.LightGray, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold)
         };
         btnSaveDigest.FlatAppearance.BorderSize = 0;
@@ -121,7 +121,6 @@ public class App_RecurringTasks : UserControl {
 
         LoadTasks();
 
-        // 計時器：10 分鐘檢查一次
         checkTimer = new Timer();
         checkTimer.Interval = 600000; 
         checkTimer.Tick += new EventHandler(CheckTasksScheduler);
@@ -161,7 +160,6 @@ public class App_RecurringTasks : UserControl {
         string nowTimeStr = now.ToString("HH:mm");
         DayOfWeek dow = now.DayOfWeek;
 
-        // 【預告檢查】
         if (digestType != "不提醒" && lastDigestDate != todayStr) {
             bool triggerDigest = false;
             if (digestType == "每週一" && dow == DayOfWeek.Monday && string.Compare(nowTimeStr, digestTimeStr) >= 0) triggerDigest = true;
@@ -180,19 +178,14 @@ public class App_RecurringTasks : UserControl {
             }
         }
 
-        // ==========================================
-        // 【全新智慧比對引擎】判斷「月份」與「日期」的組合
-        // ==========================================
         foreach (RecurringTask t in tasks) {
             DateTime lastDate;
             bool hasLastDate = DateTime.TryParse(t.LastTriggeredDate, out lastDate);
-            if (hasLastDate && lastDate.Date == now.Date) continue; // 今天發過了就跳過
+            if (hasLastDate && lastDate.Date == now.Date) continue; 
 
-            // 1. 檢查月份是否符合
             bool isMonthMatch = (t.MonthStr == "每個月") || (t.MonthStr == now.Month + "月");
-            
-            // 2. 檢查日期是否符合
             bool isDateMatch = false;
+            
             if (t.DateStr == "每天") isDateMatch = true;
             else if (t.DateStr == now.Day + "號") isDateMatch = true;
             else if (t.DateStr == "工作日" && dow >= DayOfWeek.Monday && dow <= DayOfWeek.Friday) isDateMatch = true;
@@ -209,7 +202,6 @@ public class App_RecurringTasks : UserControl {
                 }
             }
 
-            // 3. 綜合判定與時間檢查
             if (isMonthMatch && isDateMatch) {
                 if (string.Compare(nowTimeStr, t.TimeStr) >= 0) {
                     t.LastTriggeredDate = todayStr; 
@@ -236,8 +228,6 @@ public class App_RecurringTasks : UserControl {
             string[] lines = File.ReadAllLines(recurringFile);
             foreach(string line in lines) {
                 if (string.IsNullOrWhiteSpace(line)) continue;
-                
-                // 讀取總覽設定
                 if (line.StartsWith("#DIGEST|")) {
                     string[] dParts = line.Split('|');
                     if (dParts.Length >= 4) {
@@ -249,15 +239,12 @@ public class App_RecurringTasks : UserControl {
                     continue;
                 }
                 
-                if (line.StartsWith("#")) continue; // 跳過註解
+                if (line.StartsWith("#")) continue; 
 
                 string[] parts = line.Split('|');
-                
-                // 【無痛升級】如果讀到的是新的「5個欄位」格式
                 if (parts.Length >= 5) {
                     tasks.Add(new RecurringTask() { Name = parts[0], MonthStr = parts[1], DateStr = parts[2], TimeStr = parts[3], LastTriggeredDate = parts[4] });
                 } 
-                // 【相容舊版】如果讀到的是舊的格式，自動幫你轉換成新的月份/日期！
                 else if (parts.Length >= 3) {
                     string oldFreq = parts[1];
                     string newMonth = "每個月";
@@ -267,7 +254,7 @@ public class App_RecurringTasks : UserControl {
                     else if (oldFreq == "工作日(一~五)") newDate = "工作日";
                     else if (oldFreq == "週末(六日)") newDate = "週末";
                     else if (oldFreq == "每月") newDate = "1號";
-                    else if (oldFreq == "每季" || oldFreq == "每年") { newMonth = "1月"; newDate = "1號"; } // 舊版特例轉換
+                    else if (oldFreq == "每季" || oldFreq == "每年") { newMonth = "1月"; newDate = "1號"; }
                     
                     tasks.Add(new RecurringTask() { Name = parts[0], MonthStr = newMonth, DateStr = newDate, TimeStr = parts[2], LastTriggeredDate = parts.Length > 3 ? parts[3] : "" });
                 }
@@ -281,7 +268,6 @@ public class App_RecurringTasks : UserControl {
         lines.Add(string.Format("#DIGEST|{0}|{1}|{2}", digestType, digestTimeStr, lastDigestDate));
         lines.Add("# 格式說明：任務內容|月份|日期|時間|最後派發日期");
         foreach(RecurringTask t in tasks) {
-            // 現在變成儲存 5 個欄位了
             lines.Add(string.Format("{0}|{1}|{2}|{3}|{4}", t.Name, t.MonthStr, t.DateStr, t.TimeStr, t.LastTriggeredDate));
         }
         File.WriteAllLines(recurringFile, lines.ToArray());
