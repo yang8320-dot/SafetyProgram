@@ -17,7 +17,7 @@ public class App_RecurringTasks : UserControl {
     private DateTimePicker dtpTime;
     private ListBox listTasks;
     
-    // 【預告系統專用 UI 與變數】
+    // 預告系統專用 UI 與變數
     private ComboBox cmbDigest;
     private DateTimePicker dtpDigestTime;
     private string digestType = "不提醒";
@@ -42,39 +42,42 @@ public class App_RecurringTasks : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        // --- 頂部設定區 (稍微加高以容納預告設定) ---
-        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 135 };
+        // ==========================================
+        // 【修復排版】加高頂部面板，加大 X 軸間距避免文字重疊
+        // ==========================================
+        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 155 }; 
         
-        Label lblName = new Label() { Text = "任務內容：", Location = new Point(5, 8), AutoSize = true, Font = MainFont };
-        txtName = new TextBox() { Location = new Point(80, 5), Width = 235, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
+        // 第一排：任務內容
+        Label lblName = new Label() { Text = "任務內容：", Location = new Point(5, 12), AutoSize = true, Font = MainFont };
+        txtName = new TextBox() { Location = new Point(95, 10), Width = 230, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
 
-        Label lblFreq = new Label() { Text = "出現頻率：", Location = new Point(5, 40), AutoSize = true, Font = MainFont };
-        cmbFreq = new ComboBox() { Location = new Point(80, 37), Width = 110, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // 第二排：頻率與時間
+        Label lblFreq = new Label() { Text = "出現頻率：", Location = new Point(5, 47), AutoSize = true, Font = MainFont };
+        cmbFreq = new ComboBox() { Location = new Point(95, 45), Width = 95, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbFreq.Items.AddRange(new string[] { "每天", "每週", "每月", "每季", "每年", "工作日(一~五)", "週末(六日)" });
         cmbFreq.SelectedIndex = 0;
 
-        Label lblTime = new Label() { Text = "時間：", Location = new Point(195, 40), AutoSize = true, Font = MainFont };
-        dtpTime = new DateTimePicker() { Location = new Point(245, 37), Width = 70, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        Label lblTime = new Label() { Text = "時間：", Location = new Point(195, 47), AutoSize = true, Font = MainFont };
+        dtpTime = new DateTimePicker() { Location = new Point(245, 45), Width = 80, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
+        // 第三排：新增按鈕 (移除 Emoji 避免亂碼)
         Button btnAdd = new Button() { 
-            Text = "➕ 建立週期任務", Location = new Point(80, 68), Width = 235, Height = 28, 
+            Text = "+ 建立週期任務", Location = new Point(95, 80), Width = 230, Height = 28, 
             FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand 
         };
         btnAdd.FlatAppearance.BorderSize = 0;
         btnAdd.Click += new EventHandler(delegate { AddRecurringTask(); });
 
-        // ==========================================
-        // 【全新介面】總覽預告設定區
-        // ==========================================
-        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 107), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
-        cmbDigest = new ComboBox() { Location = new Point(80, 104), Width = 95, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // 第四排：預告設定
+        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 122), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
+        cmbDigest = new ComboBox() { Location = new Point(95, 120), Width = 95, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDigest.Items.AddRange(new string[] { "不提醒", "每週一", "每月1號" });
         cmbDigest.SelectedIndex = 0;
 
-        dtpDigestTime = new DateTimePicker() { Location = new Point(180, 104), Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        dtpDigestTime = new DateTimePicker() { Location = new Point(195, 120), Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
         Button btnSaveDigest = new Button() { 
-            Text = "💾 儲存", Location = new Point(250, 103), Width = 65, Height = 26, 
+            Text = "儲存設定", Location = new Point(265, 119), Width = 60, Height = 26, 
             FlatStyle = FlatStyle.Flat, BackColor = Color.LightGray, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold)
         };
         btnSaveDigest.FlatAppearance.BorderSize = 0;
@@ -99,8 +102,8 @@ public class App_RecurringTasks : UserControl {
         this.Controls.Add(listTasks);
         listTasks.BringToFront();
 
-        // --- 底部刪除按鈕 ---
-        Button btnRemove = new Button() { Text = "🗑️ 移除選取的排程", Dock = DockStyle.Bottom, Height = 35, FlatStyle = FlatStyle.Flat, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold) };
+        // --- 底部刪除按鈕 (移除 Emoji 避免亂碼) ---
+        Button btnRemove = new Button() { Text = "移除選取的排程", Dock = DockStyle.Bottom, Height = 35, FlatStyle = FlatStyle.Flat, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold) };
         btnRemove.FlatAppearance.BorderSize = 0;
         btnRemove.Click += new EventHandler(delegate { RemoveSelected(); });
         this.Controls.Add(btnRemove);
@@ -113,7 +116,6 @@ public class App_RecurringTasks : UserControl {
         checkTimer.Tick += new EventHandler(CheckTasksScheduler);
         checkTimer.Start();
 
-        // 啟動時強制檢查一次
         CheckTasksScheduler(null, null);
     }
 
@@ -146,13 +148,10 @@ public class App_RecurringTasks : UserControl {
         string nowTimeStr = now.ToString("HH:mm");
         DayOfWeek dow = now.DayOfWeek;
 
-        // ==========================================
         // 【核心邏輯 1】總覽預告檢查
-        // ==========================================
         if (digestType != "不提醒" && lastDigestDate != todayStr) {
             bool triggerDigest = false;
             
-            // 判斷是否符合預告條件
             if (digestType == "每週一" && dow == DayOfWeek.Monday && string.Compare(nowTimeStr, digestTimeStr) >= 0) {
                 triggerDigest = true;
             }
@@ -164,12 +163,10 @@ public class App_RecurringTasks : UserControl {
                 lastDigestDate = todayStr;
                 needsSave = true;
 
-                // 打包所有的任務名稱
                 List<string> upcoming = new List<string>();
                 foreach(var tk in tasks) upcoming.Add(tk.Name);
                 
                 string summaryText = string.Join(", ", upcoming);
-                // 避免字數太長把待辦清單撐破
                 if (summaryText.Length > 40) summaryText = summaryText.Substring(0, 37) + "...";
                 
                 string title = digestType == "每週一" ? "📅 [本週預告]" : "📅 [本月預告]";
@@ -180,9 +177,7 @@ public class App_RecurringTasks : UserControl {
             }
         }
 
-        // ==========================================
         // 【核心邏輯 2】獨立任務發派檢查
-        // ==========================================
         foreach (RecurringTask t in tasks) {
             DateTime lastDate;
             bool hasLastDate = DateTime.TryParse(t.LastTriggeredDate, out lastDate);
@@ -225,7 +220,6 @@ public class App_RecurringTasks : UserControl {
             string[] lines = File.ReadAllLines(recurringFile);
             foreach(string line in lines) {
                 if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) {
-                    // 讀取總覽設定 (隱藏儲存在第一行)
                     if (line.StartsWith("#DIGEST|")) {
                         string[] dParts = line.Split('|');
                         if (dParts.Length >= 4) {
@@ -248,7 +242,6 @@ public class App_RecurringTasks : UserControl {
 
     private void SaveTasks() {
         List<string> lines = new List<string>();
-        // 悄悄將預告設定儲存在純文字檔的最上面
         lines.Add(string.Format("#DIGEST|{0}|{1}|{2}", digestType, digestTimeStr, lastDigestDate));
         lines.Add("# 格式說明：任務內容|出現頻率|時間|最後派發日期");
         foreach(RecurringTask t in tasks) {
