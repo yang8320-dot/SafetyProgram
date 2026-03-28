@@ -42,54 +42,66 @@ public class App_RecurringTasks : UserControl {
         this.parentForm = mainForm;
         this.todoApp = todoApp;
         this.BackColor = Color.FromArgb(245, 245, 247);
-        this.Padding = new Padding(10);
+        this.Padding = new Padding(8);
 
         // ==========================================
-        // 【終極防跑版】加高面板至 200px，改為 5 層式排版
+        // 【無敵流式排版】棄用絕對座標，改用 FlowLayoutPanel
         // ==========================================
-        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 200 }; 
         
-        // --- 第 1 層 (Y=10)：任務內容 ---
-        Label lblName = new Label() { Text = "任務內容：", Location = new Point(5, 12), AutoSize = true, Font = MainFont };
-        txtName = new TextBox() { Location = new Point(85, 10), Width = 255, Font = MainFont, BorderStyle = BorderStyle.FixedSingle };
+        // 主容器：由上往下排列，高度會隨內容自動長高
+        FlowLayoutPanel topPanel = new FlowLayoutPanel() { 
+            Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, 
+            FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 0, 0, 10) 
+        }; 
 
-        // --- 第 2 層 (Y=45)：月份 與 日期 ---
-        Label lblMonth = new Label() { Text = "月份：", Location = new Point(5, 47), AutoSize = true, Font = MainFont };
-        cmbMonth = new ComboBox() { Location = new Point(60, 45), Width = 85, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // --- 第 1 行：任務內容 ---
+        FlowLayoutPanel r1 = new FlowLayoutPanel() { AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 5) };
+        Label lblName = new Label() { Text = "任務內容：", AutoSize = true, Font = MainFont, Margin = new Padding(3, 6, 3, 0) };
+        txtName = new TextBox() { Width = 230, Font = MainFont };
+        r1.Controls.Add(lblName); r1.Controls.Add(txtName);
+
+        // --- 第 2 行：排程時間 (月份 + 日期 + 時間) ---
+        FlowLayoutPanel r2 = new FlowLayoutPanel() { AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 5) };
+        Label lblFreq = new Label() { Text = "排程時間：", AutoSize = true, Font = MainFont, Margin = new Padding(3, 6, 3, 0) };
+        
+        cmbMonth = new ComboBox() { Width = 75, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbMonth.Items.Add("每個月");
         for (int i = 1; i <= 12; i++) cmbMonth.Items.Add(i + "月");
         cmbMonth.SelectedIndex = 0;
 
-        // 給予日期選單超大空間
-        Label lblDate = new Label() { Text = "日期：", Location = new Point(155, 47), AutoSize = true, Font = MainFont };
-        cmbDate = new ComboBox() { Location = new Point(205, 45), Width = 135, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbDate = new ComboBox() { Width = 85, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDate.Items.Add("每天");
         for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i + "號");
         cmbDate.Items.AddRange(new string[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日", "工作日", "週末" });
         cmbDate.SelectedIndex = 0;
 
-        // --- 第 3 層 (Y=80)：獨立一行的時間設定 ---
-        Label lblTime = new Label() { Text = "時間：", Location = new Point(5, 82), AutoSize = true, Font = MainFont };
-        dtpTime = new DateTimePicker() { Location = new Point(60, 80), Width = 85, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        dtpTime = new DateTimePicker() { Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        
+        r2.Controls.Add(lblFreq); r2.Controls.Add(cmbMonth); r2.Controls.Add(cmbDate); r2.Controls.Add(dtpTime);
 
-        // --- 第 4 層 (Y=115)：霸氣的滿版新增按鈕 ---
+        // --- 第 3 行：大大的建立按鈕 ---
+        FlowLayoutPanel r3 = new FlowLayoutPanel() { AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 5) };
         Button btnAdd = new Button() { 
-            Text = "+ 建立週期任務", Location = new Point(5, 115), Width = 335, Height = 32, 
-            FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand 
+            Text = "+ 建立週期任務", Width = 310, Height = 32, 
+            FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand,
+            Margin = new Padding(5, 0, 0, 0)
         };
         btnAdd.FlatAppearance.BorderSize = 0;
         btnAdd.Click += new EventHandler(delegate { AddRecurringTask(); });
+        r3.Controls.Add(btnAdd);
 
-        // --- 第 5 層 (Y=160)：總覽預告 ---
-        Label lblDigest = new Label() { Text = "總覽預告：", Location = new Point(5, 162), AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
-        cmbDigest = new ComboBox() { Location = new Point(85, 160), Width = 85, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
+        // --- 第 4 行：總覽預告 ---
+        FlowLayoutPanel r4 = new FlowLayoutPanel() { AutoSize = true, WrapContents = true, Margin = new Padding(0, 15, 0, 5) };
+        Label lblDigest = new Label() { Text = "總覽預告：", AutoSize = true, Font = MainFont, ForeColor = Color.DimGray, Margin = new Padding(3, 6, 3, 0) };
+        
+        cmbDigest = new ComboBox() { Width = 85, Font = MainFont, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDigest.Items.AddRange(new string[] { "不提醒", "每週一", "每月1號" });
         cmbDigest.SelectedIndex = 0;
 
-        dtpDigestTime = new DateTimePicker() { Location = new Point(175, 160), Width = 70, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        dtpDigestTime = new DateTimePicker() { Width = 65, Font = MainFont, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
 
         Button btnSaveDigest = new Button() { 
-            Text = "儲存設定", Location = new Point(250, 159), Width = 90, Height = 26, 
+            Text = "儲存", Width = 60, Height = 28, 
             FlatStyle = FlatStyle.Flat, BackColor = Color.LightGray, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold)
         };
         btnSaveDigest.FlatAppearance.BorderSize = 0;
@@ -100,15 +112,14 @@ public class App_RecurringTasks : UserControl {
             MessageBox.Show("總覽預告設定已儲存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
         };
 
-        // 將所有元件加入面板
-        topPanel.Controls.Add(lblName); topPanel.Controls.Add(txtName);
-        topPanel.Controls.Add(lblMonth); topPanel.Controls.Add(cmbMonth);
-        topPanel.Controls.Add(lblDate); topPanel.Controls.Add(cmbDate);
-        topPanel.Controls.Add(lblTime); topPanel.Controls.Add(dtpTime);
-        topPanel.Controls.Add(btnAdd);
+        r4.Controls.Add(lblDigest); r4.Controls.Add(cmbDigest); r4.Controls.Add(dtpDigestTime); r4.Controls.Add(btnSaveDigest);
+
+        // 將這四行塞入主容器
+        topPanel.Controls.Add(r1);
+        topPanel.Controls.Add(r2);
+        topPanel.Controls.Add(r3);
+        topPanel.Controls.Add(r4);
         
-        topPanel.Controls.Add(lblDigest); topPanel.Controls.Add(cmbDigest);
-        topPanel.Controls.Add(dtpDigestTime); topPanel.Controls.Add(btnSaveDigest);
         this.Controls.Add(topPanel);
 
         // --- 任務清單顯示區 ---
