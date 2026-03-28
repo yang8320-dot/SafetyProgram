@@ -41,7 +41,6 @@ public class MacosTodoWatcher : Form {
         startTime = DateTime.Now; 
 
         this.Text = "通知中心";
-        // 【修復】稍微加寬視窗，給按鈕和時間更多呼吸空間
         this.Width = 360; 
         this.Height = 400;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
@@ -406,13 +405,15 @@ public class MacosTodoWatcher : Form {
         mgr.ShowDialog();
     }
 
+    // ==========================================
+    // 【全新設計】加入快速關閉 (X) 按鈕的版面微調
+    // ==========================================
     private void SyncAdd(string path) {
         if (string.IsNullOrWhiteSpace(path) || path.Equals(configFile, StringComparison.OrdinalIgnoreCase)) return;
         if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(SyncAdd), new object[] { path }); return; }
         if (currentFiles.Contains(path) || Directory.Exists(path)) return;
         currentFiles.Add(path);
 
-        // 【修復：排版寬容度調整】加寬卡片，並調整內部元素的 X 座標
         Panel card = new Panel();
         card.Size = new Size(320, 36);
         card.MinimumSize = new Size(320, 36); 
@@ -421,21 +422,31 @@ public class MacosTodoWatcher : Form {
         card.BorderStyle = BorderStyle.FixedSingle; 
         card.Tag = path;
 
-        // 檔名縮短一點避免擠壓
-        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 8), Width = 190, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
-        // 時間稍微往右移
-        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(205, 10), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8) };
-        // 按鈕再往右移
-        Button btn = new Button() { Text = "查看", Location = new Point(255, 4), Width = 55, Height = 26, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold) };
-        btn.FlatAppearance.BorderSize = 0;
+        // 1. 檔名文字：為了塞下兩個按鈕，寬度稍微縮減
+        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 8), Width = 175, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
+        
+        // 2. 時間標籤：往左靠攏
+        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(185, 10), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8) };
+        
+        // 3. 【保留】查看按鈕：寬度微調、加上滑鼠懸停變色
+        Button btnView = new Button() { Text = "查看", Location = new Point(225, 4), Width = 50, Height = 26, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
+        btnView.FlatAppearance.BorderSize = 0;
+        btnView.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 102, 204); // 滑鼠移上去變深藍色
+        btnView.Click += new EventHandler(delegate { try { Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch {} RemoveFromFileList(path); });
 
-        btn.Click += new EventHandler(delegate { try { Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch {} RemoveFromFileList(path); });
+        // 4. 【全新】關閉 (✕) 按鈕：放最右邊
+        Button btnClose = new Button() { Text = "✕", Location = new Point(280, 4), Width = 28, Height = 26, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
+        btnClose.FlatAppearance.BorderSize = 0;
+        btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 230, 230); // 滑鼠移上去變淡紅色
+        btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(255, 200, 200); // 點擊時變深一點的紅
+        btnClose.Click += new EventHandler(delegate { RemoveFromFileList(path); }); // 點擊直接移除清單，不開檔案
 
-        card.Controls.Add(name); card.Controls.Add(info); card.Controls.Add(btn);
+        card.Controls.Add(name); 
+        card.Controls.Add(info); 
+        card.Controls.Add(btnView);
+        card.Controls.Add(btnClose);
         
         fileListPanel.Controls.Add(card);
-        
-        // 【修復：排序置頂】保證最新的卡片永遠插在第一排（最上面）！
         fileListPanel.Controls.SetChildIndex(card, 0);
 
         UpdateCount();
