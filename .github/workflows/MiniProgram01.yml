@@ -1,9 +1,8 @@
 name: Build MiniProgram01
 
+# 【關鍵修改】將 push 改為 workflow_dispatch，這代表「只允許手動點擊按鈕執行」
 on:
-  push:
-    paths:
-      - 'MiniProgram01/**'
+  workflow_dispatch:
 
 jobs:
   build:
