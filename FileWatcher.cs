@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using Microsoft.Win32;
+using System.Runtime.InteropServices; // 新增：為了呼叫 DPI API
 
 public class MacosTodoWatcher : Form {
     private Timer scanTimer;
@@ -36,13 +37,17 @@ public class MacosTodoWatcher : Form {
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
+    // 匯入 Windows API 來解決高解析度螢幕下的文字模糊問題
+    [DllImport("user32.dll")]
+    private static extern bool SetProcessDPIAware();
+
     public MacosTodoWatcher() {
         IntPtr forceHandle = this.Handle;
         startTime = DateTime.Now; 
 
         this.Text = "通知中心";
-        this.Width = 360; 
-        this.Height = 400;
+        this.Width = 380; // 稍微加寬，確保 DPI 縮放後文字不會被截斷
+        this.Height = 420;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
         this.MaximizeBox = true;
         this.MinimizeBox = true;
@@ -63,7 +68,11 @@ public class MacosTodoWatcher : Form {
         this.Controls.Add(titleLabel);
 
         fileListPanel = new FlowLayoutPanel() { 
-            Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(8, 0, 8, 10), BackColor = BgColor 
+            Dock = DockStyle.Fill, 
+            AutoScroll = true, 
+            // 修正：將上方的 Padding 從 0 改為 10，解決第一個卡片上邊框被吃掉的問題
+            Padding = new Padding(10, 10, 10, 10), 
+            BackColor = BgColor 
         };
         this.Controls.Add(fileListPanel);
 
@@ -405,9 +414,6 @@ public class MacosTodoWatcher : Form {
         mgr.ShowDialog();
     }
 
-    // ==========================================
-    // 【全新設計】加入快速關閉 (X) 按鈕的版面微調
-    // ==========================================
     private void SyncAdd(string path) {
         if (string.IsNullOrWhiteSpace(path) || path.Equals(configFile, StringComparison.OrdinalIgnoreCase)) return;
         if (this.InvokeRequired) { this.BeginInvoke(new Action<string>(SyncAdd), new object[] { path }); return; }
@@ -415,31 +421,29 @@ public class MacosTodoWatcher : Form {
         currentFiles.Add(path);
 
         Panel card = new Panel();
-        card.Size = new Size(320, 36);
-        card.MinimumSize = new Size(320, 36); 
+        // 稍微調大卡片尺寸，適應高 DPI 解析度
+        card.Size = new Size(330, 42);
+        card.MinimumSize = new Size(330, 42); 
         card.BackColor = CardColor;
-        card.Margin = new Padding(0, 0, 0, 4); 
+        card.Margin = new Padding(0, 0, 0, 8); // 加大間距
         card.BorderStyle = BorderStyle.FixedSingle; 
         card.Tag = path;
 
-        // 1. 檔名文字：為了塞下兩個按鈕，寬度稍微縮減
-        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 8), Width = 175, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
+        // 重新調整元件的座標，避免字體稍微變大時擠壓在一起
+        Label name = new Label() { Text = Path.GetFileName(path), Location = new Point(10, 11), Width = 175, Font = MainFont, AutoEllipsis = true, ForeColor = Color.Black };
         
-        // 2. 時間標籤：往左靠攏
-        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(185, 10), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8) };
+        Label info = new Label() { Text = DateTime.Now.ToString("HH:mm"), Location = new Point(190, 13), AutoSize = true, ForeColor = Color.Gray, Font = new Font(MainFont.FontFamily, 8.5f) };
         
-        // 3. 【保留】查看按鈕：寬度微調、加上滑鼠懸停變色
-        Button btnView = new Button() { Text = "查看", Location = new Point(225, 4), Width = 50, Height = 26, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
+        Button btnView = new Button() { Text = "查看", Location = new Point(235, 7), Width = 50, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold), Cursor = Cursors.Hand };
         btnView.FlatAppearance.BorderSize = 0;
-        btnView.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 102, 204); // 滑鼠移上去變深藍色
+        btnView.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 102, 204); 
         btnView.Click += new EventHandler(delegate { try { Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch {} RemoveFromFileList(path); });
 
-        // 4. 【全新】關閉 (✕) 按鈕：放最右邊
-        Button btnClose = new Button() { Text = "✕", Location = new Point(280, 4), Width = 28, Height = 26, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
+        Button btnClose = new Button() { Text = "✕", Location = new Point(292, 7), Width = 28, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = Color.DarkGray, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand };
         btnClose.FlatAppearance.BorderSize = 0;
-        btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 230, 230); // 滑鼠移上去變淡紅色
-        btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(255, 200, 200); // 點擊時變深一點的紅
-        btnClose.Click += new EventHandler(delegate { RemoveFromFileList(path); }); // 點擊直接移除清單，不開檔案
+        btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 230, 230); 
+        btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(255, 200, 200); 
+        btnClose.Click += new EventHandler(delegate { RemoveFromFileList(path); }); 
 
         card.Controls.Add(name); 
         card.Controls.Add(info); 
@@ -469,5 +473,15 @@ public class MacosTodoWatcher : Form {
     protected override void OnFormClosing(FormClosingEventArgs e) { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; this.Hide(); } base.OnFormClosing(e); }
 
     [STAThread] 
-    public static void Main() { Application.EnableVisualStyles(); Application.Run(new MacosTodoWatcher()); }
+    public static void Main() { 
+        // 【修正核心】宣告應用程式支援高 DPI，解決透過 Github Actions 或指令編譯出來的程式字體模糊問題
+        if (Environment.OSVersion.Version.Major >= 6) { SetProcessDPIAware(); }
+        
+        Application.EnableVisualStyles(); 
+        
+        // 【修正核心】關閉相容性文字渲染，強制使用較清晰的 GDI+ 文字渲染引擎
+        Application.SetCompatibleTextRenderingDefault(false); 
+        
+        Application.Run(new MacosTodoWatcher()); 
+    }
 }
