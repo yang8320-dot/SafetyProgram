@@ -15,8 +15,9 @@ public class MainForm : Form {
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
     private const int HOTKEY_ID = 9000;
-    private const uint MOD_ALT = 0x0001;
+    private const uint MOD_CONTROL = 0x0002; // 【修正】改為 Ctrl
     private const uint VK_1 = 0x31; 
     private const int WM_HOTKEY = 0x0312;
 
@@ -31,7 +32,8 @@ public class MainForm : Form {
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
-        RegisterHotKey(this.Handle, HOTKEY_ID, MOD_ALT, VK_1);
+        // 註冊 Ctrl + 1
+        RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_1);
 
         trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "整合通知中心" };
         trayMenu = new ContextMenu();
@@ -41,7 +43,7 @@ public class MainForm : Form {
         tabControl = new TabControl() { Dock = DockStyle.Fill, Padding = new Point(12, 5), Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold) };
         this.Controls.Add(tabControl);
 
-        // 載入各個模組
+        // 載入模組
         TabPage tabWatcher = new TabPage("📁 監控");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
@@ -80,12 +82,14 @@ public class MainForm : Form {
     public void ShowAppWindow(int targetTabIndex = -1) {
         this.Show();
         if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
+        // 【修正】只有當明確傳入 index 時才切換，否則保持現狀
         if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) tabControl.SelectedIndex = targetTabIndex; 
         this.Activate(); 
     }
 
     protected override void WndProc(ref Message m) {
-        if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HOTKEY_ID) { ShowAppWindow(1); }
+        // 【修正】快捷鍵觸發時，不傳入參數，維持目前頁面
+        if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HOTKEY_ID) { ShowAppWindow(); }
         base.WndProc(ref m);
     }
 
