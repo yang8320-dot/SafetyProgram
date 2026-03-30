@@ -14,12 +14,14 @@ public class App_TodoList : UserControl {
     private FlowLayoutPanel taskContainer;
     private Dictionary<string, DateTime> taskDates = new Dictionary<string, DateTime>();
     
-    // 拖曳視覺輔助變數
     private int dragInsertIndex = -1; 
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
 
+    private MainForm mainForm; // 【新增】保存主視窗參考
+
     public App_TodoList(MainForm parent) {
+        this.mainForm = parent; // 【新增】保存主視窗參考
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
@@ -34,21 +36,13 @@ public class App_TodoList : UserControl {
         btnAdd.Click += (s, e) => AddTask(inputField.Text);
         top.Controls.AddRange(new Control[] { inputField, btnAdd });
 
-        taskContainer = new FlowLayoutPanel() { 
-            Dock = DockStyle.Fill, 
-            AutoScroll = true, 
-            FlowDirection = FlowDirection.TopDown, 
-            WrapContents = false, 
-            BackColor = Color.White,
-            AllowDrop = true 
-        };
+        taskContainer = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White, AllowDrop = true };
         
-        // --- 拖曳邏輯與分隔線繪製 ---
         taskContainer.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
         taskContainer.DragOver += OnTaskDragOver;
         taskContainer.DragLeave += (s, e) => { dragInsertIndex = -1; taskContainer.Invalidate(); };
         taskContainer.DragDrop += OnTaskDragDrop;
-        taskContainer.Paint += OnTaskContainerPaint; // 繪製藍色分隔線
+        taskContainer.Paint += OnTaskContainerPaint;
 
         this.Controls.Add(taskContainer);
         this.Controls.Add(top);
@@ -57,7 +51,10 @@ public class App_TodoList : UserControl {
     }
 
     public void AddTaskExternally(string text) { 
-        if (!taskDates.ContainsKey(text)) AddTask(text, true); 
+        if (!taskDates.ContainsKey(text)) {
+            mainForm.AlertTab(1); // 【新增】呼叫主程式讓 Tab 1 (待辦) 閃爍
+            AddTask(text, true); 
+        }
     }
 
     private void AddTask(string text, bool auto = false) {
@@ -72,10 +69,7 @@ public class App_TodoList : UserControl {
     }
 
     private void CreateTaskUI(string text) {
-        Panel item = new Panel() { 
-            Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = Color.FromArgb(252, 252, 254)
-        };
-
+        Panel item = new Panel() { Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = Color.FromArgb(252, 252, 254) };
         CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand };
         chk.CheckedChanged += (s, e) => {
             if (chk.Checked) {
@@ -88,22 +82,14 @@ public class App_TodoList : UserControl {
             }
         };
 
-        // 「修」按鈕：放在最後面
-        Button btnEdit = new Button() { 
-            Text = "修", Dock = DockStyle.Right, Width = 35, FlatStyle = FlatStyle.Flat, 
-            ForeColor = AppleBlue, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand 
-        };
+        Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Right, Width = 35, FlatStyle = FlatStyle.Flat, ForeColor = AppleBlue, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand };
         btnEdit.FlatAppearance.BorderSize = 0;
 
-        Label lbl = new Label() { 
-            Text = text, Dock = DockStyle.Fill, Font = MainFont, AutoSize = true, 
-            MaximumSize = new Size(260, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll 
-        };
+        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, AutoSize = true, MaximumSize = new Size(260, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll };
 
-        // 統一編輯邏輯
         Action triggerEdit = () => {
             string oldText = lbl.Text;
-            string newText = ShowLargeEditBox(oldText); // 呼叫大尺寸編輯框
+            string newText = ShowLargeEditBox(oldText); 
             if (!string.IsNullOrEmpty(newText) && newText != oldText && !taskDates.ContainsKey(newText)) {
                 taskDates[newText] = taskDates[oldText]; taskDates.Remove(oldText);
                 lbl.Text = newText; text = newText; SaveActive();
@@ -112,48 +98,27 @@ public class App_TodoList : UserControl {
 
         lbl.MouseDoubleClick += (s, e) => triggerEdit();
         btnEdit.Click += (s, e) => triggerEdit();
+        lbl.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move); };
 
-        lbl.MouseDown += (s, e) => {
-            if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move);
-        };
-
-        item.Controls.Add(lbl);
-        item.Controls.Add(chk);
-        item.Controls.Add(btnEdit);
-        
-        taskContainer.Controls.Add(item);
-        taskContainer.Controls.SetChildIndex(item, 0);
+        item.Controls.Add(lbl); item.Controls.Add(chk); item.Controls.Add(btnEdit);
+        taskContainer.Controls.Add(item); taskContainer.Controls.SetChildIndex(item, 0);
     }
 
-    // --- 拖曳分隔線繪製邏輯 ---
     private void OnTaskDragOver(object sender, DragEventArgs e) {
         e.Effect = DragDropEffects.Move;
         Point clientPoint = taskContainer.PointToClient(new Point(e.X, e.Y));
         Control target = taskContainer.GetChildAtPoint(clientPoint);
-        
         if (target != null) {
             if (!(target is Panel)) target = target.Parent;
             int idx = taskContainer.Controls.GetChildIndex(target);
-            
-            // 決定畫在目標的上方還是下方
             if (clientPoint.Y > target.Top + (target.Height / 2)) idx++;
-            
-            if (dragInsertIndex != idx) {
-                dragInsertIndex = idx;
-                taskContainer.Invalidate(); // 重新繪製線條
-            }
+            if (dragInsertIndex != idx) { dragInsertIndex = idx; taskContainer.Invalidate(); }
         }
     }
 
     private void OnTaskContainerPaint(object sender, PaintEventArgs e) {
         if (dragInsertIndex != -1 && taskContainer.Controls.Count > 0) {
-            int y = 0;
-            if (dragInsertIndex < taskContainer.Controls.Count) {
-                y = taskContainer.Controls[dragInsertIndex].Top - 2;
-            } else {
-                y = taskContainer.Controls[taskContainer.Controls.Count - 1].Bottom + 2;
-            }
-            // 畫出顯眼的藍色分隔線
+            int y = (dragInsertIndex < taskContainer.Controls.Count) ? taskContainer.Controls[dragInsertIndex].Top - 2 : taskContainer.Controls[taskContainer.Controls.Count - 1].Bottom + 2;
             e.Graphics.FillRectangle(new SolidBrush(AppleBlue), 5, y, taskContainer.Width - 25, 3);
         }
     }
@@ -163,41 +128,18 @@ public class App_TodoList : UserControl {
         if (draggedItem != null && dragInsertIndex != -1) {
             int targetIdx = dragInsertIndex;
             int currentIdx = taskContainer.Controls.GetChildIndex(draggedItem);
-            
-            if (currentIdx < targetIdx) targetIdx--; // 修正因移除自身造成的索引偏移
-            
+            if (currentIdx < targetIdx) targetIdx--; 
             taskContainer.Controls.SetChildIndex(draggedItem, targetIdx);
-            dragInsertIndex = -1;
-            taskContainer.Invalidate();
-            SaveActive();
+            dragInsertIndex = -1; taskContainer.Invalidate(); SaveActive();
         }
     }
 
-    // --- 大尺寸編輯視窗 ---
     private string ShowLargeEditBox(string defaultValue) {
-        Form form = new Form() { 
-            Width = 450, Height = 250, Text = "✏️ 滾動式編輯任務", 
-            StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false, MinimizeBox = false 
-        };
-        
+        Form form = new Form() { Width = 450, Height = 250, Text = "✏️ 滾動式編輯任務", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         Label lbl = new Label() { Text = "請修正任務內容：", Left = 15, Top = 15, AutoSize = true, Font = MainFont };
-        
-        TextBox txt = new TextBox() { 
-            Left = 15, Top = 45, Width = 405, Height = 100, 
-            Multiline = true, WordWrap = true, ScrollBars = ScrollBars.Vertical,
-            Font = MainFont, Text = defaultValue 
-        };
-        
-        Button btnOk = new Button() { 
-            Text = "確認修改", Left = 320, Top = 165, Width = 100, Height = 35, 
-            DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White 
-        };
-        
-        form.Controls.AddRange(new Control[] { lbl, txt, btnOk });
-        form.AcceptButton = btnOk;
-        txt.SelectionStart = txt.Text.Length; // 游標移到最後
-
+        TextBox txt = new TextBox() { Left = 15, Top = 45, Width = 405, Height = 100, Multiline = true, WordWrap = true, ScrollBars = ScrollBars.Vertical, Font = MainFont, Text = defaultValue };
+        Button btnOk = new Button() { Text = "確認修改", Left = 320, Top = 165, Width = 100, Height = 35, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
+        form.Controls.AddRange(new Control[] { lbl, txt, btnOk }); form.AcceptButton = btnOk; txt.SelectionStart = txt.Text.Length; 
         return (form.ShowDialog() == DialogResult.OK) ? txt.Text.Trim() : "";
     }
 
