@@ -8,7 +8,6 @@ public class MainForm : Form {
     public NotifyIcon trayIcon;
     public ContextMenu trayMenu;
     private TabControl tabControl;
-    private bool isPositionLocked = false;
     private string appName = "MiniProgram01";
     private static Color BgColor = Color.FromArgb(245, 245, 247); 
 
@@ -23,12 +22,10 @@ public class MainForm : Form {
 
     public MainForm() {
         this.Text = "整合通知中心";
-        this.Width = 380; 
-        this.Height = 500;
+        this.Width = 380; this.Height = 520;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
         this.StartPosition = FormStartPosition.Manual;
-        this.TopMost = true;
-        this.ShowInTaskbar = false;
+        this.TopMost = true; this.ShowInTaskbar = false;
         this.BackColor = BgColor;
 
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
@@ -41,31 +38,28 @@ public class MainForm : Form {
         trayMenu.MenuItems.Add("顯示主面板", new EventHandler(delegate { ShowAppWindow(); }));
         trayMenu.MenuItems.Add("-");
 
-        tabControl = new TabControl() { Dock = DockStyle.Fill, Padding = new Point(15, 6), Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold) };
+        tabControl = new TabControl() { Dock = DockStyle.Fill, Padding = new Point(12, 5), Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold) };
         this.Controls.Add(tabControl);
 
-        // 【模組 1】檔案監控
-        TabPage tabWatcher = new TabPage("📁 檔案監控");
+        // 載入各個模組
+        TabPage tabWatcher = new TabPage("📁 監控");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
         tabWatcher.Controls.Add(watcherApp);
         tabControl.TabPages.Add(tabWatcher);
 
-        // 【模組 2】待辦事項
         TabPage tabTodo = new TabPage("📝 待辦");
         App_TodoList todoApp = new App_TodoList(this);
-        todoApp.Dock = DockStyle.Fill; // 【修正點 1】分開寫避免語法錯誤
+        todoApp.Dock = DockStyle.Fill;
         tabTodo.Controls.Add(todoApp);
         tabControl.TabPages.Add(tabTodo);
 
-        // 【模組 3】週期任務
         TabPage tabRecurring = new TabPage("🔁 週期");
         App_RecurringTasks recurringApp = new App_RecurringTasks(this, todoApp);
         recurringApp.Dock = DockStyle.Fill;
         tabRecurring.Controls.Add(recurringApp);
         tabControl.TabPages.Add(tabRecurring);
 
-        // 【模組 4】捷徑管理
         TabPage tabShortcuts = new TabPage("🚀 捷徑");
         App_Shortcuts shortcutsApp = new App_Shortcuts(this);
         shortcutsApp.Dock = DockStyle.Fill;
@@ -73,8 +67,7 @@ public class MainForm : Form {
         tabControl.TabPages.Add(tabShortcuts);
 
         trayMenu.MenuItems.Add("-");
-        MenuItem startupMenu = new MenuItem("開機自動執行");
-        startupMenu.Checked = IsRunOnStartup();
+        MenuItem startupMenu = new MenuItem("開機自動執行") { Checked = IsRunOnStartup() };
         startupMenu.Click += new EventHandler(ToggleStartup);
         trayMenu.MenuItems.Add(startupMenu);
         trayMenu.MenuItems.Add("結束程式", new EventHandler(delegate { UnregisterHotKey(this.Handle, HOTKEY_ID); trayIcon.Dispose(); Application.Exit(); }));
@@ -102,21 +95,16 @@ public class MainForm : Form {
     }
 
     private bool IsRunOnStartup() {
-        try { 
-            using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false)) { 
-                // 【修正點 2】不使用 ?. 運算子，改用傳統 null 檢查確保絕對相容
-                if (rk != null && rk.GetValue(appName) != null) return true;
-            } 
-        } catch { } return false;
+        try { using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false)) { 
+            if (rk != null && rk.GetValue(appName) != null) return true;
+        } } catch { } return false;
     }
 
     private void ToggleStartup(object sender, EventArgs e) {
         MenuItem item = (MenuItem)sender; item.Checked = !item.Checked;
-        try { 
-            using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true)) { 
-                if (item.Checked) rk.SetValue(appName, "\"" + Application.ExecutablePath + "\""); 
-                else if (rk != null) rk.DeleteValue(appName, false); 
-            } 
-        } catch {}
+        try { using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true)) { 
+            if (item.Checked) rk.SetValue(appName, "\"" + Application.ExecutablePath + "\""); 
+            else if (rk != null) rk.DeleteValue(appName, false); 
+        } } catch {}
     }
 }
