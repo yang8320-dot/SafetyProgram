@@ -3,81 +3,183 @@ using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Linq;
 
 public class App_TodoList : UserControl {
     private string activeFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_active.txt");
     private string addedLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_history_added.txt");
     private string doneLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_history_completed.txt");
+
     private TextBox inputField;
-    private CheckedListBox taskList;
+    private FlowLayoutPanel taskContainer;
     private Dictionary<string, DateTime> taskDates = new Dictionary<string, DateTime>();
+    
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
+    private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
 
     public App_TodoList(MainForm parent) {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        Panel top = new Panel() { Dock = DockStyle.Top, Height = 35 };
-        inputField = new TextBox() { Width = 240, Font = new Font("Microsoft JhengHei UI", 10f) };
+        // --- 頂部輸入區 ---
+        Panel top = new Panel() { Dock = DockStyle.Top, Height = 40 };
+        inputField = new TextBox() { Width = 240, Font = MainFont, Location = new Point(0, 5) };
         inputField.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddTask(inputField.Text); } };
-        Button btnAdd = new Button() { Text = "新增", Left = 250, Width = 65, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
+        
+        Button btnAdd = new Button() { 
+            Text = "新增", Left = 250, Top = 3, Width = 65, Height = 30, 
+            FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold) 
+        };
         btnAdd.Click += (s, e) => AddTask(inputField.Text);
         top.Controls.AddRange(new Control[] { inputField, btnAdd });
 
-        taskList = new CheckedListBox() { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, Font = new Font("Microsoft JhengHei UI", 10.5f) };
-        taskList.ItemCheck += OnTaskChecked;
-        taskList.MouseDoubleClick += OnTaskEdit;
+        // --- 任務容器 (支援拖曳排序與自動換行) ---
+        taskContainer = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, 
+            AutoScroll = true, 
+            FlowDirection = FlowDirection.TopDown, 
+            WrapContents = false, 
+            BackColor = Color.White,
+            AllowDrop = true // 開啟拖曳功能
+        };
+        
+        // 處理拖曳排序的邏輯
+        taskContainer.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
+        taskContainer.DragOver += (s, e) => {
+            Point p = taskContainer.PointToClient(new Point(e.X, e.Y));
+            Control target = taskContainer.GetChildAtPoint(p);
+            if (target != null) e.Effect = DragDropEffects.Move;
+        };
+        taskContainer.DragDrop += OnTaskDragDrop;
 
-        this.Controls.Add(taskList); this.Controls.Add(top);
+        this.Controls.Add(taskContainer);
+        this.Controls.Add(top);
+        
         LoadTasks();
     }
 
-    public void AddTaskExternally(string text) { if (!taskDates.ContainsKey(text)) AddTask(text, true); }
+    // 外部 API 呼叫 (供週期任務使用)
+    public void AddTaskExternally(string text) { 
+        if (!taskDates.ContainsKey(text)) AddTask(text, true); 
+    }
 
     private void AddTask(string text, bool auto = false) {
-        text = text.Trim(); if (string.IsNullOrEmpty(text) || taskDates.ContainsKey(text)) return;
+        text = text.Trim(); 
+        if (string.IsNullOrEmpty(text) || taskDates.ContainsKey(text)) return;
+        
         DateTime now = DateTime.Now;
-        taskList.Items.Insert(0, text); taskDates[text] = now;
+        taskDates[text] = now;
+        
+        CreateTaskUI(text);
         File.AppendAllText(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), auto ? "排程" : "手動", text));
-        SaveActive(); inputField.Text = "";
+        
+        SaveActive();
+        inputField.Text = "";
     }
 
-    private void OnTaskChecked(object sender, ItemCheckEventArgs e) {
-        if (e.NewValue == CheckState.Checked) {
-            string name = taskList.Items[e.Index].ToString();
-            this.BeginInvoke(new Action(() => {
-                if (taskDates.ContainsKey(name)) {
-                    File.AppendAllText(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), name, taskDates[name].ToString("yyyy-MM-dd HH:mm")));
-                    taskDates.Remove(name);
+    // --- 核心：建立帶有換行與拖曳功能的任務方塊 ---
+    private void CreateTaskUI(string text) {
+        Panel item = new Panel() { 
+            Width = 330, 
+            AutoSize = true, 
+            Padding = new Padding(5), 
+            Margin = new Padding(0, 0, 0, 2),
+            BackColor = Color.FromArgb(252, 252, 254)
+        };
+
+        CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand };
+        chk.CheckedChanged += (s, e) => {
+            if (chk.Checked) {
+                if (taskDates.ContainsKey(text)) {
+                    File.AppendAllText(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text, taskDates[text].ToString("yyyy-MM-dd HH:mm")));
+                    taskDates.Remove(text);
                 }
-                taskList.Items.RemoveAt(e.Index); SaveActive();
-            }));
-        }
+                taskContainer.Controls.Remove(item);
+                SaveActive();
+            }
+        };
+
+        // 文字標籤：支援自動換行
+        Label lbl = new Label() { 
+            Text = text, 
+            Dock = DockStyle.Fill, 
+            Font = MainFont, 
+            AutoSize = true, 
+            MaximumSize = new Size(280, 0), // 限制最大寬度以觸發自動換行
+            Padding = new Padding(0, 5, 0, 5),
+            Cursor = Cursors.SizeAll // 提示可拖曳
+        };
+
+        // 連點兩下內容修正
+        lbl.MouseDoubleClick += (s, e) => {
+            string oldText = lbl.Text;
+            string newText = App_Shortcuts.ShowInputBox("修改任務內容：", "✏️ 編輯任務", oldText);
+            if (!string.IsNullOrEmpty(newText) && newText != oldText && !taskDates.ContainsKey(newText)) {
+                taskDates[newText] = taskDates[oldText];
+                taskDates.Remove(oldText);
+                lbl.Text = newText;
+                text = newText; // 更新外層變數以供刪除使用
+                SaveActive();
+            }
+        };
+
+        // 實作拖曳：按住滑鼠開始拖曳
+        lbl.MouseDown += (s, e) => {
+            if (e.Button == MouseButtons.Left) {
+                item.DoDragDrop(item, DragDropEffects.Move);
+            }
+        };
+
+        item.Controls.Add(lbl);
+        item.Controls.Add(chk);
+        
+        // 新增的任務插在最上面
+        taskContainer.Controls.Add(item);
+        taskContainer.Controls.SetChildIndex(item, 0);
     }
 
-    private void OnTaskEdit(object sender, MouseEventArgs e) {
-        int idx = taskList.IndexFromPoint(e.Location);
-        if (idx != -1) {
-            string old = taskList.Items[idx].ToString();
-            string nw = App_Shortcuts.ShowInputBox("修改任務：", "✏️ 編輯", old);
-            if (!string.IsNullOrEmpty(nw) && nw != old && !taskDates.ContainsKey(nw)) {
-                taskDates[nw] = taskDates[old]; taskDates.Remove(old);
-                taskList.Items[idx] = nw; SaveActive();
-            }
+    // 拖曳放下的重新排序邏輯
+    private void OnTaskDragDrop(object sender, DragEventArgs e) {
+        Panel draggedItem = (Panel)e.Data.GetData(typeof(Panel));
+        Point clientPoint = taskContainer.PointToClient(new Point(e.X, e.Y));
+        Control target = taskContainer.GetChildAtPoint(clientPoint);
+
+        if (target != null && draggedItem != null) {
+            // 如果抓到的點是 Label 或 CheckBox，要找到它的 Parent Panel
+            if (!(target is Panel)) target = target.Parent;
+            
+            int targetIdx = taskContainer.Controls.GetChildIndex(target);
+            taskContainer.Controls.SetChildIndex(draggedItem, targetIdx);
+            SaveActive();
         }
     }
 
     private void SaveActive() {
         List<string> lines = new List<string>();
-        foreach (var item in taskList.Items) { string n = item.ToString(); lines.Add(n + "|" + taskDates[n].ToString()); }
+        // 依照目前的 UI 順序儲存，這樣重啟後排序也會維持
+        foreach (Control ctrl in taskContainer.Controls) {
+            if (ctrl is Panel p) {
+                foreach (Control sub in p.Controls) {
+                    if (sub is Label lbl) {
+                        lines.Add(lbl.Text + "|" + taskDates[lbl.Text].ToString());
+                        break;
+                    }
+                }
+            }
+        }
         File.WriteAllLines(activeFile, lines);
     }
 
     private void LoadTasks() {
         if (!File.Exists(activeFile)) return;
-        foreach (string l in File.ReadAllLines(activeFile)) {
+        string[] lines = File.ReadAllLines(activeFile);
+        Array.Reverse(lines); // 因為 CreateTaskUI 是用 SetChildIndex(0)，所以讀取時反轉以維持存檔順序
+        foreach (string l in lines) {
             string[] p = l.Split('|');
-            if (p.Length >= 2) { taskList.Items.Add(p[0]); taskDates[p[0]] = DateTime.Parse(p[1]); }
+            if (p.Length >= 2) {
+                taskDates[p[0]] = DateTime.Parse(p[1]);
+                CreateTaskUI(p[0]);
+            }
         }
     }
 }
