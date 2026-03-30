@@ -11,10 +11,14 @@ public class App_RecurringTasks : UserControl {
     private Panel pnlMain, pnlSettings;
     private ListBox listTasks;
     private TextBox txtName;
-    private ComboBox cmbMonth, cmbDate, cmbDigest;
+    private ComboBox cmbMonth, cmbDate, cmbDigest, cmbAdvanceDays;
     private DateTimePicker dtpTime, dtpDigestTime;
     private Timer checkTimer;
+
+    // 設定參數
     private string digestType = "不提醒", digestTimeStr = "08:00", lastDigestDate = "";
+    private int advanceDays = 0; // 提前新增至待辦的天數
+
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
@@ -26,7 +30,6 @@ public class App_RecurringTasks : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(5);
 
-        // 初始化面板
         pnlMain = new Panel() { Dock = DockStyle.Fill };
         pnlSettings = new Panel() { Dock = DockStyle.Fill, Visible = false, BackColor = Color.White };
 
@@ -37,7 +40,7 @@ public class App_RecurringTasks : UserControl {
         this.Controls.Add(pnlSettings);
 
         LoadTasks();
-        checkTimer = new Timer() { Interval = 600000, Enabled = true };
+        checkTimer = new Timer() { Interval = 600000, Enabled = true }; // 每10分鐘檢查一次
         checkTimer.Tick += (s, e) => CheckTasks();
     }
 
@@ -70,19 +73,22 @@ public class App_RecurringTasks : UserControl {
         btnBack.Click += (s, e) => { pnlMain.Visible = true; pnlSettings.Visible = false; };
         setFlow.Controls.Add(btnBack);
 
-        setFlow.Controls.Add(new Label() { Text = "【建立新排程】", Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(0, 15, 0, 5) });
-
+        // --- 1. 建立週期排程 ---
+        setFlow.Controls.Add(new Label() { Text = "【建立週期排程】", Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(0, 15, 0, 5) });
         setFlow.Controls.Add(new Label() { Text = "任務內容：", AutoSize = true });
         txtName = new TextBox() { Width = 300, Font = MainFont };
         setFlow.Controls.Add(txtName);
 
         FlowLayoutPanel timeRow = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 5, 0, 5) };
         cmbMonth = new ComboBox() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmbMonth.Items.Add("每個月"); for(int i=1;i<=12;i++) cmbMonth.Items.Add(i+"月"); cmbMonth.SelectedIndex = 0;
+        cmbMonth.Items.Add("每個月"); 
+        cmbMonth.Items.Add("每週"); // --- 2. 增加每週選項 ---
+        for(int i=1;i<=12;i++) cmbMonth.Items.Add(i+"月"); 
+        cmbMonth.SelectedIndex = 0;
         
         cmbDate = new ComboBox() { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDate.Items.Add("每天"); for(int i=1;i<=31;i++) cmbDate.Items.Add(i+"號");
-        cmbDate.Items.AddRange(new string[]{"星期一","星期二","星期三","星期四","星期五","工作日","週末"}); cmbDate.SelectedIndex = 0;
+        cmbDate.Items.AddRange(new string[]{"星期一","星期二","星期三","星期四","星期五","星期六","星期日","工作日","週末"}); cmbDate.SelectedIndex = 0;
         
         dtpTime = new DateTimePicker() { Width = 80, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
         timeRow.Controls.AddRange(new Control[]{ cmbMonth, cmbDate, dtpTime });
@@ -92,54 +98,117 @@ public class App_RecurringTasks : UserControl {
         btnAdd.Click += (s, e) => AddTask();
         setFlow.Controls.Add(btnAdd);
 
-        setFlow.Controls.Add(new Label() { Text = "【預告設定】", Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(0, 20, 0, 5) });
+        // --- 4. 週期性自動新增待辦設定 ---
+        setFlow.Controls.Add(new Label() { Text = "【週期性自動新增待辦】", Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(0, 20, 0, 5) });
+        FlowLayoutPanel advanceRow = new FlowLayoutPanel() { AutoSize = true };
+        advanceRow.Controls.Add(new Label() { Text = "提前新增天數：", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
+        cmbAdvanceDays = new ComboBox() { Width = 80, DropDownStyle = ComboBoxStyle.DropDown };
+        cmbAdvanceDays.Items.AddRange(new string[] { "0", "1", "2", "3", "7" }); cmbAdvanceDays.Text = "0";
+        advanceRow.Controls.Add(cmbAdvanceDays);
+        setFlow.Controls.Add(advanceRow);
+
+        // --- 3. 提醒設定 ---
+        setFlow.Controls.Add(new Label() { Text = "【提醒設定】", Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(0, 20, 0, 5) });
         FlowLayoutPanel digestRow = new FlowLayoutPanel() { AutoSize = true };
         cmbDigest = new ComboBox() { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDigest.Items.AddRange(new string[]{"不提醒","每週一","每月1號"}); cmbDigest.SelectedIndex = 0;
         dtpDigestTime = new DateTimePicker() { Width = 80, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
-        Button btnSaveD = new Button() { Text = "儲存", Width = 60, Height = 25 };
-        btnSaveD.Click += (s, e) => { digestType = cmbDigest.Text; digestTimeStr = dtpDigestTime.Value.ToString("HH:mm"); SaveTasks(); MessageBox.Show("預告設定已儲存"); };
+        
+        Button btnSaveD = new Button() { Text = "儲存設定", Width = 80, Height = 25 };
+        btnSaveD.Click += (s, e) => { 
+            digestType = cmbDigest.Text; 
+            digestTimeStr = dtpDigestTime.Value.ToString("HH:mm"); 
+            int.TryParse(cmbAdvanceDays.Text, out advanceDays); // 儲存提前天數
+            SaveTasks(); 
+            MessageBox.Show("設定已儲存！"); 
+        };
         digestRow.Controls.AddRange(new Control[]{ cmbDigest, dtpDigestTime, btnSaveD });
         setFlow.Controls.Add(digestRow);
 
         pnlSettings.Controls.Add(setFlow);
     }
 
-    // --- 核心邏輯 (與前版一致) ---
     private void AddTask() {
         if(string.IsNullOrEmpty(txtName.Text)) return;
         tasks.Add(new RecurringTask(){ Name=txtName.Text, MonthStr=cmbMonth.Text, DateStr=cmbDate.Text, TimeStr=dtpTime.Text, LastTriggeredDate="" });
-        SaveTasks(); RefreshUI(); txtName.Text = ""; MessageBox.Show("排程建立完成！");
+        SaveTasks(); RefreshUI(); txtName.Text = ""; MessageBox.Show("完成！");
     }
 
     private void CheckTasks() {
-        DateTime now = DateTime.Now; string today = now.ToString("yyyy-MM-dd"), time = now.ToString("HH:mm");
+        DateTime now = DateTime.Now; 
+        string todayDate = now.ToString("yyyy-MM-dd");
+        string nowTimeStr = now.ToString("HH:mm");
         bool needsSave = false;
-        if(digestType != "不提醒" && lastDigestDate != today) {
-            if((digestType == "每週一" && now.DayOfWeek == DayOfWeek.Monday) || (digestType == "每月1號" && now.Day == 1)) {
-                if(string.Compare(time, digestTimeStr) >= 0) { lastDigestDate = today; needsSave = true; todoApp.AddTaskExternally("📅 [預告] 共有 " + tasks.Count + " 項週期任務"); }
+
+        // 提醒設定 (Digest)
+        if(digestType != "不提醒" && lastDigestDate != todayDate) {
+            bool isDigestDay = (digestType == "每週一" && now.DayOfWeek == DayOfWeek.Monday) || (digestType == "每月1號" && now.Day == 1);
+            if(isDigestDay && string.Compare(nowTimeStr, digestTimeStr) >= 0) { 
+                lastDigestDate = todayDate; needsSave = true; 
+                todoApp.AddTaskExternally("📅 [提醒] 共有 " + tasks.Count + " 項週期任務排程中"); 
             }
         }
+
+        // --- 核心邏輯：支援提前新增至待辦 ---
         foreach(var t in tasks) {
-            if(t.LastTriggeredDate == today) continue;
-            bool mMatch = t.MonthStr == "每個月" || t.MonthStr == now.Month + "月";
-            bool dMatch = t.DateStr == "每天" || t.DateStr == now.Day + "號" || (t.DateStr == "工作日" && now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday) || (t.DateStr == "星期" + "日一二三四五六"[(int)now.DayOfWeek]);
-            if(mMatch && dMatch && string.Compare(time, t.TimeStr) >= 0) { t.LastTriggeredDate = today; needsSave = true; todoApp.AddTaskExternally(t.Name); }
+            // 計算「目標執行日」 (從今天往後推算 advanceDays 天)
+            DateTime targetDate = now.AddDays(advanceDays);
+            string targetKey = targetDate.ToString("yyyy-MM-dd");
+
+            // 如果該目標執行日已經處理過，就跳過
+            if(t.LastTriggeredDate == targetKey) continue;
+
+            // 判斷目標日期是否符合月份與週期
+            bool mMatch = t.MonthStr == "每個月" || t.MonthStr == "每週" || t.MonthStr == targetDate.Month + "月";
+            
+            DayOfWeek targetDOW = targetDate.DayOfWeek;
+            bool dMatch = false;
+            if (t.DateStr == "每天") dMatch = true;
+            else if (t.DateStr == targetDate.Day + "號") dMatch = true;
+            else if (t.DateStr == "工作日" && targetDOW != DayOfWeek.Saturday && targetDOW != DayOfWeek.Sunday) dMatch = true;
+            else if (t.DateStr == "週末" && (targetDOW == DayOfWeek.Saturday || targetDOW == DayOfWeek.Sunday)) dMatch = true;
+            else if (t.DateStr == "星期" + "日一二三四五六"[(int)targetDOW]) dMatch = true;
+
+            // 如果符合排程條件且時間已到 (或是提前新增)
+            if(mMatch && dMatch) {
+                // 如果是當天新增 (advanceDays=0)，需比對時間；若是提前新增，則在該日任何時間皆可觸發
+                if(advanceDays > 0 || string.Compare(nowTimeStr, t.TimeStr) >= 0) {
+                    t.LastTriggeredDate = targetKey; 
+                    needsSave = true;
+                    string prefix = advanceDays > 0 ? string.Format("[預排-{0}] ", targetDate.ToString("MM/dd")) : "";
+                    todoApp.AddTaskExternally(prefix + t.Name);
+                }
+            }
         }
+
         if(needsSave) SaveTasks();
     }
 
-    private void RefreshUI() { listTasks.Items.Clear(); foreach(var t in tasks) listTasks.Items.Add(string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name)); }
+    private void RefreshUI() { 
+        listTasks.Items.Clear(); 
+        foreach(var t in tasks) listTasks.Items.Add(string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name)); 
+    }
+
     private void SaveTasks() {
-        List<string> lines = new List<string>(){ string.Format("#DIGEST|{0}|{1}|{2}", digestType, digestTimeStr, lastDigestDate) };
+        List<string> lines = new List<string>(){ string.Format("#DIGEST|{0}|{1}|{2}|{3}", digestType, digestTimeStr, lastDigestDate, advanceDays) };
         foreach(var t in tasks) lines.Add(string.Format("{0}|{1}|{2}|{3}|{4}", t.Name, t.MonthStr, t.DateStr, t.TimeStr, t.LastTriggeredDate));
         File.WriteAllLines(recurringFile, lines);
     }
+
     private void LoadTasks() {
         if(!File.Exists(recurringFile)) return;
+        tasks.Clear();
         foreach(var l in File.ReadAllLines(recurringFile)) {
-            if(l.StartsWith("#DIGEST")) { var p=l.Split('|'); digestType=p[1]; digestTimeStr=p[2]; lastDigestDate=p[3]; continue; }
-            var p2=l.Split('|'); if(p2.Length>=5) tasks.Add(new RecurringTask(){ Name=p2[0], MonthStr=p2[1], DateStr=p2[2], TimeStr=p2[3], LastTriggeredDate=p2[4] });
+            if(l.StartsWith("#DIGEST")) { 
+                var p = l.Split('|'); 
+                digestType = p[1]; digestTimeStr = p[2]; lastDigestDate = p[3]; 
+                if(p.Length >= 5) { int.TryParse(p[4], out advanceDays); cmbAdvanceDays.Text = advanceDays.ToString(); }
+                cmbDigest.Text = digestType;
+                DateTime dt; if(DateTime.TryParseExact(digestTimeStr, "HH:mm", null, System.Globalization.DateTimeStyles.None, out dt)) dtpDigestTime.Value = dt;
+                continue; 
+            }
+            var p2 = l.Split('|'); 
+            if(p2.Length >= 5) tasks.Add(new RecurringTask(){ Name=p2[0], MonthStr=p2[1], DateStr=p2[2], TimeStr=p2[3], LastTriggeredDate=p2[4] });
         }
         RefreshUI();
     }
