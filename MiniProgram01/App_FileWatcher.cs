@@ -21,10 +21,47 @@ public class App_FileWatcher : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(8);
 
-        Label lblHint = new Label() { Text = "📢 檔案變動將自動依目錄結構備份", Dock = DockStyle.Top, Height = 25, Font = new Font(MainFont, FontStyle.Bold), ForeColor = Color.Gray };
-        this.Controls.Add(lblHint);
+        // --- 頂部控制列 ---
+        Panel headerPanel = new Panel() { Dock = DockStyle.Top, Height = 35 };
+        
+        Label lblHint = new Label() { 
+            Text = "📢 檔案異動自動備份", 
+            Location = new Point(0, 5), 
+            AutoSize = true, 
+            Font = new Font(MainFont, FontStyle.Bold), 
+            ForeColor = Color.Gray 
+        };
 
-        cardPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
+        // 【新增：一鍵清除按鈕】
+        Button btnClear = new Button() { 
+            Text = "🗑️ 一鍵清除列表", 
+            Location = new Point(230, 0), 
+            Width = 100, 
+            Height = 28, 
+            FlatStyle = FlatStyle.Flat, 
+            BackColor = Color.FromArgb(230, 230, 230), 
+            Font = new Font(MainFont.FontFamily, 8.5f)
+        };
+        btnClear.FlatAppearance.BorderSize = 0;
+        btnClear.Cursor = Cursors.Hand;
+        btnClear.Click += (s, e) => {
+            if (cardPanel.Controls.Count > 0) {
+                cardPanel.Controls.Clear(); // 清空所有卡片
+            }
+        };
+
+        headerPanel.Controls.Add(lblHint);
+        headerPanel.Controls.Add(btnClear);
+        this.Controls.Add(headerPanel);
+
+        // --- 卡片容器 ---
+        cardPanel = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, 
+            AutoScroll = true, 
+            FlowDirection = FlowDirection.TopDown, 
+            WrapContents = false, 
+            BackColor = Color.White 
+        };
         this.Controls.Add(cardPanel);
         cardPanel.BringToFront();
 
@@ -34,6 +71,7 @@ public class App_FileWatcher : UserControl {
     private void LoadConfigAndStartWatch() {
         if (!File.Exists(configFile)) { File.WriteAllLines(configFile, new string[] { "C:\\Source|C:\\Backup" }); return; }
         foreach (string line in File.ReadAllLines(configFile)) {
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) continue;
             string[] parts = line.Split('|');
             if (parts.Length >= 2 && Directory.Exists(parts[0].Trim())) {
                 pathPairs[parts[0].Trim()] = parts[1].Trim();
@@ -76,17 +114,61 @@ public class App_FileWatcher : UserControl {
     }
 
     private void AddCard(string fileName, string relPath, string origPath, string backupPath) {
-        Panel card = new Panel() { Width = 330, Height = 75, BackColor = Color.FromArgb(252, 252, 254), Margin = new Padding(0, 3, 0, 3), BorderStyle = BorderStyle.FixedSingle };
-        Label lbl = new Label() { Text = string.Format("{0}\n路徑: {1}", fileName, relPath), Location = new Point(8, 8), Width = 230, Height = 45, Font = MainFont };
+        Panel card = new Panel() { 
+            Width = 330, 
+            Height = 75, 
+            BackColor = Color.FromArgb(252, 252, 254), 
+            Margin = new Padding(0, 3, 0, 3), 
+            BorderStyle = BorderStyle.FixedSingle 
+        };
         
-        Button btnView = new Button() { Text = "查看", Location = new Point(255, 12), Width = 55, Height = 30, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
-        btnView.Click += (s, e) => { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + origPath + "\""); };
+        Label lbl = new Label() { 
+            Text = string.Format("{0}\n路徑: {1}", fileName, relPath), 
+            Location = new Point(8, 8), 
+            Width = 230, 
+            Height = 45, 
+            Font = MainFont 
+        };
+        
+        Button btnView = new Button() { 
+            Text = "查看", 
+            Location = new Point(255, 12), 
+            Width = 55, 
+            Height = 30, 
+            FlatStyle = FlatStyle.Flat, 
+            BackColor = AppleBlue, 
+            ForeColor = Color.White,
+            Cursor = Cursors.Hand
+        };
+        btnView.FlatAppearance.BorderSize = 0;
+        btnView.Click += (s, e) => { 
+            try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + origPath + "\""); } catch { }
+        };
 
-        LinkLabel lnk = new LinkLabel() { Text = "開啟備份檔", Location = new Point(250, 48), AutoSize = true, Font = new Font(MainFont.FontFamily, 8f) };
-        lnk.Click += (s, e) => { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + backupPath + "\""); };
+        LinkLabel lnk = new LinkLabel() { 
+            Text = "開啟備份檔", 
+            Location = new Point(250, 48), 
+            AutoSize = true, 
+            Font = new Font(MainFont.FontFamily, 8f),
+            LinkColor = Color.Gray
+        };
+        lnk.Click += (s, e) => { 
+            try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + backupPath + "\""); } catch { }
+        };
 
         card.Controls.AddRange(new Control[] { lbl, btnView, lnk });
-        cardPanel.Controls.Add(card); cardPanel.Controls.SetChildIndex(card, 0);
-        if (cardPanel.Controls.Count > 15) cardPanel.Controls.RemoveAt(15);
+        
+        // 確保在 UI 執行緒執行
+        if (this.InvokeRequired) {
+            this.Invoke(new Action(() => {
+                cardPanel.Controls.Add(card);
+                cardPanel.Controls.SetChildIndex(card, 0);
+            }));
+        } else {
+            cardPanel.Controls.Add(card);
+            cardPanel.Controls.SetChildIndex(card, 0);
+        }
+        
+        if (cardPanel.Controls.Count > 20) cardPanel.Controls.RemoveAt(20);
     }
 }
