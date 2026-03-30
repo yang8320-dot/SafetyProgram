@@ -64,13 +64,14 @@ public class App_FileWatcher : UserControl {
         btnBack.Click += (s, e) => { pnlMonitor.Visible = true; pnlSettings.Visible = false; };
         setFlow.Controls.Add(btnBack);
 
-        setFlow.Controls.Add(new Label() { Text = "【新路徑設定】", Font = new Font(MainFont.FontFamily, 11f, FontStyle.Bold), Margin = new Padding(0, 20, 0, 10) });
+        // 【修正點】：加入 AutoSize = true，確保大字體不會被截斷
+        Label lblTitleNew = new Label() { Text = "【新路徑設定】", Font = new Font(MainFont.FontFamily, 11f, FontStyle.Bold), Margin = new Padding(0, 20, 0, 10), AutoSize = true };
+        setFlow.Controls.Add(lblTitleNew);
 
         txtSource = AddPathRowWithPaste(setFlow, "來源路徑：");
         txtBackup = AddPathRowWithPaste(setFlow, "備份路徑：");
 
         cmbMethod = AddComboRow(setFlow, "監控方式：", new string[] { "顯示在監控", "背景執行" }, false);
-        // 【修正】頻率與深度現在支援手動 Key-in
         cmbFreq = AddComboRow(setFlow, "頻率(秒)：", new string[] { "1", "3", "5", "10", "30", "60" }, true);
         cmbDepth = AddComboRow(setFlow, "監控深度：", new string[] { "無限層", "僅本層", "第一層", "第二層", "第三層", "第十層" }, true);
 
@@ -78,7 +79,10 @@ public class App_FileWatcher : UserControl {
         btnAdd.Click += (s, e) => AddNewTask();
         setFlow.Controls.Add(btnAdd);
 
-        setFlow.Controls.Add(new Label() { Text = "【管理中心】", Font = new Font(MainFont.FontFamily, 11f, FontStyle.Bold), Margin = new Padding(0, 20, 0, 10) });
+        // 【修正點】：加入 AutoSize = true
+        Label lblTitleManage = new Label() { Text = "【管理中心】", Font = new Font(MainFont.FontFamily, 11f, FontStyle.Bold), Margin = new Padding(0, 20, 0, 10), AutoSize = true };
+        setFlow.Controls.Add(lblTitleManage);
+        
         Button btnShowList = new Button() { Text = "📋 開啟監控項目清冊", Width = 320, Height = 45, FlatStyle = FlatStyle.Flat, BackColor = Color.WhiteSmoke, Font = new Font(MainFont, FontStyle.Bold) };
         btnShowList.Click += (s, e) => { using(var listForm = new MonitorListWindow(pathPairs, (key) => { pathPairs.Remove(key); SaveAllConfigs(); })) { listForm.ShowDialog(); } };
         setFlow.Controls.Add(btnShowList);
@@ -130,7 +134,6 @@ public class App_FileWatcher : UserControl {
         if (!pathPairs.ContainsKey(src)) return;
         var p = pathPairs[src].Split('|');
 
-        // 【修正】智慧深度解析邏輯
         int targetDepth = ParseDepth(p[4]);
         if (targetDepth != -1 && GetPathDepth(src, e.FullPath) > targetDepth) return;
 
@@ -150,7 +153,6 @@ public class App_FileWatcher : UserControl {
         if (d == "無限層") return -1; if (d == "僅本層") return 0;
         if (d == "第一層") return 1; if (d == "第二層") return 2; if (d == "第三層") return 3;
         if (d == "第十層") return 10;
-        // 支援自定義數字
         string clean = d.Replace("層", "").Replace("第", "").Trim();
         int res; return int.TryParse(clean, out res) ? res : -1;
     }
@@ -162,7 +164,6 @@ public class App_FileWatcher : UserControl {
             string target = Path.Combine(dst, rel);
             if (!Directory.Exists(Path.GetDirectoryName(target))) Directory.CreateDirectory(Path.GetDirectoryName(target));
             
-            // 【修正】解析自定義秒數
             string cleanFreq = freqStr.Replace("秒", "").Trim();
             int sec; if(!int.TryParse(cleanFreq, out sec)) sec = 1;
             System.Threading.Thread.Sleep(Math.Min(sec * 100, 500)); 
@@ -194,9 +195,10 @@ public class App_FileWatcher : UserControl {
     }
 }
 
+// 監控清冊視窗
 public class MonitorListWindow : Form {
     public MonitorListWindow(Dictionary<string, string> data, Action<string> onDelete) {
-        this.Text = "📋 監控項目管理中心";
+        this.Text = "📋 監控項目管理中心 (大尺寸無遮擋)";
         this.Width = 800; this.Height = 850;
         this.StartPosition = FormStartPosition.CenterScreen;
         this.BackColor = Color.White;
