@@ -11,10 +11,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Compile C# Multi-Files
-        # 【關鍵修復】直接指定編譯器的「絕對路徑」，保證絕對找得到！
+        # 【核心修正】改用 Visual Studio 2022 內建的現代編譯器 (Roslyn)
         run: |
           cd MiniProgram01
-          C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:MiniProgram01.exe /optimize+ *.cs
+          & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe" /target:winexe /out:MiniProgram01.exe /optimize+ *.cs
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
