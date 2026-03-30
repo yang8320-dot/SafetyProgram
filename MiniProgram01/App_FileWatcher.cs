@@ -25,20 +25,24 @@ public class App_FileWatcher : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(8);
 
-        // --- 總容器 (由上往下自動排列) ---
+        // --- 總容器 (自動換行排版) ---
         FlowLayoutPanel mainPanel = new FlowLayoutPanel() { 
             Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false 
         };
 
-        // 1. 新增路徑區
+        // 1. 路徑新增區 (第一排)
         FlowLayoutPanel r1 = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0,0,0,5) };
-        txtSource = new TextBox() { Width = 135, Font = MainFont, PlaceholderText = "來源路徑" };
-        txtBackup = new TextBox() { Width = 135, Font = MainFont, PlaceholderText = "備份路徑" };
+        r1.Controls.Add(new Label() { Text = "來源:", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
+        txtSource = new TextBox() { Width = 110, Font = MainFont };
+        
+        r1.Controls.Add(new Label() { Text = "備份:", AutoSize = true, Margin = new Padding(5, 5, 0, 0) });
+        txtBackup = new TextBox() { Width = 110, Font = MainFont };
+        
         Button btnAdd = new Button() { Text = "+", Width = 35, Height = 25, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
         btnAdd.Click += (s, e) => AddNewPath(txtSource.Text, txtBackup.Text);
         r1.Controls.AddRange(new Control[] { txtSource, txtBackup, btnAdd });
 
-        // 2. 參數設定區 (頻率與深度)
+        // 2. 參數設定區 (第二排)
         FlowLayoutPanel r2 = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0,0,0,5) };
         r2.Controls.Add(new Label() { Text = "頻率:", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         cmbFreq = new ComboBox() { Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -48,14 +52,14 @@ public class App_FileWatcher : UserControl {
         cmbDepth = new ComboBox() { Width = 75, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDepth.Items.AddRange(new string[] { "僅本層", "無限層" }); cmbDepth.SelectedIndex = 1;
 
-        Button btnSave = new Button() { Text = "套用設定", Width = 70, Height = 25, FlatStyle = FlatStyle.Flat, BackColor = Color.LightGray };
-        btnSave.Click += (s, e) => { SaveConfig(); MessageBox.Show("設定已儲存，重啟程式後生效"); };
+        Button btnSave = new Button() { Text = "套用", Width = 55, Height = 25, FlatStyle = FlatStyle.Flat, BackColor = Color.LightGray };
+        btnSave.Click += (s, e) => { SaveConfig(); MessageBox.Show("設定已儲存"); };
         r2.Controls.AddRange(new Control[] { cmbFreq, cmbDepth, btnSave });
 
-        // 3. 監控列表標頭與清除按鈕
+        // 3. 標頭與清除按鈕 (第三排)
         FlowLayoutPanel r3 = new FlowLayoutPanel() { AutoSize = true, Width = 340, Margin = new Padding(0, 10, 0, 0) };
-        Label lblList = new Label() { Text = "🔍 異動紀錄清單", AutoSize = true, Font = new Font(MainFont, FontStyle.Bold), ForeColor = Color.DimGray, Margin = new Padding(0, 8, 80, 0) };
-        Button btnClear = new Button() { Text = "🗑️ 一鍵清除", Width = 80, Height = 25, FlatStyle = FlatStyle.Flat, BackColor = Color.White };
+        Label lblList = new Label() { Text = "🔍 異動紀錄", AutoSize = true, Font = new Font(MainFont, FontStyle.Bold), ForeColor = Color.DimGray, Margin = new Padding(0, 8, 85, 0) };
+        Button btnClear = new Button() { Text = "🗑️ 清除", Width = 65, Height = 25, FlatStyle = FlatStyle.Flat, BackColor = Color.White };
         btnClear.Click += (s, e) => cardPanel.Controls.Clear();
         r3.Controls.AddRange(new Control[] { lblList, btnClear });
 
@@ -84,7 +88,6 @@ public class App_FileWatcher : UserControl {
         if (!File.Exists(configFile)) return;
         foreach (string line in File.ReadAllLines(configFile)) {
             if (line.StartsWith("#") || string.IsNullOrWhiteSpace(line)) {
-                // 讀取設定參數
                 if (line.StartsWith("#SET|")) {
                     var p = line.Split('|');
                     if (p.Length >= 3) { cmbFreq.Text = p[1]; cmbDepth.Text = p[2]; }
@@ -136,8 +139,10 @@ public class App_FileWatcher : UserControl {
 
             if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
             
-            // 依據設定的頻率決定延遲（簡單模擬）
-            System.Threading.Thread.Sleep(500);
+            // 根據設定頻率稍微延遲 (例如 1秒, 3秒...)
+            int delay = int.Parse(cmbFreq.Text.Replace("秒", "")) * 1000;
+            System.Threading.Thread.Sleep(Math.Min(delay, 500)); // 避免寫入衝突
+
             File.Copy(fileFullPath, destFile, true);
 
             this.Invoke(new Action(() => {
