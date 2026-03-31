@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Linq;
 
 public class App_RecurringTasks : UserControl {
     private MainForm parentForm;
@@ -11,7 +12,6 @@ public class App_RecurringTasks : UserControl {
     private FlowLayoutPanel taskPanel;
     private Timer checkTimer;
 
-    // 全域設定變數
     public string digestType = "不提醒";
     public string digestTimeStr = "08:00";
     public string lastDigestDate = "";
@@ -29,72 +29,65 @@ public class App_RecurringTasks : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(5);
 
-        // 頂部控制列
-        TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 3 };
+        TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 4 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
 
-        Label lblTitle = new Label() { Text = "已排程任務清單", Font = new Font(MainFont, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10,0,0,0) };
+        Label lblTitle = new Label() { Text = "週期任務", Font = new Font(MainFont, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5,0,0,0) };
+        
+        // 【新增】全部排程檢視按鍵
+        Button btnViewAll = new Button() { Text = "全部檢視", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2,8,2,8), Cursor = Cursors.Hand, BackColor = Color.WhiteSmoke };
+        btnViewAll.Click += (s, e) => OpenAllTasksView();
+
         Button btnAdd = new Button() { Text = "新增任務", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2,8,2,8), Cursor = Cursors.Hand, BackColor = Color.White };
         btnAdd.Click += (s, e) => { new AddRecurringTaskWindow(this).ShowDialog(); };
+        
         Button btnSet = new Button() { Text = "排程設定", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = Color.Gainsboro, Margin = new Padding(2,8,8,8), Cursor = Cursors.Hand };
         btnSet.Click += (s, e) => { new RecurringSettingsWindow(this).ShowDialog(); };
 
-        header.Controls.AddRange(new Control[] { lblTitle, btnAdd, btnSet });
+        header.Controls.AddRange(new Control[] { lblTitle, btnViewAll, btnAdd, btnSet });
         this.Controls.Add(header);
 
-        // 任務清單容器 (取代舊版的 ListBox)
         taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
         this.Controls.Add(taskPanel);
         taskPanel.BringToFront();
 
         LoadTasks();
-        
-        checkTimer = new Timer() { Interval = 600000, Enabled = true }; // 每 10 分鐘檢查一次
+        checkTimer = new Timer() { Interval = 600000, Enabled = true };
         checkTimer.Tick += (s, e) => CheckTasks();
-        CheckTasks(); // 啟動時先檢查一次
+        CheckTasks();
     }
 
-    // ==========================================
-    // UI 更新與卡片生成 (加入調整與刪除按鈕)
-    // ==========================================
+    public void OpenAllTasksView() {
+        this.Invoke(new Action(() => {
+            new AllTasksViewWindow(tasks).Show();
+        }));
+    }
+
     public void RefreshUI() {
         taskPanel.Controls.Clear();
         for (int i = 0; i < tasks.Count; i++) {
-            var t = tasks[i];
-            int currentIndex = i; 
-
-            Panel card = new Panel() { Width = this.Width - 30, AutoSize = true, MinimumSize = new Size(0, 45), BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(5, 5, 0, 5), BackColor = Color.FromArgb(248, 248, 250) };
+            var t = tasks[i]; int idx = i;
+            Panel card = new Panel() { Width = 340, AutoSize = true, MinimumSize = new Size(0, 45), BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(5, 5, 0, 5), BackColor = Color.FromArgb(248, 248, 250) };
             TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, AutoSize = true, Padding = new Padding(5) };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); // 最左側留給調整按鈕
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 中間放文字
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // 最右側放刪除按鈕
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f));
 
-            // 【重點功能】前方的調整按鈕
-            Button btnEdit = new Button() { Text = "調整", Width = 50, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 3, 0, 0) };
-            btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(this, currentIndex, t).ShowDialog(); };
+            Button btnEdit = new Button() { Text = "調整", Width = 50, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(this, idx, t).ShowDialog(); };
 
             Label lbl = new Label() { Text = string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont };
+            Button btnDel = new Button() { Text = "X", Width = 30, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnDel.Click += (s, e) => { if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { tasks.RemoveAt(idx); SaveTasks(); RefreshUI(); } };
 
-            Button btnDel = new Button() { Text = "X", Width = 30, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(5, 3, 0, 0) };
-            btnDel.Click += (s, e) => {
-                if (MessageBox.Show("確定移除此任務？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) {
-                    tasks.RemoveAt(currentIndex); SaveTasks(); RefreshUI();
-                }
-            };
-
-            tlp.Controls.Add(btnEdit, 0, 0);
-            tlp.Controls.Add(lbl, 1, 0);
-            tlp.Controls.Add(btnDel, 2, 0);
-            card.Controls.Add(tlp);
-            taskPanel.Controls.Add(card);
+            tlp.Controls.Add(btnEdit, 0, 0); tlp.Controls.Add(lbl, 1, 0); tlp.Controls.Add(btnDel, 2, 0);
+            card.Controls.Add(tlp); taskPanel.Controls.Add(card);
         }
     }
 
-    // ==========================================
-    // API：提供子視窗呼叫
-    // ==========================================
     public void AddNewTask(string name, string month, string date, string time) {
         tasks.Add(new RecurringTask() { Name = name, MonthStr = month, DateStr = date, TimeStr = time, LastTriggeredDate = "" });
         SaveTasks(); RefreshUI();
@@ -109,15 +102,11 @@ public class App_RecurringTasks : UserControl {
 
     public void UpdateGlobalSettings(string dType, string dTime, int aDays) {
         digestType = dType; digestTimeStr = dTime; advanceDays = aDays;
-        SaveTasks(); MessageBox.Show("設定已儲存！");
+        SaveTasks(); MessageBox.Show("設定儲存成功！");
     }
 
-    // ==========================================
-    // 核心邏輯：檢查觸發條件
-    // ==========================================
     private void CheckTasks() {
         DateTime now = DateTime.Now; bool needsSave = false;
-
         foreach (var t in tasks) {
             DateTime target;
             if (TryGetNextTriggerTime(t, now, out target)) {
@@ -126,16 +115,15 @@ public class App_RecurringTasks : UserControl {
                     string targetDateStr = target.ToString("yyyy-MM-dd");
                     if (t.LastTriggeredDate != targetDateStr) {
                         string prefix = advanceDays > 0 ? string.Format("[預排-{0}] ", target.ToString("MM/dd")) : "";
-                        todoApp.AddTask(prefix + t.Name); // 推送至待辦
-                        t.LastTriggeredDate = targetDateStr; // 鎖定記憶，防止重複觸發
-                        needsSave = true;
-                        parentForm.AlertTab(1); // 觸發待辦分頁閃爍
+                        todoApp.AddTask(prefix + t.Name); 
+                        t.LastTriggeredDate = targetDateStr; needsSave = true;
+                        parentForm.AlertTab(1);
                     }
                 }
             }
         }
 
-        // 清單摘要提醒邏輯
+        // 【修正】摘要提醒時改為彈出「全部檢視」視窗
         if (digestType != "不提醒") {
             DateTime dtDigest;
             if (DateTime.TryParseExact(digestTimeStr, "HH:mm", null, System.Globalization.DateTimeStyles.None, out dtDigest)) {
@@ -146,8 +134,8 @@ public class App_RecurringTasks : UserControl {
 
                 string todayStr = now.ToString("yyyy-MM-dd");
                 if (shouldTrigger && lastDigestDate != todayStr) {
-                    todoApp.AddTask(string.Format("[系統提示] 目前共有 {0} 項週期任務正在背景為您守候中！", tasks.Count));
-                    lastDigestDate = todayStr; needsSave = true; parentForm.AlertTab(1);
+                    lastDigestDate = todayStr; needsSave = true;
+                    OpenAllTasksView(); // 直接彈出檢視視窗
                 }
             }
         }
@@ -159,16 +147,12 @@ public class App_RecurringTasks : UserControl {
         try {
             string[] timeParts = t.TimeStr.Split(':');
             int h = int.Parse(timeParts[0]); int m = int.Parse(timeParts[1]);
-
             if (t.MonthStr == "每天") {
                 target = new DateTime(now.Year, now.Month, now.Day, h, m, 0);
                 if (now > target) target = target.AddDays(1);
                 return true;
             } else if (t.MonthStr == "每週") {
-                Dictionary<string, DayOfWeek> dow = new Dictionary<string, DayOfWeek>() {
-                    {"一", DayOfWeek.Monday}, {"二", DayOfWeek.Tuesday}, {"三", DayOfWeek.Wednesday},
-                    {"四", DayOfWeek.Thursday}, {"五", DayOfWeek.Friday}, {"六", DayOfWeek.Saturday}, {"日", DayOfWeek.Sunday}
-                };
+                Dictionary<string, DayOfWeek> dow = new Dictionary<string, DayOfWeek>() { {"一", DayOfWeek.Monday}, {"二", DayOfWeek.Tuesday}, {"三", DayOfWeek.Wednesday}, {"四", DayOfWeek.Thursday}, {"五", DayOfWeek.Friday}, {"六", DayOfWeek.Saturday}, {"日", DayOfWeek.Sunday} };
                 if (!dow.ContainsKey(t.DateStr)) return false;
                 DayOfWeek targetDow = dow[t.DateStr];
                 target = new DateTime(now.Year, now.Month, now.Day, h, m, 0);
@@ -177,16 +161,20 @@ public class App_RecurringTasks : UserControl {
             } else if (t.MonthStr == "每月") {
                 int day = 1; bool isEndOfMonth = (t.DateStr == "月底");
                 if (!isEndOfMonth && !int.TryParse(t.DateStr, out day)) return false;
-
                 target = new DateTime(now.Year, now.Month, 1, h, m, 0);
                 if (isEndOfMonth) target = target.AddMonths(1).AddDays(-1); 
                 else target = target.AddDays(Math.Min(day, DateTime.DaysInMonth(now.Year, now.Month)) - 1);
-
                 if (now > target) {
                     target = new DateTime(now.Year, now.Month, 1, h, m, 0).AddMonths(1);
                     if (isEndOfMonth) target = target.AddMonths(1).AddDays(-1);
                     else target = target.AddDays(Math.Min(day, DateTime.DaysInMonth(target.Year, target.Month)) - 1);
                 }
+                return true;
+            } else if (t.MonthStr.EndsWith("月")) { // 各別月份處理
+                int month = int.Parse(t.MonthStr.Replace("月",""));
+                int day = (t.DateStr == "月底") ? DateTime.DaysInMonth(now.Year, month) : int.Parse(t.DateStr);
+                target = new DateTime(now.Year, month, day, h, m, 0);
+                if (now > target) target = target.AddYears(1);
                 return true;
             }
         } catch { } return false;
@@ -203,8 +191,7 @@ public class App_RecurringTasks : UserControl {
         tasks.Clear();
         foreach(var l in File.ReadAllLines(recurringFile)) {
             if(l.StartsWith("#DIGEST")) { 
-                var p = l.Split('|'); 
-                digestType = p[1]; digestTimeStr = p[2]; lastDigestDate = p[3]; 
+                var p = l.Split('|'); digestType = p[1]; digestTimeStr = p[2]; lastDigestDate = p[3]; 
                 if(p.Length >= 5) int.TryParse(p[4], out advanceDays); 
             } else {
                 var p = l.Split('|');
@@ -216,7 +203,50 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 視窗一：新增任務視窗
+// 【全新視窗】全部排程檢視
+// ==========================================
+public class AllTasksViewWindow : Form {
+    public AllTasksViewWindow(List<App_RecurringTasks.RecurringTask> tasks) {
+        this.Text = "全部排程清單總覽";
+        this.Width = 450; this.Height = 600;
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.BackColor = Color.White;
+        this.Font = new Font("Microsoft JhengHei UI", 10f);
+
+        FlowLayoutPanel flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+
+        Label lblTitle = new Label() { Text = "週期任務排程總覽", Font = new Font("Microsoft JhengHei UI", 14f, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, 10) };
+        Label lblTotal = new Label() { Text = "目前運作中任務共計：" + tasks.Count + " 項", AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(0, 0, 0, 20) };
+        flow.Controls.Add(lblTitle);
+        flow.Controls.Add(lblTotal);
+
+        // 分類與顯示
+        AddGroup(flow, "【 每天觸發 】", tasks.Where(t => t.MonthStr == "每天").ToList());
+        AddGroup(flow, "【 每週觸發 】", tasks.Where(t => t.MonthStr == "每週").ToList());
+        AddGroup(flow, "【 每月觸發 】", tasks.Where(t => t.MonthStr == "每月").ToList());
+
+        for (int i = 1; i <= 12; i++) {
+            string m = i + "月";
+            AddGroup(flow, "【 " + m + " 限定 】", tasks.Where(t => t.MonthStr == m).ToList());
+        }
+
+        this.Controls.Add(flow);
+    }
+
+    private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
+        if (subTasks.Count == 0) return;
+
+        container.Controls.Add(new Label() { Text = header + " (共 " + subTasks.Count + " 項)", Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 10, 0, 5) });
+        
+        foreach (var t in subTasks) {
+            Label lblItem = new Label() { Text = string.Format(" • [{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), AutoSize = true, Margin = new Padding(15, 2, 0, 2) };
+            container.Controls.Add(lblItem);
+        }
+    }
+}
+
+// ==========================================
+// 視窗：新增/調整/設定 (維持不變)
 // ==========================================
 public class AddRecurringTaskWindow : Form {
     private App_RecurringTasks parentControl;
@@ -227,105 +257,101 @@ public class AddRecurringTaskWindow : Form {
 
     public AddRecurringTaskWindow(App_RecurringTasks parent) {
         this.parentControl = parent; this.Text = "新增週期任務";
-        this.Width = 350; this.Height = 280; this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
+        this.Width = 350; this.Height = 320; this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
 
         FlowLayoutPanel flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20) };
-        
-        flow.Controls.Add(new Label() { Text = "任務名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
-        txtName = new TextBox() { Width = 280, Margin = new Padding(0, 0, 0, 15) }; flow.Controls.Add(txtName);
+        flow.Controls.Add(new Label() { Text = "任務名稱：", AutoSize = true });
+        txtName = new TextBox() { Width = 280, Margin = new Padding(0, 0, 0, 10) }; flow.Controls.Add(txtName);
 
-        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
-        cmbMonth = new ComboBox() { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList }; cmbMonth.Items.AddRange(new string[] { "每天", "每週", "每月" });
-        cmbDate = new ComboBox() { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
-        dtpTime = new DateTimePicker() { Width = 80, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
-        
+        flow.Controls.Add(new Label() { Text = "週期類型：", AutoSize = true });
+        cmbMonth = new ComboBox() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 0, 0, 10) };
+        cmbMonth.Items.AddRange(new string[] { "每天", "每週", "每月" });
+        for(int i=1;i<=12;i++) cmbMonth.Items.Add(i+"月");
+        flow.Controls.Add(cmbMonth);
+
+        flow.Controls.Add(new Label() { Text = "日期條件：", AutoSize = true });
+        cmbDate = new ComboBox() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 0, 0, 10) };
+        flow.Controls.Add(cmbDate);
+
         cmbMonth.SelectedIndexChanged += (s, e) => {
             cmbDate.Items.Clear();
             if (cmbMonth.Text == "每天") { cmbDate.Items.Add("每日"); cmbDate.Enabled = false; } 
             else if (cmbMonth.Text == "每週") { cmbDate.Items.AddRange(new string[] { "一", "二", "三", "四", "五", "六", "日" }); cmbDate.Enabled = true; } 
-            else if (cmbMonth.Text == "每月") { for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i.ToString()); cmbDate.Items.Add("月底"); cmbDate.Enabled = true; }
+            else { for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i.ToString()); cmbDate.Items.Add("月底"); cmbDate.Enabled = true; }
             cmbDate.SelectedIndex = 0;
         };
         cmbMonth.SelectedIndex = 0;
-        
-        row.Controls.AddRange(new Control[] { cmbMonth, cmbDate, dtpTime }); flow.Controls.Add(row);
 
-        Button btnSave = new Button() { Text = "建立任務", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        flow.Controls.Add(new Label() { Text = "執行時間：", AutoSize = true });
+        dtpTime = new DateTimePicker() { Width = 280, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
+        flow.Controls.Add(dtpTime);
+
+        Button btnSave = new Button() { Text = "建立任務", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 15, 0, 0) };
         btnSave.Click += (s, e) => {
-            if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入任務名稱！"); return; }
-            parentControl.AddNewTask(txtName.Text.Trim(), cmbMonth.Text, cmbDate.Text, dtpTime.Value.ToString("HH:mm"));
+            if (string.IsNullOrWhiteSpace(txtName.Text)) return;
+            parentControl.AddNewTask(txtName.Text, cmbMonth.Text, cmbDate.Text, dtpTime.Value.ToString("HH:mm"));
             this.Close();
         };
         flow.Controls.Add(btnSave); this.Controls.Add(flow);
     }
 }
 
-// ==========================================
-// 視窗二：調整任務專屬視窗 (全新功能)
-// ==========================================
 public class EditRecurringTaskWindow : Form {
     private App_RecurringTasks parentControl;
     private int taskIndex;
     private TextBox txtName;
     private ComboBox cmbMonth, cmbDate;
     private DateTimePicker dtpTime;
-    private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public EditRecurringTaskWindow(App_RecurringTasks parent, int index, App_RecurringTasks.RecurringTask task) {
         this.parentControl = parent; this.taskIndex = index; this.Text = "調整任務條件";
-        this.Width = 350; this.Height = 280; this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
+        this.Width = 350; this.Height = 320; this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog;
 
         FlowLayoutPanel flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20) };
-        
-        flow.Controls.Add(new Label() { Text = "任務名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
-        txtName = new TextBox() { Width = 280, Text = task.Name, Margin = new Padding(0, 0, 0, 15) }; flow.Controls.Add(txtName);
+        flow.Controls.Add(new Label() { Text = "任務名稱：", AutoSize = true });
+        txtName = new TextBox() { Width = 280, Text = task.Name, Margin = new Padding(0, 0, 0, 10) }; flow.Controls.Add(txtName);
 
-        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
-        cmbMonth = new ComboBox() { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList }; cmbMonth.Items.AddRange(new string[] { "每天", "每週", "每月" });
-        cmbDate = new ComboBox() { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
-        dtpTime = new DateTimePicker() { Width = 80, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
-        
+        cmbMonth = new ComboBox() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbMonth.Items.AddRange(new string[] { "每天", "每週", "每月" });
+        for(int i=1;i<=12;i++) cmbMonth.Items.Add(i+"月");
+        cmbMonth.Text = task.MonthStr; flow.Controls.Add(cmbMonth);
+
+        cmbDate = new ComboBox() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
+        flow.Controls.Add(cmbDate);
+
         cmbMonth.SelectedIndexChanged += (s, e) => {
             cmbDate.Items.Clear();
-            if (cmbMonth.Text == "每天") { cmbDate.Items.Add("每日"); cmbDate.Enabled = false; } 
-            else if (cmbMonth.Text == "每週") { cmbDate.Items.AddRange(new string[] { "一", "二", "三", "四", "五", "六", "日" }); cmbDate.Enabled = true; } 
-            else if (cmbMonth.Text == "每月") { for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i.ToString()); cmbDate.Items.Add("月底"); cmbDate.Enabled = true; }
-            cmbDate.SelectedIndex = 0;
+            if (cmbMonth.Text == "每天") { cmbDate.Items.Add("每日"); } 
+            else if (cmbMonth.Text == "每週") { cmbDate.Items.AddRange(new string[] { "一", "二", "三", "四", "五", "六", "日" }); } 
+            else { for (int i = 1; i <= 31; i++) cmbDate.Items.Add(i.ToString()); cmbDate.Items.Add("月底"); }
+            if (cmbDate.Items.Count > 0) cmbDate.SelectedIndex = 0;
         };
-        
-        // 回填現有資料
-        cmbMonth.Text = task.MonthStr;
-        if (cmbDate.Items.Contains(task.DateStr)) cmbDate.Text = task.DateStr;
+        cmbDate.Text = task.DateStr;
+
+        dtpTime = new DateTimePicker() { Width = 280, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
         DateTime dt; if(DateTime.TryParseExact(task.TimeStr, "HH:mm", null, System.Globalization.DateTimeStyles.None, out dt)) dtpTime.Value = dt;
+        flow.Controls.Add(dtpTime);
 
-        row.Controls.AddRange(new Control[] { cmbMonth, cmbDate, dtpTime }); flow.Controls.Add(row);
-
-        Button btnSave = new Button() { Text = "儲存修改", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        Button btnSave = new Button() { Text = "儲存修改", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 15, 0, 0) };
         btnSave.Click += (s, e) => {
-            if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入任務名稱！"); return; }
-            parentControl.UpdateTask(taskIndex, txtName.Text.Trim(), cmbMonth.Text, cmbDate.Text, dtpTime.Value.ToString("HH:mm"));
+            parentControl.UpdateTask(taskIndex, txtName.Text, cmbMonth.Text, cmbDate.Text, dtpTime.Value.ToString("HH:mm"));
             this.Close();
         };
         flow.Controls.Add(btnSave); this.Controls.Add(flow);
     }
 }
 
-// ==========================================
-// 視窗三：全域排程設定 (清單提醒與提前天數)
-// ==========================================
 public class RecurringSettingsWindow : Form {
     private App_RecurringTasks parentControl;
     private ComboBox cmbDigest, cmbAdvanceDays;
     private DateTimePicker dtpDigestTime;
-    private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public RecurringSettingsWindow(App_RecurringTasks parent) {
         this.parentControl = parent; this.Text = "全域排程設定";
-        this.Width = 350; this.Height = 230; this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
+        this.Width = 350; this.Height = 230; this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog;
 
         FlowLayoutPanel flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20) };
         
-        // 提前佈署設定
         FlowLayoutPanel advRow = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
         advRow.Controls.Add(new Label() { Text = "所有任務提前", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         cmbAdvanceDays = new ComboBox() { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -335,9 +361,8 @@ public class RecurringSettingsWindow : Form {
         advRow.Controls.Add(new Label() { Text = "天加入待辦", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         flow.Controls.Add(advRow);
 
-        // 摘要提醒設定
         FlowLayoutPanel digestRow = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 20) };
-        digestRow.Controls.Add(new Label() { Text = "摘要報告：", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
+        digestRow.Controls.Add(new Label() { Text = "視窗摘要提醒：", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         cmbDigest = new ComboBox() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbDigest.Items.AddRange(new string[]{"不提醒", "每週一", "每月1號"}); 
         cmbDigest.Text = parent.digestType;
@@ -346,7 +371,7 @@ public class RecurringSettingsWindow : Form {
         digestRow.Controls.AddRange(new Control[]{ cmbDigest, dtpDigestTime });
         flow.Controls.Add(digestRow);
 
-        Button btnSave = new Button() { Text = "儲存所有設定", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        Button btnSave = new Button() { Text = "儲存所有設定", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         btnSave.Click += (s, e) => {
             int adv = 0; int.TryParse(cmbAdvanceDays.Text, out adv);
             parentControl.UpdateGlobalSettings(cmbDigest.Text, dtpDigestTime.Value.ToString("HH:mm"), adv);
