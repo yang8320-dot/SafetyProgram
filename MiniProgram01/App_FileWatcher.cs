@@ -13,7 +13,7 @@ public class App_FileWatcher : UserControl {
     private Dictionary<string, string> pathPairs = new Dictionary<string, string>();
     private Dictionary<string, DateTime> lastProcessedTimes = new Dictionary<string, DateTime>();
     private readonly object lockObj = new object();
-    private Timer retentionTimer; // 自動清除計時器
+    private Timer retentionTimer; 
 
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
@@ -43,34 +43,66 @@ public class App_FileWatcher : UserControl {
 
         LoadConfigAndStartWatch();
 
-        // 啟動自動刪除巡邏 (每1小時檢查一次)
         retentionTimer = new Timer() { Interval = 3600000, Enabled = true };
         retentionTimer.Tick += (s, e) => RunRetentionSweep();
-        RunRetentionSweep(); // 啟動時先掃描一次
+        RunRetentionSweep(); 
     }
+
+    // ==========================================
+    // API 區域 (供外部視窗呼叫)
+    // ==========================================
+    public Dictionary<string, string> GetPathPairs() { return pathPairs; }
 
     public void AddNewTask(string src, string dst, string method, string freq, string depth, string syncMode, string retention) {
         pathPairs[src] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}", src, dst, method, freq, depth, syncMode, retention);
         SaveAllConfigs(); 
-        StartWatcherFromLine(pathPairs[src]);
+        ReloadAllWatchers(); // 熱重載
         MessageBox.Show("監控任務已成功建立！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    public void OpenListWindow() {
-        using(var listForm = new MonitorListWindow(pathPairs, (key) => { pathPairs.Remove(key); SaveAllConfigs(); })) { 
-            listForm.ShowDialog(); 
+    public void UpdateTask(string oldSrc, string newSrc, string dst, string method, string freq, string depth, string syncMode, string retention) {
+        if (!oldSrc.Equals(newSrc, StringComparison.OrdinalIgnoreCase) && pathPairs.ContainsKey(newSrc)) {
+            MessageBox.Show("新的來源路徑已存在監控清單中！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
         }
+        pathPairs.Remove(oldSrc);
+        pathPairs[newSrc] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}", newSrc, dst, method, freq, depth, syncMode, retention);
+        SaveAllConfigs();
+        ReloadAllWatchers(); // 熱重載
+        MessageBox.Show("任務修改成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    public void DeleteTask(string key) {
+        pathPairs.Remove(key);
+        SaveAllConfigs();
+        ReloadAllWatchers(); // 熱重載，真正停止該資料夾的監控
+    }
+
+    public void OpenListWindow() {
+        using(var listForm = new MonitorListWindow(this)) { listForm.ShowDialog(); }
+    }
+
+    // ==========================================
+    // 核心監控邏輯
+    // ==========================================
+    private void ReloadAllWatchers() {
+        // 先停用並釋放所有舊的監控器
+        foreach (var w in watchers) {
+            w.EnableRaisingEvents = false;
+            w.Dispose();
+        }
+        watchers.Clear();
+        // 重新依據最新設定啟動
+        foreach (var val in pathPairs.Values) { StartWatcherFromLine(val); }
     }
 
     private void StartWatcherFromLine(string line) {
         var p = line.Split('|'); if (p.Length < 5) return;
         string syncMode = p.Length > 5 ? p[5] : "單向備份";
         
-        // 來源監聽
         FileSystemWatcher wSrc = new FileSystemWatcher(p[0]) { IncludeSubdirectories = (p[4] != "僅本層"), EnableRaisingEvents = true };
         wSrc.Changed += OnFileEvent; wSrc.Created += OnFileEvent; watchers.Add(wSrc);
 
-        // 如果是雙向同步，連備份區一起監聽
         if (syncMode == "雙向同步") {
             if (!Directory.Exists(p[1])) Directory.CreateDirectory(p[1]);
             FileSystemWatcher wDst = new FileSystemWatcher(p[1]) { IncludeSubdirectories = (p[4] != "僅本層"), EnableRaisingEvents = true };
@@ -82,10 +114,8 @@ public class App_FileWatcher : UserControl {
         if (Directory.Exists(e.FullPath)) return;
         string triggerRoot = ((FileSystemWatcher)sender).Path;
         
-        string taskLine = null;
-        bool isTriggerFromSrc = true;
+        string taskLine = null; bool isTriggerFromSrc = true;
 
-        // 尋找是哪一個任務被觸發，以及是從 Src 還是 Dst 觸發的
         foreach (var val in pathPairs.Values) {
             var p = val.Split('|');
             if (triggerRoot.Equals(p[0], StringComparison.OrdinalIgnoreCase)) { taskLine = val; isTriggerFromSrc = true; break; }
@@ -100,11 +130,9 @@ public class App_FileWatcher : UserControl {
         int targetDepth = ParseDepth(parts[4]);
         if (targetDepth != -1 && GetPathDepth(sourceDir, e.FullPath) > targetDepth) return;
 
-        // 計算目標路徑
         string rel = Uri.UnescapeDataString(new Uri(sourceDir + (sourceDir.EndsWith("\\") ? "" : "\\")).MakeRelativeUri(new Uri(e.FullPath)).ToString().Replace('/', '\\'));
         string targetFile = Path.Combine(targetDir, rel);
 
-        // 【防反彈迴圈機制】：如果兩邊檔案修改時間誤差小於 2 秒，代表是系統同步的結果，直接忽略
         if (File.Exists(targetFile)) {
             if (Math.Abs((File.GetLastWriteTime(e.FullPath) - File.GetLastWriteTime(targetFile)).TotalSeconds) < 2) return;
         }
@@ -131,7 +159,6 @@ public class App_FileWatcher : UserControl {
     private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath) {
         try {
             if (!Directory.Exists(Path.GetDirectoryName(targetFile))) Directory.CreateDirectory(Path.GetDirectoryName(targetFile));
-            
             string cleanFreq = freqStr.Replace("秒", "").Trim();
             int sec; if(!int.TryParse(cleanFreq, out sec)) sec = 1;
             System.Threading.Thread.Sleep(Math.Min(sec * 100, 500)); 
@@ -140,7 +167,7 @@ public class App_FileWatcher : UserControl {
             
             if (showUI) {
                 this.Invoke(new Action(() => {
-                    parentForm.AlertTab(0); // 【新增】呼叫主程式讓 Tab 0 閃爍
+                    parentForm.AlertTab(0); 
                     Panel c = new Panel() { Width = 330, Height = 65, BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 0, 2) };
                     c.Controls.Add(new Label() { Text = Path.GetFileName(srcFile) + "\n路徑: " + relPath, Location = new Point(5, 5), Width = 240, Height = 40 });
                     Button b = new Button() { Text = "查看", Location = new Point(255, 12), Width = 55, Height = 30, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -152,13 +179,11 @@ public class App_FileWatcher : UserControl {
         } catch { }
     }
 
-    // --- 自動清理舊備份機制 ---
     private void RunRetentionSweep() {
         foreach (var val in pathPairs.Values) {
             var p = val.Split('|');
             if (p.Length >= 7 && p[5] == "單向備份" && p[6] != "永久") {
-                int months = 0;
-                string mStr = p[6].Replace("個月", "").Replace("月", "").Trim();
+                int months = 0; string mStr = p[6].Replace("個月", "").Replace("月", "").Trim();
                 if (int.TryParse(mStr, out months) && months > 0 && Directory.Exists(p[1])) {
                     try {
                         DateTime threshold = DateTime.Now.AddMonths(-months);
@@ -174,8 +199,9 @@ public class App_FileWatcher : UserControl {
     private void LoadConfigAndStartWatch() {
         if (!File.Exists(configFile)) return;
         foreach (string line in File.ReadAllLines(configFile)) {
-            var parts = line.Split('|'); if (parts.Length >= 5 && Directory.Exists(parts[0])) { pathPairs[parts[0]] = line; StartWatcherFromLine(line); }
+            var parts = line.Split('|'); if (parts.Length >= 5 && Directory.Exists(parts[0])) { pathPairs[parts[0]] = line; }
         }
+        ReloadAllWatchers(); // 統一使用熱重載啟動
     }
 
     private void SaveAllConfigs() {
@@ -184,6 +210,9 @@ public class App_FileWatcher : UserControl {
     }
 }
 
+// ==========================================
+// 視窗一：建立監控設定
+// ==========================================
 public class MonitorSettingsWindow : Form {
     private App_FileWatcher parentWatcher;
     private TextBox txtSource, txtBackup;
@@ -191,24 +220,17 @@ public class MonitorSettingsWindow : Form {
     private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
     public MonitorSettingsWindow(App_FileWatcher watcher) {
-        this.parentWatcher = watcher;
-        this.Text = "⚙ 監控設定";
-        this.Width = 380; this.AutoSize = true; this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        this.StartPosition = FormStartPosition.CenterScreen; this.BackColor = Color.White;
-        this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
+        this.parentWatcher = watcher; this.Text = "⚙ 監控設定"; this.Width = 380; this.AutoSize = true; this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        this.StartPosition = FormStartPosition.CenterScreen; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
 
         FlowLayoutPanel mainFlow = new FlowLayoutPanel() { FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20), AutoSize = true };
 
         GroupBox gbNew = new GroupBox() { Text = "新增監控路徑", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true, Margin = new Padding(0,0,0,15) };
         FlowLayoutPanel flowNew = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
         
-        txtSource = AddPathRow(flowNew, "來源路徑：");
-        txtBackup = AddPathRow(flowNew, "備份路徑：");
-        
-        // 【新增設定】：同步模式與自動刪除
+        txtSource = AddPathRow(flowNew, "來源路徑："); txtBackup = AddPathRow(flowNew, "備份路徑：");
         cmbSync = AddComboRow(flowNew, "同步模式：", new string[] { "單向備份", "雙向同步" }, false);
         cmbRetain = AddComboRow(flowNew, "自動刪除(單向)：", new string[] { "永久", "1個月", "3個月", "6個月" }, true);
-        
         cmbMethod = AddComboRow(flowNew, "提示方式：", new string[] { "顯示在監控", "背景執行" }, false);
         cmbFreq = AddComboRow(flowNew, "頻率(秒)：", new string[] { "1", "3", "5", "10", "30", "60" }, true);
         cmbDepth = AddComboRow(flowNew, "監控深度：", new string[] { "無限層", "僅本層", "第一層", "第二層", "第三層", "第十層" }, true);
@@ -219,15 +241,13 @@ public class MonitorSettingsWindow : Form {
             parentWatcher.AddNewTask(txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text);
             txtSource.Text = ""; txtBackup.Text = "";
         };
-        flowNew.Controls.Add(btnAdd);
-        gbNew.Controls.Add(flowNew); mainFlow.Controls.Add(gbNew);
+        flowNew.Controls.Add(btnAdd); gbNew.Controls.Add(flowNew); mainFlow.Controls.Add(gbNew);
 
         GroupBox gbManage = new GroupBox() { Text = "管理中心", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true };
         FlowLayoutPanel flowManage = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
         Button btnShowList = new Button() { Text = "📋 開啟監控項目清冊", Width = 290, Height = 45, FlatStyle = FlatStyle.Flat, BackColor = Color.WhiteSmoke, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5,0,0,0), Cursor = Cursors.Hand };
         btnShowList.Click += (s, e) => parentWatcher.OpenListWindow();
         flowManage.Controls.Add(btnShowList); gbManage.Controls.Add(flowManage); mainFlow.Controls.Add(gbManage);
-
         this.Controls.Add(mainFlow);
     }
 
@@ -252,29 +272,114 @@ public class MonitorSettingsWindow : Form {
     }
 }
 
+// ==========================================
+// 視窗二：監控項目清冊 (加入「修改」按鈕)
+// ==========================================
 public class MonitorListWindow : Form {
-    public MonitorListWindow(Dictionary<string, string> data, Action<string> onDelete) {
-        this.Text = "📋 監控項目管理中心 (大尺寸無遮擋)";
+    private App_FileWatcher parentWatcher;
+    private FlowLayoutPanel list;
+
+    public MonitorListWindow(App_FileWatcher watcher) {
+        this.parentWatcher = watcher;
+        this.Text = "📋 監控項目管理中心";
         this.Width = 800; this.Height = 850; this.StartPosition = FormStartPosition.CenterScreen;
         this.BackColor = Color.White; this.Font = new Font("Microsoft JhengHei UI", 10f);
 
-        FlowLayoutPanel list = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        list = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        this.Controls.Add(list);
+        ReloadUI();
+    }
+
+    public void ReloadUI() {
+        list.Controls.Clear();
+        var data = parentWatcher.GetPathPairs();
+        
         foreach (var key in data.Keys) {
             var p = data[key].Split('|');
             Panel card = new Panel() { Width = 740, Height = 88, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 0, 0, 10), BackColor = Color.FromArgb(248, 248, 250) };
-            Label lblSrc = new Label() { Text = "源：" + p[0], Location = new Point(10, 8), Width = 640, ForeColor = Color.FromArgb(0, 102, 204), Height = 22 };
-            Label lblDst = new Label() { Text = "備：" + p[1], Location = new Point(10, 30), Width = 640, ForeColor = Color.FromArgb(0, 153, 76), Height = 22 };
+            Label lblSrc = new Label() { Text = "源：" + p[0], Location = new Point(10, 8), Width = 550, ForeColor = Color.FromArgb(0, 102, 204), Height = 22 };
+            Label lblDst = new Label() { Text = "備：" + p[1], Location = new Point(10, 30), Width = 550, ForeColor = Color.FromArgb(0, 153, 76), Height = 22 };
             
-            // 介面資料相容更新顯示
             string syncMode = p.Length > 5 ? p[5] : "單向備份";
             string retention = p.Length > 6 ? p[6] : "永久";
             Label lblSet = new Label() { Text = string.Format("同步：{0} | 提醒：{1} | 深度：{2} | 刪除：{3}", syncMode, p[2], p[4], retention), Location = new Point(10, 58), Width = 500, Font = new Font("Microsoft JhengHei UI", 8.5f), ForeColor = Color.DimGray };
             
-            Button btnDel = new Button() { Text = "移除任務", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnDel.Click += (s, e) => { if(MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { onDelete(key); this.Close(); } };
-            card.Controls.AddRange(new Control[] { lblSrc, lblDst, lblSet, btnDel });
+            // 【新增】修改按鈕
+            Button btnEdit = new Button() { Text = "✏️ 調整", Location = new Point(570, 23), Width = 75, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnEdit.Click += (s, e) => { new EditMonitorTaskWindow(parentWatcher, this, key, data[key]).ShowDialog(); };
+            
+            // 移除按鈕
+            Button btnDel = new Button() { Text = "🗑️ 移除", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnDel.Click += (s, e) => { if(MessageBox.Show("確定要永久移除此監控任務？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { parentWatcher.DeleteTask(key); ReloadUI(); } };
+            
+            card.Controls.AddRange(new Control[] { lblSrc, lblDst, lblSet, btnEdit, btnDel });
             list.Controls.Add(card);
         }
-        this.Controls.Add(list);
+    }
+}
+
+// ==========================================
+// 視窗三：全新【修改任務】專屬視窗
+// ==========================================
+public class EditMonitorTaskWindow : Form {
+    private App_FileWatcher parentWatcher;
+    private MonitorListWindow listWindow;
+    private string originalSrcKey;
+
+    private TextBox txtSource, txtBackup;
+    private ComboBox cmbMethod, cmbFreq, cmbDepth, cmbSync, cmbRetain;
+    private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
+
+    public EditMonitorTaskWindow(App_FileWatcher watcher, MonitorListWindow lw, string key, string taskData) {
+        this.parentWatcher = watcher; this.listWindow = lw; this.originalSrcKey = key;
+        this.Text = "✏️ 修改監控任務"; this.Width = 380; this.AutoSize = true; this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        this.StartPosition = FormStartPosition.CenterParent; this.BackColor = Color.White; this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
+
+        FlowLayoutPanel mainFlow = new FlowLayoutPanel() { FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20), AutoSize = true };
+        GroupBox gbEdit = new GroupBox() { Text = "編輯參數", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true };
+        FlowLayoutPanel flowEdit = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
+
+        txtSource = AddPathRow(flowEdit, "來源路徑："); txtBackup = AddPathRow(flowEdit, "備份路徑：");
+        cmbSync = AddComboRow(flowEdit, "同步模式：", new string[] { "單向備份", "雙向同步" }, false);
+        cmbRetain = AddComboRow(flowEdit, "自動刪除(單向)：", new string[] { "永久", "1個月", "3個月", "6個月" }, true);
+        cmbMethod = AddComboRow(flowEdit, "提示方式：", new string[] { "顯示在監控", "背景執行" }, false);
+        cmbFreq = AddComboRow(flowEdit, "頻率(秒)：", new string[] { "1", "3", "5", "10", "30", "60" }, true);
+        cmbDepth = AddComboRow(flowEdit, "監控深度：", new string[] { "無限層", "僅本層", "第一層", "第二層", "第三層", "第十層" }, true);
+
+        // 填入既有資料
+        var p = taskData.Split('|');
+        txtSource.Text = p[0]; txtBackup.Text = p[1]; cmbMethod.Text = p[2]; cmbFreq.Text = p[3]; cmbDepth.Text = p[4];
+        if (p.Length > 5) cmbSync.Text = p[5]; if (p.Length > 6) cmbRetain.Text = p[6];
+
+        Button btnSave = new Button() { Text = "💾 儲存修改", Width = 290, Height = 40, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5, 10, 0, 5), Cursor = Cursors.Hand };
+        btnSave.Click += (s, e) => {
+            if (!Directory.Exists(txtSource.Text.Trim())) { MessageBox.Show("來源路徑無效！"); return; }
+            parentWatcher.UpdateTask(originalSrcKey, txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text);
+            listWindow.ReloadUI(); // 重新整理後面的清單視窗
+            this.Close();
+        };
+        
+        flowEdit.Controls.Add(btnSave); gbEdit.Controls.Add(flowEdit); mainFlow.Controls.Add(gbEdit);
+        this.Controls.Add(mainFlow);
+    }
+
+    private TextBox AddPathRow(FlowLayoutPanel container, string labelText) {
+        container.Controls.Add(new Label() { Text = labelText, AutoSize = true, Margin = new Padding(0, 5, 0, 2) });
+        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 10) };
+        TextBox tb = new TextBox() { Width = 180 };
+        Button btnSel = new Button() { Text = "選", Width = 35, Height = 25, Font = new Font(MainFont.FontFamily, 8f) };
+        btnSel.Click += (s, e) => { using(FolderBrowserDialog fbd = new FolderBrowserDialog()) if(fbd.ShowDialog() == DialogResult.OK) tb.Text = fbd.SelectedPath; };
+        Button btnPaste = new Button() { Text = "貼", Width = 35, Height = 25, Font = new Font(MainFont.FontFamily, 8f) };
+        btnPaste.Click += (s, e) => { string p = Clipboard.GetText().Trim(' ', '\"'); if (!string.IsNullOrEmpty(p)) tb.Text = p; };
+        row.Controls.AddRange(new Control[] { tb, btnSel, btnPaste });
+        container.Controls.Add(row); return tb;
+    }
+
+    private ComboBox AddComboRow(FlowLayoutPanel container, string labelText, string[] items, bool editable) {
+        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 5, 0, 5) };
+        row.Controls.Add(new Label() { Text = labelText, AutoSize = true, Margin = new Padding(0, 7, 0, 0) });
+        ComboBox cb = new ComboBox() { Width = 150, DropDownStyle = editable ? ComboBoxStyle.DropDown : ComboBoxStyle.DropDownList };
+        cb.Items.AddRange(items); cb.SelectedIndex = 0;
+        row.Controls.Add(cb); container.Controls.Add(row); return cb;
     }
 }
