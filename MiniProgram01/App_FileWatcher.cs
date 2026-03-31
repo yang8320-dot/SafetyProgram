@@ -50,20 +50,22 @@ public class App_FileWatcher : UserControl {
 
     public Dictionary<string, string> GetPathPairs() { return pathPairs; }
 
-    public void AddNewTask(string src, string dst, string method, string freq, string depth, string syncMode, string retention) {
-        pathPairs[src] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}", src, dst, method, freq, depth, syncMode, retention);
+    // 【修正】加入自訂名稱參數 (customName)
+    public void AddNewTask(string src, string dst, string method, string freq, string depth, string syncMode, string retention, string customName) {
+        pathPairs[src] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}", src, dst, method, freq, depth, syncMode, retention, customName);
         SaveAllConfigs(); 
         ReloadAllWatchers(); 
         MessageBox.Show("監控任務已成功建立！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    public void UpdateTask(string oldSrc, string newSrc, string dst, string method, string freq, string depth, string syncMode, string retention) {
+    // 【修正】加入自訂名稱參數 (customName)
+    public void UpdateTask(string oldSrc, string newSrc, string dst, string method, string freq, string depth, string syncMode, string retention, string customName) {
         if (!oldSrc.Equals(newSrc, StringComparison.OrdinalIgnoreCase) && pathPairs.ContainsKey(newSrc)) {
             MessageBox.Show("新的來源路徑已存在監控清單中！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         pathPairs.Remove(oldSrc);
-        pathPairs[newSrc] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}", newSrc, dst, method, freq, depth, syncMode, retention);
+        pathPairs[newSrc] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}", newSrc, dst, method, freq, depth, syncMode, retention, customName);
         SaveAllConfigs();
         ReloadAllWatchers(); 
         MessageBox.Show("任務修改成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -133,7 +135,10 @@ public class App_FileWatcher : UserControl {
             if (lastProcessedTimes.ContainsKey(e.FullPath) && (DateTime.Now - lastProcessedTimes[e.FullPath]).TotalMilliseconds < 800) return;
             lastProcessedTimes[e.FullPath] = DateTime.Now;
         }
-        DoBackup(e.FullPath, targetFile, parts[2] == "顯示在監控", parts[3], rel);
+        
+        // 【修正】提取自訂名稱傳遞給介面生成方法
+        string customName = parts.Length > 7 ? parts[7] : "";
+        DoBackup(e.FullPath, targetFile, parts[2] == "顯示在監控", parts[3], rel, customName);
     }
 
     private int GetPathDepth(string root, string file) {
@@ -148,10 +153,8 @@ public class App_FileWatcher : UserControl {
         int res; return int.TryParse(clean, out res) ? res : -1;
     }
 
-    // ==========================================
-    // UI 生成：包含查看後消失與獨立刪除按鈕
-    // ==========================================
-    private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath) {
+    // 【修正】加入自訂名稱 (customName) 參數並實作路徑顯示邏輯
+    private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath, string customName) {
         try {
             if (!Directory.Exists(Path.GetDirectoryName(targetFile))) Directory.CreateDirectory(Path.GetDirectoryName(targetFile));
             string cleanFreq = freqStr.Replace("秒", "").Trim();
@@ -165,26 +168,25 @@ public class App_FileWatcher : UserControl {
                     parentForm.AlertTab(0); 
                     Panel c = new Panel() { Width = 330, Height = 65, BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 0, 2) };
                     
-                    // 縮減一點 Label 的寬度以容納兩個按鈕
-                    c.Controls.Add(new Label() { Text = Path.GetFileName(srcFile) + "\n路徑: " + relPath, Location = new Point(5, 5), Width = 230, Height = 40 });
+                    // 判斷要顯示自訂名稱還是相對路徑
+                    string displayLoc = string.IsNullOrWhiteSpace(customName) ? relPath : customName;
                     
-                    // 【修正】查看按鈕：點擊後打開檔案，並自動刪除此卡片
+                    c.Controls.Add(new Label() { Text = Path.GetFileName(srcFile) + "\n位置: " + displayLoc, Location = new Point(5, 5), Width = 230, Height = 40 });
+                    
                     Button bView = new Button() { Text = "查看", Location = new Point(235, 12), Width = 50, Height = 30, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     bView.Click += (s, e2) => {
                         System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + srcFile + "\"");
-                        cardPanel.Controls.Remove(c); c.Dispose(); // 點擊查看後卡片消失
+                        cardPanel.Controls.Remove(c); c.Dispose(); 
                     };
                     
-                    // 【新增】刪除按鈕：點擊後直接移除此卡片
                     Button bClose = new Button() { Text = "✕", Location = new Point(290, 12), Width = 30, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     bClose.Click += (s, e2) => {
-                        cardPanel.Controls.Remove(c); c.Dispose(); // 點擊叉叉卡片消失
+                        cardPanel.Controls.Remove(c); c.Dispose(); 
                     };
                     
                     c.Controls.AddRange(new Control[] { bView, bClose });
                     cardPanel.Controls.Add(c); cardPanel.Controls.SetChildIndex(c, 0);
                     
-                    // 維持最多 15 筆通知，超過的自動清掉最舊的
                     if (cardPanel.Controls.Count > 15) {
                         var old = cardPanel.Controls[15];
                         cardPanel.Controls.RemoveAt(15);
@@ -227,11 +229,11 @@ public class App_FileWatcher : UserControl {
 }
 
 // ==========================================
-// 以下視窗代碼維持不變 (MonitorSettingsWindow, MonitorListWindow, EditMonitorTaskWindow)
+// 視窗一：建立監控設定
 // ==========================================
 public class MonitorSettingsWindow : Form {
     private App_FileWatcher parentWatcher;
-    private TextBox txtSource, txtBackup;
+    private TextBox txtCustomName, txtSource, txtBackup; // 【新增】txtCustomName
     private ComboBox cmbMethod, cmbFreq, cmbDepth, cmbSync, cmbRetain;
     private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
@@ -244,7 +246,9 @@ public class MonitorSettingsWindow : Form {
         GroupBox gbNew = new GroupBox() { Text = "新增監控路徑", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true, Margin = new Padding(0,0,0,15) };
         FlowLayoutPanel flowNew = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
         
-        txtSource = AddPathRow(flowNew, "來源路徑："); txtBackup = AddPathRow(flowNew, "備份路徑：");
+        txtCustomName = AddTextRow(flowNew, "自訂顯示名稱："); // 【新增】輸入欄位
+        txtSource = AddPathRow(flowNew, "來源路徑："); 
+        txtBackup = AddPathRow(flowNew, "備份路徑：");
         cmbSync = AddComboRow(flowNew, "同步模式：", new string[] { "單向備份", "雙向同步" }, false);
         cmbRetain = AddComboRow(flowNew, "自動刪除(單向)：", new string[] { "永久", "1個月", "3個月", "6個月" }, true);
         cmbMethod = AddComboRow(flowNew, "提示方式：", new string[] { "顯示在監控", "背景執行" }, false);
@@ -254,17 +258,26 @@ public class MonitorSettingsWindow : Form {
         Button btnAdd = new Button() { Text = "+ 新增至監控任務", Width = 290, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5, 10, 0, 5), Cursor = Cursors.Hand };
         btnAdd.Click += (s, e) => {
             if (!Directory.Exists(txtSource.Text.Trim())) { MessageBox.Show("來源路徑無效！"); return; }
-            parentWatcher.AddNewTask(txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text);
-            txtSource.Text = ""; txtBackup.Text = "";
+            parentWatcher.AddNewTask(txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text, txtCustomName.Text.Trim());
+            txtSource.Text = ""; txtBackup.Text = ""; txtCustomName.Text = "";
         };
         flowNew.Controls.Add(btnAdd); gbNew.Controls.Add(flowNew); mainFlow.Controls.Add(gbNew);
 
         GroupBox gbManage = new GroupBox() { Text = "管理中心", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true };
         FlowLayoutPanel flowManage = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
-        Button btnShowList = new Button() { Text = "開啟監控項目清冊", Width = 290, Height = 45, FlatStyle = FlatStyle.Flat, BackColor = Color.WhiteSmoke, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5,0,0,0), Cursor = Cursors.Hand };
+        Button btnShowList = new Button() { Text = "📋 開啟監控項目清冊", Width = 290, Height = 45, FlatStyle = FlatStyle.Flat, BackColor = Color.WhiteSmoke, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5,0,0,0), Cursor = Cursors.Hand };
         btnShowList.Click += (s, e) => parentWatcher.OpenListWindow();
         flowManage.Controls.Add(btnShowList); gbManage.Controls.Add(flowManage); mainFlow.Controls.Add(gbManage);
         this.Controls.Add(mainFlow);
+    }
+
+    // 【新增】輔助方法：產生單純的文字輸入框
+    private TextBox AddTextRow(FlowLayoutPanel container, string labelText) {
+        container.Controls.Add(new Label() { Text = labelText, AutoSize = true, Margin = new Padding(0, 5, 0, 2) });
+        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 10) };
+        TextBox tb = new TextBox() { Width = 255 };
+        row.Controls.Add(tb);
+        container.Controls.Add(row); return tb;
     }
 
     private TextBox AddPathRow(FlowLayoutPanel container, string labelText) {
@@ -288,6 +301,9 @@ public class MonitorSettingsWindow : Form {
     }
 }
 
+// ==========================================
+// 視窗二：監控項目清冊
+// ==========================================
 public class MonitorListWindow : Form {
     private App_FileWatcher parentWatcher;
     private FlowLayoutPanel list;
@@ -315,12 +331,15 @@ public class MonitorListWindow : Form {
             
             string syncMode = p.Length > 5 ? p[5] : "單向備份";
             string retention = p.Length > 6 ? p[6] : "永久";
-            Label lblSet = new Label() { Text = string.Format("同步：{0} | 提醒：{1} | 深度：{2} | 刪除：{3}", syncMode, p[2], p[4], retention), Location = new Point(10, 58), Width = 500, Font = new Font("Microsoft JhengHei UI", 8.5f), ForeColor = Color.DimGray };
+            string customName = p.Length > 7 ? p[7] : ""; // 【新增】讀取自訂名稱
+            string nameDisplay = string.IsNullOrWhiteSpace(customName) ? "未設定" : customName;
+
+            Label lblSet = new Label() { Text = string.Format("名稱：{0} | 同步：{1} | 提醒：{2} | 刪除：{3}", nameDisplay, syncMode, p[2], retention), Location = new Point(10, 58), Width = 540, Font = new Font("Microsoft JhengHei UI", 8.5f), ForeColor = Color.DimGray };
             
-            Button btnEdit = new Button() { Text = "調整", Location = new Point(570, 23), Width = 75, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            Button btnEdit = new Button() { Text = "✏️ 調整", Location = new Point(570, 23), Width = 75, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnEdit.Click += (s, e) => { new EditMonitorTaskWindow(parentWatcher, this, key, data[key]).ShowDialog(); };
             
-            Button btnDel = new Button() { Text = "移除", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            Button btnDel = new Button() { Text = "🗑️ 移除", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnDel.Click += (s, e) => { if(MessageBox.Show("確定要永久移除此監控任務？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { parentWatcher.DeleteTask(key); ReloadUI(); } };
             
             card.Controls.AddRange(new Control[] { lblSrc, lblDst, lblSet, btnEdit, btnDel });
@@ -329,12 +348,15 @@ public class MonitorListWindow : Form {
     }
 }
 
+// ==========================================
+// 視窗三：修改任務專屬視窗
+// ==========================================
 public class EditMonitorTaskWindow : Form {
     private App_FileWatcher parentWatcher;
     private MonitorListWindow listWindow;
     private string originalSrcKey;
 
-    private TextBox txtSource, txtBackup;
+    private TextBox txtCustomName, txtSource, txtBackup; // 【新增】txtCustomName
     private ComboBox cmbMethod, cmbFreq, cmbDepth, cmbSync, cmbRetain;
     private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
@@ -347,27 +369,40 @@ public class EditMonitorTaskWindow : Form {
         GroupBox gbEdit = new GroupBox() { Text = "編輯參數", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true };
         FlowLayoutPanel flowEdit = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
 
-        txtSource = AddPathRow(flowEdit, "來源路徑："); txtBackup = AddPathRow(flowEdit, "備份路徑：");
+        txtCustomName = AddTextRow(flowEdit, "自訂顯示名稱："); // 【新增】
+        txtSource = AddPathRow(flowEdit, "來源路徑："); 
+        txtBackup = AddPathRow(flowEdit, "備份路徑：");
         cmbSync = AddComboRow(flowEdit, "同步模式：", new string[] { "單向備份", "雙向同步" }, false);
         cmbRetain = AddComboRow(flowEdit, "自動刪除(單向)：", new string[] { "永久", "1個月", "3個月", "6個月" }, true);
         cmbMethod = AddComboRow(flowEdit, "提示方式：", new string[] { "顯示在監控", "背景執行" }, false);
         cmbFreq = AddComboRow(flowEdit, "頻率(秒)：", new string[] { "1", "3", "5", "10", "30", "60" }, true);
         cmbDepth = AddComboRow(flowEdit, "監控深度：", new string[] { "無限層", "僅本層", "第一層", "第二層", "第三層", "第十層" }, true);
 
+        // 填入既有資料
         var p = taskData.Split('|');
         txtSource.Text = p[0]; txtBackup.Text = p[1]; cmbMethod.Text = p[2]; cmbFreq.Text = p[3]; cmbDepth.Text = p[4];
-        if (p.Length > 5) cmbSync.Text = p[5]; if (p.Length > 6) cmbRetain.Text = p[6];
+        if (p.Length > 5) cmbSync.Text = p[5]; 
+        if (p.Length > 6) cmbRetain.Text = p[6];
+        if (p.Length > 7) txtCustomName.Text = p[7]; // 【新增】回填自訂名稱
 
         Button btnSave = new Button() { Text = "💾 儲存修改", Width = 290, Height = 40, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5, 10, 0, 5), Cursor = Cursors.Hand };
         btnSave.Click += (s, e) => {
             if (!Directory.Exists(txtSource.Text.Trim())) { MessageBox.Show("來源路徑無效！"); return; }
-            parentWatcher.UpdateTask(originalSrcKey, txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text);
+            parentWatcher.UpdateTask(originalSrcKey, txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text, txtCustomName.Text.Trim());
             listWindow.ReloadUI(); 
             this.Close();
         };
         
         flowEdit.Controls.Add(btnSave); gbEdit.Controls.Add(flowEdit); mainFlow.Controls.Add(gbEdit);
         this.Controls.Add(mainFlow);
+    }
+
+    private TextBox AddTextRow(FlowLayoutPanel container, string labelText) {
+        container.Controls.Add(new Label() { Text = labelText, AutoSize = true, Margin = new Padding(0, 5, 0, 2) });
+        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 10) };
+        TextBox tb = new TextBox() { Width = 255 };
+        row.Controls.Add(tb);
+        container.Controls.Add(row); return tb;
     }
 
     private TextBox AddPathRow(FlowLayoutPanel container, string labelText) {
