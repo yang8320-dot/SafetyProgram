@@ -72,30 +72,42 @@ public class MainForm : Form {
             }
         };
 
+        // 1. 監控系統
         TabPage tabWatcher = new TabPage("監控系統");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
         tabWatcher.Controls.Add(watcherApp);
         tabControl.TabPages.Add(tabWatcher);
 
+        // 2. 待辦清單
         TabPage tabTodo = new TabPage("待辦清單");
         App_TodoList todoApp = new App_TodoList(this);
         todoApp.Dock = DockStyle.Fill;
         tabTodo.Controls.Add(todoApp);
         tabControl.TabPages.Add(tabTodo);
 
+        // 3. 週期任務
         TabPage tabRecurring = new TabPage("週期任務");
         App_RecurringTasks recurringApp = new App_RecurringTasks(this, todoApp);
         recurringApp.Dock = DockStyle.Fill;
         tabRecurring.Controls.Add(recurringApp);
         tabControl.TabPages.Add(tabRecurring);
 
+        // 4. 捷徑管理
         TabPage tabShortcuts = new TabPage("捷徑管理");
         App_Shortcuts shortcutsApp = new App_Shortcuts(this);
         shortcutsApp.Dock = DockStyle.Fill;
         tabShortcuts.Controls.Add(shortcutsApp);
         tabControl.TabPages.Add(tabShortcuts);
 
+        // 5. 截圖功能 (全新加入)
+        TabPage tabScreenshot = new TabPage("截圖");
+        App_Screenshot screenshotApp = new App_Screenshot(this);
+        screenshotApp.Dock = DockStyle.Fill;
+        tabScreenshot.Controls.Add(screenshotApp);
+        tabControl.TabPages.Add(tabScreenshot);
+
+        // 右下角常駐選單設定
         trayMenu.MenuItems.Add("-");
         MenuItem startupMenu = new MenuItem("開機自動執行") { Checked = IsRunOnStartup() };
         startupMenu.Click += new EventHandler(ToggleStartup);
@@ -136,13 +148,15 @@ public class MainForm : Form {
         TextRenderer.DrawText(g, page.Text, page.Font, bounds, textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
-    // ==========================================
-    // 💡 修正：移除強制座標定位，讓系統記住拖曳後的位置
-    // ==========================================
     public void ShowAppWindow(int targetTabIndex = -1) {
         this.Show();
         if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
-        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) tabControl.SelectedIndex = targetTabIndex; 
+        
+        // 自動切換到指定的分頁 (用於截圖完畢後自動跳回截圖頁)
+        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) {
+            tabControl.SelectedIndex = targetTabIndex; 
+        }
+        
         this.Activate(); 
     }
 
