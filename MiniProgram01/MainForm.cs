@@ -31,9 +31,10 @@ public class MainForm : Form {
         this.Width = 380; this.Height = 520;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
         this.StartPosition = FormStartPosition.Manual;
-        this.TopMost = true; this.ShowInTaskbar = false;
+        this.TopMost = true; this.ShowInTaskbar = false; 
         this.BackColor = BgColor;
 
+        // 只有「剛啟動時」預設放在右下角，之後由使用者自由決定位置
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
@@ -71,7 +72,6 @@ public class MainForm : Form {
             }
         };
 
-        // 【修正】移除所有 Unicode 圖示，改為純文字
         TabPage tabWatcher = new TabPage("監控系統");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
@@ -136,11 +136,22 @@ public class MainForm : Form {
         TextRenderer.DrawText(g, page.Text, page.Font, bounds, textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
+    // ==========================================
+    // 💡 修正：移除強制座標定位，讓系統記住拖曳後的位置
+    // ==========================================
     public void ShowAppWindow(int targetTabIndex = -1) {
         this.Show();
         if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
         if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) tabControl.SelectedIndex = targetTabIndex; 
         this.Activate(); 
+    }
+
+    protected override void OnResize(EventArgs e) {
+        base.OnResize(e);
+        if (this.WindowState == FormWindowState.Minimized) {
+            this.Hide(); 
+            this.WindowState = FormWindowState.Normal; 
+        }
     }
 
     protected override void WndProc(ref Message m) {
