@@ -96,7 +96,6 @@ public class App_FileWatcher : UserControl {
         var p = line.Split('|'); if (p.Length < 5) return;
         string syncMode = p.Length > 5 ? p[5] : "單向備份";
         
-        // 【優化】強制監聽器對「存檔(修改時間)」、「內容大小」改變做出極度靈敏的反應
         FileSystemWatcher wSrc = new FileSystemWatcher(p[0]) { 
             IncludeSubdirectories = (p[4] != "僅本層"), 
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size,
@@ -118,7 +117,6 @@ public class App_FileWatcher : UserControl {
     private void OnFileEvent(object sender, FileSystemEventArgs e) {
         if (Directory.Exists(e.FullPath)) return;
         
-        // 【優化】過濾掉 Word/Excel 的隱藏暫存檔 (如 ~$test.docx) 或 .tmp 系統暫存檔，避免無效假通知
         string checkName = Path.GetFileName(e.FullPath);
         if (checkName.StartsWith("~$") || checkName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) return;
 
@@ -144,7 +142,6 @@ public class App_FileWatcher : UserControl {
         string rel = Uri.UnescapeDataString(new Uri(cleanSrc).MakeRelativeUri(new Uri(e.FullPath)).ToString().Replace('/', '\\'));
         string targetFile = Path.Combine(targetDir, rel);
 
-        // 【核心優化】只有「雙向同步」才需要計算時間差防止無限迴圈。「單向備份」無條件通過！
         if (syncMode == "雙向同步" && File.Exists(targetFile)) {
             if (Math.Abs((File.GetLastWriteTime(e.FullPath) - File.GetLastWriteTime(targetFile)).TotalSeconds) < 2) return;
         }
@@ -170,6 +167,7 @@ public class App_FileWatcher : UserControl {
         int res; return int.TryParse(clean, out res) ? res : -1;
     }
 
+    // 【修改核心】：將按鈕移至左側，上下兩行顯示
     private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath, string customName) {
         ThreadPool.QueueUserWorkItem(_ => {
             int sec; if(!int.TryParse(freqStr.Replace("秒", "").Trim(), out sec)) sec = 1;
@@ -179,7 +177,7 @@ public class App_FileWatcher : UserControl {
             for(int i = 0; i < 3; i++) { 
                 try {
                     if (!Directory.Exists(Path.GetDirectoryName(targetFile))) Directory.CreateDirectory(Path.GetDirectoryName(targetFile));
-                    File.Copy(srcFile, targetFile, true); // true 代表無條件覆蓋同名檔案
+                    File.Copy(srcFile, targetFile, true); 
                     copySuccess = true; break;
                 } catch { Thread.Sleep(800); }
             }
@@ -189,28 +187,40 @@ public class App_FileWatcher : UserControl {
                     this.Invoke(new Action(() => {
                         parentForm.AlertTab(0); 
                         
+                        // 外層卡片容器
                         Panel c = new Panel() { Width = 340, AutoSize = true, MinimumSize = new Size(340, 65), BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 0, 5) };
-                        TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, AutoSize = true };
-                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
-                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));
-
-                        string displayLoc = string.IsNullOrWhiteSpace(customName) ? relPath : customName;
-                        Label lbl = new Label() { Text = Path.GetFileName(srcFile) + "\n位置: " + displayLoc, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(5), TextAlign = ContentAlignment.MiddleLeft };
                         
-                        Button bView = new Button() { Text = "查看", Width = 50, Height = 30, Anchor = AnchorStyles.None, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                        // 劃分左右兩塊：左邊按鈕區，右邊文字區
+                        TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true, Padding = new Padding(2) };
+                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); // 左側保留 55px 給按鈕
+                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 右側全部給文字
+
+                        // 左側按鈕區 (上下排列)
+                        FlowLayoutPanel btnPnl = new FlowLayoutPanel() { FlowDirection = FlowDirection.TopDown, AutoSize = true, Margin = new Padding(0) };
+                        
+                        Button bView = new Button() { Text = "查看", Width = 50, Height = 25, Margin = new Padding(0, 2, 0, 2), BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                         bView.Click += (s, e2) => {
                             System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + srcFile + "\"");
                             cardPanel.Controls.Remove(c); c.Dispose(); 
                         };
                         
-                        Button bClose = new Button() { Text = "X", Width = 30, Height = 30, Anchor = AnchorStyles.None, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                        Button bClose = new Button() { Text = "X", Width = 50, Height = 25, Margin = new Padding(0, 2, 0, 2), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                         bClose.Click += (s, e2) => { cardPanel.Controls.Remove(c); c.Dispose(); };
                         
-                        tlp.Controls.Add(lbl, 0, 0); tlp.Controls.Add(bView, 1, 0); tlp.Controls.Add(bClose, 2, 0);
-                        c.Controls.Add(tlp);
+                        btnPnl.Controls.Add(bView); 
+                        btnPnl.Controls.Add(bClose);
+
+                        // 右側文字區
+                        string displayLoc = string.IsNullOrWhiteSpace(customName) ? relPath : customName;
+                        Label lbl = new Label() { Text = Path.GetFileName(srcFile) + "\n位置: " + displayLoc, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(5, 5, 0, 0), TextAlign = ContentAlignment.MiddleLeft };
                         
+                        // 將左右兩塊放入 TableLayoutPanel
+                        tlp.Controls.Add(btnPnl, 0, 0); 
+                        tlp.Controls.Add(lbl, 1, 0); 
+                        
+                        c.Controls.Add(tlp);
                         cardPanel.Controls.Add(c); cardPanel.Controls.SetChildIndex(c, 0);
+                        
                         if (cardPanel.Controls.Count > 15) { var old = cardPanel.Controls[15]; cardPanel.Controls.RemoveAt(15); old.Dispose(); }
                     }));
                 } catch { } 
@@ -249,9 +259,6 @@ public class App_FileWatcher : UserControl {
     }
 }
 
-// ==========================================
-// 視窗一：建立監控設定
-// ==========================================
 public class MonitorSettingsWindow : Form {
     private App_FileWatcher parentWatcher;
     private TextBox txtCustomName, txtSource, txtBackup; 
