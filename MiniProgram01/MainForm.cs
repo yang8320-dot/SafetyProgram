@@ -45,31 +45,38 @@ public class MainForm : Form {
         trayMenu.MenuItems.Add("顯示主面板", new EventHandler(delegate { ShowAppWindow(); }));
         trayMenu.MenuItems.Add("-");
 
-        // 【修正】開啟自行繪製 Tab 模式以支援閃爍
+        // 開啟自行繪製 Tab 模式
         tabControl = new TabControl() { 
             Dock = DockStyle.Fill, Padding = new Point(12, 5), 
             Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold),
-            DrawMode = TabDrawMode.OwnerDrawFixed // 允許自訂繪圖
+            DrawMode = TabDrawMode.OwnerDrawFixed // 允許接管標籤繪圖
         };
         tabControl.DrawItem += TabControl_DrawItem;
+        
+        // 切換分頁時，解除該分頁的閃爍狀態並強制重繪該標籤
         tabControl.SelectedIndexChanged += (s, e) => {
             if (alertTabs.Contains(tabControl.SelectedIndex)) {
                 alertTabs.Remove(tabControl.SelectedIndex);
-                tabControl.Invalidate();
+                tabControl.Invalidate(tabControl.GetTabRect(tabControl.SelectedIndex));
+                tabControl.Update();
             }
         };
         this.Controls.Add(tabControl);
 
-        // 啟動閃爍計時器
+        // 【修正核心】閃爍計時器：精準鎖定並強制重繪特定的「標籤區塊」
         flashTimer = new Timer() { Interval = 500, Enabled = true };
         flashTimer.Tick += (s, e) => {
             if (alertTabs.Count > 0) {
                 flashState = !flashState;
-                tabControl.Invalidate(); 
+                foreach (int index in alertTabs) {
+                    // 只針對需要閃爍的標籤區塊發出重繪要求
+                    tabControl.Invalidate(tabControl.GetTabRect(index));
+                }
+                tabControl.Update(); // 強制系統立即將顏色畫上去
             }
         };
 
-        // 載入模組
+        // 載入四大模組
         TabPage tabWatcher = new TabPage("📁 監控");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
@@ -105,14 +112,18 @@ public class MainForm : Form {
         this.Load += new EventHandler(delegate { this.Hide(); this.Opacity = 1; });
     }
 
-    // 【新增 API】呼叫此方法可讓指定的分頁閃爍
+    // 呼叫此方法可讓指定的分頁標籤進入閃爍狀態
     public void AlertTab(int tabIndex) {
         if (tabControl.SelectedIndex != tabIndex && tabIndex >= 0 && tabIndex < tabControl.TabCount) {
             alertTabs.Add(tabIndex);
+            flashState = true;
+            // 收到通知瞬間，立刻強制畫上警示色
+            tabControl.Invalidate(tabControl.GetTabRect(tabIndex));
+            tabControl.Update();
         }
     }
 
-    // 自繪分頁邏輯 (處理閃爍顏色)
+    // 【修正核心】自繪分頁邏輯：強化閃爍色彩的對比度
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
         Graphics g = e.Graphics;
         TabPage page = tabControl.TabPages[e.Index];
@@ -121,10 +132,34 @@ public class MainForm : Form {
         bool isAlert = alertTabs.Contains(e.Index) && flashState;
         bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-        Color bgColor = isAlert ? Color.FromArgb(255, 180, 180) : (isSelected ? Color.White : Color.FromArgb(240, 240, 240));
-        Color textColor = isSelected ? Color.FromArgb(0, 122, 255) : Color.Black;
+        Color bgColor;
+        Color textColor;
 
-        using (Brush b = new SolidBrush(bgColor)) { g.FillRectangle(b, bounds); }
+        // 判斷目前標籤應該長什麼樣子
+        if (isAlert) {
+            bgColor = Color.Crimson; // 顯眼的深紅色
+            textColor = Color.White; // 白色文字
+        } else if (isSelected) {
+            bgColor = Color.White;
+            textColor = Color.FromArgb(0, 122, 255); // 蘋果藍
+        } else {
+            bgColor = Color.FromArgb(240, 240, 240); // 預設灰
+            textColor = Color.Black;
+        }
+
+        // 1. 填滿背景色
+        using (Brush b = new SolidBrush(bgColor)) { 
+            g.FillRectangle(b, bounds); 
+        }
+
+        // 2. 如果是被選取狀態，畫一條藍色頂線增加設計感
+        if (isSelected) {
+            using (Pen p = new Pen(Color.FromArgb(0, 122, 255), 3)) {
+                g.DrawLine(p, bounds.Left, bounds.Top, bounds.Right, bounds.Top);
+            }
+        }
+
+        // 3. 畫上文字
         TextRenderer.DrawText(g, page.Text, page.Font, bounds, textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
