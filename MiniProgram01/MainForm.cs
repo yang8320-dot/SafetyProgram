@@ -34,7 +34,6 @@ public class MainForm : Form {
         this.TopMost = true; this.ShowInTaskbar = false; 
         this.BackColor = BgColor;
 
-        // 只有「剛啟動時」預設放在右下角，之後由使用者自由決定位置
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
         this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
 
@@ -72,35 +71,35 @@ public class MainForm : Form {
             }
         };
 
-        // 1. 監控系統
-        TabPage tabWatcher = new TabPage("監控系統");
+        // 1. 監控系統 -> 改為「監控」
+        TabPage tabWatcher = new TabPage("監控");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
         tabWatcher.Controls.Add(watcherApp);
         tabControl.TabPages.Add(tabWatcher);
 
-        // 2. 待辦清單
-        TabPage tabTodo = new TabPage("待辦清單");
+        // 2. 待辦清單 -> 改為「待辦」
+        TabPage tabTodo = new TabPage("待辦");
         App_TodoList todoApp = new App_TodoList(this);
         todoApp.Dock = DockStyle.Fill;
         tabTodo.Controls.Add(todoApp);
         tabControl.TabPages.Add(tabTodo);
 
-        // 3. 週期任務
-        TabPage tabRecurring = new TabPage("週期任務");
+        // 3. 週期任務 -> 改為「週期」
+        TabPage tabRecurring = new TabPage("週期");
         App_RecurringTasks recurringApp = new App_RecurringTasks(this, todoApp);
         recurringApp.Dock = DockStyle.Fill;
         tabRecurring.Controls.Add(recurringApp);
         tabControl.TabPages.Add(tabRecurring);
 
-        // 4. 捷徑管理
-        TabPage tabShortcuts = new TabPage("捷徑管理");
+        // 4. 捷徑管理 -> 改為「捷徑」
+        TabPage tabShortcuts = new TabPage("捷徑");
         App_Shortcuts shortcutsApp = new App_Shortcuts(this);
         shortcutsApp.Dock = DockStyle.Fill;
         tabShortcuts.Controls.Add(shortcutsApp);
         tabControl.TabPages.Add(tabShortcuts);
 
-        // 5. 截圖功能 (全新加入)
+        // 5. 截圖功能 -> 已經是兩個字「截圖」
         TabPage tabScreenshot = new TabPage("截圖");
         App_Screenshot screenshotApp = new App_Screenshot(this);
         screenshotApp.Dock = DockStyle.Fill;
@@ -152,7 +151,6 @@ public class MainForm : Form {
         this.Show();
         if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
         
-        // 自動切換到指定的分頁 (用於截圖完畢後自動跳回截圖頁)
         if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) {
             tabControl.SelectedIndex = targetTabIndex; 
         }
