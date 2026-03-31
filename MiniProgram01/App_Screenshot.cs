@@ -17,27 +17,27 @@ public class App_Screenshot : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        // --- 頂部控制列 (加大高度以容納兩行控制項) ---
+        // --- 頂部控制列 ---
         Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = 75 };
         
-        // 新增截圖 (藍)
-        Button btnNew = new Button() { Text = "新增截圖", Left = 0, Top = 5, Width = 80, Height = 32, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand };
+        // 截圖 (藍)
+        Button btnNew = new Button() { Text = "截圖", Left = 0, Top = 5, Width = 80, Height = 32, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand };
         btnNew.Click += BtnNew_Click;
 
-        // 複製圖片 (綠)
-        Button btnCopy = new Button() { Text = "複製圖片", Left = 85, Top = 5, Width = 80, Height = 32, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
+        // 複製 (綠)
+        Button btnCopy = new Button() { Text = "複製", Left = 85, Top = 5, Width = 80, Height = 32, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
         btnCopy.Click += BtnCopy_Click;
 
-        // 儲存檔案 (灰)
-        Button btnSave = new Button() { Text = "儲存檔案", Left = 170, Top = 5, Width = 80, Height = 32, BackColor = Color.Gainsboro, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
+        // 儲存 (灰)
+        Button btnSave = new Button() { Text = "儲存", Left = 170, Top = 5, Width = 80, Height = 32, BackColor = Color.Gainsboro, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
         btnSave.Click += BtnSave_Click;
 
-        // 【新增】清除按鈕 (紅)
-        Button btnClear = new Button() { Text = "清除內容", Left = 255, Top = 5, Width = 80, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
+        // 清除 (紅)
+        Button btnClear = new Button() { Text = "清除", Left = 255, Top = 5, Width = 80, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
         btnClear.Click += BtnClear_Click;
 
-        // 狀態文字移至第二行
-        statusLabel = new Label() { Text = "點擊「新增截圖」開始...", Left = 2, Top = 45, AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
+        // 狀態文字
+        statusLabel = new Label() { Text = "點擊「截圖」開始...", Left = 2, Top = 45, AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
 
         topPanel.Controls.AddRange(new Control[] { btnNew, btnCopy, btnSave, btnClear, statusLabel });
         this.Controls.Add(topPanel);
@@ -97,7 +97,6 @@ public class App_Screenshot : UserControl {
         }
     }
 
-    // 【新增】手動清除按鈕事件
     private void BtnClear_Click(object sender, EventArgs e) {
         if (previewBox.Image != null) {
             previewBox.Image.Dispose();
@@ -109,7 +108,7 @@ public class App_Screenshot : UserControl {
 }
 
 // ==========================================
-// 核心：全螢幕截圖覆蓋視窗 (Overlay) (保持不變)
+// 核心：全螢幕截圖覆蓋視窗 (Overlay)
 // ==========================================
 public class SnippingOverlayForm : Form {
     private Bitmap screenBmp;
