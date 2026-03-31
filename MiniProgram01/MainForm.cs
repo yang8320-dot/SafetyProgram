@@ -12,7 +12,6 @@ public class MainForm : Form {
     private string appName = "MiniProgram01";
     private static Color BgColor = Color.FromArgb(245, 245, 247); 
 
-    // 閃動提醒相關變數
     private HashSet<int> alertTabs = new HashSet<int>();
     private Timer flashTimer;
     private bool flashState = false;
@@ -45,15 +44,13 @@ public class MainForm : Form {
         trayMenu.MenuItems.Add("顯示主面板", new EventHandler(delegate { ShowAppWindow(); }));
         trayMenu.MenuItems.Add("-");
 
-        // 開啟自行繪製 Tab 模式
         tabControl = new TabControl() { 
             Dock = DockStyle.Fill, Padding = new Point(12, 5), 
             Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold),
-            DrawMode = TabDrawMode.OwnerDrawFixed // 允許接管標籤繪圖
+            DrawMode = TabDrawMode.OwnerDrawFixed
         };
         tabControl.DrawItem += TabControl_DrawItem;
         
-        // 切換分頁時，解除該分頁的閃爍狀態並強制重繪該標籤
         tabControl.SelectedIndexChanged += (s, e) => {
             if (alertTabs.Contains(tabControl.SelectedIndex)) {
                 alertTabs.Remove(tabControl.SelectedIndex);
@@ -63,39 +60,37 @@ public class MainForm : Form {
         };
         this.Controls.Add(tabControl);
 
-        // 【修正核心】閃爍計時器：精準鎖定並強制重繪特定的「標籤區塊」
         flashTimer = new Timer() { Interval = 500, Enabled = true };
         flashTimer.Tick += (s, e) => {
             if (alertTabs.Count > 0) {
                 flashState = !flashState;
                 foreach (int index in alertTabs) {
-                    // 只針對需要閃爍的標籤區塊發出重繪要求
                     tabControl.Invalidate(tabControl.GetTabRect(index));
                 }
-                tabControl.Update(); // 強制系統立即將顏色畫上去
+                tabControl.Update(); 
             }
         };
 
-        // 載入四大模組
-        TabPage tabWatcher = new TabPage("📁 監控");
+        // 【修正】移除所有 Unicode 圖示，改為純文字
+        TabPage tabWatcher = new TabPage("監控系統");
         App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
         watcherApp.Dock = DockStyle.Fill;
         tabWatcher.Controls.Add(watcherApp);
         tabControl.TabPages.Add(tabWatcher);
 
-        TabPage tabTodo = new TabPage("📝 待辦");
+        TabPage tabTodo = new TabPage("待辦清單");
         App_TodoList todoApp = new App_TodoList(this);
         todoApp.Dock = DockStyle.Fill;
         tabTodo.Controls.Add(todoApp);
         tabControl.TabPages.Add(tabTodo);
 
-        TabPage tabRecurring = new TabPage("🔁 週期");
+        TabPage tabRecurring = new TabPage("週期任務");
         App_RecurringTasks recurringApp = new App_RecurringTasks(this, todoApp);
         recurringApp.Dock = DockStyle.Fill;
         tabRecurring.Controls.Add(recurringApp);
         tabControl.TabPages.Add(tabRecurring);
 
-        TabPage tabShortcuts = new TabPage("🚀 捷徑");
+        TabPage tabShortcuts = new TabPage("捷徑管理");
         App_Shortcuts shortcutsApp = new App_Shortcuts(this);
         shortcutsApp.Dock = DockStyle.Fill;
         tabShortcuts.Controls.Add(shortcutsApp);
@@ -112,18 +107,15 @@ public class MainForm : Form {
         this.Load += new EventHandler(delegate { this.Hide(); this.Opacity = 1; });
     }
 
-    // 呼叫此方法可讓指定的分頁標籤進入閃爍狀態
     public void AlertTab(int tabIndex) {
         if (tabControl.SelectedIndex != tabIndex && tabIndex >= 0 && tabIndex < tabControl.TabCount) {
             alertTabs.Add(tabIndex);
             flashState = true;
-            // 收到通知瞬間，立刻強制畫上警示色
             tabControl.Invalidate(tabControl.GetTabRect(tabIndex));
             tabControl.Update();
         }
     }
 
-    // 【修正核心】自繪分頁邏輯：強化閃爍色彩的對比度
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
         Graphics g = e.Graphics;
         TabPage page = tabControl.TabPages[e.Index];
@@ -132,34 +124,15 @@ public class MainForm : Form {
         bool isAlert = alertTabs.Contains(e.Index) && flashState;
         bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-        Color bgColor;
-        Color textColor;
+        Color bgColor = isAlert ? Color.Crimson : (isSelected ? Color.White : Color.FromArgb(240, 240, 240));
+        Color textColor = isAlert ? Color.White : (isSelected ? Color.FromArgb(0, 122, 255) : Color.Black);
 
-        // 判斷目前標籤應該長什麼樣子
-        if (isAlert) {
-            bgColor = Color.Crimson; // 顯眼的深紅色
-            textColor = Color.White; // 白色文字
-        } else if (isSelected) {
-            bgColor = Color.White;
-            textColor = Color.FromArgb(0, 122, 255); // 蘋果藍
-        } else {
-            bgColor = Color.FromArgb(240, 240, 240); // 預設灰
-            textColor = Color.Black;
-        }
-
-        // 1. 填滿背景色
-        using (Brush b = new SolidBrush(bgColor)) { 
-            g.FillRectangle(b, bounds); 
-        }
-
-        // 2. 如果是被選取狀態，畫一條藍色頂線增加設計感
+        using (Brush b = new SolidBrush(bgColor)) { g.FillRectangle(b, bounds); }
         if (isSelected) {
             using (Pen p = new Pen(Color.FromArgb(0, 122, 255), 3)) {
                 g.DrawLine(p, bounds.Left, bounds.Top, bounds.Right, bounds.Top);
             }
         }
-
-        // 3. 畫上文字
         TextRenderer.DrawText(g, page.Text, page.Font, bounds, textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
