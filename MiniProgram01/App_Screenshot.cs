@@ -23,12 +23,18 @@ public class App_Screenshot : UserControl {
         Button btnNew = new Button() { Text = "新增截圖", Left = 0, Top = 5, Width = 100, Height = 35, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font(MainFont, FontStyle.Bold), Cursor = Cursors.Hand };
         btnNew.Click += BtnNew_Click;
 
-        Button btnSave = new Button() { Text = "儲存檔案", Left = 110, Top = 5, Width = 100, Height = 35, BackColor = Color.Gainsboro, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
+        // 【新增】複製圖片按鈕
+        Button btnCopy = new Button() { Text = "複製圖片", Left = 110, Top = 5, Width = 100, Height = 35, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
+        btnCopy.Click += BtnCopy_Click;
+
+        // 【調整位置】將儲存按鈕往右移
+        Button btnSave = new Button() { Text = "儲存檔案", Left = 220, Top = 5, Width = 100, Height = 35, BackColor = Color.Gainsboro, FlatStyle = FlatStyle.Flat, Font = MainFont, Cursor = Cursors.Hand };
         btnSave.Click += BtnSave_Click;
 
-        statusLabel = new Label() { Text = "點擊「新增截圖」開始...", Left = 220, Top = 12, AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
+        // 【調整位置】將狀態文字往右移
+        statusLabel = new Label() { Text = "點擊「新增截圖」開始...", Left = 330, Top = 12, AutoSize = true, Font = MainFont, ForeColor = Color.DimGray };
 
-        topPanel.Controls.AddRange(new Control[] { btnNew, btnSave, statusLabel });
+        topPanel.Controls.AddRange(new Control[] { btnNew, btnCopy, btnSave, statusLabel });
         this.Controls.Add(topPanel);
 
         // --- 預覽區 ---
@@ -41,23 +47,18 @@ public class App_Screenshot : UserControl {
     }
 
     private void BtnNew_Click(object sender, EventArgs e) {
-        // 1. 隱藏主視窗，避免擋住畫面
         parentForm.Hide();
-        
-        // 2. 暫停一下，確保主視窗完全消失的動畫跑完，再進行螢幕截取
         Application.DoEvents();
         Thread.Sleep(250); 
 
-        // 3. 開啟透明截圖覆蓋層
         using (SnippingOverlayForm snipForm = new SnippingOverlayForm()) {
             if (snipForm.ShowDialog() == DialogResult.OK && snipForm.ResultImage != null) {
-                // 4. 將結果顯示在預覽框
                 if (previewBox.Image != null) previewBox.Image.Dispose();
                 previewBox.Image = (Image)snipForm.ResultImage.Clone();
                 
-                // 5. 自動放入系統剪貼簿
+                // 截圖當下依然保持自動複製功能，體驗更順暢
                 Clipboard.SetImage(previewBox.Image);
-                statusLabel.Text = "截圖成功！已複製到剪貼簿。";
+                statusLabel.Text = "截圖成功！已自動複製。";
                 statusLabel.ForeColor = Color.FromArgb(0, 153, 76);
             } else {
                 statusLabel.Text = "已取消截圖。";
@@ -65,8 +66,19 @@ public class App_Screenshot : UserControl {
             }
         }
 
-        // 6. 截圖結束，恢復顯示主視窗
-        parentForm.ShowAppWindow(4); // 假設截圖是第 5 個分頁 (Index 4)
+        parentForm.ShowAppWindow(4); 
+    }
+
+    // 【新增】手動點擊複製的觸發事件
+    private void BtnCopy_Click(object sender, EventArgs e) {
+        if (previewBox.Image == null) {
+            MessageBox.Show("目前沒有可複製的截圖！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        
+        Clipboard.SetImage(previewBox.Image);
+        statusLabel.Text = "已重新複製到剪貼簿！";
+        statusLabel.ForeColor = Color.FromArgb(0, 122, 255); // 改成藍色字體給予視覺回饋
     }
 
     private void BtnSave_Click(object sender, EventArgs e) {
@@ -82,13 +94,14 @@ public class App_Screenshot : UserControl {
                 ImageFormat format = sfd.FileName.EndsWith(".jpg") ? ImageFormat.Jpeg : ImageFormat.Png;
                 previewBox.Image.Save(sfd.FileName, format);
                 statusLabel.Text = "檔案已成功儲存！";
+                statusLabel.ForeColor = Color.DimGray;
             }
         }
     }
 }
 
 // ==========================================
-// 核心：全螢幕截圖覆蓋視窗 (Overlay)
+// 核心：全螢幕截圖覆蓋視窗 (Overlay) (保持不變)
 // ==========================================
 public class SnippingOverlayForm : Form {
     private Bitmap screenBmp;
@@ -104,13 +117,11 @@ public class SnippingOverlayForm : Form {
         this.TopMost = true;
         this.ShowInTaskbar = false;
         this.Cursor = Cursors.Cross;
-        this.DoubleBuffered = true; // 防止畫面閃爍
+        this.DoubleBuffered = true; 
 
-        // 設定範圍涵蓋所有螢幕 (支援雙螢幕)
         this.Location = SystemInformation.VirtualScreen.Location;
         this.Size = SystemInformation.VirtualScreen.Size;
 
-        // 瞬間捕捉全螢幕畫面作為底圖
         screenBmp = new Bitmap(this.Width, this.Height);
         using (Graphics g = Graphics.FromImage(screenBmp)) {
             g.CopyFromScreen(this.Location, Point.Empty, this.Size);
@@ -120,15 +131,12 @@ public class SnippingOverlayForm : Form {
     protected override void OnPaint(PaintEventArgs e) {
         base.OnPaint(e);
         
-        // 1. 畫上捕捉到的原圖
         e.Graphics.DrawImageUnscaled(screenBmp, 0, 0);
 
-        // 2. 畫一層半透明黑色，讓螢幕變暗 (模擬截圖工具效果)
         using (SolidBrush dimBrush = new SolidBrush(Color.FromArgb(120, 0, 0, 0))) {
             e.Graphics.FillRectangle(dimBrush, this.ClientRectangle);
         }
 
-        // 3. 如果正在拖曳，就把選取範圍「洗亮」(畫回原圖)，並加上紅框
         if (selectRect.Width > 0 && selectRect.Height > 0) {
             e.Graphics.DrawImage(screenBmp, selectRect, selectRect, GraphicsUnit.Pixel);
             using (Pen borderPen = new Pen(Color.Red, 2)) {
@@ -144,7 +152,6 @@ public class SnippingOverlayForm : Form {
             selectRect = new Rectangle(e.X, e.Y, 0, 0);
         } 
         else if (e.Button == MouseButtons.Right) {
-            // 右鍵取消截圖
             this.DialogResult = DialogResult.Cancel;
             this.Close();
         }
@@ -157,14 +164,13 @@ public class SnippingOverlayForm : Form {
             int w = Math.Abs(startPt.X - e.X);
             int h = Math.Abs(startPt.Y - e.Y);
             selectRect = new Rectangle(x, y, w, h);
-            this.Invalidate(); // 要求重繪畫面
+            this.Invalidate(); 
         }
     }
 
     protected override void OnMouseUp(MouseEventArgs e) {
         if (isDragging) {
             isDragging = false;
-            // 確保有框選到足夠的範圍 (防呆，避免誤點)
             if (selectRect.Width > 5 && selectRect.Height > 5) {
                 ResultImage = new Bitmap(selectRect.Width, selectRect.Height);
                 using (Graphics g = Graphics.FromImage(ResultImage)) {
