@@ -48,15 +48,12 @@ public class App_FileWatcher : UserControl {
         RunRetentionSweep(); 
     }
 
-    // ==========================================
-    // API 區域 (供外部視窗呼叫)
-    // ==========================================
     public Dictionary<string, string> GetPathPairs() { return pathPairs; }
 
     public void AddNewTask(string src, string dst, string method, string freq, string depth, string syncMode, string retention) {
         pathPairs[src] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}", src, dst, method, freq, depth, syncMode, retention);
         SaveAllConfigs(); 
-        ReloadAllWatchers(); // 熱重載
+        ReloadAllWatchers(); 
         MessageBox.Show("監控任務已成功建立！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
@@ -68,31 +65,26 @@ public class App_FileWatcher : UserControl {
         pathPairs.Remove(oldSrc);
         pathPairs[newSrc] = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}", newSrc, dst, method, freq, depth, syncMode, retention);
         SaveAllConfigs();
-        ReloadAllWatchers(); // 熱重載
+        ReloadAllWatchers(); 
         MessageBox.Show("任務修改成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     public void DeleteTask(string key) {
         pathPairs.Remove(key);
         SaveAllConfigs();
-        ReloadAllWatchers(); // 熱重載，真正停止該資料夾的監控
+        ReloadAllWatchers(); 
     }
 
     public void OpenListWindow() {
         using(var listForm = new MonitorListWindow(this)) { listForm.ShowDialog(); }
     }
 
-    // ==========================================
-    // 核心監控邏輯
-    // ==========================================
     private void ReloadAllWatchers() {
-        // 先停用並釋放所有舊的監控器
         foreach (var w in watchers) {
             w.EnableRaisingEvents = false;
             w.Dispose();
         }
         watchers.Clear();
-        // 重新依據最新設定啟動
         foreach (var val in pathPairs.Values) { StartWatcherFromLine(val); }
     }
 
@@ -156,6 +148,9 @@ public class App_FileWatcher : UserControl {
         int res; return int.TryParse(clean, out res) ? res : -1;
     }
 
+    // ==========================================
+    // UI 生成：包含查看後消失與獨立刪除按鈕
+    // ==========================================
     private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath) {
         try {
             if (!Directory.Exists(Path.GetDirectoryName(targetFile))) Directory.CreateDirectory(Path.GetDirectoryName(targetFile));
@@ -169,11 +164,32 @@ public class App_FileWatcher : UserControl {
                 this.Invoke(new Action(() => {
                     parentForm.AlertTab(0); 
                     Panel c = new Panel() { Width = 330, Height = 65, BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 0, 2) };
-                    c.Controls.Add(new Label() { Text = Path.GetFileName(srcFile) + "\n路徑: " + relPath, Location = new Point(5, 5), Width = 240, Height = 40 });
-                    Button b = new Button() { Text = "查看", Location = new Point(255, 12), Width = 55, Height = 30, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                    b.Click += (s, e2) => System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + targetFile + "\"");
-                    c.Controls.Add(b); cardPanel.Controls.Add(c); cardPanel.Controls.SetChildIndex(c, 0);
-                    if (cardPanel.Controls.Count > 15) cardPanel.Controls.RemoveAt(15);
+                    
+                    // 縮減一點 Label 的寬度以容納兩個按鈕
+                    c.Controls.Add(new Label() { Text = Path.GetFileName(srcFile) + "\n路徑: " + relPath, Location = new Point(5, 5), Width = 230, Height = 40 });
+                    
+                    // 【修正】查看按鈕：點擊後打開檔案，並自動刪除此卡片
+                    Button bView = new Button() { Text = "查看", Location = new Point(235, 12), Width = 50, Height = 30, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                    bView.Click += (s, e2) => {
+                        System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + srcFile + "\"");
+                        cardPanel.Controls.Remove(c); c.Dispose(); // 點擊查看後卡片消失
+                    };
+                    
+                    // 【新增】刪除按鈕：點擊後直接移除此卡片
+                    Button bClose = new Button() { Text = "✕", Location = new Point(290, 12), Width = 30, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                    bClose.Click += (s, e2) => {
+                        cardPanel.Controls.Remove(c); c.Dispose(); // 點擊叉叉卡片消失
+                    };
+                    
+                    c.Controls.AddRange(new Control[] { bView, bClose });
+                    cardPanel.Controls.Add(c); cardPanel.Controls.SetChildIndex(c, 0);
+                    
+                    // 維持最多 15 筆通知，超過的自動清掉最舊的
+                    if (cardPanel.Controls.Count > 15) {
+                        var old = cardPanel.Controls[15];
+                        cardPanel.Controls.RemoveAt(15);
+                        old.Dispose();
+                    }
                 }));
             }
         } catch { }
@@ -201,7 +217,7 @@ public class App_FileWatcher : UserControl {
         foreach (string line in File.ReadAllLines(configFile)) {
             var parts = line.Split('|'); if (parts.Length >= 5 && Directory.Exists(parts[0])) { pathPairs[parts[0]] = line; }
         }
-        ReloadAllWatchers(); // 統一使用熱重載啟動
+        ReloadAllWatchers();
     }
 
     private void SaveAllConfigs() {
@@ -211,7 +227,7 @@ public class App_FileWatcher : UserControl {
 }
 
 // ==========================================
-// 視窗一：建立監控設定
+// 以下視窗代碼維持不變 (MonitorSettingsWindow, MonitorListWindow, EditMonitorTaskWindow)
 // ==========================================
 public class MonitorSettingsWindow : Form {
     private App_FileWatcher parentWatcher;
@@ -272,9 +288,6 @@ public class MonitorSettingsWindow : Form {
     }
 }
 
-// ==========================================
-// 視窗二：監控項目清冊 (加入「修改」按鈕)
-// ==========================================
 public class MonitorListWindow : Form {
     private App_FileWatcher parentWatcher;
     private FlowLayoutPanel list;
@@ -304,11 +317,9 @@ public class MonitorListWindow : Form {
             string retention = p.Length > 6 ? p[6] : "永久";
             Label lblSet = new Label() { Text = string.Format("同步：{0} | 提醒：{1} | 深度：{2} | 刪除：{3}", syncMode, p[2], p[4], retention), Location = new Point(10, 58), Width = 500, Font = new Font("Microsoft JhengHei UI", 8.5f), ForeColor = Color.DimGray };
             
-            // 【新增】修改按鈕
             Button btnEdit = new Button() { Text = "✏️ 調整", Location = new Point(570, 23), Width = 75, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnEdit.Click += (s, e) => { new EditMonitorTaskWindow(parentWatcher, this, key, data[key]).ShowDialog(); };
             
-            // 移除按鈕
             Button btnDel = new Button() { Text = "🗑️ 移除", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnDel.Click += (s, e) => { if(MessageBox.Show("確定要永久移除此監控任務？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { parentWatcher.DeleteTask(key); ReloadUI(); } };
             
@@ -318,9 +329,6 @@ public class MonitorListWindow : Form {
     }
 }
 
-// ==========================================
-// 視窗三：全新【修改任務】專屬視窗
-// ==========================================
 public class EditMonitorTaskWindow : Form {
     private App_FileWatcher parentWatcher;
     private MonitorListWindow listWindow;
@@ -346,7 +354,6 @@ public class EditMonitorTaskWindow : Form {
         cmbFreq = AddComboRow(flowEdit, "頻率(秒)：", new string[] { "1", "3", "5", "10", "30", "60" }, true);
         cmbDepth = AddComboRow(flowEdit, "監控深度：", new string[] { "無限層", "僅本層", "第一層", "第二層", "第三層", "第十層" }, true);
 
-        // 填入既有資料
         var p = taskData.Split('|');
         txtSource.Text = p[0]; txtBackup.Text = p[1]; cmbMethod.Text = p[2]; cmbFreq.Text = p[3]; cmbDepth.Text = p[4];
         if (p.Length > 5) cmbSync.Text = p[5]; if (p.Length > 6) cmbRetain.Text = p[6];
@@ -355,7 +362,7 @@ public class EditMonitorTaskWindow : Form {
         btnSave.Click += (s, e) => {
             if (!Directory.Exists(txtSource.Text.Trim())) { MessageBox.Show("來源路徑無效！"); return; }
             parentWatcher.UpdateTask(originalSrcKey, txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text);
-            listWindow.ReloadUI(); // 重新整理後面的清單視窗
+            listWindow.ReloadUI(); 
             this.Close();
         };
         
