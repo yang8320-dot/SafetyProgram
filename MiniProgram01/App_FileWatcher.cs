@@ -261,7 +261,7 @@ public class MonitorSettingsWindow : Form {
 
         GroupBox gbManage = new GroupBox() { Text = "管理中心", Font = new Font(MainFont, FontStyle.Bold), Width = 320, AutoSize = true };
         FlowLayoutPanel flowManage = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5, 15, 5, 10), AutoSize = true, Font = MainFont };
-        Button btnShowList = new Button() { Text = "📋 開啟監控項目清冊", Width = 290, Height = 45, FlatStyle = FlatStyle.Flat, BackColor = Color.WhiteSmoke, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5,0,0,0), Cursor = Cursors.Hand };
+        Button btnShowList = new Button() { Text = "開啟監控項目清冊", Width = 290, Height = 45, FlatStyle = FlatStyle.Flat, BackColor = Color.WhiteSmoke, Font = new Font(MainFont, FontStyle.Bold), Margin = new Padding(5,0,0,0), Cursor = Cursors.Hand };
         btnShowList.Click += (s, e) => parentWatcher.OpenListWindow();
         flowManage.Controls.Add(btnShowList); gbManage.Controls.Add(flowManage); mainFlow.Controls.Add(gbManage);
         this.Controls.Add(mainFlow);
@@ -317,10 +317,10 @@ public class MonitorListWindow : Form {
             string retention = p.Length > 6 ? p[6] : "永久";
             Label lblSet = new Label() { Text = string.Format("同步：{0} | 提醒：{1} | 深度：{2} | 刪除：{3}", syncMode, p[2], p[4], retention), Location = new Point(10, 58), Width = 500, Font = new Font("Microsoft JhengHei UI", 8.5f), ForeColor = Color.DimGray };
             
-            Button btnEdit = new Button() { Text = "✏️ 調整", Location = new Point(570, 23), Width = 75, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            Button btnEdit = new Button() { Text = "調整", Location = new Point(570, 23), Width = 75, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnEdit.Click += (s, e) => { new EditMonitorTaskWindow(parentWatcher, this, key, data[key]).ShowDialog(); };
             
-            Button btnDel = new Button() { Text = "🗑️ 移除", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            Button btnDel = new Button() { Text = "移除", Location = new Point(655, 23), Width = 75, Height = 35, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnDel.Click += (s, e) => { if(MessageBox.Show("確定要永久移除此監控任務？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { parentWatcher.DeleteTask(key); ReloadUI(); } };
             
             card.Controls.AddRange(new Control[] { lblSrc, lblDst, lblSet, btnEdit, btnDel });
