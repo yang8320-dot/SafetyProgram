@@ -18,10 +18,10 @@ public class App_TodoList : UserControl {
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
 
-    private MainForm mainForm; // 【新增】保存主視窗參考
+    private MainForm mainForm; // 保存主視窗參考
 
     public App_TodoList(MainForm parent) {
-        this.mainForm = parent; // 【新增】保存主視窗參考
+        this.mainForm = parent; 
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
@@ -52,12 +52,13 @@ public class App_TodoList : UserControl {
 
     public void AddTaskExternally(string text) { 
         if (!taskDates.ContainsKey(text)) {
-            mainForm.AlertTab(1); // 【新增】呼叫主程式讓 Tab 1 (待辦) 閃爍
+            mainForm.AlertTab(1); // 呼叫主程式讓 Tab 1 (待辦) 閃爍
             AddTask(text, true); 
         }
     }
 
-    private void AddTask(string text, bool auto = false) {
+    // 【核心修正】：將 private 改為 public，讓週期任務模組可以呼叫它
+    public void AddTask(string text, bool auto = false) {
         text = text.Trim(); 
         if (string.IsNullOrEmpty(text) || taskDates.ContainsKey(text)) return;
         DateTime now = DateTime.Now;
@@ -135,7 +136,8 @@ public class App_TodoList : UserControl {
     }
 
     private string ShowLargeEditBox(string defaultValue) {
-        Form form = new Form() { Width = 450, Height = 250, Text = "✏️ 滾動式編輯任務", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        // 【修正】移除標題上的特殊圖示，保持介面純淨防破版
+        Form form = new Form() { Width = 450, Height = 250, Text = "滾動式編輯任務", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         Label lbl = new Label() { Text = "請修正任務內容：", Left = 15, Top = 15, AutoSize = true, Font = MainFont };
         TextBox txt = new TextBox() { Left = 15, Top = 45, Width = 405, Height = 100, Multiline = true, WordWrap = true, ScrollBars = ScrollBars.Vertical, Font = MainFont, Text = defaultValue };
         Button btnOk = new Button() { Text = "確認修改", Left = 320, Top = 165, Width = 100, Height = 35, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
