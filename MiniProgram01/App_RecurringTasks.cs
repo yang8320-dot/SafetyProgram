@@ -37,7 +37,6 @@ public class App_RecurringTasks : UserControl {
 
         Label lblTitle = new Label() { Text = "週期任務", Font = new Font(MainFont, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5,0,0,0) };
         
-        // 【新增】全部排程檢視按鍵
         Button btnViewAll = new Button() { Text = "全部檢視", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2,8,2,8), Cursor = Cursors.Hand, BackColor = Color.WhiteSmoke };
         btnViewAll.Click += (s, e) => OpenAllTasksView();
 
@@ -62,7 +61,8 @@ public class App_RecurringTasks : UserControl {
 
     public void OpenAllTasksView() {
         this.Invoke(new Action(() => {
-            new AllTasksViewWindow(tasks).Show();
+            // 【修改】將 parent 實例傳入，讓視窗有能力呼叫修改功能
+            new AllTasksViewWindow(this).Show();
         }));
     }
 
@@ -123,7 +123,6 @@ public class App_RecurringTasks : UserControl {
             }
         }
 
-        // 【修正】摘要提醒時改為彈出「全部檢視」視窗
         if (digestType != "不提醒") {
             DateTime dtDigest;
             if (DateTime.TryParseExact(digestTimeStr, "HH:mm", null, System.Globalization.DateTimeStyles.None, out dtDigest)) {
@@ -135,7 +134,7 @@ public class App_RecurringTasks : UserControl {
                 string todayStr = now.ToString("yyyy-MM-dd");
                 if (shouldTrigger && lastDigestDate != todayStr) {
                     lastDigestDate = todayStr; needsSave = true;
-                    OpenAllTasksView(); // 直接彈出檢視視窗
+                    OpenAllTasksView(); 
                 }
             }
         }
@@ -170,7 +169,7 @@ public class App_RecurringTasks : UserControl {
                     else target = target.AddDays(Math.Min(day, DateTime.DaysInMonth(target.Year, target.Month)) - 1);
                 }
                 return true;
-            } else if (t.MonthStr.EndsWith("月")) { // 各別月份處理
+            } else if (t.MonthStr.EndsWith("月")) { 
                 int month = int.Parse(t.MonthStr.Replace("月",""));
                 int day = (t.DateStr == "月底") ? DateTime.DaysInMonth(now.Year, month) : int.Parse(t.DateStr);
                 target = new DateTime(now.Year, month, day, h, m, 0);
@@ -203,24 +202,36 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 【全新視窗】全部排程檢視
+// 【升級】全部排程檢視：加入即時調整功能
 // ==========================================
 public class AllTasksViewWindow : Form {
-    public AllTasksViewWindow(List<App_RecurringTasks.RecurringTask> tasks) {
+    private App_RecurringTasks parentControl;
+    private FlowLayoutPanel flow;
+
+    public AllTasksViewWindow(App_RecurringTasks parent) {
+        this.parentControl = parent;
         this.Text = "全部排程清單總覽";
-        this.Width = 450; this.Height = 600;
+        this.Width = 480; this.Height = 650;
         this.StartPosition = FormStartPosition.CenterScreen;
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10f);
 
-        FlowLayoutPanel flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        this.Controls.Add(flow);
+
+        RefreshData();
+    }
+
+    // 重新載入並繪製清單，確保編輯後能即時反應
+    public void RefreshData() {
+        flow.Controls.Clear();
+        var tasks = parentControl.tasks;
 
         Label lblTitle = new Label() { Text = "週期任務排程總覽", Font = new Font("Microsoft JhengHei UI", 14f, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, 10) };
         Label lblTotal = new Label() { Text = "目前運作中任務共計：" + tasks.Count + " 項", AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(0, 0, 0, 20) };
         flow.Controls.Add(lblTitle);
         flow.Controls.Add(lblTotal);
 
-        // 分類與顯示
         AddGroup(flow, "【 每天觸發 】", tasks.Where(t => t.MonthStr == "每天").ToList());
         AddGroup(flow, "【 每週觸發 】", tasks.Where(t => t.MonthStr == "每週").ToList());
         AddGroup(flow, "【 每月觸發 】", tasks.Where(t => t.MonthStr == "每月").ToList());
@@ -229,8 +240,6 @@ public class AllTasksViewWindow : Form {
             string m = i + "月";
             AddGroup(flow, "【 " + m + " 限定 】", tasks.Where(t => t.MonthStr == m).ToList());
         }
-
-        this.Controls.Add(flow);
     }
 
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
@@ -239,8 +248,25 @@ public class AllTasksViewWindow : Form {
         container.Controls.Add(new Label() { Text = header + " (共 " + subTasks.Count + " 項)", Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 10, 0, 5) });
         
         foreach (var t in subTasks) {
-            Label lblItem = new Label() { Text = string.Format(" • [{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), AutoSize = true, Margin = new Padding(15, 2, 0, 2) };
-            container.Controls.Add(lblItem);
+            // 找出此任務在主程式清單中的真實索引，讓編輯視窗能精準修改
+            int originalIndex = parentControl.tasks.IndexOf(t);
+
+            FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(10, 2, 0, 2) };
+            
+            // 【新增】總覽視窗專屬的「調整」按鈕
+            Button btnEdit = new Button() { Text = "調整", Width = 50, Height = 26, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0, 0, 8, 0) };
+            btnEdit.Click += (s, e) => { 
+                // 彈出編輯視窗，因為用 ShowDialog，所以視窗關閉前此處會暫停
+                new EditRecurringTaskWindow(parentControl, originalIndex, t).ShowDialog();
+                // 編輯完畢關閉後，立刻觸發刷新重新載入總覽清單！
+                RefreshData(); 
+            };
+
+            Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), AutoSize = true, Margin = new Padding(0, 3, 0, 0) };
+            
+            row.Controls.Add(btnEdit);
+            row.Controls.Add(lblItem);
+            container.Controls.Add(row);
         }
     }
 }
