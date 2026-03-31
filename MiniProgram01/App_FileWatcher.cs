@@ -117,8 +117,9 @@ public class App_FileWatcher : UserControl {
     private void OnFileEvent(object sender, FileSystemEventArgs e) {
         if (Directory.Exists(e.FullPath)) return;
         
+        // 【修正核心】：只要開頭是波浪號 ~，一律視為 Word/系統隱藏暫存檔，直接略過！
         string checkName = Path.GetFileName(e.FullPath);
-        if (checkName.StartsWith("~$") || checkName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) return;
+        if (checkName.StartsWith("~") || checkName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) return;
 
         string triggerRoot = ((FileSystemWatcher)sender).Path;
         string taskLine = null; bool isTriggerFromSrc = true;
@@ -167,7 +168,6 @@ public class App_FileWatcher : UserControl {
         int res; return int.TryParse(clean, out res) ? res : -1;
     }
 
-    // 【修改核心】：將按鈕移至左側，上下兩行顯示
     private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath, string customName) {
         ThreadPool.QueueUserWorkItem(_ => {
             int sec; if(!int.TryParse(freqStr.Replace("秒", "").Trim(), out sec)) sec = 1;
@@ -187,15 +187,11 @@ public class App_FileWatcher : UserControl {
                     this.Invoke(new Action(() => {
                         parentForm.AlertTab(0); 
                         
-                        // 外層卡片容器
                         Panel c = new Panel() { Width = 340, AutoSize = true, MinimumSize = new Size(340, 65), BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 0, 5) };
-                        
-                        // 劃分左右兩塊：左邊按鈕區，右邊文字區
                         TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true, Padding = new Padding(2) };
-                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); // 左側保留 55px 給按鈕
-                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 右側全部給文字
+                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); 
+                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
 
-                        // 左側按鈕區 (上下排列)
                         FlowLayoutPanel btnPnl = new FlowLayoutPanel() { FlowDirection = FlowDirection.TopDown, AutoSize = true, Margin = new Padding(0) };
                         
                         Button bView = new Button() { Text = "查看", Width = 50, Height = 25, Margin = new Padding(0, 2, 0, 2), BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
@@ -210,11 +206,9 @@ public class App_FileWatcher : UserControl {
                         btnPnl.Controls.Add(bView); 
                         btnPnl.Controls.Add(bClose);
 
-                        // 右側文字區
                         string displayLoc = string.IsNullOrWhiteSpace(customName) ? relPath : customName;
                         Label lbl = new Label() { Text = Path.GetFileName(srcFile) + "\n位置: " + displayLoc, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(5, 5, 0, 0), TextAlign = ContentAlignment.MiddleLeft };
                         
-                        // 將左右兩塊放入 TableLayoutPanel
                         tlp.Controls.Add(btnPnl, 0, 0); 
                         tlp.Controls.Add(lbl, 1, 0); 
                         
