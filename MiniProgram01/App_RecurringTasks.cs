@@ -280,8 +280,19 @@ public class AllTasksViewWindow : Form {
         headerArea.Controls.AddRange(new Control[] { lblTitle, btnExport });
         this.Controls.Add(headerArea);
 
-        flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        // 【防遮擋修正 1】：為頂部增加 padding-top (原本只有 15，現在上方增加到 20)
+        flow = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, 
+            AutoScroll = true, 
+            Padding = new Padding(15, 20, 15, 15), 
+            FlowDirection = FlowDirection.TopDown, 
+            WrapContents = false 
+        };
         this.Controls.Add(flow);
+        
+        // 【防遮擋修正 2】：強制清單區塊推至最下層，讓出頂部標題列的空間！
+        flow.BringToFront(); 
+        
         RefreshData();
     }
 
@@ -302,18 +313,16 @@ public class AllTasksViewWindow : Form {
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
         if (subTasks.Count == 0) return;
 
-        // 【大外框設計】將每個分類獨立包裝進 GroupBox，強制隔離排版！
         GroupBox group = new GroupBox() {
             Text = "【 " + header + " 】",
             Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold),
             ForeColor = Color.FromArgb(0, 122, 255),
-            AutoSize = true, // 讓外框自動根據內部任務數量長高
+            AutoSize = true, 
             MinimumSize = new Size(750, 60),
-            Margin = new Padding(10, 10, 10, 25), // 大幅增加外框之間的距離
+            Margin = new Padding(10, 10, 10, 25), 
             Padding = new Padding(15, 25, 15, 15)
         };
 
-        // 內部再用一個 FlowLayoutPanel 來垂直排列該分類底下的任務
         FlowLayoutPanel innerFlow = new FlowLayoutPanel() {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
@@ -326,14 +335,14 @@ public class AllTasksViewWindow : Form {
             TableLayoutPanel row = new TableLayoutPanel() { 
                 Width = 710, 
                 Height = 36, 
-                Margin = new Padding(0, 0, 0, 8), // 任務與任務之間的間距
+                Margin = new Padding(0, 0, 0, 8), 
                 ColumnCount = 3, 
                 RowCount = 1 
             };
             
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [調] 專屬空間
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [✕] 專屬空間
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 文字區塊
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
             
             Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0,0,5,0) };
             btnEdit.FlatAppearance.BorderSize = 0;
@@ -357,7 +366,7 @@ public class AllTasksViewWindow : Form {
                 TextAlign = ContentAlignment.MiddleLeft, 
                 AutoSize = true,
                 Font = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular),
-                ForeColor = Color.Black // 避免文字變成 GroupBox 的藍色
+                ForeColor = Color.Black 
             };
             
             row.Controls.Add(btnEdit, 0, 0); 
