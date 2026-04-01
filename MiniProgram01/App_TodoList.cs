@@ -37,33 +37,34 @@ public class App_TodoList : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        // 【自適應修正 1】頂部輸入區改用 TableLayoutPanel，按鈕跟輸入框會自動隨視窗放大縮小
-        TableLayoutPanel top = new TableLayoutPanel();
+        // ==========================================
+        // 【防擠壓修正 1】頂部輸入區改用 Anchor 錨點定位
+        // ==========================================
+        Panel top = new Panel();
         top.Dock = DockStyle.Top;
         top.Height = 40;
-        top.ColumnCount = 2;
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 輸入框佔滿剩餘空間
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 75f)); // 按鈕固定 75 寬
-        top.Padding = new Padding(0, 0, 0, 5);
 
         inputField = new TextBox();
-        inputField.Dock = DockStyle.Fill;
         inputField.Font = MainFont;
-        inputField.Margin = new Padding(0, 5, 5, 0);
+        inputField.Location = new Point(0, 5);
+        inputField.Width = 390; // 預設寬度
+        inputField.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right; // 鎖定左右，自動伸縮
         inputField.KeyDown += new KeyEventHandler(InputField_KeyDown);
         
         Button btnAdd = new Button();
         btnAdd.Text = "新增";
-        btnAdd.Dock = DockStyle.Fill;
+        btnAdd.Location = new Point(400, 3);
+        btnAdd.Width = 65;
+        btnAdd.Height = 30;
+        btnAdd.Anchor = AnchorStyles.Top | AnchorStyles.Right; // 死死鎖在右邊，絕對不被擠出去
         btnAdd.FlatStyle = FlatStyle.Flat;
         btnAdd.BackColor = AppleBlue;
         btnAdd.ForeColor = Color.White;
         btnAdd.Font = new Font(MainFont.FontFamily, 10f, FontStyle.Bold);
-        btnAdd.Margin = new Padding(0, 3, 0, 0);
         btnAdd.Click += new EventHandler(BtnAdd_Click);
 
-        top.Controls.Add(inputField, 0, 0);
-        top.Controls.Add(btnAdd, 1, 0);
+        top.Controls.Add(inputField);
+        top.Controls.Add(btnAdd);
 
         taskContainer = new FlowLayoutPanel();
         taskContainer.Dock = DockStyle.Fill;
@@ -79,12 +80,12 @@ public class App_TodoList : UserControl {
         taskContainer.DragDrop += OnTaskDragDrop;
         taskContainer.Paint += OnTaskContainerPaint;
 
-        // 【自適應修正 2】當視窗或捲軸改變大小時，自動調整所有卡片的寬度！
+        // 【防擠壓修正 2】當視窗調整大小或出現捲軸時，精確扣除捲軸寬度 (約 25px)
         taskContainer.Resize += (s, e) => {
-            int safeWidth = taskContainer.ClientSize.Width - 8;
+            int safeWidth = taskContainer.ClientSize.Width - 25; 
             if (safeWidth > 0) {
                 foreach (Control c in taskContainer.Controls) {
-                    if (c is Panel) c.Width = safeWidth;
+                    if (c is TableLayoutPanel) c.Width = safeWidth;
                 }
             }
         };
@@ -123,24 +124,33 @@ public class App_TodoList : UserControl {
 
     private void CreateTaskUI(string text, string textColorName) {
         Color textColor = Color.FromName(textColorName);
-        
-        // 【自適應修正 3】新增卡片時，直接讀取容器的安全寬度
-        int startWidth = taskContainer.ClientSize.Width > 50 ? taskContainer.ClientSize.Width - 8 : 400;
+        int startWidth = taskContainer.ClientSize.Width > 50 ? taskContainer.ClientSize.Width - 25 : 450;
 
-        Panel item = new Panel();
+        // ==========================================
+        // 【防擠壓修正 3】改用 TableLayoutPanel 網格排版！
+        // 劃分 5 個專屬獨立格子，按鈕絕對不可能再重疊到文字上！
+        // ==========================================
+        TableLayoutPanel item = new TableLayoutPanel();
         item.Width = startWidth;
         item.AutoSize = true;
-        item.Padding = new Padding(5, 5, 2, 5);
-        item.Margin = new Padding(0, 3, 0, 8);
+        item.Margin = new Padding(5, 3, 5, 8);
         item.BackColor = Color.White;
-        item.BorderStyle = BorderStyle.None;
+        item.ColumnCount = 5;
+        item.RowCount = 1;
+        
+        // 嚴格定義每一欄的寬度
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30f));  // 欄 0: 核取方塊 (30px)
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  // 欄 1: 任務文字 (自動彈性填滿剩餘空間)
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f));  // 欄 2: 轉移按鈕 (65px)
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));  // 欄 3: 顏色按鈕 (35px)
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));  // 欄 4: 修改按鈕 (35px)
         
         CheckBox chk = new CheckBox();
-        chk.Dock = DockStyle.Left;
-        chk.Width = 30;
+        chk.Dock = DockStyle.Fill;
         chk.Cursor = Cursors.Hand;
         chk.BackColor = Color.Transparent;
         chk.ForeColor = textColor;
+        chk.Padding = new Padding(5, 5, 0, 0);
         chk.CheckedChanged += (s, e) => {
             if (chk.Checked) {
                 if (taskData.ContainsKey(text)) {
@@ -152,10 +162,20 @@ public class App_TodoList : UserControl {
             }
         };
 
+        Label lbl = new Label();
+        lbl.Text = text;
+        lbl.Dock = DockStyle.Fill;
+        lbl.Font = MainFont;
+        lbl.ForeColor = textColor;
+        lbl.AutoSize = true;
+        lbl.Padding = new Padding(0, 5, 0, 5);
+        lbl.Cursor = Cursors.SizeAll;
+        lbl.BackColor = Color.Transparent;
+        lbl.TextAlign = ContentAlignment.MiddleLeft;
+
         Button btnMove = new Button();
         btnMove.Text = moveBtnText;
-        btnMove.Dock = DockStyle.Right;
-        btnMove.Width = 55;
+        btnMove.Dock = DockStyle.Fill;
         btnMove.Height = 28;
         btnMove.FlatStyle = FlatStyle.Flat;
         btnMove.BackColor = Color.FromArgb(235, 230, 255);
@@ -163,25 +183,11 @@ public class App_TodoList : UserControl {
         btnMove.Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold);
         btnMove.Cursor = Cursors.Hand;
         btnMove.FlatAppearance.BorderSize = 0;
-        btnMove.Margin = new Padding(2, 0, 2, 0);
-
-        Button btnEdit = new Button();
-        btnEdit.Text = "修";
-        btnEdit.Dock = DockStyle.Right;
-        btnEdit.Width = 32;
-        btnEdit.Height = 28;
-        btnEdit.FlatStyle = FlatStyle.Flat;
-        btnEdit.BackColor = Color.FromArgb(255, 210, 210);
-        btnEdit.ForeColor = textColor;
-        btnEdit.Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold);
-        btnEdit.Cursor = Cursors.Hand;
-        btnEdit.FlatAppearance.BorderSize = 0;
-        btnEdit.Margin = new Padding(2, 0, 2, 0);
+        btnMove.Margin = new Padding(2);
 
         Button btnColor = new Button();
         btnColor.Text = "色";
-        btnColor.Dock = DockStyle.Right;
-        btnColor.Width = 32;
+        btnColor.Dock = DockStyle.Fill;
         btnColor.Height = 28;
         btnColor.FlatStyle = FlatStyle.Flat;
         btnColor.BackColor = Color.FromArgb(211, 227, 253);
@@ -189,18 +195,19 @@ public class App_TodoList : UserControl {
         btnColor.Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold);
         btnColor.Cursor = Cursors.Hand;
         btnColor.FlatAppearance.BorderSize = 0;
-        btnColor.Margin = new Padding(2, 0, 2, 0);
+        btnColor.Margin = new Padding(2);
 
-        Label lbl = new Label();
-        lbl.Text = text;
-        lbl.Dock = DockStyle.Fill;
-        lbl.Font = MainFont;
-        lbl.ForeColor = textColor;
-        lbl.AutoSize = true;
-        lbl.MaximumSize = new Size(250, 0); // 字數太多時自動換行
-        lbl.Padding = new Padding(0, 5, 0, 5);
-        lbl.Cursor = Cursors.SizeAll;
-        lbl.BackColor = Color.Transparent;
+        Button btnEdit = new Button();
+        btnEdit.Text = "修";
+        btnEdit.Dock = DockStyle.Fill;
+        btnEdit.Height = 28;
+        btnEdit.FlatStyle = FlatStyle.Flat;
+        btnEdit.BackColor = Color.FromArgb(255, 210, 210);
+        btnEdit.ForeColor = textColor;
+        btnEdit.Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold);
+        btnEdit.Cursor = Cursors.Hand;
+        btnEdit.FlatAppearance.BorderSize = 0;
+        btnEdit.Margin = new Padding(2);
 
         btnMove.Click += (s, e) => {
             if (TargetList != null) {
@@ -245,11 +252,12 @@ public class App_TodoList : UserControl {
         btnEdit.Click += (s, e) => triggerEdit();
         lbl.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move); };
 
-        item.Controls.Add(btnEdit);
-        item.Controls.Add(btnColor);
-        item.Controls.Add(btnMove);
-        item.Controls.Add(chk);
-        item.Controls.Add(lbl);
+        // 將元件放入指定的網格座標中 (欄, 列)
+        item.Controls.Add(chk, 0, 0);
+        item.Controls.Add(lbl, 1, 0);
+        item.Controls.Add(btnMove, 2, 0);
+        item.Controls.Add(btnColor, 3, 0);
+        item.Controls.Add(btnEdit, 4, 0);
         
         taskContainer.Controls.Add(item); 
         taskContainer.Controls.SetChildIndex(item, 0);
@@ -261,7 +269,7 @@ public class App_TodoList : UserControl {
             try {
                 this.Invoke(new Action(() => {
                     foreach (Control ctrl in taskContainer.Controls) {
-                        if (ctrl is Panel p) {
+                        if (ctrl is TableLayoutPanel p) {
                             foreach (Control sub in p.Controls) {
                                 if (sub is Label lbl) { 
                                     string colorName = taskData.ContainsKey(lbl.Text) ? taskData[lbl.Text].Item2 : "Black";
@@ -311,7 +319,7 @@ public class App_TodoList : UserControl {
         Point clientPoint = taskContainer.PointToClient(new Point(e.X, e.Y));
         Control target = taskContainer.GetChildAtPoint(clientPoint);
         if (target != null) {
-            if (!(target is Panel)) target = target.Parent;
+            if (!(target is TableLayoutPanel)) target = target.Parent;
             int idx = taskContainer.Controls.GetChildIndex(target);
             if (clientPoint.Y > target.Top + (target.Height / 2)) idx++;
             if (dragInsertIndex != idx) { dragInsertIndex = idx; taskContainer.Invalidate(); }
@@ -321,12 +329,12 @@ public class App_TodoList : UserControl {
     private void OnTaskContainerPaint(object sender, PaintEventArgs e) {
         if (dragInsertIndex != -1 && taskContainer.Controls.Count > 0) {
             int y = (dragInsertIndex < taskContainer.Controls.Count) ? taskContainer.Controls[dragInsertIndex].Top - 2 : taskContainer.Controls[taskContainer.Controls.Count - 1].Bottom + 2;
-            e.Graphics.FillRectangle(new SolidBrush(AppleBlue), 5, y, taskContainer.Width - 25, 3);
+            e.Graphics.FillRectangle(new SolidBrush(AppleBlue), 5, y, taskContainer.Width - 30, 3);
         }
     }
 
     private void OnTaskDragDrop(object sender, DragEventArgs e) {
-        Panel draggedItem = (Panel)e.Data.GetData(typeof(Panel));
+        TableLayoutPanel draggedItem = (TableLayoutPanel)e.Data.GetData(typeof(TableLayoutPanel));
         if (draggedItem != null && dragInsertIndex != -1) {
             int targetIdx = dragInsertIndex;
             int currentIdx = taskContainer.Controls.GetChildIndex(draggedItem);
