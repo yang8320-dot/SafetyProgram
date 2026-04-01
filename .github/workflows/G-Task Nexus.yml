@@ -1,6 +1,9 @@
-name: G-Task Nexus Auto Build
+# 檔案名稱：G-Task Nexus.yml
+name: G-Task Nexus
 
-on: [push]
+# 設定為手動執行 (Manual Trigger)
+on: 
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,13 +19,15 @@ jobs:
         uses: NuGet/setup-nuget@v2
 
       - name: Restore NuGet Packages
+        # 確保路徑指向 G-Task Nexus 資料夾內的 .sln
         run: nuget restore "G-Task Nexus/GTaskNexus.sln"
 
       - name: Build Single EXE
+        # 編譯為單一執行檔
         run: msbuild "G-Task Nexus/GTaskNexus.sln" /p:Configuration=Release /p:PublishSingleFile=true /p:RuntimeIdentifier=win-x64
 
       - name: Upload Release EXE
         uses: actions/upload-artifact@v4
         with:
-          name: G-Task-Nexus-Portable
+          name: G-Task-Nexus-Portable-Build
           path: "G-Task Nexus/bin/Release/GTaskNexus.exe"
