@@ -13,6 +13,7 @@ public class App_RecurringTasks : UserControl {
     private FlowLayoutPanel taskPanel;
     private Timer checkTimer;
 
+    // 全域設定變數
     public string digestType { get; set; } = "不提醒";
     public string digestTimeStr { get; set; } = "08:00";
     public string lastDigestDate { get; set; } = "";
@@ -21,7 +22,9 @@ public class App_RecurringTasks : UserControl {
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
 
-    public class RecurringTask { public string Name, MonthStr, DateStr, TimeStr, LastTriggeredDate; }
+    public class RecurringTask { 
+        public string Name, MonthStr, DateStr, TimeStr, LastTriggeredDate; 
+    }
     public List<RecurringTask> tasks = new List<RecurringTask>();
 
     public App_RecurringTasks(MainForm mainForm, App_TodoList todoApp) {
@@ -30,6 +33,7 @@ public class App_RecurringTasks : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(5);
 
+        // --- 頂部標題列 ---
         TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 4 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
@@ -50,11 +54,14 @@ public class App_RecurringTasks : UserControl {
         header.Controls.AddRange(new Control[] { lblTitle, btnViewAll, btnAdd, btnSet });
         this.Controls.Add(header);
 
+        // --- 簡易預覽清單 ---
         taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
         this.Controls.Add(taskPanel);
         taskPanel.BringToFront();
 
         LoadTasks();
+        
+        // 設定 10 分鐘檢查一次排程
         checkTimer = new Timer() { Interval = 600000, Enabled = true };
         checkTimer.Tick += (s, e) => CheckTasks();
         CheckTasks();
@@ -118,7 +125,7 @@ public class App_RecurringTasks : UserControl {
                         string prefix = advanceDays > 0 ? string.Format("[預排-{0}] ", target.ToString("MM/dd")) : "";
                         todoApp.AddTask(prefix + t.Name); 
                         t.LastTriggeredDate = targetDateStr; needsSave = true;
-                        parentForm.AlertTab(1);
+                        parentForm.AlertTab(1); // 閃爍待辦頁面
                     }
                 }
             }
@@ -212,7 +219,7 @@ public class AllTasksViewWindow : Form {
     public AllTasksViewWindow(App_RecurringTasks parent) {
         this.parentControl = parent;
         this.Text = "全部排程清單總覽";
-        this.Width = 810; this.Height = 1440; // 【修正】大尺寸
+        this.Width = 810; this.Height = 1440; 
         this.StartPosition = FormStartPosition.CenterScreen;
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10.5f);
@@ -220,7 +227,18 @@ public class AllTasksViewWindow : Form {
         Panel headerArea = new Panel() { Dock = DockStyle.Top, Height = 60, BackColor = Color.WhiteSmoke };
         Label lblTitle = new Label() { Text = "週期任務排程總覽 (全紀錄)", Left = 20, Top = 15, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 16f, FontStyle.Bold) };
         
-        Button btnExport = new Button() { Text = "轉存 PDF / 列印", Right = 770, Top = 12, Width = 140, Height = 35, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        // 【修正】使用 Left 代替唯讀的 Right 屬性
+        Button btnExport = new Button() { 
+            Text = "轉存 PDF / 列印", 
+            Left = 630, 
+            Top = 12, 
+            Width = 150, 
+            Height = 35, 
+            BackColor = Color.FromArgb(0, 153, 76), 
+            ForeColor = Color.White, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand 
+        };
         btnExport.Click += (s, e) => ExportToPDF();
 
         headerArea.Controls.AddRange(new Control[] { lblTitle, btnExport });
@@ -282,21 +300,18 @@ public class AllTasksViewWindow : Form {
             e.Graphics.DrawString("週期任務排程清單 (" + DateTime.Now.ToString("yyyy/MM/dd") + ")", fTitle, Brushes.Black, 50, y);
             y += 50;
 
-            var groups = new[] { 
-                new { H = "每天觸發", L = parentControl.tasks.Where(t => t.MonthStr == "每天").ToList() },
-                new { H = "每週觸發", L = parentControl.tasks.Where(t => t.MonthStr == "每週").ToList() },
-                new { H = "每月觸發", L = parentControl.tasks.Where(t => t.MonthStr == "每月").ToList() }
-            };
-
-            foreach(var g in groups) {
-                if (g.L.Count == 0) continue;
-                e.Graphics.DrawString("【 " + g.H + " 】", fHeader, Brushes.Blue, 50, y);
-                y += 30;
-                foreach(var itm in g.L) {
-                    e.Graphics.DrawString(string.Format("• [{0}] {1} {2}", itm.TimeStr, itm.DateStr, itm.Name), fContent, Brushes.Black, 70, y);
-                    y += 25;
+            var allCategories = new[] { "每天", "每週", "每月" };
+            foreach(var cat in allCategories) {
+                var list = parentControl.tasks.Where(t => t.MonthStr == cat).ToList();
+                if (list.Count > 0) {
+                    e.Graphics.DrawString("【 " + cat + "觸發 】", fHeader, Brushes.Blue, 50, y);
+                    y += 30;
+                    foreach(var itm in list) {
+                        e.Graphics.DrawString(string.Format("• [{0}] {1} {2}", itm.TimeStr, itm.DateStr, itm.Name), fContent, Brushes.Black, 70, y);
+                        y += 25;
+                    }
+                    y += 15;
                 }
-                y += 15;
             }
         };
 
@@ -306,7 +321,7 @@ public class AllTasksViewWindow : Form {
 }
 
 // ==========================================
-// 視窗：新增、調整、設定 (維持置中且寬度加大)
+// 視窗：新增、調整、設定
 // ==========================================
 public class AddRecurringTaskWindow : Form {
     private App_RecurringTasks parentControl;
