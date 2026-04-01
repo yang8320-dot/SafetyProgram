@@ -204,7 +204,7 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 【修正版】全部排程檢視：810x1440 + 多頁 PDF
+// 【更新】全部排程檢視：800x1024 + 多頁 PDF
 // ==========================================
 public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
@@ -218,7 +218,8 @@ public class AllTasksViewWindow : Form {
     public AllTasksViewWindow(App_RecurringTasks parent) {
         this.parentControl = parent;
         this.Text = "全部排程清單總覽";
-        this.Width = 810; this.Height = 1440; 
+        // 【修正】視窗尺寸改為 800x1024
+        this.Width = 800; this.Height = 1024; 
         this.StartPosition = FormStartPosition.CenterScreen;
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10.5f);
@@ -258,7 +259,7 @@ public class AllTasksViewWindow : Form {
         container.Controls.Add(new Label() { Text = header, Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 20, 0, 10) });
         foreach (var t in subTasks) {
             int originalIndex = parentControl.tasks.IndexOf(t);
-            Panel row = new Panel() { Width = 740, Height = 40, Margin = new Padding(15, 2, 0, 2) };
+            Panel row = new Panel() { Width = 730, Height = 40, Margin = new Padding(15, 2, 0, 2) }; // 寬度微調以適應 800
             Button btnEdit = new Button() { Text = "調整", Width = 55, Height = 30, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f) };
             btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(parentControl, originalIndex, t).ShowDialog(); RefreshData(); };
             Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Left = 65, Top = 5, AutoSize = true };
