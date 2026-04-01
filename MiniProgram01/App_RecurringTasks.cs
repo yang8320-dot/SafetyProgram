@@ -204,7 +204,7 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 【更新】全部排程檢視：800x1024 + 多頁 PDF
+// 【更新】全部排程檢視：自動適應螢幕高度 + 多頁 PDF
 // ==========================================
 public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
@@ -218,8 +218,11 @@ public class AllTasksViewWindow : Form {
     public AllTasksViewWindow(App_RecurringTasks parent) {
         this.parentControl = parent;
         this.Text = "全部排程清單總覽";
-        // 【修正】視窗尺寸改為 800x1024
-        this.Width = 800; this.Height = 1024; 
+        
+        // 【修正】取得螢幕可用區域，防止視窗高度超出螢幕導致標題列被遮擋
+        Rectangle screenArea = Screen.PrimaryScreen.WorkingArea;
+        this.Width = 800; 
+        this.Height = Math.Min(1024, screenArea.Height - 40); 
         this.StartPosition = FormStartPosition.CenterScreen;
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10.5f);
@@ -251,7 +254,7 @@ public class AllTasksViewWindow : Form {
             string m = i + "月";
             AddGroup(flow, "【 " + m + " 限定 】", tasks.Where(t => t.MonthStr == m).ToList());
         }
-        flow.Controls.Add(new Label() { Height = 100, Text = "" }); // 緩衝空間
+        flow.Controls.Add(new Label() { Height = 100, Text = "" }); // 底部緩衝空間
     }
 
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
@@ -259,7 +262,7 @@ public class AllTasksViewWindow : Form {
         container.Controls.Add(new Label() { Text = header, Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 20, 0, 10) });
         foreach (var t in subTasks) {
             int originalIndex = parentControl.tasks.IndexOf(t);
-            Panel row = new Panel() { Width = 730, Height = 40, Margin = new Padding(15, 2, 0, 2) }; // 寬度微調以適應 800
+            Panel row = new Panel() { Width = 730, Height = 40, Margin = new Padding(15, 2, 0, 2) };
             Button btnEdit = new Button() { Text = "調整", Width = 55, Height = 30, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f) };
             btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(parentControl, originalIndex, t).ShowDialog(); RefreshData(); };
             Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Left = 65, Top = 5, AutoSize = true };
