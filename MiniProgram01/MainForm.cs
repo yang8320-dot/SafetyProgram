@@ -26,130 +26,107 @@ public class MainForm : Form {
     private const uint VK_1 = 0x31; 
     private const int WM_HOTKEY = 0x0312;
 
+    // 定義六大模組變數
+    public App_FileWatcher fileWatcherApp;
+    public App_TodoList todoApp;
+    public App_TodoList planApp; // 新增：待規模組
+    public App_RecurringTasks recurringApp;
+    public App_Shortcuts shortcutsApp;
+    public App_Screenshot screenshotApp;
+
     public MainForm() {
         this.Text = "整合通知中心";
-        this.Width = 380; this.Height = 520;
+        // 寬度加寬至 440，讓 6 個分頁標籤能完美並排不折行
+        this.Width = 440; this.Height = 520;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
         this.StartPosition = FormStartPosition.Manual;
         this.TopMost = true; this.ShowInTaskbar = false; 
         this.BackColor = BgColor;
 
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
-        this.Location = new Point(area.Right - this.Width - 15, area.Bottom - this.Height - 15);
+        this.Left = area.Right - this.Width - 10; 
+        this.Top = area.Bottom - this.Height - 10;
+
+        trayMenu = new ContextMenu();
+        MenuItem startupItem = new MenuItem("開機自動啟動", ToggleStartup);
+        startupItem.Checked = IsRunOnStartup();
+        trayMenu.MenuItems.Add(startupItem);
+        trayMenu.MenuItems.Add("-");
+        trayMenu.MenuItems.Add("顯示主視窗", (s, e) => ShowAppWindow());
+        trayMenu.MenuItems.Add("完全退出", (s, e) => { trayIcon.Visible = false; Environment.Exit(0); });
+        
+        trayIcon = new NotifyIcon() { Icon = SystemIcons.Application, ContextMenu = trayMenu, Visible = true, Text = "整合通知中心 (Ctrl+1)" };
+        trayIcon.DoubleClick += (s, e) => ShowAppWindow();
 
         RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_1);
 
-        trayIcon = new NotifyIcon() { Icon = SystemIcons.Information, Visible = true, Text = "整合通知中心" };
-        trayMenu = new ContextMenu();
-        trayMenu.MenuItems.Add("顯示主面板", new EventHandler(delegate { ShowAppWindow(); }));
-        trayMenu.MenuItems.Add("-");
-
-        tabControl = new TabControl() { 
-            Dock = DockStyle.Fill, Padding = new Point(12, 5), 
-            Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold),
-            DrawMode = TabDrawMode.OwnerDrawFixed
-        };
+        tabControl = new TabControl() { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 10f), ItemSize = new Size(60, 30), Padding = new Point(12, 5) };
+        tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
         tabControl.DrawItem += TabControl_DrawItem;
-        
-        tabControl.SelectedIndexChanged += (s, e) => {
-            if (alertTabs.Contains(tabControl.SelectedIndex)) {
-                alertTabs.Remove(tabControl.SelectedIndex);
-                tabControl.Invalidate(tabControl.GetTabRect(tabControl.SelectedIndex));
-                tabControl.Update();
-            }
-        };
+        tabControl.SelectedIndexChanged += (s, e) => { alertTabs.Remove(tabControl.SelectedIndex); tabControl.Invalidate(); };
         this.Controls.Add(tabControl);
 
-        flashTimer = new Timer() { Interval = 500, Enabled = true };
+        // 實例化模組：分別指派「todo」與「plan」的存檔前綴，以及專屬的轉移按鈕文字
+        fileWatcherApp = new App_FileWatcher(this, trayMenu);
+        todoApp = new App_TodoList(this, "todo", "轉待規");
+        planApp = new App_TodoList(this, "plan", "轉待辦");
+        
+        // 將待辦與待規互相綁定，讓它們能互相拋接資料
+        todoApp.TargetList = planApp;
+        planApp.TargetList = todoApp;
+
+        recurringApp = new App_RecurringTasks(this, todoApp); // 週期依然進入待辦
+        shortcutsApp = new App_Shortcuts(this);
+        screenshotApp = new App_Screenshot(this);
+
+        // 加入 6 個分頁
+        tabControl.TabPages.Add(new TabPage("監控") { BackColor = BgColor });
+        tabControl.TabPages.Add(new TabPage("待辦") { BackColor = BgColor });
+        tabControl.TabPages.Add(new TabPage("待規") { BackColor = BgColor }); // 待規緊接在待辦右邊
+        tabControl.TabPages.Add(new TabPage("週期") { BackColor = BgColor });
+        tabControl.TabPages.Add(new TabPage("捷徑") { BackColor = BgColor });
+        tabControl.TabPages.Add(new TabPage("截圖") { BackColor = BgColor });
+
+        tabControl.TabPages[0].Controls.Add(fileWatcherApp);
+        tabControl.TabPages[1].Controls.Add(todoApp);
+        tabControl.TabPages[2].Controls.Add(planApp); // 掛載待規畫面
+        tabControl.TabPages[3].Controls.Add(recurringApp);
+        tabControl.TabPages[4].Controls.Add(shortcutsApp);
+        tabControl.TabPages[5].Controls.Add(screenshotApp);
+
+        flashTimer = new Timer() { Interval = 500 };
         flashTimer.Tick += (s, e) => {
-            if (alertTabs.Count > 0) {
-                flashState = !flashState;
-                foreach (int index in alertTabs) {
-                    tabControl.Invalidate(tabControl.GetTabRect(index));
-                }
-                tabControl.Update(); 
-            }
+            if (alertTabs.Count == 0) { flashTimer.Stop(); flashState = false; }
+            else { flashState = !flashState; tabControl.Invalidate(); }
         };
-
-        // 1. 監控系統 -> 改為「監控」
-        TabPage tabWatcher = new TabPage("監控");
-        App_FileWatcher watcherApp = new App_FileWatcher(this, trayMenu);
-        watcherApp.Dock = DockStyle.Fill;
-        tabWatcher.Controls.Add(watcherApp);
-        tabControl.TabPages.Add(tabWatcher);
-
-        // 2. 待辦清單 -> 改為「待辦」
-        TabPage tabTodo = new TabPage("待辦");
-        App_TodoList todoApp = new App_TodoList(this);
-        todoApp.Dock = DockStyle.Fill;
-        tabTodo.Controls.Add(todoApp);
-        tabControl.TabPages.Add(tabTodo);
-
-        // 3. 週期任務 -> 改為「週期」
-        TabPage tabRecurring = new TabPage("週期");
-        App_RecurringTasks recurringApp = new App_RecurringTasks(this, todoApp);
-        recurringApp.Dock = DockStyle.Fill;
-        tabRecurring.Controls.Add(recurringApp);
-        tabControl.TabPages.Add(tabRecurring);
-
-        // 4. 捷徑管理 -> 改為「捷徑」
-        TabPage tabShortcuts = new TabPage("捷徑");
-        App_Shortcuts shortcutsApp = new App_Shortcuts(this);
-        shortcutsApp.Dock = DockStyle.Fill;
-        tabShortcuts.Controls.Add(shortcutsApp);
-        tabControl.TabPages.Add(tabShortcuts);
-
-        // 5. 截圖功能 -> 已經是兩個字「截圖」
-        TabPage tabScreenshot = new TabPage("截圖");
-        App_Screenshot screenshotApp = new App_Screenshot(this);
-        screenshotApp.Dock = DockStyle.Fill;
-        tabScreenshot.Controls.Add(screenshotApp);
-        tabControl.TabPages.Add(tabScreenshot);
-
-        // 右下角常駐選單設定
-        trayMenu.MenuItems.Add("-");
-        MenuItem startupMenu = new MenuItem("開機自動執行") { Checked = IsRunOnStartup() };
-        startupMenu.Click += new EventHandler(ToggleStartup);
-        trayMenu.MenuItems.Add(startupMenu);
-        trayMenu.MenuItems.Add("結束程式", new EventHandler(delegate { UnregisterHotKey(this.Handle, HOTKEY_ID); trayIcon.Dispose(); Application.Exit(); }));
-        trayIcon.ContextMenu = trayMenu;
-
-        this.Opacity = 0; 
-        this.Load += new EventHandler(delegate { this.Hide(); this.Opacity = 1; });
-    }
-
-    public void AlertTab(int tabIndex) {
-        if (tabControl.SelectedIndex != tabIndex && tabIndex >= 0 && tabIndex < tabControl.TabCount) {
-            alertTabs.Add(tabIndex);
-            flashState = true;
-            tabControl.Invalidate(tabControl.GetTabRect(tabIndex));
-            tabControl.Update();
-        }
     }
 
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
-        Graphics g = e.Graphics;
-        TabPage page = tabControl.TabPages[e.Index];
-        Rectangle bounds = tabControl.GetTabRect(e.Index);
-
+        Graphics g = e.Graphics; TabPage page = tabControl.TabPages[e.Index]; Rectangle rect = e.Bounds;
+        bool isSelected = (tabControl.SelectedIndex == e.Index);
         bool isAlert = alertTabs.Contains(e.Index) && flashState;
-        bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-        Color bgColor = isAlert ? Color.Crimson : (isSelected ? Color.White : Color.FromArgb(240, 240, 240));
-        Color textColor = isAlert ? Color.White : (isSelected ? Color.FromArgb(0, 122, 255) : Color.Black);
+        Color bg = isAlert ? Color.IndianRed : (isSelected ? Color.White : Color.FromArgb(230, 230, 230));
+        Color fg = isAlert ? Color.White : (isSelected ? Color.FromArgb(0, 122, 255) : Color.Gray);
 
-        using (Brush b = new SolidBrush(bgColor)) { g.FillRectangle(b, bounds); }
-        if (isSelected) {
-            using (Pen p = new Pen(Color.FromArgb(0, 122, 255), 3)) {
-                g.DrawLine(p, bounds.Left, bounds.Top, bounds.Right, bounds.Top);
-            }
+        g.FillRectangle(new SolidBrush(bg), rect);
+        if (isSelected && !isAlert) g.FillRectangle(new SolidBrush(Color.FromArgb(0, 122, 255)), rect.Left, rect.Bottom - 3, rect.Width, 3);
+
+        StringFormat sf = new StringFormat() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.DrawString(page.Text, new Font(tabControl.Font, isSelected ? FontStyle.Bold : FontStyle.Regular), new SolidBrush(fg), rect, sf);
+    }
+
+    public void AlertTab(int targetTabIndex) {
+        if (tabControl.SelectedIndex != targetTabIndex) {
+            alertTabs.Add(targetTabIndex);
+            if (!flashState) { flashState = true; flashTimer.Start(); }
+            tabControl.Invalidate();
         }
-        TextRenderer.DrawText(g, page.Text, page.Font, bounds, textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
     public void ShowAppWindow(int targetTabIndex = -1) {
-        this.Show();
         if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
+        if (!this.Visible) this.Show();
         
         if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) {
             tabControl.SelectedIndex = targetTabIndex; 
@@ -185,8 +162,8 @@ public class MainForm : Form {
     private void ToggleStartup(object sender, EventArgs e) {
         MenuItem item = (MenuItem)sender; item.Checked = !item.Checked;
         try { using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true)) { 
-            if (item.Checked) rk.SetValue(appName, "\"" + Application.ExecutablePath + "\""); 
-            else if (rk != null) rk.DeleteValue(appName, false); 
-        } } catch {}
+            if (item.Checked) rk.SetValue(appName, "\"" + Application.ExecutablePath + "\"");
+            else rk.DeleteValue(appName, false);
+        } } catch { MessageBox.Show("權限不足，無法設定開機啟動。"); }
     }
 }
