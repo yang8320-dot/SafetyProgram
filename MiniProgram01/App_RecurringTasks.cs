@@ -267,16 +267,45 @@ public class AllTasksViewWindow : Form {
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10.5f);
 
-        Panel headerArea = new Panel() { Dock = DockStyle.Top, Height = 60, BackColor = Color.WhiteSmoke };
-        Label lblTitle = new Label() { Text = "週期任務排程總覽 (全紀錄)", Left = 20, Top = 15, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 16f, FontStyle.Bold) };
+        // 【防走失修正】：將頂部標題列改成 TableLayoutPanel 網格排版！
+        TableLayoutPanel headerArea = new TableLayoutPanel() { 
+            Dock = DockStyle.Top, 
+            Height = 60, 
+            BackColor = Color.WhiteSmoke,
+            ColumnCount = 2,
+            RowCount = 1
+        };
+        // 左邊格子：標題文字 (佔滿剩餘空間)
+        headerArea.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        // 右邊格子：列印按鈕 (保留固定 170px 空間)
+        headerArea.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170f));
+
+        Label lblTitle = new Label() { 
+            Text = "週期任務排程總覽 (全紀錄)", 
+            AutoSize = true, 
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(15, 0, 0, 0),
+            Font = new Font("Microsoft JhengHei UI", 16f, FontStyle.Bold) 
+        };
         
         Button btnExport = new Button() { 
-            Text = "轉存 PDF / 列印", Left = 630, Top = 12, Width = 150, Height = 35, 
-            BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Anchor = AnchorStyles.Top | AnchorStyles.Right 
+            Text = "轉存 PDF / 列印", 
+            Width = 150, 
+            Height = 35, 
+            BackColor = Color.FromArgb(0, 153, 76), 
+            ForeColor = Color.White, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand, 
+            Anchor = AnchorStyles.Right, // 鎖定在格子右邊
+            Margin = new Padding(0, 0, 15, 0)
         };
         btnExport.Click += (s, e) => ExportToPDF();
 
-        headerArea.Controls.AddRange(new Control[] { lblTitle, btnExport });
+        // 放入對應格子 (欄 0 放標題，欄 1 放按鈕)
+        headerArea.Controls.Add(lblTitle, 0, 0);
+        headerArea.Controls.Add(btnExport, 1, 0);
+        
         this.Controls.Add(headerArea);
 
         flow = new FlowLayoutPanel() { 
@@ -287,9 +316,8 @@ public class AllTasksViewWindow : Form {
             WrapContents = false 
         };
         
-        // 【自適應修正 1】：當視窗拉寬時，動態同步更新內部 GroupBox 的寬度
         flow.Resize += (s, e) => {
-            int safeWidth = flow.ClientSize.Width - 35; // 扣除捲軸與 Padding 的安全寬度
+            int safeWidth = flow.ClientSize.Width - 35; 
             if (safeWidth > 0) {
                 foreach (Control c in flow.Controls) {
                     if (c is GroupBox gb) {
@@ -324,7 +352,6 @@ public class AllTasksViewWindow : Form {
 
         int initialWidth = container.ClientSize.Width > 50 ? container.ClientSize.Width - 35 : 750;
 
-        // 【防截斷修正】：加入 AutoSizeMode = GrowAndShrink，讓高度可以無限自動撐開！
         GroupBox group = new GroupBox() {
             Text = "【 " + header + " 】",
             Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold),
@@ -344,7 +371,6 @@ public class AllTasksViewWindow : Form {
             AutoSizeMode = AutoSizeMode.GrowAndShrink
         };
 
-        // 【自適應修正 2】：當外層 GroupBox 變寬時，連帶更新裡面的 TableLayoutPanel 行寬
         innerFlow.Resize += (s, e) => {
             int rowWidth = innerFlow.ClientSize.Width - 10;
             if (rowWidth > 0) {
@@ -355,7 +381,6 @@ public class AllTasksViewWindow : Form {
         };
 
         foreach (var t in subTasks) {
-            // 【防截斷修正】：移除死硬的 Height = 36，改為 AutoSize = true
             TableLayoutPanel row = new TableLayoutPanel() { 
                 Width = innerFlow.ClientSize.Width > 50 ? innerFlow.ClientSize.Width - 10 : 710, 
                 AutoSize = true, 
@@ -369,7 +394,6 @@ public class AllTasksViewWindow : Form {
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
             
-            // 按鈕改為靠上對齊 (Dock.Top) 且設定固定高度 28，這樣字數變多變成兩行時，按鈕也不會變形被拉長
             Button btnEdit = new Button() { Text = "調", Height = 28, Dock = DockStyle.Top, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0, 4, 5, 0) };
             btnEdit.FlatAppearance.BorderSize = 0;
             btnEdit.Click += (s, e) => { 
@@ -386,7 +410,6 @@ public class AllTasksViewWindow : Form {
                 } 
             };
 
-            // 文字 Label 允許 AutoSize 隨著字數往下換行，並補上微距 Padding 讓字距不擁擠
             Label lblItem = new Label() { 
                 Text = string.Format("[{0}] {1}  {2}", t.TimeStr, t.DateStr, t.Name), 
                 Dock = DockStyle.Fill, 
