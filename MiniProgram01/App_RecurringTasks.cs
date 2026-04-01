@@ -95,14 +95,14 @@ public class App_RecurringTasks : UserControl {
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-            Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
+            Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Top, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
             btnEdit.FlatAppearance.BorderSize = 0; 
             btnEdit.Click += (s, e) => { 
                 int currentIdx = tasks.IndexOf(t);
                 if(currentIdx != -1) { new EditRecurringTaskWindow(this, currentIdx, t).ShowDialog(); RefreshUI(); }
             };
 
-            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Fill, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
+            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Top, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
             btnDel.FlatAppearance.BorderSize = 0; 
             btnDel.Click += (s, e) => { 
                 if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { 
@@ -249,7 +249,6 @@ public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
     private FlowLayoutPanel flow;
     
-    // 分頁控制變數
     private int currentCategoryIndex = 0;
     private int currentItemIndex = 0;
     private int pageNum = 1;
@@ -273,14 +272,13 @@ public class AllTasksViewWindow : Form {
         
         Button btnExport = new Button() { 
             Text = "轉存 PDF / 列印", Left = 630, Top = 12, Width = 150, Height = 35, 
-            BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand 
+            BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Anchor = AnchorStyles.Top | AnchorStyles.Right 
         };
         btnExport.Click += (s, e) => ExportToPDF();
 
         headerArea.Controls.AddRange(new Control[] { lblTitle, btnExport });
         this.Controls.Add(headerArea);
 
-        // 【防遮擋修正 1】：為頂部增加 padding-top (原本只有 15，現在上方增加到 20)
         flow = new FlowLayoutPanel() { 
             Dock = DockStyle.Fill, 
             AutoScroll = true, 
@@ -288,9 +286,20 @@ public class AllTasksViewWindow : Form {
             FlowDirection = FlowDirection.TopDown, 
             WrapContents = false 
         };
-        this.Controls.Add(flow);
         
-        // 【防遮擋修正 2】：強制清單區塊推至最下層，讓出頂部標題列的空間！
+        // 【自適應修正 1】：當視窗拉寬時，動態同步更新內部 GroupBox 的寬度
+        flow.Resize += (s, e) => {
+            int safeWidth = flow.ClientSize.Width - 35; // 扣除捲軸與 Padding 的安全寬度
+            if (safeWidth > 0) {
+                foreach (Control c in flow.Controls) {
+                    if (c is GroupBox gb) {
+                        gb.Width = safeWidth;
+                    }
+                }
+            }
+        };
+
+        this.Controls.Add(flow);
         flow.BringToFront(); 
         
         RefreshData();
@@ -307,18 +316,22 @@ public class AllTasksViewWindow : Form {
             string m = i + "月";
             AddGroup(flow, m + " 限定", tasks.Where(t => t.MonthStr == m).ToList());
         }
-        flow.Controls.Add(new Label() { Height = 50, Text = "" }); // 底部緩衝空間
+        flow.Controls.Add(new Label() { Height = 50, Text = "" }); 
     }
 
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
         if (subTasks.Count == 0) return;
 
+        int initialWidth = container.ClientSize.Width > 50 ? container.ClientSize.Width - 35 : 750;
+
+        // 【防截斷修正】：加入 AutoSizeMode = GrowAndShrink，讓高度可以無限自動撐開！
         GroupBox group = new GroupBox() {
             Text = "【 " + header + " 】",
             Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold),
             ForeColor = Color.FromArgb(0, 122, 255),
             AutoSize = true, 
-            MinimumSize = new Size(750, 60),
+            AutoSizeMode = AutoSizeMode.GrowAndShrink, 
+            Width = initialWidth, 
             Margin = new Padding(10, 10, 10, 25), 
             Padding = new Padding(15, 25, 15, 15)
         };
@@ -331,10 +344,22 @@ public class AllTasksViewWindow : Form {
             AutoSizeMode = AutoSizeMode.GrowAndShrink
         };
 
+        // 【自適應修正 2】：當外層 GroupBox 變寬時，連帶更新裡面的 TableLayoutPanel 行寬
+        innerFlow.Resize += (s, e) => {
+            int rowWidth = innerFlow.ClientSize.Width - 10;
+            if (rowWidth > 0) {
+                foreach (Control c in innerFlow.Controls) {
+                    if (c is TableLayoutPanel row) row.Width = rowWidth;
+                }
+            }
+        };
+
         foreach (var t in subTasks) {
+            // 【防截斷修正】：移除死硬的 Height = 36，改為 AutoSize = true
             TableLayoutPanel row = new TableLayoutPanel() { 
-                Width = 710, 
-                Height = 36, 
+                Width = innerFlow.ClientSize.Width > 50 ? innerFlow.ClientSize.Width - 10 : 710, 
+                AutoSize = true, 
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Margin = new Padding(0, 0, 0, 8), 
                 ColumnCount = 3, 
                 RowCount = 1 
@@ -344,14 +369,15 @@ public class AllTasksViewWindow : Form {
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
             
-            Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0,0,5,0) };
+            // 按鈕改為靠上對齊 (Dock.Top) 且設定固定高度 28，這樣字數變多變成兩行時，按鈕也不會變形被拉長
+            Button btnEdit = new Button() { Text = "調", Height = 28, Dock = DockStyle.Top, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0, 4, 5, 0) };
             btnEdit.FlatAppearance.BorderSize = 0;
             btnEdit.Click += (s, e) => { 
                 int currentIdx = parentControl.tasks.IndexOf(t);
                 if(currentIdx != -1) { new EditRecurringTaskWindow(parentControl, currentIdx, t).ShowDialog(); RefreshData(); }
             };
 
-            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Fill, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0,0,5,0) };
+            Button btnDel = new Button() { Text = "✕", Height = 28, Dock = DockStyle.Top, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0, 4, 5, 0) };
             btnDel.FlatAppearance.BorderSize = 0;
             btnDel.Click += (s, e) => { 
                 if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { 
@@ -360,13 +386,15 @@ public class AllTasksViewWindow : Form {
                 } 
             };
 
+            // 文字 Label 允許 AutoSize 隨著字數往下換行，並補上微距 Padding 讓字距不擁擠
             Label lblItem = new Label() { 
                 Text = string.Format("[{0}] {1}  {2}", t.TimeStr, t.DateStr, t.Name), 
                 Dock = DockStyle.Fill, 
                 TextAlign = ContentAlignment.MiddleLeft, 
                 AutoSize = true,
                 Font = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular),
-                ForeColor = Color.Black 
+                ForeColor = Color.Black,
+                Padding = new Padding(0, 8, 0, 8) 
             };
             
             row.Controls.Add(btnEdit, 0, 0); 
