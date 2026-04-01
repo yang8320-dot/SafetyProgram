@@ -204,7 +204,7 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 【更新】全部排程檢視：自動適應螢幕高度 + 多頁 PDF
+// 【更新】全部排程檢視：強制安全定位 + 多頁 PDF
 // ==========================================
 public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
@@ -219,11 +219,18 @@ public class AllTasksViewWindow : Form {
         this.parentControl = parent;
         this.Text = "全部排程清單總覽";
         
-        // 【修正】取得螢幕可用區域，防止視窗高度超出螢幕導致標題列被遮擋
-        Rectangle screenArea = Screen.PrimaryScreen.WorkingArea;
+        // 取得滑鼠目前所在的螢幕區域 (支援多螢幕)
+        Rectangle screenArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        
         this.Width = 800; 
-        this.Height = Math.Min(1024, screenArea.Height - 40); 
-        this.StartPosition = FormStartPosition.CenterScreen;
+        // 確保高度不會超過螢幕，並預留 120 像素的緩衝區
+        this.Height = Math.Min(950, screenArea.Height - 120); 
+        
+        // 【終極防遮擋】強制接管定位，放棄系統自動置中
+        this.StartPosition = FormStartPosition.Manual;
+        this.Left = screenArea.Left + (screenArea.Width - this.Width) / 2; // 水平置中
+        this.Top = screenArea.Top + 50; // 垂直距離螢幕頂部 50 像素安全距離
+        
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10.5f);
 
