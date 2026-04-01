@@ -37,32 +37,34 @@ public class App_TodoList : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        // 頂部輸入區
-        Panel top = new Panel();
+        // ==========================================
+        // 【修正】頂部輸入區改用網格排版，絕對防裁切！
+        // ==========================================
+        TableLayoutPanel top = new TableLayoutPanel();
         top.Dock = DockStyle.Top;
         top.Height = 40;
+        top.ColumnCount = 2;
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 輸入框自動填滿剩餘空間
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 75f)); // 新增按鈕固定 75px 寬度
 
         inputField = new TextBox();
+        inputField.Dock = DockStyle.Fill;
         inputField.Font = MainFont;
-        inputField.Location = new Point(0, 5);
-        inputField.Width = 390; 
-        inputField.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right; 
+        inputField.Margin = new Padding(0, 5, 5, 0);
         inputField.KeyDown += new KeyEventHandler(InputField_KeyDown);
         
         Button btnAdd = new Button();
         btnAdd.Text = "新增";
-        btnAdd.Location = new Point(400, 3);
-        btnAdd.Width = 65;
-        btnAdd.Height = 30;
-        btnAdd.Anchor = AnchorStyles.Top | AnchorStyles.Right; 
+        btnAdd.Dock = DockStyle.Fill;
         btnAdd.FlatStyle = FlatStyle.Flat;
         btnAdd.BackColor = AppleBlue;
         btnAdd.ForeColor = Color.White;
         btnAdd.Font = new Font(MainFont.FontFamily, 10f, FontStyle.Bold);
+        btnAdd.Margin = new Padding(0, 3, 0, 5); // 微調對齊高度
         btnAdd.Click += new EventHandler(BtnAdd_Click);
 
-        top.Controls.Add(inputField);
-        top.Controls.Add(btnAdd);
+        top.Controls.Add(inputField, 0, 0);
+        top.Controls.Add(btnAdd, 1, 0);
 
         // 任務清單容器
         taskContainer = new FlowLayoutPanel();
@@ -88,11 +90,11 @@ public class App_TodoList : UserControl {
             }
         };
 
-        // 【最關鍵的修正】：把控制項加入畫面的順序與層級設定好
+        // 加入畫面的順序與層級設定
         this.Controls.Add(top);
         this.Controls.Add(taskContainer);
         
-        // 叫任務容器「跑到最前面」，這樣 WinForms 才會讓它「填滿剩餘的空間」，而不是去跟頂部搶位置被蓋住
+        // 讓任務容器排在底層填滿空間，不會遮擋上方區塊
         taskContainer.BringToFront(); 
         
         LoadTasks();
