@@ -12,13 +12,16 @@ public class App_TodoList : UserControl {
 
     private TextBox inputField;
     private FlowLayoutPanel taskContainer;
-    private Dictionary<string, DateTime> taskDates = new Dictionary<string, DateTime>();
+    private Dictionary<string, Tuple<DateTime, string>> taskData = new Dictionary<string, Tuple<DateTime, string>>();
     
     private int dragInsertIndex = -1; 
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
 
-    private MainForm mainForm; // 保存主視窗參考
+    private MainForm mainForm;
+
+    // 【更新】定義循環顏色清單：黑色(原色) -> 亮紅 -> 亮藍 -> 亮紫 -> 深綠 -> 深橘
+    private readonly string[] colorCycle = { "Black", "Red", "DodgerBlue", "MediumOrchid", "DarkGreen", "DarkOrange" };
 
     public App_TodoList(MainForm parent) {
         this.mainForm = parent; 
@@ -50,49 +53,72 @@ public class App_TodoList : UserControl {
         LoadTasks();
     }
 
-    public void AddTaskExternally(string text) { 
-        if (!taskDates.ContainsKey(text)) {
-            mainForm.AlertTab(1); // 呼叫主程式讓 Tab 1 (待辦) 閃爍
-            AddTask(text, true); 
-        }
-    }
-
-    // 【核心修正】：將 private 改為 public，讓週期任務模組可以呼叫它
     public void AddTask(string text, bool auto = false) {
         text = text.Trim(); 
-        if (string.IsNullOrEmpty(text) || taskDates.ContainsKey(text)) return;
+        if (string.IsNullOrEmpty(text) || taskData.ContainsKey(text)) return;
+        
         DateTime now = DateTime.Now;
-        taskDates[text] = now;
-        CreateTaskUI(text);
+        string defaultColor = "Black"; // 預設改為黑色
+        taskData[text] = new Tuple<DateTime, string>(now, defaultColor);
+        
+        CreateTaskUI(text, defaultColor);
         File.AppendAllText(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), auto ? "排程" : "手動", text));
         SaveActive();
         inputField.Text = "";
     }
 
-    private void CreateTaskUI(string text) {
-        Panel item = new Panel() { Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = Color.FromArgb(252, 252, 254) };
-        CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand };
+    private void CreateTaskUI(string text, string colorName) {
+        Color bgColor = Color.FromName(colorName);
+        // 判斷文字顏色 (深色背景用白字，淺色用黑字)
+        Color textColor = (bgColor.R * 0.299 + bgColor.G * 0.587 + bgColor.B * 0.114) > 150 ? Color.Black : Color.White;
+
+        Panel item = new Panel() { Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = bgColor, BorderStyle = BorderStyle.FixedSingle };
+        
+        CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand, BackColor = Color.Transparent, ForeColor = textColor };
         chk.CheckedChanged += (s, e) => {
             if (chk.Checked) {
-                if (taskDates.ContainsKey(text)) {
-                    File.AppendAllText(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text, taskDates[text].ToString("yyyy-MM-dd HH:mm")));
-                    taskDates.Remove(text);
+                if (taskData.ContainsKey(text)) {
+                    File.AppendAllText(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text, taskData[text].Item1.ToString("yyyy-MM-dd HH:mm")));
+                    taskData.Remove(text);
                 }
                 taskContainer.Controls.Remove(item);
                 SaveActive();
             }
         };
 
-        Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Right, Width = 35, FlatStyle = FlatStyle.Flat, ForeColor = AppleBlue, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand };
+        Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Right, Width = 30, FlatStyle = FlatStyle.Flat, ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand };
         btnEdit.FlatAppearance.BorderSize = 0;
 
-        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, AutoSize = true, MaximumSize = new Size(260, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll };
+        Button btnColor = new Button() { Text = "色", Dock = DockStyle.Right, Width = 30, FlatStyle = FlatStyle.Flat, ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand };
+        btnColor.FlatAppearance.BorderSize = 0;
+
+        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, ForeColor = textColor, AutoSize = true, MaximumSize = new Size(230, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll, BackColor = Color.Transparent };
+
+        btnColor.Click += (s, e) => {
+            string currentColor = taskData[text].Item2;
+            int nextIdx = (Array.IndexOf(colorCycle, currentColor) + 1) % colorCycle.Length;
+            string nextColorName = colorCycle[nextIdx];
+            
+            taskData[text] = new Tuple<DateTime, string>(taskData[text].Item1, nextColorName);
+            
+            // 即時更新 UI 顏色與文字顏色
+            Color newBg = Color.FromName(nextColorName);
+            Color newText = (newBg.R * 0.299 + newBg.G * 0.587 + newBg.B * 0.114) > 150 ? Color.Black : Color.White;
+            
+            item.BackColor = newBg;
+            lbl.ForeColor = newText;
+            chk.ForeColor = newText;
+            btnEdit.ForeColor = newText;
+            btnColor.ForeColor = newText;
+            
+            SaveActive();
+        };
 
         Action triggerEdit = () => {
             string oldText = lbl.Text;
             string newText = ShowLargeEditBox(oldText); 
-            if (!string.IsNullOrEmpty(newText) && newText != oldText && !taskDates.ContainsKey(newText)) {
-                taskDates[newText] = taskDates[oldText]; taskDates.Remove(oldText);
+            if (!string.IsNullOrEmpty(newText) && newText != oldText && !taskData.ContainsKey(newText)) {
+                taskData[newText] = taskData[oldText]; taskData.Remove(oldText);
                 lbl.Text = newText; text = newText; SaveActive();
             }
         };
@@ -101,7 +127,7 @@ public class App_TodoList : UserControl {
         btnEdit.Click += (s, e) => triggerEdit();
         lbl.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move); };
 
-        item.Controls.Add(lbl); item.Controls.Add(chk); item.Controls.Add(btnEdit);
+        item.Controls.Add(lbl); item.Controls.Add(chk); item.Controls.Add(btnColor); item.Controls.Add(btnEdit);
         taskContainer.Controls.Add(item); taskContainer.Controls.SetChildIndex(item, 0);
     }
 
@@ -136,7 +162,6 @@ public class App_TodoList : UserControl {
     }
 
     private string ShowLargeEditBox(string defaultValue) {
-        // 【修正】移除標題上的特殊圖示，保持介面純淨防破版
         Form form = new Form() { Width = 450, Height = 250, Text = "滾動式編輯任務", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         Label lbl = new Label() { Text = "請修正任務內容：", Left = 15, Top = 15, AutoSize = true, Font = MainFont };
         TextBox txt = new TextBox() { Left = 15, Top = 45, Width = 405, Height = 100, Multiline = true, WordWrap = true, ScrollBars = ScrollBars.Vertical, Font = MainFont, Text = defaultValue };
@@ -150,7 +175,11 @@ public class App_TodoList : UserControl {
         foreach (Control ctrl in taskContainer.Controls) {
             if (ctrl is Panel p) {
                 foreach (Control sub in p.Controls) {
-                    if (sub is Label lbl) { lines.Add(lbl.Text + "|" + taskDates[lbl.Text].ToString()); break; }
+                    if (sub is Label lbl) { 
+                        string colorName = taskData.ContainsKey(lbl.Text) ? taskData[lbl.Text].Item2 : "Black";
+                        lines.Add(string.Format("{0}|{1}|{2}", lbl.Text, taskData[lbl.Text].Item1.ToString(), colorName)); 
+                        break; 
+                    }
                 }
             }
         }
@@ -163,7 +192,13 @@ public class App_TodoList : UserControl {
         Array.Reverse(lines); 
         foreach (string l in lines) {
             string[] p = l.Split('|');
-            if (p.Length >= 2) { taskDates[p[0]] = DateTime.Parse(p[1]); CreateTaskUI(p[0]); }
+            if (p.Length >= 2) { 
+                string text = p[0];
+                DateTime time = DateTime.Parse(p[1]);
+                string color = p.Length >= 3 ? p[2] : "Black";
+                taskData[text] = new Tuple<DateTime, string>(time, color);
+                CreateTaskUI(text, color); 
+            }
         }
     }
 }
