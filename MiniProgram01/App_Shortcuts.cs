@@ -5,7 +5,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Diagnostics;
 
-public class App_Shortcut : UserControl {
+public class App_Shortcuts : UserControl {
     private MainForm parentForm;
     private string shortcutFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_shortcuts.txt");
     private FlowLayoutPanel taskPanel;
@@ -19,12 +19,11 @@ public class App_Shortcut : UserControl {
     }
     public List<ShortcutItem> shortcuts = new List<ShortcutItem>();
 
-    public App_Shortcut(MainForm mainForm) {
+    public App_Shortcuts(MainForm mainForm) {
         this.parentForm = mainForm;
         this.BackColor = Color.FromArgb(245, 245, 247);
-        this.Padding = new Padding(10); // 整體外距微調
+        this.Padding = new Padding(10); 
 
-        // 頂部標題與新增區塊
         TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 2 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
@@ -32,7 +31,7 @@ public class App_Shortcut : UserControl {
         Label lblTitle = new Label() { Text = "常用捷徑", Font = new Font(MainFont, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5, 0, 0, 0) };
         
         Button btnAdd = new Button() { Text = "新增", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2, 6, 2, 8), Cursor = Cursors.Hand, BackColor = AppleBlue, ForeColor = Color.White };
-        btnAdd.FlatAppearance.BorderSize = 0; // 去除新增按鈕的黑框
+        btnAdd.FlatAppearance.BorderSize = 0; 
         btnAdd.Click += (s, e) => { new EditShortcutWindow(this, -1, null).ShowDialog(); };
 
         header.Controls.Add(lblTitle, 0, 0);
@@ -64,24 +63,21 @@ public class App_Shortcut : UserControl {
                 MinimumSize = new Size(0, 48), 
                 Margin = new Padding(5, 5, 5, 8), 
                 BackColor = Color.FromArgb(248, 248, 250),
-                BorderStyle = BorderStyle.None // 【徹底去除黑框】
+                BorderStyle = BorderStyle.None 
             };
 
-            // 調整 Padding 讓格子內部的空間更大一些
             TableLayoutPanel tlp = new TableLayoutPanel() { 
                 Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, AutoSize = true, 
                 Padding = new Padding(8) 
             };
             
-            // 【將開啟、X移到最左邊】，並設定合理的寬度
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); // 開啟
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // ✕
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 標題
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 修
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
 
-            // 開啟按鈕
             Button btnOpen = new Button() { Text = "開啟", Dock = DockStyle.Top, Height = 28, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 5, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
-            btnOpen.FlatAppearance.BorderSize = 0; // 去黑框
+            btnOpen.FlatAppearance.BorderSize = 0; 
             btnOpen.Click += (sender, e) => {
                 try { 
                     ProcessStartInfo psi = new ProcessStartInfo() { FileName = s.Path, UseShellExecute = true };
@@ -90,9 +86,8 @@ public class App_Shortcut : UserControl {
                 catch { MessageBox.Show("無法開啟此捷徑，請檢查路徑或檔案是否存在！", "開啟失敗", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
 
-            // 刪除按鈕
             Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Top, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 5, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
-            btnDel.FlatAppearance.BorderSize = 0; // 去黑框
+            btnDel.FlatAppearance.BorderSize = 0; 
             btnDel.Click += (sender, e) => { 
                 if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) {
                     shortcuts.Remove(s);
@@ -101,18 +96,15 @@ public class App_Shortcut : UserControl {
                 }
             };
 
-            // 標題文字
             Label lbl = new Label() { Text = s.Name, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont, Padding = new Padding(5, 5, 0, 5) };
 
-            // 編輯按鈕
             Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Top, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(5, 0, 0, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
-            btnEdit.FlatAppearance.BorderSize = 0; // 去黑框
+            btnEdit.FlatAppearance.BorderSize = 0; 
             btnEdit.Click += (sender, e) => {
                 int idx = shortcuts.IndexOf(s);
                 new EditShortcutWindow(this, idx, s).ShowDialog();
             };
 
-            // 依序加入：開啟(0) -> ✕(1) -> 名稱(2) -> 修(3)
             tlp.Controls.Add(btnOpen, 0, 0);
             tlp.Controls.Add(btnDel, 1, 0);
             tlp.Controls.Add(lbl, 2, 0);
@@ -126,7 +118,6 @@ public class App_Shortcut : UserControl {
     public void SaveShortcuts() {
         List<string> lines = new List<string>();
         foreach(var s in shortcuts) {
-            // 將路徑進行 Base64 編碼，避免路徑中的特殊字元造成讀取錯誤
             lines.Add(string.Format("{0}|{1}", s.Name, Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(s.Path))));
         }
         File.WriteAllLines(shortcutFile, lines);
@@ -142,7 +133,6 @@ public class App_Shortcut : UserControl {
                     string path = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[1]));
                     shortcuts.Add(new ShortcutItem() { Name = p[0], Path = path });
                 } catch {
-                    // 相容舊版未編碼的存檔格式
                     shortcuts.Add(new ShortcutItem() { Name = p[0], Path = p[1] });
                 }
             }
@@ -155,11 +145,11 @@ public class App_Shortcut : UserControl {
 // 視窗：新增/編輯捷徑
 // ==========================================
 public class EditShortcutWindow : Form {
-    private App_Shortcut parent;
+    private App_Shortcuts parent;
     private int index;
     private TextBox txtName, txtPath;
 
-    public EditShortcutWindow(App_Shortcut p, int idx, App_Shortcut.ShortcutItem item) {
+    public EditShortcutWindow(App_Shortcuts p, int idx, App_Shortcuts.ShortcutItem item) {
         this.parent = p; this.index = idx;
         this.Text = idx == -1 ? "新增捷徑" : "編輯捷徑";
         this.Width = 400; this.Height = 250; this.StartPosition = FormStartPosition.CenterScreen;
@@ -195,7 +185,7 @@ public class EditShortcutWindow : Form {
                 MessageBox.Show("名稱與路徑不可為空！"); return;
             }
             if (index == -1) {
-                parent.shortcuts.Add(new App_Shortcut.ShortcutItem() { Name = txtName.Text, Path = txtPath.Text });
+                parent.shortcuts.Add(new App_Shortcuts.ShortcutItem() { Name = txtName.Text, Path = txtPath.Text });
             } else {
                 parent.shortcuts[index].Name = txtName.Text;
                 parent.shortcuts[index].Path = txtPath.Text;
