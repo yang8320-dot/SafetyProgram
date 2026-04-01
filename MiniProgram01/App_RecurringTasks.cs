@@ -55,6 +55,17 @@ public class App_RecurringTasks : UserControl {
         this.Controls.Add(header);
 
         taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
+        
+        // 加入自適應寬度邏輯
+        taskPanel.Resize += (s, e) => {
+            int safeWidth = taskPanel.ClientSize.Width - 25;
+            if (safeWidth > 0) {
+                foreach (Control c in taskPanel.Controls) {
+                    if (c is Panel) c.Width = safeWidth;
+                }
+            }
+        };
+
         this.Controls.Add(taskPanel);
         taskPanel.BringToFront();
 
@@ -70,23 +81,43 @@ public class App_RecurringTasks : UserControl {
 
     public void RefreshUI() {
         taskPanel.Controls.Clear();
+        int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 25 : 450;
+
         for (int i = 0; i < tasks.Count; i++) {
             var t = tasks[i]; int idx = i;
-            Panel card = new Panel() { Width = 340, AutoSize = true, MinimumSize = new Size(0, 45), BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(5, 5, 0, 5), BackColor = Color.FromArgb(248, 248, 250) };
+            
+            // 【修改 1】移除黑色框線 (BorderStyle.None)
+            Panel card = new Panel() { 
+                Width = startWidth, AutoSize = true, MinimumSize = new Size(0, 45), 
+                BorderStyle = BorderStyle.None, Margin = new Padding(5, 5, 5, 8), 
+                BackColor = Color.FromArgb(248, 248, 250) 
+            };
+            
             TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, AutoSize = true, Padding = new Padding(5) };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
+            
+            // 【修改 2】重新配置欄位寬度：調(35) | X(35) | 文字(填滿)
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f));
 
-            Button btnEdit = new Button() { Text = "調整", Width = 50, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            // 將「調整」縮減為「調」，並與「X」靠左並排
+            Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
+            btnEdit.FlatAppearance.BorderSize = 0; // 拿掉按鈕原生黑框
             btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(this, idx, t).ShowDialog(); RefreshUI(); };
 
-            Label lbl = new Label() { Text = string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont };
-            Button btnDel = new Button() { Text = "X", Width = 30, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Fill, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
+            btnDel.FlatAppearance.BorderSize = 0; // 拿掉按鈕原生黑框
             btnDel.Click += (s, e) => { if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { tasks.RemoveAt(idx); SaveTasks(); RefreshUI(); } };
 
-            tlp.Controls.Add(btnEdit, 0, 0); tlp.Controls.Add(lbl, 1, 0); tlp.Controls.Add(btnDel, 2, 0);
-            card.Controls.Add(tlp); taskPanel.Controls.Add(card);
+            Label lbl = new Label() { Text = string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont };
+            
+            // 將控制項塞入網格
+            tlp.Controls.Add(btnEdit, 0, 0); 
+            tlp.Controls.Add(btnDel, 1, 0); 
+            tlp.Controls.Add(lbl, 2, 0);
+            
+            card.Controls.Add(tlp); 
+            taskPanel.Controls.Add(card);
         }
     }
 
@@ -204,7 +235,7 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 【更新】全部排程檢視：強制安全定位 + 多頁 PDF
+// 檢視全部任務的子視窗
 // ==========================================
 public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
@@ -219,17 +250,12 @@ public class AllTasksViewWindow : Form {
         this.parentControl = parent;
         this.Text = "全部排程清單總覽";
         
-        // 取得滑鼠目前所在的螢幕區域 (支援多螢幕)
         Rectangle screenArea = Screen.FromPoint(Cursor.Position).WorkingArea;
-        
         this.Width = 800; 
-        // 確保高度不會超過螢幕，並預留 120 像素的緩衝區
         this.Height = Math.Min(950, screenArea.Height - 120); 
-        
-        // 【終極防遮擋】強制接管定位，放棄系統自動置中
         this.StartPosition = FormStartPosition.Manual;
-        this.Left = screenArea.Left + (screenArea.Width - this.Width) / 2; // 水平置中
-        this.Top = screenArea.Top + 50; // 垂直距離螢幕頂部 50 像素安全距離
+        this.Left = screenArea.Left + (screenArea.Width - this.Width) / 2; 
+        this.Top = screenArea.Top + 50; 
         
         this.BackColor = Color.White;
         this.Font = new Font("Microsoft JhengHei UI", 10.5f);
