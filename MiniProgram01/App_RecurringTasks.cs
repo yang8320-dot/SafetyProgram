@@ -259,7 +259,7 @@ public class AllTasksViewWindow : Form {
         this.Text = "全部排程清單總覽";
         
         Rectangle screenArea = Screen.FromPoint(Cursor.Position).WorkingArea;
-        this.Width = 800; 
+        this.Width = 820; 
         this.Height = Math.Min(950, screenArea.Height - 120); 
         this.StartPosition = FormStartPosition.Manual;
         this.Left = screenArea.Left + (screenArea.Width - this.Width) / 2; 
@@ -280,7 +280,7 @@ public class AllTasksViewWindow : Form {
         headerArea.Controls.AddRange(new Control[] { lblTitle, btnExport });
         this.Controls.Add(headerArea);
 
-        flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15), FlowDirection = FlowDirection.TopDown, WrapContents = false };
         this.Controls.Add(flow);
         RefreshData();
     }
@@ -288,30 +288,52 @@ public class AllTasksViewWindow : Form {
     public void RefreshData() {
         flow.Controls.Clear();
         var tasks = parentControl.tasks;
-        AddGroup(flow, "【 每天觸發 】", tasks.Where(t => t.MonthStr == "每天").ToList());
-        AddGroup(flow, "【 每週觸發 】", tasks.Where(t => t.MonthStr == "每週").ToList());
-        AddGroup(flow, "【 每月觸發 】", tasks.Where(t => t.MonthStr == "每月").ToList());
+        
+        AddGroup(flow, "每天觸發", tasks.Where(t => t.MonthStr == "每天").ToList());
+        AddGroup(flow, "每週觸發", tasks.Where(t => t.MonthStr == "每週").ToList());
+        AddGroup(flow, "每月觸發", tasks.Where(t => t.MonthStr == "每月").ToList());
         for (int i = 1; i <= 12; i++) {
             string m = i + "月";
-            AddGroup(flow, "【 " + m + " 限定 】", tasks.Where(t => t.MonthStr == m).ToList());
+            AddGroup(flow, m + " 限定", tasks.Where(t => t.MonthStr == m).ToList());
         }
-        flow.Controls.Add(new Label() { Height = 100, Text = "" }); // 底部緩衝空間
+        flow.Controls.Add(new Label() { Height = 50, Text = "" }); // 底部緩衝空間
     }
 
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
         if (subTasks.Count == 0) return;
-        container.Controls.Add(new Label() { Text = header, Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 20, 0, 10) });
-        
+
+        // 【大外框設計】將每個分類獨立包裝進 GroupBox，強制隔離排版！
+        GroupBox group = new GroupBox() {
+            Text = "【 " + header + " 】",
+            Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold),
+            ForeColor = Color.FromArgb(0, 122, 255),
+            AutoSize = true, // 讓外框自動根據內部任務數量長高
+            MinimumSize = new Size(750, 60),
+            Margin = new Padding(10, 10, 10, 25), // 大幅增加外框之間的距離
+            Padding = new Padding(15, 25, 15, 15)
+        };
+
+        // 內部再用一個 FlowLayoutPanel 來垂直排列該分類底下的任務
+        FlowLayoutPanel innerFlow = new FlowLayoutPanel() {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink
+        };
+
         foreach (var t in subTasks) {
-            // 【修復】全面改用網格排版 (TableLayoutPanel)，徹底防止按鈕被裁切！
             TableLayoutPanel row = new TableLayoutPanel() { 
-                Width = 720, Height = 36, Margin = new Padding(15, 2, 0, 2), 
-                ColumnCount = 3, RowCount = 1 
+                Width = 710, 
+                Height = 36, 
+                Margin = new Padding(0, 0, 0, 8), // 任務與任務之間的間距
+                ColumnCount = 3, 
+                RowCount = 1 
             };
             
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [調] 按鈕專屬空間
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [✕] 按鈕專屬空間
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 文字區塊填滿剩餘空間
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [調] 專屬空間
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [✕] 專屬空間
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 文字區塊
             
             Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0,0,5,0) };
             btnEdit.FlatAppearance.BorderSize = 0;
@@ -329,14 +351,24 @@ public class AllTasksViewWindow : Form {
                 } 
             };
 
-            Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
+            Label lblItem = new Label() { 
+                Text = string.Format("[{0}] {1}  {2}", t.TimeStr, t.DateStr, t.Name), 
+                Dock = DockStyle.Fill, 
+                TextAlign = ContentAlignment.MiddleLeft, 
+                AutoSize = true,
+                Font = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular),
+                ForeColor = Color.Black // 避免文字變成 GroupBox 的藍色
+            };
             
             row.Controls.Add(btnEdit, 0, 0); 
             row.Controls.Add(btnDel, 1, 0); 
             row.Controls.Add(lblItem, 2, 0);
             
-            container.Controls.Add(row);
+            innerFlow.Controls.Add(row);
         }
+
+        group.Controls.Add(innerFlow);
+        container.Controls.Add(group);
     }
 
     private void ExportToPDF() {
