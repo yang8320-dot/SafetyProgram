@@ -1,40 +1,31 @@
 name: Safety_System
 
-# 手動執行觸發
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
-
-    # 指定在子資料夾中執行指令
     defaults:
       run:
         working-directory: ./Safety_System
 
     steps:
     - name: Checkout Code
-      # 🟢 已升級至 v4
       uses: actions/checkout@v4
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '8.0.x' # 雖然跑 4.7.2，但編譯工具仍建議用最新 SDK
 
-    - name: Restore dependencies
-      run: dotnet restore
-
-    - name: Publish Single File
-      # 編譯成免安裝單一執行檔
-      run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
+    - name: Build EXE
+      # .NET Framework 編譯簡單指令
+      run: dotnet build -c Release -o ./publish
 
     - name: Upload Artifact
-      # 🟢 已升級至 v4 (解決你的錯誤訊息)
       uses: actions/upload-artifact@v4
       with:
-        name: Safety_System-EXE
+        name: Safety_System-v4.7.2-EXE
+        # 此模式產出的檔案會在 publish 資料夾下，體積會非常小 (通常 < 500KB)
         path: ./Safety_System/publish/Safety_System.exe
-        # v4 建議增加保留天數設定
-        retention-days: 7
