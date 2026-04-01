@@ -133,7 +133,6 @@ public class App_RecurringTasks : UserControl {
         }
     }
 
-    // 新增開放給其他視窗使用的刪除方法
     public void DeleteTask(RecurringTask task) {
         if (tasks.Contains(task)) {
             tasks.Remove(task);
@@ -305,7 +304,6 @@ public class AllTasksViewWindow : Form {
         foreach (var t in subTasks) {
             Panel row = new Panel() { Width = 730, Height = 35, Margin = new Padding(15, 2, 0, 2) };
             
-            // 【修正】新增「調」與「✕」按鈕並排，並確保點擊對應正確資料
             Button btnEdit = new Button() { Text = "調", Width = 35, Height = 28, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Left = 0, Top = 2 };
             btnEdit.FlatAppearance.BorderSize = 0;
             btnEdit.Click += (s, e) => { 
@@ -422,7 +420,11 @@ public class AddRecurringTaskWindow : Form {
         };
         cmbMonth.SelectedIndex = 0;
         flow.Controls.Add(new Label() { Text = "執行時間：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
+        
+        // 【新增設定】：將新增任務的預設時間設定為早上 09:00
         dtpTime = new DateTimePicker() { Width = 290, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Margin = new Padding(0, 0, 0, 20) };
+        dtpTime.Value = DateTime.Today.AddHours(9); 
+        
         flow.Controls.Add(dtpTime);
         Button btnSave = new Button() { Text = "建立任務", Width = 290, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         btnSave.Click += (s, e) => { if (!string.IsNullOrWhiteSpace(txtName.Text)) { parentControl.AddNewTask(txtName.Text, cmbMonth.Text, cmbDate.Text, dtpTime.Value.ToString("HH:mm")); this.Close(); } };
