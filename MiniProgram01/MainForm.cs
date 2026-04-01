@@ -35,11 +35,12 @@ public class MainForm : Form {
 
     public MainForm() {
         this.Text = "整合通知中心";
-        // 【修正1】將主視窗稍微加寬至 460，確保容納 6 個分頁與內容
-        this.Width = 460; this.Height = 520;
+        this.Width = 460; 
+        this.Height = 520;
         this.FormBorderStyle = FormBorderStyle.Sizable; 
         this.StartPosition = FormStartPosition.Manual;
-        this.TopMost = true; this.ShowInTaskbar = false; 
+        this.TopMost = true; 
+        this.ShowInTaskbar = false; 
         this.BackColor = BgColor;
 
         Rectangle area = Screen.PrimaryScreen.WorkingArea;
@@ -54,17 +55,27 @@ public class MainForm : Form {
         trayMenu.MenuItems.Add("顯示主視窗", (s, e) => ShowAppWindow());
         trayMenu.MenuItems.Add("完全退出", (s, e) => { trayIcon.Visible = false; Environment.Exit(0); });
         
-        trayIcon = new NotifyIcon() { Icon = SystemIcons.Application, ContextMenu = trayMenu, Visible = true, Text = "整合通知中心 (Ctrl+1)" };
+        trayIcon = new NotifyIcon();
+        trayIcon.Icon = SystemIcons.Application;
+        trayIcon.ContextMenu = trayMenu;
+        trayIcon.Visible = true;
+        trayIcon.Text = "整合通知中心 (Ctrl+1)";
         trayIcon.DoubleClick += (s, e) => ShowAppWindow();
 
         RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_1);
 
-        // 【修正2】強制鎖定 Tab 寬度，平均分配 6 個，徹底消滅滾動箭頭
-        tabControl = new TabControl() { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 10f), ItemSize = new Size(70, 30), Padding = new Point(0, 0) };
+        tabControl = new TabControl();
+        tabControl.Dock = DockStyle.Fill;
+        tabControl.Font = new Font("Microsoft JhengHei UI", 10f);
+        tabControl.ItemSize = new Size(70, 30);
+        tabControl.Padding = new Point(0, 0);
         tabControl.SizeMode = TabSizeMode.Fixed; 
         tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
         tabControl.DrawItem += TabControl_DrawItem;
-        tabControl.SelectedIndexChanged += (s, e) => { alertTabs.Remove(tabControl.SelectedIndex); tabControl.Invalidate(); };
+        tabControl.SelectedIndexChanged += (s, e) => { 
+            alertTabs.Remove(tabControl.SelectedIndex); 
+            tabControl.Invalidate(); 
+        };
         this.Controls.Add(tabControl);
 
         fileWatcherApp = new App_FileWatcher(this, trayMenu);
@@ -76,7 +87,6 @@ public class MainForm : Form {
         shortcutsApp = new App_Shortcuts(this);
         screenshotApp = new App_Screenshot(this);
 
-        // 【修正3】強制所有模組填滿畫面，解決破圖與重疊問題
         fileWatcherApp.Dock = DockStyle.Fill;
         todoApp.Dock = DockStyle.Fill;
         planApp.Dock = DockStyle.Fill;
@@ -100,13 +110,20 @@ public class MainForm : Form {
 
         flashTimer = new Timer() { Interval = 500 };
         flashTimer.Tick += (s, e) => {
-            if (alertTabs.Count == 0) { flashTimer.Stop(); flashState = false; }
-            else { flashState = !flashState; tabControl.Invalidate(); }
+            if (alertTabs.Count == 0) { 
+                flashTimer.Stop(); 
+                flashState = false; 
+            } else { 
+                flashState = !flashState; 
+                tabControl.Invalidate(); 
+            }
         };
     }
 
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
-        Graphics g = e.Graphics; TabPage page = tabControl.TabPages[e.Index]; Rectangle rect = e.Bounds;
+        Graphics g = e.Graphics; 
+        TabPage page = tabControl.TabPages[e.Index]; 
+        Rectangle rect = e.Bounds;
         bool isSelected = (tabControl.SelectedIndex == e.Index);
         bool isAlert = alertTabs.Contains(e.Index) && flashState;
 
@@ -114,16 +131,23 @@ public class MainForm : Form {
         Color fg = isAlert ? Color.White : (isSelected ? Color.FromArgb(0, 122, 255) : Color.Gray);
 
         g.FillRectangle(new SolidBrush(bg), rect);
-        if (isSelected && !isAlert) g.FillRectangle(new SolidBrush(Color.FromArgb(0, 122, 255)), rect.Left, rect.Bottom - 3, rect.Width, 3);
+        if (isSelected && !isAlert) {
+            g.FillRectangle(new SolidBrush(Color.FromArgb(0, 122, 255)), rect.Left, rect.Bottom - 3, rect.Width, 3);
+        }
 
-        StringFormat sf = new StringFormat() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        StringFormat sf = new StringFormat();
+        sf.Alignment = StringAlignment.Center;
+        sf.LineAlignment = StringAlignment.Center;
         g.DrawString(page.Text, new Font(tabControl.Font, isSelected ? FontStyle.Bold : FontStyle.Regular), new SolidBrush(fg), rect, sf);
     }
 
     public void AlertTab(int targetTabIndex) {
         if (tabControl.SelectedIndex != targetTabIndex) {
             alertTabs.Add(targetTabIndex);
-            if (!flashState) { flashState = true; flashTimer.Start(); }
+            if (!flashState) { 
+                flashState = true; 
+                flashTimer.Start(); 
+            }
             tabControl.Invalidate();
         }
     }
@@ -137,7 +161,10 @@ public class MainForm : Form {
 
     protected override void OnResize(EventArgs e) {
         base.OnResize(e);
-        if (this.WindowState == FormWindowState.Minimized) { this.Hide(); this.WindowState = FormWindowState.Normal; }
+        if (this.WindowState == FormWindowState.Minimized) { 
+            this.Hide(); 
+            this.WindowState = FormWindowState.Normal; 
+        }
     }
 
     protected override void WndProc(ref Message m) {
@@ -145,4 +172,41 @@ public class MainForm : Form {
         base.WndProc(ref m);
     }
 
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    protected override void OnFormClosing(FormClosingEventArgs e) { 
+        if (e.CloseReason == CloseReason.UserClosing) { 
+            e.Cancel = true; 
+            this.Hide(); 
+        } 
+        base.OnFormClosing(e); 
+    }
+
+    private bool IsRunOnStartup() {
+        try { 
+            RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
+            if (rk != null) {
+                bool exists = (rk.GetValue(appName) != null);
+                rk.Close();
+                return exists;
+            }
+        } catch { } 
+        return false;
+    }
+
+    private void ToggleStartup(object sender, EventArgs e) {
+        MenuItem item = (MenuItem)sender; 
+        item.Checked = !item.Checked;
+        try { 
+            RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
+            if (rk != null) {
+                if (item.Checked) {
+                    rk.SetValue(appName, "\"" + Application.ExecutablePath + "\"");
+                } else {
+                    rk.DeleteValue(appName, false);
+                }
+                rk.Close();
+            }
+        } catch { 
+            MessageBox.Show("權限不足，無法設定開機啟動。"); 
+        }
+    }
+}
