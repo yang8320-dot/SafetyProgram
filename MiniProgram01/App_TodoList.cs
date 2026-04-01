@@ -21,7 +21,7 @@ public class App_TodoList : UserControl {
 
     private MainForm mainForm;
 
-    // 【指定順序】文字顏色循環：黑(預設) -> 亮紅 -> 亮藍 -> 亮紫 -> 深綠 -> 深橘
+    // 文字顏色循環：黑(預設) -> 亮紅 -> 亮藍 -> 亮紫 -> 深綠 -> 深橘
     private readonly string[] colorCycle = { "Black", "Red", "DodgerBlue", "MediumOrchid", "DarkGreen", "DarkOrange" };
 
     public App_TodoList(MainForm parent) {
@@ -70,8 +70,15 @@ public class App_TodoList : UserControl {
 
     private void CreateTaskUI(string text, string textColorName) {
         Color textColor = Color.FromName(textColorName);
-        // 【修正】框 (背景) 固定為白色
-        Panel item = new Panel() { Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        // 背景固定為白色，無框線
+        Panel item = new Panel() { 
+            Width = 335, 
+            AutoSize = true, 
+            Padding = new Padding(5, 5, 2, 5), 
+            Margin = new Padding(0, 3, 0, 8), 
+            BackColor = Color.White, 
+            BorderStyle = BorderStyle.None 
+        };
         
         CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand, BackColor = Color.Transparent, ForeColor = textColor };
         chk.CheckedChanged += (s, e) => {
@@ -85,15 +92,26 @@ public class App_TodoList : UserControl {
             }
         };
 
-        Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Right, Width = 30, FlatStyle = FlatStyle.Flat, ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand };
+        // 【修正】修：淺紅底
+        Button btnEdit = new Button() { 
+            Text = "修", Dock = DockStyle.Right, Width = 32, Height = 28, 
+            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 210, 210), // 淺紅
+            ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand 
+        };
         btnEdit.FlatAppearance.BorderSize = 0;
+        btnEdit.Margin = new Padding(2, 0, 2, 0);
 
-        Button btnColor = new Button() { Text = "色", Dock = DockStyle.Right, Width = 30, FlatStyle = FlatStyle.Flat, ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f), Cursor = Cursors.Hand };
+        // 【修正】色：淺藍底
+        Button btnColor = new Button() { 
+            Text = "色", Dock = DockStyle.Right, Width = 32, Height = 28, 
+            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(211, 227, 253), // 淺藍
+            ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand 
+        };
         btnColor.FlatAppearance.BorderSize = 0;
+        btnColor.Margin = new Padding(2, 0, 2, 0);
 
-        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, ForeColor = textColor, AutoSize = true, MaximumSize = new Size(230, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll, BackColor = Color.Transparent };
+        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, ForeColor = textColor, AutoSize = true, MaximumSize = new Size(225, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll, BackColor = Color.Transparent };
 
-        // 點擊「色」按鈕：變更文字顏色，框不變
         btnColor.Click += (s, e) => {
             string currentColorName = taskData[text].Item2;
             int nextIdx = (Array.IndexOf(colorCycle, currentColorName) + 1) % colorCycle.Length;
@@ -127,41 +145,36 @@ public class App_TodoList : UserControl {
         taskContainer.Controls.Add(item); taskContainer.Controls.SetChildIndex(item, 0);
     }
 
-    // ==========================================
-    // 🛡️ 檔案存取修復邏輯 (防止「檔案正在使用」錯誤)
-    // ==========================================
     private void SaveActive() {
-        // 使用背景執行緒或重試機制來防止 IO 衝突
         ThreadPool.QueueUserWorkItem(_ => {
             List<string> lines = new List<string>();
-            this.Invoke(new Action(() => {
-                foreach (Control ctrl in taskContainer.Controls) {
-                    if (ctrl is Panel p) {
-                        foreach (Control sub in p.Controls) {
-                            if (sub is Label lbl) { 
-                                string colorName = taskData.ContainsKey(lbl.Text) ? taskData[lbl.Text].Item2 : "Black";
-                                lines.Add(string.Format("{0}|{1}|{2}", lbl.Text, taskData[lbl.Text].Item1.ToString(), colorName)); 
-                                break; 
+            try {
+                this.Invoke(new Action(() => {
+                    foreach (Control ctrl in taskContainer.Controls) {
+                        if (ctrl is Panel p) {
+                            foreach (Control sub in p.Controls) {
+                                if (sub is Label lbl) { 
+                                    string colorName = taskData.ContainsKey(lbl.Text) ? taskData[lbl.Text].Item2 : "Black";
+                                    lines.Add(string.Format("{0}|{1}|{2}", lbl.Text, taskData[lbl.Text].Item1.ToString(), colorName)); 
+                                    break; 
+                                }
                             }
                         }
                     }
-                }
-            }));
+                }));
 
-            // 重試機制：如果檔案被鎖定，嘗試 3 次
-            for (int i = 0; i < 3; i++) {
-                try {
-                    File.WriteAllLines(activeFile, lines);
-                    break; 
-                } catch (IOException) { Thread.Sleep(200); }
-            }
+                for (int i = 0; i < 5; i++) {
+                    try { File.WriteAllLines(activeFile, lines); return; } 
+                    catch (IOException) { Thread.Sleep(150); }
+                }
+            } catch { }
         });
     }
 
     private void SafeAppendLog(string path, string content) {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
             try { File.AppendAllText(path, content); break; }
-            catch (IOException) { Thread.Sleep(200); }
+            catch (IOException) { Thread.Sleep(150); }
         }
     }
 
@@ -183,7 +196,6 @@ public class App_TodoList : UserControl {
         } catch { }
     }
 
-    // --- 以下拖曳與編輯邏輯維持不變 ---
     private void OnTaskDragOver(object sender, DragEventArgs e) {
         e.Effect = DragDropEffects.Move;
         Point clientPoint = taskContainer.PointToClient(new Point(e.X, e.Y));
