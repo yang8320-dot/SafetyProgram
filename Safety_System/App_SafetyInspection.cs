@@ -4,58 +4,110 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
+    /// <summary>
+    /// 工安 - 巡檢模組：已針對 1440x810 解析度優化排版
+    /// </summary>
     public class App_SafetyInspection
     {
-        private TextBox _txtLoc = new TextBox();
-        private TextBox _txtUser = new TextBox();
+        private TextBox _txtLocation = new TextBox();
+        private TextBox _txtInspector = new TextBox();
         private ComboBox _cmbStatus = new ComboBox();
 
+        /// <summary>
+        /// 獲取優化後的巡檢介面
+        /// </summary>
         public Control GetView()
         {
-            var pnl = new Panel();
-            
-            var lblTitle = new Label { 
-                Text = "工安巡檢登錄", 
-                Font = new Font("Microsoft JhengHei", 18, FontStyle.Bold), 
-                Location = new Point(10, 10), 
-                AutoSize = true 
-            };
-            pnl.Controls.Add(lblTitle);
+            Panel panel = new Panel { Dock = DockStyle.Fill };
 
-            AddField(pnl, "巡檢地點:", _txtLoc, 70);
-            AddField(pnl, "巡檢人員:", _txtUser, 110);
+            // 模組標題 (加大字體)
+            Label lblTitle = new Label
+            {
+                Text = "[ 工安巡檢紀錄作業 ]",
+                Font = new Font("Microsoft JhengHei", 20, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(20, 20)
+            };
+            panel.Controls.Add(lblTitle);
+
+            // 使用加大間距與字體的排版
+            AddRow(panel, "巡檢地點:", _txtLocation, 100);
+            AddRow(panel, "巡檢人員:", _txtInspector, 160);
             
-            var lblStatus = new Label { Text = "狀態:", Location = new Point(10, 150), AutoSize = true };
-            _cmbStatus.Location = new Point(110, 150);
-            _cmbStatus.Width = 200;
-            _cmbStatus.Items.AddRange(new string[] { "正常", "異常", "待處理" });
+            // 設備狀態下拉選單
+            Label lblStatus = new Label
+            {
+                Text = "設備狀態:",
+                Font = new Font("Microsoft JhengHei", 14),
+                Location = new Point(20, 220),
+                AutoSize = true
+            };
+            _cmbStatus.Location = new Point(180, 220);
+            _cmbStatus.Width = 350;
+            _cmbStatus.Font = new Font("Microsoft JhengHei", 14);
+            _cmbStatus.DropDownStyle = ComboBoxStyle.DropDownList;
+            _cmbStatus.Items.AddRange(new string[] { "正常 (Normal)", "異常 (Abnormal)", "待派修 (Repair Needed)" });
             _cmbStatus.SelectedIndex = 0;
-            pnl.Controls.Add(lblStatus);
-            pnl.Controls.Add(_cmbStatus);
+            
+            panel.Controls.Add(lblStatus);
+            panel.Controls.Add(_cmbStatus);
 
-            var btn = new Button { 
-                Text = "儲存紀錄", 
-                Location = new Point(110, 200), 
-                Size = new Size(100, 40), 
-                BackColor = Color.LightSteelBlue 
+            // 儲存按鈕 (加大尺寸)
+            Button btnSave = new Button
+            {
+                Text = "儲存紀錄",
+                Location = new Point(180, 300),
+                Size = new Size(180, 60),
+                BackColor = Color.LightSteelBlue,
+                Font = new Font("Microsoft JhengHei", 14, FontStyle.Bold),
+                Cursor = Cursors.Hand
             };
-            btn.Click += (s, e) => {
-                DataManager.SaveInspectionRecord(DateTime.Now.ToString("yyyy/MM/dd HH:mm"), _txtLoc.Text, _txtUser.Text, _cmbStatus.Text);
-                MessageBox.Show("紀錄儲存成功！");
-                _txtLoc.Clear();
-                _txtUser.Clear();
-            };
-            pnl.Controls.Add(btn);
+            btnSave.Click += BtnSave_Click;
+            panel.Controls.Add(btnSave);
 
-            return pnl;
+            return panel;
         }
 
-        private void AddField(Panel p, string label, Control input, int y)
+        /// <summary>
+        /// 輔助方法：快速建立標籤與輸入框組合
+        /// </summary>
+        private void AddRow(Panel p, string labelText, Control inputControl, int y)
         {
-            p.Controls.Add(new Label { Text = label, Location = new Point(10, y), AutoSize = true });
-            input.Location = new Point(110, y);
-            input.Width = 200;
-            p.Controls.Add(input);
+            Label lbl = new Label
+            {
+                Text = labelText,
+                Font = new Font("Microsoft JhengHei", 14),
+                Location = new Point(20, y),
+                AutoSize = true
+            };
+            p.Controls.Add(lbl);
+
+            inputControl.Location = new Point(180, y);
+            inputControl.Width = 350;
+            inputControl.Font = new Font("Microsoft JhengHei(微軟正黑體)", 14);
+            p.Controls.Add(inputControl);
+        }
+
+        private void BtnSave_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_txtLocation.Text) || string.IsNullOrWhiteSpace(_txtInspector.Text))
+            {
+                MessageBox.Show("請完整填寫巡檢地點與人員名稱。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            string status = _cmbStatus.SelectedItem?.ToString() ?? "未設定";
+
+            // 儲存至純文字檔
+            DataManager.SaveInspectionRecord(date, _txtLocation.Text, _txtInspector.Text, status);
+
+            MessageBox.Show("巡檢紀錄已成功寫入資料檔。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            
+            // 清空欄位
+            _txtLocation.Clear();
+            _txtInspector.Clear();
+            _cmbStatus.SelectedIndex = 0;
         }
     }
 }
