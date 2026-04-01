@@ -301,17 +301,26 @@ public class AllTasksViewWindow : Form {
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
         if (subTasks.Count == 0) return;
         container.Controls.Add(new Label() { Text = header, Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 20, 0, 10) });
+        
         foreach (var t in subTasks) {
-            Panel row = new Panel() { Width = 730, Height = 35, Margin = new Padding(15, 2, 0, 2) };
+            // 【修復】全面改用網格排版 (TableLayoutPanel)，徹底防止按鈕被裁切！
+            TableLayoutPanel row = new TableLayoutPanel() { 
+                Width = 720, Height = 36, Margin = new Padding(15, 2, 0, 2), 
+                ColumnCount = 3, RowCount = 1 
+            };
             
-            Button btnEdit = new Button() { Text = "調", Width = 35, Height = 28, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Left = 0, Top = 2 };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [調] 按鈕專屬空間
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); // [✕] 按鈕專屬空間
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 文字區塊填滿剩餘空間
+            
+            Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0,0,5,0) };
             btnEdit.FlatAppearance.BorderSize = 0;
             btnEdit.Click += (s, e) => { 
                 int currentIdx = parentControl.tasks.IndexOf(t);
                 if(currentIdx != -1) { new EditRecurringTaskWindow(parentControl, currentIdx, t).ShowDialog(); RefreshData(); }
             };
 
-            Button btnDel = new Button() { Text = "✕", Width = 35, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Left = 38, Top = 2 };
+            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Fill, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Margin = new Padding(0,0,5,0) };
             btnDel.FlatAppearance.BorderSize = 0;
             btnDel.Click += (s, e) => { 
                 if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { 
@@ -320,11 +329,12 @@ public class AllTasksViewWindow : Form {
                 } 
             };
 
-            Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Left = 80, Top = 6, AutoSize = true };
+            Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
-            row.Controls.Add(btnEdit); 
-            row.Controls.Add(btnDel); 
-            row.Controls.Add(lblItem);
+            row.Controls.Add(btnEdit, 0, 0); 
+            row.Controls.Add(btnDel, 1, 0); 
+            row.Controls.Add(lblItem, 2, 0);
+            
             container.Controls.Add(row);
         }
     }
@@ -421,7 +431,6 @@ public class AddRecurringTaskWindow : Form {
         cmbMonth.SelectedIndex = 0;
         flow.Controls.Add(new Label() { Text = "執行時間：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
         
-        // 【新增設定】：將新增任務的預設時間設定為早上 09:00
         dtpTime = new DateTimePicker() { Width = 290, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Margin = new Padding(0, 0, 0, 20) };
         dtpTime.Value = DateTime.Today.AddHours(9); 
         
