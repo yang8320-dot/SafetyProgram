@@ -56,7 +56,6 @@ public class App_RecurringTasks : UserControl {
 
         taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
         
-        // 加入自適應寬度邏輯
         taskPanel.Resize += (s, e) => {
             int safeWidth = taskPanel.ClientSize.Width - 25;
             if (safeWidth > 0) {
@@ -83,10 +82,7 @@ public class App_RecurringTasks : UserControl {
         taskPanel.Controls.Clear();
         int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 25 : 450;
 
-        for (int i = 0; i < tasks.Count; i++) {
-            var t = tasks[i]; int idx = i;
-            
-            // 【修改 1】移除黑色框線 (BorderStyle.None)
+        foreach (var t in tasks) {
             Panel card = new Panel() { 
                 Width = startWidth, AutoSize = true, MinimumSize = new Size(0, 45), 
                 BorderStyle = BorderStyle.None, Margin = new Padding(5, 5, 5, 8), 
@@ -95,23 +91,27 @@ public class App_RecurringTasks : UserControl {
             
             TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, AutoSize = true, Padding = new Padding(5) };
             
-            // 【修改 2】重新配置欄位寬度：調(35) | X(35) | 文字(填滿)
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-            // 將「調整」縮減為「調」，並與「X」靠左並排
             Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Fill, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
-            btnEdit.FlatAppearance.BorderSize = 0; // 拿掉按鈕原生黑框
-            btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(this, idx, t).ShowDialog(); RefreshUI(); };
+            btnEdit.FlatAppearance.BorderSize = 0; 
+            btnEdit.Click += (s, e) => { 
+                int currentIdx = tasks.IndexOf(t);
+                if(currentIdx != -1) { new EditRecurringTaskWindow(this, currentIdx, t).ShowDialog(); RefreshUI(); }
+            };
 
             Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Fill, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
-            btnDel.FlatAppearance.BorderSize = 0; // 拿掉按鈕原生黑框
-            btnDel.Click += (s, e) => { if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { tasks.RemoveAt(idx); SaveTasks(); RefreshUI(); } };
+            btnDel.FlatAppearance.BorderSize = 0; 
+            btnDel.Click += (s, e) => { 
+                if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { 
+                    DeleteTask(t); 
+                } 
+            };
 
             Label lbl = new Label() { Text = string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont };
             
-            // 將控制項塞入網格
             tlp.Controls.Add(btnEdit, 0, 0); 
             tlp.Controls.Add(btnDel, 1, 0); 
             tlp.Controls.Add(lbl, 2, 0);
@@ -130,6 +130,15 @@ public class App_RecurringTasks : UserControl {
         if (index >= 0 && index < tasks.Count) {
             tasks[index].Name = name; tasks[index].MonthStr = month; tasks[index].DateStr = date; tasks[index].TimeStr = time;
             SaveTasks(); RefreshUI();
+        }
+    }
+
+    // 新增開放給其他視窗使用的刪除方法
+    public void DeleteTask(RecurringTask task) {
+        if (tasks.Contains(task)) {
+            tasks.Remove(task);
+            SaveTasks();
+            RefreshUI();
         }
     }
 
@@ -294,12 +303,30 @@ public class AllTasksViewWindow : Form {
         if (subTasks.Count == 0) return;
         container.Controls.Add(new Label() { Text = header, Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 20, 0, 10) });
         foreach (var t in subTasks) {
-            int originalIndex = parentControl.tasks.IndexOf(t);
-            Panel row = new Panel() { Width = 730, Height = 40, Margin = new Padding(15, 2, 0, 2) };
-            Button btnEdit = new Button() { Text = "調整", Width = 55, Height = 30, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f) };
-            btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(parentControl, originalIndex, t).ShowDialog(); RefreshData(); };
-            Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Left = 65, Top = 5, AutoSize = true };
-            row.Controls.Add(btnEdit); row.Controls.Add(lblItem);
+            Panel row = new Panel() { Width = 730, Height = 35, Margin = new Padding(15, 2, 0, 2) };
+            
+            // 【修正】新增「調」與「✕」按鈕並排，並確保點擊對應正確資料
+            Button btnEdit = new Button() { Text = "調", Width = 35, Height = 28, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Left = 0, Top = 2 };
+            btnEdit.FlatAppearance.BorderSize = 0;
+            btnEdit.Click += (s, e) => { 
+                int currentIdx = parentControl.tasks.IndexOf(t);
+                if(currentIdx != -1) { new EditRecurringTaskWindow(parentControl, currentIdx, t).ShowDialog(); RefreshData(); }
+            };
+
+            Button btnDel = new Button() { Text = "✕", Width = 35, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f), Left = 38, Top = 2 };
+            btnDel.FlatAppearance.BorderSize = 0;
+            btnDel.Click += (s, e) => { 
+                if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { 
+                    parentControl.DeleteTask(t); 
+                    RefreshData(); 
+                } 
+            };
+
+            Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Left = 80, Top = 6, AutoSize = true };
+            
+            row.Controls.Add(btnEdit); 
+            row.Controls.Add(btnDel); 
+            row.Controls.Add(lblItem);
             container.Controls.Add(row);
         }
     }
