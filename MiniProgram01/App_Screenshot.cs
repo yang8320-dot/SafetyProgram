@@ -69,7 +69,8 @@ public class App_Screenshot : UserControl {
                 statusLabel.ForeColor = Color.DimGray;
             }
         }
-        parentForm.ShowAppWindow(4); 
+        // 【關鍵修正】因為新增了待規分頁，截圖分頁的 Index 從 4 變成了 5
+        parentForm.ShowAppWindow(5); 
     }
 
     private void BtnCopy_Click(object sender, EventArgs e) {
