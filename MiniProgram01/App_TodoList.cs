@@ -37,30 +37,33 @@ public class App_TodoList : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        Panel top = new Panel();
+        // 【自適應修正 1】頂部輸入區改用 TableLayoutPanel，按鈕跟輸入框會自動隨視窗放大縮小
+        TableLayoutPanel top = new TableLayoutPanel();
         top.Dock = DockStyle.Top;
         top.Height = 40;
+        top.ColumnCount = 2;
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 輸入框佔滿剩餘空間
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 75f)); // 按鈕固定 75 寬
+        top.Padding = new Padding(0, 0, 0, 5);
 
         inputField = new TextBox();
-        inputField.Width = 300;
+        inputField.Dock = DockStyle.Fill;
         inputField.Font = MainFont;
-        inputField.Location = new Point(0, 5);
+        inputField.Margin = new Padding(0, 5, 5, 0);
         inputField.KeyDown += new KeyEventHandler(InputField_KeyDown);
         
         Button btnAdd = new Button();
         btnAdd.Text = "新增";
-        btnAdd.Left = 310;
-        btnAdd.Top = 3;
-        btnAdd.Width = 65;
-        btnAdd.Height = 30;
+        btnAdd.Dock = DockStyle.Fill;
         btnAdd.FlatStyle = FlatStyle.Flat;
         btnAdd.BackColor = AppleBlue;
         btnAdd.ForeColor = Color.White;
         btnAdd.Font = new Font(MainFont.FontFamily, 10f, FontStyle.Bold);
+        btnAdd.Margin = new Padding(0, 3, 0, 0);
         btnAdd.Click += new EventHandler(BtnAdd_Click);
 
-        top.Controls.Add(inputField);
-        top.Controls.Add(btnAdd);
+        top.Controls.Add(inputField, 0, 0);
+        top.Controls.Add(btnAdd, 1, 0);
 
         taskContainer = new FlowLayoutPanel();
         taskContainer.Dock = DockStyle.Fill;
@@ -75,6 +78,16 @@ public class App_TodoList : UserControl {
         taskContainer.DragLeave += (s, e) => { dragInsertIndex = -1; taskContainer.Invalidate(); };
         taskContainer.DragDrop += OnTaskDragDrop;
         taskContainer.Paint += OnTaskContainerPaint;
+
+        // 【自適應修正 2】當視窗或捲軸改變大小時，自動調整所有卡片的寬度！
+        taskContainer.Resize += (s, e) => {
+            int safeWidth = taskContainer.ClientSize.Width - 8;
+            if (safeWidth > 0) {
+                foreach (Control c in taskContainer.Controls) {
+                    if (c is Panel) c.Width = safeWidth;
+                }
+            }
+        };
 
         this.Controls.Add(taskContainer);
         this.Controls.Add(top);
@@ -111,8 +124,11 @@ public class App_TodoList : UserControl {
     private void CreateTaskUI(string text, string textColorName) {
         Color textColor = Color.FromName(textColorName);
         
+        // 【自適應修正 3】新增卡片時，直接讀取容器的安全寬度
+        int startWidth = taskContainer.ClientSize.Width > 50 ? taskContainer.ClientSize.Width - 8 : 400;
+
         Panel item = new Panel();
-        item.Width = 380;
+        item.Width = startWidth;
         item.AutoSize = true;
         item.Padding = new Padding(5, 5, 2, 5);
         item.Margin = new Padding(0, 3, 0, 8);
@@ -181,7 +197,7 @@ public class App_TodoList : UserControl {
         lbl.Font = MainFont;
         lbl.ForeColor = textColor;
         lbl.AutoSize = true;
-        lbl.MaximumSize = new Size(200, 0);
+        lbl.MaximumSize = new Size(250, 0); // 字數太多時自動換行
         lbl.Padding = new Padding(0, 5, 0, 5);
         lbl.Cursor = Cursors.SizeAll;
         lbl.BackColor = Color.Transparent;
