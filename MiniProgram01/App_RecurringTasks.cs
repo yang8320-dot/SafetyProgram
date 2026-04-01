@@ -54,24 +54,18 @@ public class App_RecurringTasks : UserControl {
         header.Controls.AddRange(new Control[] { lblTitle, btnViewAll, btnAdd, btnSet });
         this.Controls.Add(header);
 
-        // --- 簡易預覽清單 ---
         taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
         this.Controls.Add(taskPanel);
         taskPanel.BringToFront();
 
         LoadTasks();
-        
-        // 設定 10 分鐘檢查一次排程
         checkTimer = new Timer() { Interval = 600000, Enabled = true };
         checkTimer.Tick += (s, e) => CheckTasks();
         CheckTasks();
     }
 
     public void OpenAllTasksView() {
-        this.Invoke(new Action(() => {
-            var view = new AllTasksViewWindow(this);
-            view.Show();
-        }));
+        this.Invoke(new Action(() => { new AllTasksViewWindow(this).Show(); }));
     }
 
     public void RefreshUI() {
@@ -125,7 +119,7 @@ public class App_RecurringTasks : UserControl {
                         string prefix = advanceDays > 0 ? string.Format("[預排-{0}] ", target.ToString("MM/dd")) : "";
                         todoApp.AddTask(prefix + t.Name); 
                         t.LastTriggeredDate = targetDateStr; needsSave = true;
-                        parentForm.AlertTab(1); // 閃爍待辦頁面
+                        parentForm.AlertTab(1);
                     }
                 }
             }
@@ -210,11 +204,16 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 【優化】全部排程檢視：810x1440 + 轉存PDF
+// 【修正版】全部排程檢視：810x1440 + 多頁 PDF
 // ==========================================
 public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
     private FlowLayoutPanel flow;
+    
+    // 分頁控制變數
+    private int currentCategoryIndex = 0;
+    private int currentItemIndex = 0;
+    private int pageNum = 1;
 
     public AllTasksViewWindow(App_RecurringTasks parent) {
         this.parentControl = parent;
@@ -227,17 +226,9 @@ public class AllTasksViewWindow : Form {
         Panel headerArea = new Panel() { Dock = DockStyle.Top, Height = 60, BackColor = Color.WhiteSmoke };
         Label lblTitle = new Label() { Text = "週期任務排程總覽 (全紀錄)", Left = 20, Top = 15, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 16f, FontStyle.Bold) };
         
-        // 【修正】使用 Left 代替唯讀的 Right 屬性
         Button btnExport = new Button() { 
-            Text = "轉存 PDF / 列印", 
-            Left = 630, 
-            Top = 12, 
-            Width = 150, 
-            Height = 35, 
-            BackColor = Color.FromArgb(0, 153, 76), 
-            ForeColor = Color.White, 
-            FlatStyle = FlatStyle.Flat, 
-            Cursor = Cursors.Hand 
+            Text = "轉存 PDF / 列印", Left = 630, Top = 12, Width = 150, Height = 35, 
+            BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand 
         };
         btnExport.Click += (s, e) => ExportToPDF();
 
@@ -246,77 +237,90 @@ public class AllTasksViewWindow : Form {
 
         flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20), FlowDirection = FlowDirection.TopDown, WrapContents = false };
         this.Controls.Add(flow);
-
         RefreshData();
     }
 
     public void RefreshData() {
         flow.Controls.Clear();
         var tasks = parentControl.tasks;
-
         AddGroup(flow, "【 每天觸發 】", tasks.Where(t => t.MonthStr == "每天").ToList());
         AddGroup(flow, "【 每週觸發 】", tasks.Where(t => t.MonthStr == "每週").ToList());
         AddGroup(flow, "【 每月觸發 】", tasks.Where(t => t.MonthStr == "每月").ToList());
-
         for (int i = 1; i <= 12; i++) {
             string m = i + "月";
             AddGroup(flow, "【 " + m + " 限定 】", tasks.Where(t => t.MonthStr == m).ToList());
         }
-
-        // 【修正】底部緩衝空間，避免最後一項被遮擋
-        flow.Controls.Add(new Label() { Height = 100, Text = "" });
+        flow.Controls.Add(new Label() { Height = 100, Text = "" }); // 緩衝空間
     }
 
     private void AddGroup(FlowLayoutPanel container, string header, List<App_RecurringTasks.RecurringTask> subTasks) {
         if (subTasks.Count == 0) return;
         container.Controls.Add(new Label() { Text = header, Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 122, 255), Margin = new Padding(0, 20, 0, 10) });
-        
         foreach (var t in subTasks) {
             int originalIndex = parentControl.tasks.IndexOf(t);
             Panel row = new Panel() { Width = 740, Height = 40, Margin = new Padding(15, 2, 0, 2) };
-            
             Button btnEdit = new Button() { Text = "調整", Width = 55, Height = 30, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 9f) };
-            btnEdit.Click += (s, e) => { 
-                new EditRecurringTaskWindow(parentControl, originalIndex, t).ShowDialog();
-                RefreshData(); 
-            };
-
+            btnEdit.Click += (s, e) => { new EditRecurringTaskWindow(parentControl, originalIndex, t).ShowDialog(); RefreshData(); };
             Label lblItem = new Label() { Text = string.Format("[{0}] {1} {2}", t.TimeStr, t.DateStr, t.Name), Left = 65, Top = 5, AutoSize = true };
-            
-            row.Controls.Add(btnEdit);
-            row.Controls.Add(lblItem);
+            row.Controls.Add(btnEdit); row.Controls.Add(lblItem);
             container.Controls.Add(row);
         }
     }
 
     private void ExportToPDF() {
+        currentCategoryIndex = 0; currentItemIndex = 0; pageNum = 1;
         PrintDocument pd = new PrintDocument();
-        pd.PrintPage += (s, e) => {
-            float y = 50;
-            Font fTitle = new Font("Microsoft JhengHei UI", 18, FontStyle.Bold);
-            Font fHeader = new Font("Microsoft JhengHei UI", 13, FontStyle.Bold);
-            Font fContent = new Font("Microsoft JhengHei UI", 11);
-            
-            e.Graphics.DrawString("週期任務排程清單 (" + DateTime.Now.ToString("yyyy/MM/dd") + ")", fTitle, Brushes.Black, 50, y);
-            y += 50;
-
-            var allCategories = new[] { "每天", "每週", "每月" };
-            foreach(var cat in allCategories) {
-                var list = parentControl.tasks.Where(t => t.MonthStr == cat).ToList();
-                if (list.Count > 0) {
-                    e.Graphics.DrawString("【 " + cat + "觸發 】", fHeader, Brushes.Blue, 50, y);
-                    y += 30;
-                    foreach(var itm in list) {
-                        e.Graphics.DrawString(string.Format("• [{0}] {1} {2}", itm.TimeStr, itm.DateStr, itm.Name), fContent, Brushes.Black, 70, y);
-                        y += 25;
-                    }
-                    y += 15;
-                }
-            }
-        };
-
+        pd.DefaultPageSettings.Margins = new Margins(50, 50, 50, 50);
+        pd.PrintPage += Pd_PrintPage;
         PrintDialog prtDlg = new PrintDialog() { Document = pd };
         if (prtDlg.ShowDialog() == DialogResult.OK) pd.Print();
+    }
+
+    private void Pd_PrintPage(object sender, PrintPageEventArgs e) {
+        Graphics g = e.Graphics;
+        float y = e.MarginBounds.Top; float x = e.MarginBounds.Left; float pageBottom = e.MarginBounds.Bottom;
+        Font fTitle = new Font("Microsoft JhengHei UI", 18, FontStyle.Bold);
+        Font fHeader = new Font("Microsoft JhengHei UI", 13, FontStyle.Bold);
+        Font fContent = new Font("Microsoft JhengHei UI", 11);
+        Font fFooter = new Font("Microsoft JhengHei UI", 9);
+
+        if (pageNum == 1) {
+            g.DrawString("週期任務排程清單 (" + DateTime.Now.ToString("yyyy/MM/dd") + ")", fTitle, Brushes.Black, x, y);
+            y += 60;
+        }
+
+        var categories = new List<Tuple<string, List<App_RecurringTasks.RecurringTask>>>();
+        categories.Add(new Tuple<string, List<App_RecurringTasks.RecurringTask>>("每天觸發", parentControl.tasks.Where(t => t.MonthStr == "每天").ToList()));
+        categories.Add(new Tuple<string, List<App_RecurringTasks.RecurringTask>>("每週觸發", parentControl.tasks.Where(t => t.MonthStr == "每週").ToList()));
+        categories.Add(new Tuple<string, List<App_RecurringTasks.RecurringTask>>("每月觸發", parentControl.tasks.Where(t => t.MonthStr == "每月").ToList()));
+        for (int i = 1; i <= 12; i++) {
+            string m = i + "月";
+            categories.Add(new Tuple<string, List<App_RecurringTasks.RecurringTask>>(m + " 限定", parentControl.tasks.Where(t => t.MonthStr == m).ToList()));
+        }
+
+        for (int i = currentCategoryIndex; i < categories.Count; i++) {
+            var cat = categories[i];
+            if (cat.Item2.Count == 0) { currentCategoryIndex++; continue; }
+            if (currentItemIndex == 0) {
+                if (y + 40 > pageBottom) { e.HasMorePages = true; return; }
+                g.DrawString("【 " + cat.Item1 + " 】", fHeader, Brushes.Blue, x, y);
+                y += 35;
+            }
+            for (int j = currentItemIndex; j < cat.Item2.Count; j++) {
+                if (y + 30 > pageBottom) {
+                    currentCategoryIndex = i; currentItemIndex = j;
+                    e.HasMorePages = true;
+                    g.DrawString("Page " + pageNum, fFooter, Brushes.Gray, e.MarginBounds.Right - 50, pageBottom + 20);
+                    pageNum++; return;
+                }
+                var itm = cat.Item2[j];
+                g.DrawString(string.Format("• [{0}] {1} {2}", itm.TimeStr, itm.DateStr, itm.Name), fContent, Brushes.Black, x + 20, y);
+                y += 28;
+            }
+            currentItemIndex = 0; currentCategoryIndex++; y += 15;
+        }
+        g.DrawString("Page " + pageNum, fFooter, Brushes.Gray, e.MarginBounds.Right - 50, pageBottom + 20);
+        e.HasMorePages = false;
     }
 }
 
