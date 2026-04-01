@@ -7,9 +7,13 @@ using System.Linq;
 using System.Threading;
 
 public class App_TodoList : UserControl {
-    private string activeFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_active.txt");
-    private string addedLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_history_added.txt");
-    private string doneLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_history_completed.txt");
+    private string activeFile;
+    private string addedLog;
+    private string doneLog;
+
+    // 用來綁定另一個清單 (例如：待辦綁定待規)
+    public App_TodoList TargetList { get; set; }
+    private string moveBtnText;
 
     private TextBox inputField;
     private FlowLayoutPanel taskContainer;
@@ -18,26 +22,34 @@ public class App_TodoList : UserControl {
     private int dragInsertIndex = -1; 
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
-
     private MainForm mainForm;
 
     // 文字顏色循環：黑(預設) -> 亮紅 -> 亮藍 -> 亮紫 -> 深綠 -> 深橘
     private readonly string[] colorCycle = { "Black", "Red", "DodgerBlue", "MediumOrchid", "DarkGreen", "DarkOrange" };
 
-    public App_TodoList(MainForm parent) {
+    // 建構子升級：接收專屬前綴檔名與按鈕文字
+    public App_TodoList(MainForm parent, string filePrefix, string moveText) {
         this.mainForm = parent; 
+        this.moveBtnText = moveText;
+        
+        // 自動依照前綴分配獨立的存檔路徑 (todo_xxx.txt 或 plan_xxx.txt)
+        activeFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filePrefix + "_active.txt");
+        addedLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filePrefix + "_history_added.txt");
+        doneLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filePrefix + "_history_completed.txt");
+
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
         Panel top = new Panel() { Dock = DockStyle.Top, Height = 40 };
-        inputField = new TextBox() { Width = 240, Font = MainFont, Location = new Point(0, 5) };
-        inputField.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddTask(inputField.Text); } };
+        // 因應主視窗變寬，加長輸入框
+        inputField = new TextBox() { Width = 310, Font = MainFont, Location = new Point(0, 5) };
+        inputField.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddTask(inputField.Text); inputField.Text = ""; } };
         
         Button btnAdd = new Button() { 
-            Text = "新增", Left = 250, Top = 3, Width = 65, Height = 30, 
+            Text = "新增", Left = 320, Top = 3, Width = 65, Height = 30, 
             FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Font = new Font(MainFont, FontStyle.Bold) 
         };
-        btnAdd.Click += (s, e) => AddTask(inputField.Text);
+        btnAdd.Click += (s, e) => { AddTask(inputField.Text); inputField.Text = ""; };
         top.Controls.AddRange(new Control[] { inputField, btnAdd });
 
         taskContainer = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White, AllowDrop = true };
@@ -54,30 +66,25 @@ public class App_TodoList : UserControl {
         LoadTasks();
     }
 
-    public void AddTask(string text, bool auto = false) {
+    // 新增任務 (支援自訂顏色與來源標示)
+    public void AddTask(string text, string colorName = "Black", string source = "手動") {
         text = text.Trim(); 
         if (string.IsNullOrEmpty(text) || taskData.ContainsKey(text)) return;
         
         DateTime now = DateTime.Now;
-        string defaultTextColorName = "Black"; 
-        taskData[text] = new Tuple<DateTime, string>(now, defaultTextColorName);
+        taskData[text] = new Tuple<DateTime, string>(now, colorName);
         
-        CreateTaskUI(text, defaultTextColorName);
-        SafeAppendLog(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), auto ? "排程" : "手動", text));
+        CreateTaskUI(text, colorName);
+        SafeAppendLog(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), source, text));
         SaveActive();
-        inputField.Text = "";
     }
 
     private void CreateTaskUI(string text, string textColorName) {
         Color textColor = Color.FromName(textColorName);
-        // 背景固定為白色，無框線
+        // 卡片寬度加長以容納轉換按鈕
         Panel item = new Panel() { 
-            Width = 335, 
-            AutoSize = true, 
-            Padding = new Padding(5, 5, 2, 5), 
-            Margin = new Padding(0, 3, 0, 8), 
-            BackColor = Color.White, 
-            BorderStyle = BorderStyle.None 
+            Width = 390, AutoSize = true, Padding = new Padding(5, 5, 2, 5), 
+            Margin = new Padding(0, 3, 0, 8), BackColor = Color.White, BorderStyle = BorderStyle.None 
         };
         
         CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand, BackColor = Color.Transparent, ForeColor = textColor };
@@ -92,25 +99,49 @@ public class App_TodoList : UserControl {
             }
         };
 
-        // 【修正】修：淺紅底
+        // 轉移按鈕 (淺紫色)
+        Button btnMove = new Button() { 
+            Text = moveBtnText, Dock = DockStyle.Right, Width = 55, Height = 28, 
+            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(235, 230, 255), 
+            ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand 
+        };
+        btnMove.FlatAppearance.BorderSize = 0;
+        btnMove.Margin = new Padding(2, 0, 2, 0);
+
+        // 修：淺紅底
         Button btnEdit = new Button() { 
             Text = "修", Dock = DockStyle.Right, Width = 32, Height = 28, 
-            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 210, 210), // 淺紅
+            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 210, 210),
             ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand 
         };
         btnEdit.FlatAppearance.BorderSize = 0;
         btnEdit.Margin = new Padding(2, 0, 2, 0);
 
-        // 【修正】色：淺藍底
+        // 色：淺藍底
         Button btnColor = new Button() { 
             Text = "色", Dock = DockStyle.Right, Width = 32, Height = 28, 
-            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(211, 227, 253), // 淺藍
+            FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(211, 227, 253),
             ForeColor = textColor, Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold), Cursor = Cursors.Hand 
         };
         btnColor.FlatAppearance.BorderSize = 0;
         btnColor.Margin = new Padding(2, 0, 2, 0);
 
-        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, ForeColor = textColor, AutoSize = true, MaximumSize = new Size(225, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll, BackColor = Color.Transparent };
+        Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, ForeColor = textColor, AutoSize = true, MaximumSize = new Size(230, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll, BackColor = Color.Transparent };
+
+        // 點擊轉移按鈕邏輯
+        btnMove.Click += (s, e) => {
+            if (TargetList != null) {
+                string currentColorName = taskData[text].Item2;
+                TargetList.AddTask(text, currentColorName, "轉移寫入"); // 傳遞至目標
+                
+                if (taskData.ContainsKey(text)) {
+                    SafeAppendLog(doneLog, string.Format("[轉出至{0}:{1}] {2}\n", moveBtnText.Replace("轉",""), DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text));
+                    taskData.Remove(text);
+                }
+                taskContainer.Controls.Remove(item);
+                SaveActive();
+            }
+        };
 
         btnColor.Click += (s, e) => {
             string currentColorName = taskData[text].Item2;
@@ -124,6 +155,7 @@ public class App_TodoList : UserControl {
             chk.ForeColor = newTextColor;
             btnEdit.ForeColor = newTextColor;
             btnColor.ForeColor = newTextColor;
+            btnMove.ForeColor = newTextColor; // 同步變色
             
             SaveActive();
         };
@@ -141,7 +173,9 @@ public class App_TodoList : UserControl {
         btnEdit.Click += (s, e) => triggerEdit();
         lbl.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move); };
 
-        item.Controls.Add(lbl); item.Controls.Add(chk); item.Controls.Add(btnColor); item.Controls.Add(btnEdit);
+        item.Controls.Add(lbl); item.Controls.Add(chk); 
+        item.Controls.Add(btnMove); // 加入轉移按鈕
+        item.Controls.Add(btnColor); item.Controls.Add(btnEdit);
         taskContainer.Controls.Add(item); taskContainer.Controls.SetChildIndex(item, 0);
     }
 
