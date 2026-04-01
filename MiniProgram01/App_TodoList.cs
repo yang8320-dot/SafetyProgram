@@ -37,9 +37,7 @@ public class App_TodoList : UserControl {
         this.BackColor = Color.FromArgb(245, 245, 247);
         this.Padding = new Padding(10);
 
-        // ==========================================
-        // 【防擠壓修正 1】頂部輸入區改用 Anchor 錨點定位
-        // ==========================================
+        // 頂部輸入區
         Panel top = new Panel();
         top.Dock = DockStyle.Top;
         top.Height = 40;
@@ -47,8 +45,8 @@ public class App_TodoList : UserControl {
         inputField = new TextBox();
         inputField.Font = MainFont;
         inputField.Location = new Point(0, 5);
-        inputField.Width = 390; // 預設寬度
-        inputField.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right; // 鎖定左右，自動伸縮
+        inputField.Width = 390; 
+        inputField.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right; 
         inputField.KeyDown += new KeyEventHandler(InputField_KeyDown);
         
         Button btnAdd = new Button();
@@ -56,7 +54,7 @@ public class App_TodoList : UserControl {
         btnAdd.Location = new Point(400, 3);
         btnAdd.Width = 65;
         btnAdd.Height = 30;
-        btnAdd.Anchor = AnchorStyles.Top | AnchorStyles.Right; // 死死鎖在右邊，絕對不被擠出去
+        btnAdd.Anchor = AnchorStyles.Top | AnchorStyles.Right; 
         btnAdd.FlatStyle = FlatStyle.Flat;
         btnAdd.BackColor = AppleBlue;
         btnAdd.ForeColor = Color.White;
@@ -66,6 +64,7 @@ public class App_TodoList : UserControl {
         top.Controls.Add(inputField);
         top.Controls.Add(btnAdd);
 
+        // 任務清單容器
         taskContainer = new FlowLayoutPanel();
         taskContainer.Dock = DockStyle.Fill;
         taskContainer.AutoScroll = true;
@@ -80,7 +79,6 @@ public class App_TodoList : UserControl {
         taskContainer.DragDrop += OnTaskDragDrop;
         taskContainer.Paint += OnTaskContainerPaint;
 
-        // 【防擠壓修正 2】當視窗調整大小或出現捲軸時，精確扣除捲軸寬度 (約 25px)
         taskContainer.Resize += (s, e) => {
             int safeWidth = taskContainer.ClientSize.Width - 25; 
             if (safeWidth > 0) {
@@ -90,9 +88,12 @@ public class App_TodoList : UserControl {
             }
         };
 
-        this.Controls.Add(taskContainer);
+        // 【最關鍵的修正】：把控制項加入畫面的順序與層級設定好
         this.Controls.Add(top);
-        top.BringToFront(); 
+        this.Controls.Add(taskContainer);
+        
+        // 叫任務容器「跑到最前面」，這樣 WinForms 才會讓它「填滿剩餘的空間」，而不是去跟頂部搶位置被蓋住
+        taskContainer.BringToFront(); 
         
         LoadTasks();
     }
@@ -126,10 +127,6 @@ public class App_TodoList : UserControl {
         Color textColor = Color.FromName(textColorName);
         int startWidth = taskContainer.ClientSize.Width > 50 ? taskContainer.ClientSize.Width - 25 : 450;
 
-        // ==========================================
-        // 【防擠壓修正 3】改用 TableLayoutPanel 網格排版！
-        // 劃分 5 個專屬獨立格子，按鈕絕對不可能再重疊到文字上！
-        // ==========================================
         TableLayoutPanel item = new TableLayoutPanel();
         item.Width = startWidth;
         item.AutoSize = true;
@@ -138,12 +135,11 @@ public class App_TodoList : UserControl {
         item.ColumnCount = 5;
         item.RowCount = 1;
         
-        // 嚴格定義每一欄的寬度
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30f));  // 欄 0: 核取方塊 (30px)
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  // 欄 1: 任務文字 (自動彈性填滿剩餘空間)
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f));  // 欄 2: 轉移按鈕 (65px)
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));  // 欄 3: 顏色按鈕 (35px)
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));  // 欄 4: 修改按鈕 (35px)
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30f)); 
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f));  
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));  
+        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f));  
         
         CheckBox chk = new CheckBox();
         chk.Dock = DockStyle.Fill;
@@ -252,7 +248,6 @@ public class App_TodoList : UserControl {
         btnEdit.Click += (s, e) => triggerEdit();
         lbl.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move); };
 
-        // 將元件放入指定的網格座標中 (欄, 列)
         item.Controls.Add(chk, 0, 0);
         item.Controls.Add(lbl, 1, 0);
         item.Controls.Add(btnMove, 2, 0);
