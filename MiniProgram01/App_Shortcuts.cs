@@ -3,71 +3,209 @@ using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Diagnostics;
 
-public class App_Shortcuts : UserControl {
-    private string shortcutsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "shortcuts.txt");
-    private FlowLayoutPanel listPanel;
-    private TextBox txtPath;
-    private class ShortcutItem { public string Name, Path; }
-    private List<ShortcutItem> items = new List<ShortcutItem>();
+public class App_Shortcut : UserControl {
+    private MainForm parentForm;
+    private string shortcutFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_shortcuts.txt");
+    private FlowLayoutPanel taskPanel;
 
-    public App_Shortcuts(MainForm parent) {
+    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
+    private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
+
+    public class ShortcutItem {
+        public string Name { get; set; }
+        public string Path { get; set; }
+    }
+    public List<ShortcutItem> shortcuts = new List<ShortcutItem>();
+
+    public App_Shortcut(MainForm mainForm) {
+        this.parentForm = mainForm;
         this.BackColor = Color.FromArgb(245, 245, 247);
-        this.Padding = new Padding(10);
+        this.Padding = new Padding(10); // 整體外距微調
 
-        FlowLayoutPanel top = new FlowLayoutPanel() { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown };
-        txtPath = new TextBox() { Width = 310 };
-        FlowLayoutPanel btns = new FlowLayoutPanel() { AutoSize = true };
-        Button btnF = new Button() { Text = "選檔", Width = 60 };
-        btnF.Click += (s, e) => { using(OpenFileDialog d=new OpenFileDialog()) if(d.ShowDialog()==DialogResult.OK) txtPath.Text=d.FileName; };
-        Button btnD = new Button() { Text = "選資料夾", Width = 80 };
-        btnD.Click += (s, e) => { using(FolderBrowserDialog d=new FolderBrowserDialog()) if(d.ShowDialog()==DialogResult.OK) txtPath.Text=d.SelectedPath; };
-        Button btnA = new Button() { Text = "新增", Width = 60, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-        btnA.Click += (s, e) => Add(txtPath.Text);
-        btns.Controls.AddRange(new Control[]{ btnF, btnD, btnA });
-        top.Controls.AddRange(new Control[]{ txtPath, btns });
+        // 頂部標題與新增區塊
+        TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 2 };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
 
-        listPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
-        this.Controls.Add(listPanel); this.Controls.Add(top);
-        LoadData();
+        Label lblTitle = new Label() { Text = "常用捷徑", Font = new Font(MainFont, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5, 0, 0, 0) };
+        
+        Button btnAdd = new Button() { Text = "新增", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2, 6, 2, 8), Cursor = Cursors.Hand, BackColor = AppleBlue, ForeColor = Color.White };
+        btnAdd.FlatAppearance.BorderSize = 0; // 去除新增按鈕的黑框
+        btnAdd.Click += (s, e) => { new EditShortcutWindow(this, -1, null).ShowDialog(); };
+
+        header.Controls.Add(lblTitle, 0, 0);
+        header.Controls.Add(btnAdd, 1, 0);
+        this.Controls.Add(header);
+
+        taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
+        taskPanel.Resize += (s, e) => {
+            int safeWidth = taskPanel.ClientSize.Width - 25;
+            if (safeWidth > 0) {
+                foreach (Control c in taskPanel.Controls) if (c is Panel) c.Width = safeWidth;
+            }
+        };
+
+        this.Controls.Add(taskPanel);
+        taskPanel.BringToFront();
+
+        LoadShortcuts();
     }
 
-    private void Add(string p) {
-        if (string.IsNullOrEmpty(p)) return;
-        items.Add(new ShortcutItem() { Name = Path.GetFileName(p) ?? p, Path = p });
-        SaveData(); RefreshUI(); txtPath.Text = "";
-    }
+    public void RefreshUI() {
+        taskPanel.Controls.Clear();
+        int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 25 : 450;
 
-    private void RefreshUI() {
-        listPanel.Controls.Clear();
-        foreach (var i in items) {
-            Panel p = new Panel() { Width = 330, Height = 40, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 0, 2) };
-            Label l = new Label() { Text = i.Name, Location = new Point(5, 10), Width = 150, Cursor = Cursors.Hand };
-            l.Click += (s, e) => { string n = ShowInputBox("改名:", "重新命名", i.Name); if(!string.IsNullOrEmpty(n)) { i.Name = n; SaveData(); RefreshUI(); } };
-            Button bO = new Button() { Text = "開啟", Left = 160, Top = 5, Width = 60 };
-            bO.Click += (s, e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(i.Path){ UseShellExecute=true }); } catch { MessageBox.Show("失效路徑"); } };
-            Button bD = new Button() { Text = "✕", Left = 225, Top = 5, Width = 30, ForeColor = Color.Red };
-            bD.Click += (s, e) => { items.Remove(i); SaveData(); RefreshUI(); };
-            p.Controls.AddRange(new Control[] { l, bO, bD }); listPanel.Controls.Add(p);
+        foreach (var s in shortcuts) {
+            Panel card = new Panel() { 
+                Width = startWidth, 
+                AutoSize = true, 
+                MinimumSize = new Size(0, 48), 
+                Margin = new Padding(5, 5, 5, 8), 
+                BackColor = Color.FromArgb(248, 248, 250),
+                BorderStyle = BorderStyle.None // 【徹底去除黑框】
+            };
+
+            // 調整 Padding 讓格子內部的空間更大一些
+            TableLayoutPanel tlp = new TableLayoutPanel() { 
+                Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, AutoSize = true, 
+                Padding = new Padding(8) 
+            };
+            
+            // 【將開啟、X移到最左邊】，並設定合理的寬度
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); // 開啟
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // ✕
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 標題
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 修
+
+            // 開啟按鈕
+            Button btnOpen = new Button() { Text = "開啟", Dock = DockStyle.Top, Height = 28, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 5, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
+            btnOpen.FlatAppearance.BorderSize = 0; // 去黑框
+            btnOpen.Click += (sender, e) => {
+                try { 
+                    ProcessStartInfo psi = new ProcessStartInfo() { FileName = s.Path, UseShellExecute = true };
+                    Process.Start(psi); 
+                } 
+                catch { MessageBox.Show("無法開啟此捷徑，請檢查路徑或檔案是否存在！", "開啟失敗", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
+
+            // 刪除按鈕
+            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Top, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 5, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
+            btnDel.FlatAppearance.BorderSize = 0; // 去黑框
+            btnDel.Click += (sender, e) => { 
+                if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) {
+                    shortcuts.Remove(s);
+                    SaveShortcuts();
+                    RefreshUI();
+                }
+            };
+
+            // 標題文字
+            Label lbl = new Label() { Text = s.Name, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont, Padding = new Padding(5, 5, 0, 5) };
+
+            // 編輯按鈕
+            Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Top, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(5, 0, 0, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
+            btnEdit.FlatAppearance.BorderSize = 0; // 去黑框
+            btnEdit.Click += (sender, e) => {
+                int idx = shortcuts.IndexOf(s);
+                new EditShortcutWindow(this, idx, s).ShowDialog();
+            };
+
+            // 依序加入：開啟(0) -> ✕(1) -> 名稱(2) -> 修(3)
+            tlp.Controls.Add(btnOpen, 0, 0);
+            tlp.Controls.Add(btnDel, 1, 0);
+            tlp.Controls.Add(lbl, 2, 0);
+            tlp.Controls.Add(btnEdit, 3, 0);
+
+            card.Controls.Add(tlp);
+            taskPanel.Controls.Add(card);
         }
     }
 
-    private void SaveData() {
-        List<string> l = new List<string>(); foreach(var i in items) l.Add(i.Name + "|" + i.Path);
-        File.WriteAllLines(shortcutsFile, l);
+    public void SaveShortcuts() {
+        List<string> lines = new List<string>();
+        foreach(var s in shortcuts) {
+            // 將路徑進行 Base64 編碼，避免路徑中的特殊字元造成讀取錯誤
+            lines.Add(string.Format("{0}|{1}", s.Name, Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(s.Path))));
+        }
+        File.WriteAllLines(shortcutFile, lines);
     }
 
-    private void LoadData() {
-        if(!File.Exists(shortcutsFile)) return;
-        foreach(string l in File.ReadAllLines(shortcutsFile)){ var p=l.Split('|'); if(p.Length>=2) items.Add(new ShortcutItem(){ Name=p[0], Path=p[1] }); }
+    public void LoadShortcuts() {
+        if(!File.Exists(shortcutFile)) return;
+        shortcuts.Clear();
+        foreach(var l in File.ReadAllLines(shortcutFile)) {
+            var p = l.Split('|');
+            if(p.Length >= 2) {
+                try {
+                    string path = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[1]));
+                    shortcuts.Add(new ShortcutItem() { Name = p[0], Path = path });
+                } catch {
+                    // 相容舊版未編碼的存檔格式
+                    shortcuts.Add(new ShortcutItem() { Name = p[0], Path = p[1] });
+                }
+            }
+        }
         RefreshUI();
     }
+}
 
-    public static string ShowInputBox(string p, string t, string d) {
-        Form f = new Form() { Width = 300, Height = 150, Text = t, StartPosition = FormStartPosition.CenterScreen };
-        TextBox x = new TextBox() { Left = 20, Top = 40, Width = 240, Text = d };
-        Button b = new Button() { Text = "OK", Left = 180, Top = 80, DialogResult = DialogResult.OK };
-        f.Controls.AddRange(new Control[] { x, b }); f.AcceptButton = b;
-        return f.ShowDialog() == DialogResult.OK ? x.Text : "";
+// ==========================================
+// 視窗：新增/編輯捷徑
+// ==========================================
+public class EditShortcutWindow : Form {
+    private App_Shortcut parent;
+    private int index;
+    private TextBox txtName, txtPath;
+
+    public EditShortcutWindow(App_Shortcut p, int idx, App_Shortcut.ShortcutItem item) {
+        this.parent = p; this.index = idx;
+        this.Text = idx == -1 ? "新增捷徑" : "編輯捷徑";
+        this.Width = 400; this.Height = 250; this.StartPosition = FormStartPosition.CenterScreen;
+        this.FormBorderStyle = FormBorderStyle.FixedDialog;
+        this.MaximizeBox = false; this.MinimizeBox = false;
+
+        FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(20) };
+        
+        f.Controls.Add(new Label() { Text = "捷徑名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
+        txtName = new TextBox() { Width = 340, Text = item?.Name ?? "", Margin = new Padding(0, 0, 0, 15) };
+        f.Controls.Add(txtName);
+
+        f.Controls.Add(new Label() { Text = "目標路徑 (檔案 / 資料夾 / 網址)：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
+        
+        TableLayoutPanel pathRow = new TableLayoutPanel() { Width = 340, Height = 35, ColumnCount = 2, Margin = new Padding(0, 0, 0, 15) };
+        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60f));
+        
+        txtPath = new TextBox() { Dock = DockStyle.Fill, Text = item?.Path ?? "" };
+        Button btnBrowse = new Button() { Text = "瀏覽", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        btnBrowse.Click += (s, e) => {
+            OpenFileDialog ofd = new OpenFileDialog() { Title = "選擇捷徑目標檔案" };
+            if (ofd.ShowDialog() == DialogResult.OK) { txtPath.Text = ofd.FileName; }
+        };
+        pathRow.Controls.Add(txtPath, 0, 0);
+        pathRow.Controls.Add(btnBrowse, 1, 0);
+        f.Controls.Add(pathRow);
+
+        Button btnSave = new Button() { Text = "儲存設定", Width = 340, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        btnSave.FlatAppearance.BorderSize = 0;
+        btnSave.Click += (s, e) => {
+            if (string.IsNullOrWhiteSpace(txtName.Text) || string.IsNullOrWhiteSpace(txtPath.Text)) {
+                MessageBox.Show("名稱與路徑不可為空！"); return;
+            }
+            if (index == -1) {
+                parent.shortcuts.Add(new App_Shortcut.ShortcutItem() { Name = txtName.Text, Path = txtPath.Text });
+            } else {
+                parent.shortcuts[index].Name = txtName.Text;
+                parent.shortcuts[index].Path = txtPath.Text;
+            }
+            parent.SaveShortcuts();
+            parent.RefreshUI();
+            this.Close();
+        };
+        f.Controls.Add(btnSave);
+
+        this.Controls.Add(f);
     }
 }
