@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
+using System.Threading;
 
 public class App_TodoList : UserControl {
     private string activeFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_active.txt");
@@ -20,7 +21,7 @@ public class App_TodoList : UserControl {
 
     private MainForm mainForm;
 
-    // 【更新】定義循環顏色清單：黑色(原色) -> 亮紅 -> 亮藍 -> 亮紫 -> 深綠 -> 深橘
+    // 【指定順序】文字顏色循環：黑(預設) -> 亮紅 -> 亮藍 -> 亮紫 -> 深綠 -> 深橘
     private readonly string[] colorCycle = { "Black", "Red", "DodgerBlue", "MediumOrchid", "DarkGreen", "DarkOrange" };
 
     public App_TodoList(MainForm parent) {
@@ -58,27 +59,25 @@ public class App_TodoList : UserControl {
         if (string.IsNullOrEmpty(text) || taskData.ContainsKey(text)) return;
         
         DateTime now = DateTime.Now;
-        string defaultColor = "Black"; // 預設改為黑色
-        taskData[text] = new Tuple<DateTime, string>(now, defaultColor);
+        string defaultTextColorName = "Black"; 
+        taskData[text] = new Tuple<DateTime, string>(now, defaultTextColorName);
         
-        CreateTaskUI(text, defaultColor);
-        File.AppendAllText(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), auto ? "排程" : "手動", text));
+        CreateTaskUI(text, defaultTextColorName);
+        SafeAppendLog(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), auto ? "排程" : "手動", text));
         SaveActive();
         inputField.Text = "";
     }
 
-    private void CreateTaskUI(string text, string colorName) {
-        Color bgColor = Color.FromName(colorName);
-        // 判斷文字顏色 (深色背景用白字，淺色用黑字)
-        Color textColor = (bgColor.R * 0.299 + bgColor.G * 0.587 + bgColor.B * 0.114) > 150 ? Color.Black : Color.White;
-
-        Panel item = new Panel() { Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = bgColor, BorderStyle = BorderStyle.FixedSingle };
+    private void CreateTaskUI(string text, string textColorName) {
+        Color textColor = Color.FromName(textColorName);
+        // 【修正】框 (背景) 固定為白色
+        Panel item = new Panel() { Width = 335, AutoSize = true, Padding = new Padding(5), Margin = new Padding(0, 0, 0, 2), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         
         CheckBox chk = new CheckBox() { Dock = DockStyle.Left, Width = 30, Cursor = Cursors.Hand, BackColor = Color.Transparent, ForeColor = textColor };
         chk.CheckedChanged += (s, e) => {
             if (chk.Checked) {
                 if (taskData.ContainsKey(text)) {
-                    File.AppendAllText(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text, taskData[text].Item1.ToString("yyyy-MM-dd HH:mm")));
+                    SafeAppendLog(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text, taskData[text].Item1.ToString("yyyy-MM-dd HH:mm")));
                     taskData.Remove(text);
                 }
                 taskContainer.Controls.Remove(item);
@@ -94,22 +93,19 @@ public class App_TodoList : UserControl {
 
         Label lbl = new Label() { Text = text, Dock = DockStyle.Fill, Font = MainFont, ForeColor = textColor, AutoSize = true, MaximumSize = new Size(230, 0), Padding = new Padding(0, 5, 0, 5), Cursor = Cursors.SizeAll, BackColor = Color.Transparent };
 
+        // 點擊「色」按鈕：變更文字顏色，框不變
         btnColor.Click += (s, e) => {
-            string currentColor = taskData[text].Item2;
-            int nextIdx = (Array.IndexOf(colorCycle, currentColor) + 1) % colorCycle.Length;
+            string currentColorName = taskData[text].Item2;
+            int nextIdx = (Array.IndexOf(colorCycle, currentColorName) + 1) % colorCycle.Length;
             string nextColorName = colorCycle[nextIdx];
             
             taskData[text] = new Tuple<DateTime, string>(taskData[text].Item1, nextColorName);
+            Color newTextColor = Color.FromName(nextColorName);
             
-            // 即時更新 UI 顏色與文字顏色
-            Color newBg = Color.FromName(nextColorName);
-            Color newText = (newBg.R * 0.299 + newBg.G * 0.587 + newBg.B * 0.114) > 150 ? Color.Black : Color.White;
-            
-            item.BackColor = newBg;
-            lbl.ForeColor = newText;
-            chk.ForeColor = newText;
-            btnEdit.ForeColor = newText;
-            btnColor.ForeColor = newText;
+            lbl.ForeColor = newTextColor;
+            chk.ForeColor = newTextColor;
+            btnEdit.ForeColor = newTextColor;
+            btnColor.ForeColor = newTextColor;
             
             SaveActive();
         };
@@ -131,6 +127,63 @@ public class App_TodoList : UserControl {
         taskContainer.Controls.Add(item); taskContainer.Controls.SetChildIndex(item, 0);
     }
 
+    // ==========================================
+    // 🛡️ 檔案存取修復邏輯 (防止「檔案正在使用」錯誤)
+    // ==========================================
+    private void SaveActive() {
+        // 使用背景執行緒或重試機制來防止 IO 衝突
+        ThreadPool.QueueUserWorkItem(_ => {
+            List<string> lines = new List<string>();
+            this.Invoke(new Action(() => {
+                foreach (Control ctrl in taskContainer.Controls) {
+                    if (ctrl is Panel p) {
+                        foreach (Control sub in p.Controls) {
+                            if (sub is Label lbl) { 
+                                string colorName = taskData.ContainsKey(lbl.Text) ? taskData[lbl.Text].Item2 : "Black";
+                                lines.Add(string.Format("{0}|{1}|{2}", lbl.Text, taskData[lbl.Text].Item1.ToString(), colorName)); 
+                                break; 
+                            }
+                        }
+                    }
+                }
+            }));
+
+            // 重試機制：如果檔案被鎖定，嘗試 3 次
+            for (int i = 0; i < 3; i++) {
+                try {
+                    File.WriteAllLines(activeFile, lines);
+                    break; 
+                } catch (IOException) { Thread.Sleep(200); }
+            }
+        });
+    }
+
+    private void SafeAppendLog(string path, string content) {
+        for (int i = 0; i < 3; i++) {
+            try { File.AppendAllText(path, content); break; }
+            catch (IOException) { Thread.Sleep(200); }
+        }
+    }
+
+    private void LoadTasks() {
+        if (!File.Exists(activeFile)) return;
+        try {
+            string[] lines = File.ReadAllLines(activeFile);
+            Array.Reverse(lines); 
+            foreach (string l in lines) {
+                string[] p = l.Split('|');
+                if (p.Length >= 2) { 
+                    string text = p[0];
+                    DateTime time = DateTime.Parse(p[1]);
+                    string color = p.Length >= 3 ? p[2] : "Black";
+                    taskData[text] = new Tuple<DateTime, string>(time, color);
+                    CreateTaskUI(text, color); 
+                }
+            }
+        } catch { }
+    }
+
+    // --- 以下拖曳與編輯邏輯維持不變 ---
     private void OnTaskDragOver(object sender, DragEventArgs e) {
         e.Effect = DragDropEffects.Move;
         Point clientPoint = taskContainer.PointToClient(new Point(e.X, e.Y));
@@ -168,37 +221,5 @@ public class App_TodoList : UserControl {
         Button btnOk = new Button() { Text = "確認修改", Left = 320, Top = 165, Width = 100, Height = 35, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
         form.Controls.AddRange(new Control[] { lbl, txt, btnOk }); form.AcceptButton = btnOk; txt.SelectionStart = txt.Text.Length; 
         return (form.ShowDialog() == DialogResult.OK) ? txt.Text.Trim() : "";
-    }
-
-    private void SaveActive() {
-        List<string> lines = new List<string>();
-        foreach (Control ctrl in taskContainer.Controls) {
-            if (ctrl is Panel p) {
-                foreach (Control sub in p.Controls) {
-                    if (sub is Label lbl) { 
-                        string colorName = taskData.ContainsKey(lbl.Text) ? taskData[lbl.Text].Item2 : "Black";
-                        lines.Add(string.Format("{0}|{1}|{2}", lbl.Text, taskData[lbl.Text].Item1.ToString(), colorName)); 
-                        break; 
-                    }
-                }
-            }
-        }
-        File.WriteAllLines(activeFile, lines);
-    }
-
-    private void LoadTasks() {
-        if (!File.Exists(activeFile)) return;
-        string[] lines = File.ReadAllLines(activeFile);
-        Array.Reverse(lines); 
-        foreach (string l in lines) {
-            string[] p = l.Split('|');
-            if (p.Length >= 2) { 
-                string text = p[0];
-                DateTime time = DateTime.Parse(p[1]);
-                string color = p.Length >= 3 ? p[2] : "Black";
-                taskData[text] = new Tuple<DateTime, string>(time, color);
-                CreateTaskUI(text, color); 
-            }
-        }
     }
 }
