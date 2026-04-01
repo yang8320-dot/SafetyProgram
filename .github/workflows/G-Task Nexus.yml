@@ -1,33 +1,50 @@
 # 檔案名稱：G-Task Nexus.yml
+# 存放路徑：SafetyProgram/.github/workflows/G-Task Nexus.yml
+
 name: G-Task Nexus
 
-# 設定為手動執行 (Manual Trigger)
-on: 
+# 設定為手動觸發 (Manual Trigger)
+on:
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build Portable EXE
     runs-on: windows-latest
+
     steps:
-      - name: Checkout Code
+      # 1. 檢出原始碼
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. 設定 MSBuild 環境
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      # 3. 設定 NuGet 環境
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
+      # 4. 還原 NuGet 套件 (針對你上傳的 .sln 檔案)
+      # 使用引號包覆含有空格的路徑，確保 Windows 命令列正確解析
       - name: Restore NuGet Packages
-        # 確保路徑指向 G-Task Nexus 資料夾內的 .sln
         run: nuget restore "G-Task Nexus/GTaskNexus.sln"
 
-      - name: Build Single EXE
-        # 編譯為單一執行檔
-        run: msbuild "G-Task Nexus/GTaskNexus.sln" /p:Configuration=Release /p:PublishSingleFile=true /p:RuntimeIdentifier=win-x64
+      # 5. 編譯專案並產出單一執行檔
+      # /p:Configuration=Release -> 使用發布模式
+      # /p:PublishSingleFile=true -> 啟動單一檔案封裝 (搭配 Costura.Fody)
+      - name: Build Solution to Single EXE
+        run: |
+          msbuild "G-Task Nexus/GTaskNexus.sln" `
+            /p:Configuration=Release `
+            /p:Platform="Any CPU" `
+            /p:PublishSingleFile=true
 
-      - name: Upload Release EXE
+      # 6. 上傳編譯好的 .exe 檔案作為 Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: G-Task-Nexus-Portable-Build
+          name: G-Task-Nexus-Portable
+          # 這裡的路徑必須指向編譯後的實際輸出位置
           path: "G-Task Nexus/bin/Release/GTaskNexus.exe"
+          if-no-files-found: error
