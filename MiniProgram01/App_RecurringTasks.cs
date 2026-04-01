@@ -17,6 +17,9 @@ public class App_RecurringTasks : UserControl {
     public string digestTimeStr { get; set; } = "08:00";
     public string lastDigestDate { get; set; } = "";
     public int advanceDays { get; set; } = 0;
+    
+    // 【新增】掃描頻率設定變數，預設為 10分鐘
+    public string scanFrequency { get; set; } = "10分鐘";
 
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
@@ -46,7 +49,8 @@ public class App_RecurringTasks : UserControl {
         Button btnAdd = new Button() { Text = "新增任務", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2,8,2,8), Cursor = Cursors.Hand, BackColor = Color.White };
         btnAdd.Click += (s, e) => { new AddRecurringTaskWindow(this).ShowDialog(); };
         
-        Button btnSet = new Button() { Text = "排程設定", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = Color.Gainsboro, Margin = new Padding(2,8,8,8), Cursor = Cursors.Hand };
+        // 【修改】將「排程設定」文字精簡為「設定」
+        Button btnSet = new Button() { Text = "設定", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = Color.Gainsboro, Margin = new Padding(2,8,8,8), Cursor = Cursors.Hand };
         btnSet.Click += (s, e) => { new RecurringSettingsWindow(this).ShowDialog(); };
 
         header.Controls.AddRange(new Control[] { lblTitle, btnViewAll, btnAdd, btnSet });
@@ -64,9 +68,25 @@ public class App_RecurringTasks : UserControl {
         taskPanel.BringToFront();
 
         LoadTasks();
-        checkTimer = new Timer() { Interval = 600000, Enabled = true };
+        
+        // 【新增】初始化時載入對應的頻率間隔
+        checkTimer = new Timer() { Interval = GetTimerInterval(scanFrequency), Enabled = true };
         checkTimer.Tick += (s, e) => CheckTasks();
         CheckTasks();
+    }
+
+    // 【新增】負責將文字轉換為毫秒的對應器
+    private int GetTimerInterval(string freq) {
+        switch (freq) {
+            case "即時": return 1000;       // 1秒
+            case "1分鐘": return 60000;     // 60秒
+            case "5分鐘": return 300000;
+            case "10分鐘": return 600000;
+            case "1小時": return 3600000;
+            case "12小時": return 43200000;
+            case "1天": return 86400000;
+            default: return 600000;       // 預設 10分鐘
+        }
     }
 
     public void OpenAllTasksView() { this.Invoke(new Action(() => { new AllTasksViewWindow(this).Show(); })); }
@@ -79,10 +99,10 @@ public class App_RecurringTasks : UserControl {
             Panel card = new Panel() { Width = startWidth, AutoSize = true, MinimumSize = new Size(0, 45), Margin = new Padding(5, 5, 5, 8), BackColor = Color.FromArgb(248, 248, 250) };
             TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, AutoSize = true, Padding = new Padding(5) };
             
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 調
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // ✕
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 註
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); // 文字
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
 
             Button btnEdit = new Button() { Text = "調", Dock = DockStyle.Top, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0,0,3,0) };
             btnEdit.FlatAppearance.BorderSize = 0; 
@@ -132,8 +152,15 @@ public class App_RecurringTasks : UserControl {
 
     public void DeleteTask(RecurringTask task) { if (tasks.Contains(task)) { tasks.Remove(task); SaveTasks(); RefreshUI(); } }
 
-    public void UpdateGlobalSettings(string dType, string dTime, int aDays) {
-        digestType = dType; digestTimeStr = dTime; advanceDays = aDays;
+    // 【修改】接收新的掃描頻率，並立刻套用更新 Timer
+    public void UpdateGlobalSettings(string dType, string dTime, int aDays, string sFreq) {
+        digestType = dType; digestTimeStr = dTime; advanceDays = aDays; scanFrequency = sFreq;
+        
+        // 變更頻率後立刻重啟 Timer 套用新頻率
+        checkTimer.Enabled = false;
+        checkTimer.Interval = GetTimerInterval(sFreq);
+        checkTimer.Enabled = true;
+        
         SaveTasks(); MessageBox.Show("設定儲存成功！");
     }
 
@@ -147,7 +174,6 @@ public class App_RecurringTasks : UserControl {
                     string targetDateStr = target.ToString("yyyy-MM-dd");
                     if (t.LastTriggeredDate != targetDateStr) {
                         string prefix = advanceDays > 0 ? string.Format("[預排-{0}] ", target.ToString("MM/dd")) : "";
-                        // 週期任務觸發時，連同「註」也帶進待辦事項
                         todoApp.AddTask(prefix + t.Name, "Black", "週期觸發", t.Note); 
                         t.LastTriggeredDate = targetDateStr; needsSave = true;
                         parentForm.AlertTab(1);
@@ -189,12 +215,14 @@ public class App_RecurringTasks : UserControl {
         } catch { } return false;
     }
 
+    // 【修改】將 scanFrequency 也寫入設定檔儲存 (加入在第 5 個位置)
     private void SaveTasks() {
-        List<string> lines = new List<string>(){ string.Format("#DIGEST|{0}|{1}|{2}|{3}", digestType, digestTimeStr, lastDigestDate, advanceDays) };
+        List<string> lines = new List<string>(){ string.Format("#DIGEST|{0}|{1}|{2}|{3}|{4}", digestType, digestTimeStr, lastDigestDate, advanceDays, scanFrequency) };
         foreach(var t in tasks) lines.Add(string.Format("{0}|{1}|{2}|{3}|{4}|{5}", t.Name, t.MonthStr, t.DateStr, t.TimeStr, t.LastTriggeredDate, EncodeBase64(t.Note)));
         File.WriteAllLines(recurringFile, lines);
     }
 
+    // 【修改】讀取設定檔時，把 scanFrequency 給抓出來
     private void LoadTasks() {
         if(!File.Exists(recurringFile)) return;
         tasks.Clear();
@@ -203,6 +231,7 @@ public class App_RecurringTasks : UserControl {
             if(l.StartsWith("#DIGEST")) { 
                 digestType = p[1]; digestTimeStr = p[2]; lastDigestDate = p[3]; 
                 if(p.Length >= 5) advanceDays = int.Parse(p[4]);
+                if(p.Length >= 6) scanFrequency = p[5];
             } else if(p.Length >= 4) {
                 tasks.Add(new RecurringTask() { Name = p[0], MonthStr = p[1], DateStr = p[2], TimeStr = p[3], LastTriggeredDate = p.Length > 4 ? p[4] : "", Note = p.Length > 5 ? DecodeBase64(p[5]) : "" });
             }
@@ -342,26 +371,51 @@ public class EditRecurringTaskWindow : Form {
     }
 }
 
+// 【修改】將視窗加高，並新增分隔線與掃描頻率選項
 public class RecurringSettingsWindow : Form {
     private App_RecurringTasks parent;
-    private ComboBox cmDig, cmAdv;
+    private ComboBox cmDig, cmAdv, cmScan;
     private DateTimePicker dtp;
+    
     public RecurringSettingsWindow(App_RecurringTasks p) {
-        this.parent = p; this.Text = "全域排程設定"; this.Width = 350; this.Height = 230; this.StartPosition = FormStartPosition.CenterScreen;
+        this.parent = p; this.Text = "全域排程設定"; this.Width = 350; 
+        this.Height = 330; // 加高視窗以容納新選項
+        this.StartPosition = FormStartPosition.CenterScreen;
+        
         FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(20) };
+        
         FlowLayoutPanel r1 = new FlowLayoutPanel() { AutoSize = true };
         r1.Controls.Add(new Label() { Text = "所有任務提前", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         cmAdv = new ComboBox() { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList }; for (int i = 0; i <= 7; i++) cmAdv.Items.Add(i.ToString());
         cmAdv.Text = p.advanceDays.ToString(); r1.Controls.Add(cmAdv); r1.Controls.Add(new Label() { Text = "天加入待辦", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         f.Controls.Add(r1);
-        FlowLayoutPanel r2 = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 10, 0, 20) };
+        
+        FlowLayoutPanel r2 = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 10, 0, 10) };
         r2.Controls.Add(new Label() { Text = "視窗摘要提醒：", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
         cmDig = new ComboBox() { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList }; cmDig.Items.AddRange(new string[]{"不提醒", "每週一", "每月1號"}); cmDig.Text = p.digestType;
         dtp = new DateTimePicker() { Width = 80, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
         DateTime dtv; if(DateTime.TryParseExact(p.digestTimeStr, "HH:mm", null, System.Globalization.DateTimeStyles.None, out dtv)) dtp.Value = dtv;
         r2.Controls.AddRange(new Control[]{ cmDig, dtp }); f.Controls.Add(r2);
-        Button btn = new Button() { Text = "儲存所有設定", Width = 280, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-        btn.Click += (s, e) => { p.UpdateGlobalSettings(cmDig.Text, dtp.Value.ToString("HH:mm"), int.Parse(cmAdv.Text)); this.Close(); };
+        
+        // 【新增】視覺分隔線
+        Label sep = new Label() { AutoSize = false, Height = 2, Width = 290, BorderStyle = BorderStyle.Fixed3D, Margin = new Padding(0, 5, 0, 15) };
+        f.Controls.Add(sep);
+
+        // 【新增】掃描頻率選項
+        FlowLayoutPanel r3 = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, 20) };
+        r3.Controls.Add(new Label() { Text = "待辦事項掃描頻率：", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
+        cmScan = new ComboBox() { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmScan.Items.AddRange(new string[] { "即時", "1分鐘", "5分鐘", "10分鐘", "1小時", "12小時", "1天" });
+        cmScan.Text = p.scanFrequency; // 讀取目前的設定
+        r3.Controls.Add(cmScan);
+        f.Controls.Add(r3);
+
+        Button btn = new Button() { Text = "儲存所有設定", Width = 290, Height = 40, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        btn.Click += (s, e) => { 
+            // 儲存時將掃描頻率一併傳回
+            p.UpdateGlobalSettings(cmDig.Text, dtp.Value.ToString("HH:mm"), int.Parse(cmAdv.Text), cmScan.Text); 
+            this.Close(); 
+        };
         f.Controls.Add(btn); this.Controls.Add(f);
     }
 }
