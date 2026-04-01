@@ -1,0 +1,28 @@
+name: G-Task Nexus Auto Build
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet Packages
+        run: nuget restore "G-Task Nexus/GTaskNexus.sln"
+
+      - name: Build Single EXE
+        run: msbuild "G-Task Nexus/GTaskNexus.sln" /p:Configuration=Release /p:PublishSingleFile=true /p:RuntimeIdentifier=win-x64
+
+      - name: Upload Release EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: G-Task-Nexus-Portable
+          path: "G-Task Nexus/bin/Release/GTaskNexus.exe"
