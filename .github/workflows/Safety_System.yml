@@ -1,6 +1,6 @@
 name: Safety_System
 
-# 🟢 已修正：移除 push 與 pull_request，改用 workflow_dispatch 以支援手動執行
+# 手動執行觸發
 on:
   workflow_dispatch:
 
@@ -15,10 +15,11 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      # 🟢 已升級至 v4
+      uses: actions/checkout@v4
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
@@ -26,11 +27,14 @@ jobs:
       run: dotnet restore
 
     - name: Publish Single File
-      # 編譯成免安裝單一執行檔 (Portable Executable)
+      # 編譯成免安裝單一執行檔
       run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      # 🟢 已升級至 v4 (解決你的錯誤訊息)
+      uses: actions/upload-artifact@v4
       with:
         name: Safety_System-EXE
         path: ./Safety_System/publish/Safety_System.exe
+        # v4 建議增加保留天數設定
+        retention-days: 7
