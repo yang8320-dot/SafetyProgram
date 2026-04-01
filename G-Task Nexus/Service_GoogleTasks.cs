@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using System.Threading.Tasks; // 這是為了 async Task
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Tasks.v1;
-using Google.Apis.Tasks.v1.Data;
+using GData = Google.Apis.Tasks.v1.Data; // 設定別名，解決 Task 命名衝突
 using Google.Apis.Util.Store;
 
 namespace GTaskNexus
@@ -28,7 +28,9 @@ namespace GTaskNexus
                 string tokenPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "auth_token");
                 var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
                     GoogleClientSecrets.FromStream(stream).Secrets,
-                    Scopes, "user", CancellationToken.None, 
+                    Scopes, 
+                    "user", 
+                    CancellationToken.None, 
                     new FileDataStore(tokenPath, true));
 
                 return new TasksService(new Google.Apis.Services.BaseClientService.Initializer()
@@ -39,19 +41,26 @@ namespace GTaskNexus
             }
         }
 
-        // 獲取所有任務
-        public async Task<IList<Google.Apis.Tasks.v1.Data.Task>> GetAllTasksAsync()
+        /// <summary>
+        /// 獲取所有任務 (明確指定使用 GData.Task)
+        /// </summary>
+        public async Task<IList<GData.Task>> GetAllTasksAsync()
         {
             var service = await InitializeServiceAsync();
-            var list = await service.Tasks.List("@default").ExecuteAsync();
-            return list.Items ?? new List<Google.Apis.Tasks.v1.Data.Task>();
+            var listRequest = service.Tasks.List("@default");
+            var result = await listRequest.ExecuteAsync();
+            
+            // 如果 Items 為 null，回傳空列表
+            return result.Items ?? new List<GData.Task>();
         }
 
-        // 新增任務並同步回 Google
+        /// <summary>
+        /// 新增任務並同步回 Google
+        /// </summary>
         public async Task AddTaskAsync(string title)
         {
             var service = await InitializeServiceAsync();
-            var newTask = new Google.Apis.Tasks.v1.Data.Task { Title = title };
+            var newTask = new GData.Task { Title = title };
             await service.Tasks.Insert(newTask, "@default").ExecuteAsync();
         }
     }
