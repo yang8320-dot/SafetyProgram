@@ -32,11 +32,12 @@ namespace GTaskNexus
             }
         }
 
-        public async Task<IList<GData.Task>> GetAllTasksAsync()
+        // 修改：加入 showCompleted 參數，控制是否向 Google 抓取已完成的項目
+        public async Task<IList<GData.Task>> GetAllTasksAsync(bool showCompleted = true)
         {
             var service = await InitializeServiceAsync();
             var listRequest = service.Tasks.List("@default");
-            listRequest.ShowCompleted = true; 
+            listRequest.ShowCompleted = showCompleted; // 根據 UI 勾選狀態決定
             listRequest.ShowHidden = true;
             var list = await listRequest.ExecuteAsync();
             return list.Items ?? new List<GData.Task>();
@@ -57,23 +58,13 @@ namespace GTaskNexus
             await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
         }
 
-        // 升級：同時更新標題與到期日 (Google API 限制只能存日期，忽略時間)
         public async Task UpdateTaskDetailsAsync(string taskId, string newTitle, DateTime? dueDate)
         {
             var service = await InitializeServiceAsync();
             var task = await service.Tasks.Get("@default", taskId).ExecuteAsync();
             task.Title = newTitle;
-            
-            if (dueDate.HasValue)
-            {
-                // 轉換為 Google 規定的 RFC 3339 格式，並將時間部分歸零
-                task.Due = dueDate.Value.ToString("yyyy-MM-dd'T'00:00:00.000'Z'");
-            }
-            else
-            {
-                task.Due = null; // 清除到期日
-            }
-
+            if (dueDate.HasValue) task.Due = dueDate.Value.ToString("yyyy-MM-dd'T'00:00:00.000'Z'");
+            else task.Due = null;
             await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
         }
 
@@ -81,6 +72,13 @@ namespace GTaskNexus
         {
             var service = await InitializeServiceAsync();
             await service.Tasks.Delete("@default", taskId).ExecuteAsync();
+        }
+
+        // 新增：呼叫 Google API 內建的一鍵清除功能
+        public async Task ClearCompletedTasksAsync()
+        {
+            var service = await InitializeServiceAsync();
+            await service.Tasks.Clear("@default").ExecuteAsync(); // 直接清空該清單所有已完成任務
         }
     }
 }
