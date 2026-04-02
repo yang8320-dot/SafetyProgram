@@ -36,7 +36,7 @@ namespace GTaskNexus
         {
             var service = await InitializeServiceAsync();
             var listRequest = service.Tasks.List("@default");
-            listRequest.ShowCompleted = true; // 抓取已完成的項目
+            listRequest.ShowCompleted = true; 
             listRequest.ShowHidden = true;
             var list = await listRequest.ExecuteAsync();
             return list.Items ?? new List<GData.Task>();
@@ -49,13 +49,29 @@ namespace GTaskNexus
             await service.Tasks.Insert(newTask, "@default").ExecuteAsync();
         }
 
-        // 解決 CS1061 錯誤的關鍵：這個方法負責將本地的打勾狀態推送到雲端
+        // 更新打勾狀態
         public async Task UpdateTaskStatusAsync(string taskId, bool isCompleted)
         {
             var service = await InitializeServiceAsync();
             var task = await service.Tasks.Get("@default", taskId).ExecuteAsync();
             task.Status = isCompleted ? "completed" : "needsAction";
             await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
+        }
+
+        // 新增：更新任務標題 (編修功能)
+        public async Task UpdateTaskTitleAsync(string taskId, string newTitle)
+        {
+            var service = await InitializeServiceAsync();
+            var task = await service.Tasks.Get("@default", taskId).ExecuteAsync();
+            task.Title = newTitle;
+            await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
+        }
+
+        // 新增：刪除任務
+        public async Task DeleteTaskAsync(string taskId)
+        {
+            var service = await InitializeServiceAsync();
+            await service.Tasks.Delete("@default", taskId).ExecuteAsync();
         }
     }
 }
