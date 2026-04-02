@@ -42,7 +42,6 @@ namespace GTaskNexus
             return list.Items ?? new List<GData.Task>();
         }
 
-        // 修改：新增 dueDate 參數，支援建立時直接指定日期
         public async Task AddTaskAsync(string title, DateTime? dueDate = null)
         {
             var service = await InitializeServiceAsync();
