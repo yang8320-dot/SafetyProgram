@@ -35,7 +35,10 @@ namespace GTaskNexus
         public async Task<IList<GData.Task>> GetAllTasksAsync()
         {
             var service = await InitializeServiceAsync();
-            var list = await service.Tasks.List("@default").ExecuteAsync();
+            var listRequest = service.Tasks.List("@default");
+            listRequest.ShowCompleted = true; // 抓取已完成的項目
+            listRequest.ShowHidden = true;
+            var list = await listRequest.ExecuteAsync();
             return list.Items ?? new List<GData.Task>();
         }
 
@@ -44,6 +47,15 @@ namespace GTaskNexus
             var service = await InitializeServiceAsync();
             var newTask = new GData.Task { Title = title };
             await service.Tasks.Insert(newTask, "@default").ExecuteAsync();
+        }
+
+        // 解決 CS1061 錯誤的關鍵：這個方法負責將本地的打勾狀態推送到雲端
+        public async Task UpdateTaskStatusAsync(string taskId, bool isCompleted)
+        {
+            var service = await InitializeServiceAsync();
+            var task = await service.Tasks.Get("@default", taskId).ExecuteAsync();
+            task.Status = isCompleted ? "completed" : "needsAction";
+            await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
         }
     }
 }
