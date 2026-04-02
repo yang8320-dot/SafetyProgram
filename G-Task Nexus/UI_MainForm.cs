@@ -20,6 +20,8 @@ namespace GTaskNexus
         private ListView _taskView;
         private Label _status;
         private TextBox _txtNewTask;
+        private CheckBox _chkNewTaskHasDate;
+        private DateTimePicker _dtpNewTaskDate;
         private Button _btnAdd;
         private Button _btnClearDone;
         private CheckBox _chkShowCompleted;
@@ -40,7 +42,8 @@ namespace GTaskNexus
         private void SetupUI()
         {
             this.Text = "G-Task Nexus | 雙向同步中心 (快捷鍵: Ctrl+2)";
-            this.Size = new Size(760, 550); // 稍微加寬以容納所有按鈕
+            // 視窗加寬到 880，解決文字被切掉或重疊的問題
+            this.Size = new Size(880, 560); 
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Microsoft JhengHei UI", 10.5F, FontStyle.Regular);
             this.BackColor = Color.White;
@@ -52,32 +55,37 @@ namespace GTaskNexus
             configMenu.DropDownItems.Add(itemApi);
             menu.Items.Add(configMenu);
 
-            // --- 重新設計的上方控制面板 ---
+            // --- 上方新增控制面板 (重新排列位置) ---
             Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.FromArgb(245, 245, 245), Padding = new Padding(10) };
             
-            _txtNewTask = new TextBox { Location = new Point(15, 15), Width = 280, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtNewTask = new TextBox { Location = new Point(15, 15), Width = 260, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtNewTask.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await AddNewTask(); };
 
+            // 新增：上方直接設定日期的元件
+            _chkNewTaskHasDate = new CheckBox { Text = "期限:", Location = new Point(285, 18), AutoSize = true, Cursor = Cursors.Hand };
+            _dtpNewTaskDate = new DateTimePicker { Location = new Point(345, 15), Width = 130, Format = DateTimePickerFormat.Short, Enabled = false };
+            _chkNewTaskHasDate.CheckedChanged += (s, e) => _dtpNewTaskDate.Enabled = _chkNewTaskHasDate.Checked;
+
             _btnAdd = new Button { 
-                Text = "+ 新增", Location = new Point(305, 14), Width = 80, Height = 30,
+                Text = "+ 新增", Location = new Point(485, 14), Width = 80, Height = 30,
                 BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnAdd.FlatAppearance.BorderSize = 0;
             _btnAdd.Click += async (s, e) => await AddNewTask();
 
             _btnClearDone = new Button {
-                Text = "🧹 清除已完成", Location = new Point(395, 14), Width = 130, Height = 30,
+                Text = "🧹 清除已完成", Location = new Point(575, 14), Width = 120, Height = 30,
                 BackColor = Color.FromArgb(204, 51, 51), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnClearDone.FlatAppearance.BorderSize = 0;
             _btnClearDone.Click += async (s, e) => await ClearAllCompletedTasks();
 
             _chkShowCompleted = new CheckBox {
-                Text = "顯示已完成", Location = new Point(540, 18), Width = 120, Checked = true, Cursor = Cursors.Hand
+                Text = "顯示已完成", Location = new Point(705, 18), AutoSize = true, Checked = true, Cursor = Cursors.Hand
             };
             _chkShowCompleted.CheckedChanged += async (s, e) => await SyncTasksSilently();
 
-            pnlTop.Controls.AddRange(new Control[] { _txtNewTask, _btnAdd, _btnClearDone, _chkShowCompleted });
+            pnlTop.Controls.AddRange(new Control[] { _txtNewTask, _chkNewTaskHasDate, _dtpNewTaskDate, _btnAdd, _btnClearDone, _chkShowCompleted });
 
             // --- 任務列表區塊 ---
             _taskView = new ListView { 
@@ -86,15 +94,15 @@ namespace GTaskNexus
                 ShowGroups = true, LabelEdit = false
             };
             
-            _taskView.Columns.Add("任務名稱 (雙擊進行進階編輯)", 480);
-            _taskView.Columns.Add("到期日", 150);
+            // 欄位加寬，讓字不會被切掉
+            _taskView.Columns.Add("任務名稱 (雙擊進行進階編輯)", 550);
+            _taskView.Columns.Add("到期日", 160);
             
             _groupTodo = new ListViewGroup("📌 待辦事項", HorizontalAlignment.Left);
             _groupDone = new ListViewGroup("✅ 已完成", HorizontalAlignment.Left);
             _taskView.Groups.Add(_groupTodo);
             _taskView.Groups.Add(_groupDone);
 
-            // --- 解決雙擊會打勾的核心事件攔截 ---
             _taskView.ItemCheck += TaskView_ItemCheck; 
             _taskView.ItemChecked += async (s, e) => await HandleTaskChecked(e);
             _taskView.DoubleClick += async (s, e) => await OpenEditDialog();
@@ -116,20 +124,12 @@ namespace GTaskNexus
             this.FormClosing += MainForm_FormClosing;
         }
 
-        // --- 攔截打勾事件：只有真正點擊在方塊上才允許變更狀態 ---
         private void TaskView_ItemCheck(object sender, ItemCheckEventArgs e)
         {
-            if (_isSyncing) return; // 程式內部更新時放行
-
-            // 取得滑鼠現在的位置，確認是不是點在 CheckBox 上
+            if (_isSyncing) return;
             Point loc = _taskView.PointToClient(Cursor.Position);
             ListViewHitTestInfo hitTest = _taskView.HitTest(loc);
-            
-            // 如果滑鼠不是精準點在核取方塊 (StateImage) 上，就強制取消狀態變更
-            if (hitTest.Location != ListViewHitTestLocations.StateImage)
-            {
-                e.NewValue = e.CurrentValue; 
-            }
+            if (hitTest.Location != ListViewHitTestLocations.StateImage) e.NewValue = e.CurrentValue; 
         }
 
         private async Task ClearAllCompletedTasks()
@@ -141,9 +141,7 @@ namespace GTaskNexus
                     await _service.ClearCompletedTasksAsync();
                     await SyncTasksSilently();
                     UpdateStatus(" 清除完成！");
-                } catch {
-                    UpdateStatus(" 清除失敗，請檢查網路連線。");
-                }
+                } catch { UpdateStatus(" 清除失敗，請檢查網路連線。"); }
             }
         }
 
@@ -182,12 +180,14 @@ namespace GTaskNexus
                     } finally { _isSyncing = false; _autoSyncTimer.Start(); }
                 };
 
+                // 將 ENTER 鍵綁定為預設的儲存按鈕
+                editForm.AcceptButton = btnSave;
+
                 editForm.Controls.AddRange(new Control[] { lblTitle, txtTitle, lblDate, chkHasDate, dtpDate, btnSave });
                 if (editForm.ShowDialog() == DialogResult.OK) await SyncTasksSilently();
             }
         }
 
-        // --- 快捷鍵邏輯 ---
         private void MainForm_Load(object sender, EventArgs e) { RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, (int)Keys.D2); }
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e) { UnregisterHotKey(this.Handle, HOTKEY_ID); }
         protected override void WndProc(ref Message m)
@@ -251,8 +251,13 @@ namespace GTaskNexus
             UpdateStatus(" 正在新增至 Google Tasks...");
 
             try {
-                await _service.AddTaskAsync(title);
+                // 讀取上方選單的日期
+                DateTime? dueDate = _chkNewTaskHasDate.Checked ? _dtpNewTaskDate.Value : (DateTime?)null;
+                
+                await _service.AddTaskAsync(title, dueDate);
+                
                 _txtNewTask.Clear();
+                _chkNewTaskHasDate.Checked = false; // 新增完畢後重置日期勾選
                 await SyncTasksSilently();
             } catch (Exception ex) { MessageBox.Show("新增失敗: " + ex.Message); } 
             finally { _txtNewTask.Enabled = true; _btnAdd.Enabled = true; _txtNewTask.Focus(); }
@@ -265,7 +270,6 @@ namespace GTaskNexus
             UpdateStatus(" 正在與雲端同步...");
 
             try {
-                // 將 CheckBox 的狀態傳給服務層，決定要不要抓回已完成項目
                 var items = await _service.GetAllTasksAsync(_chkShowCompleted.Checked);
                 
                 _taskView.BeginUpdate();
@@ -298,7 +302,6 @@ namespace GTaskNexus
 
         private void OpenApiConfig()
         {
-            // ...維持原樣...
             using (Form f = new Form { Text = "貼入 API JSON", Size = new Size(400, 300), StartPosition = FormStartPosition.CenterParent })
             {
                 TextBox txt = new TextBox { Multiline = true, Dock = DockStyle.Fill, Text = CoreSecurity.LoadSecureData() };
