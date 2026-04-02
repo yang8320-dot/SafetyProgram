@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
-using System.Drawing.Printing;
+using System.Drawing.Printing; // 【重要】列印功能需要這個
 
 public class App_RecurringTasks : UserControl {
     private MainForm parentForm;
@@ -56,7 +56,6 @@ public class App_RecurringTasks : UserControl {
         btnViewAll.Margin = new Padding(2, 8, 2, 8);
         btnViewAll.Cursor = Cursors.Hand;
         btnViewAll.BackColor = Color.WhiteSmoke;
-        // 【修正】改用 .Show() 釋放主視窗
         btnViewAll.Click += (s, e) => { new AllTasksViewWindow(this).Show(); }; 
 
         Button btnAdd = new Button();
@@ -66,7 +65,6 @@ public class App_RecurringTasks : UserControl {
         btnAdd.Margin = new Padding(2, 8, 2, 8);
         btnAdd.Cursor = Cursors.Hand;
         btnAdd.BackColor = Color.White;
-        // 【修正】改用 .Show() 釋放主視窗
         btnAdd.Click += (s, e) => { new AddRecurringTaskWindow(this).Show(); };
 
         Button btnSet = new Button();
@@ -76,7 +74,6 @@ public class App_RecurringTasks : UserControl {
         btnSet.BackColor = Color.Gainsboro;
         btnSet.Margin = new Padding(2, 8, 8, 8);
         btnSet.Cursor = Cursors.Hand;
-        // 【修正】改用 .Show() 釋放主視窗
         btnSet.Click += (s, e) => { new RecurringSettingsWindow(this).Show(); };
 
         header.Controls.Add(lblTitle, 0, 0);
@@ -156,7 +153,6 @@ public class App_RecurringTasks : UserControl {
             btnEdit.BackColor = AppleBlue;
             btnEdit.ForeColor = Color.White;
             btnEdit.FlatStyle = FlatStyle.Flat;
-            // 【修正】改用 .Show() 釋放主視窗 (RefreshUI已內建在存檔函式中)
             btnEdit.Click += (s, e) => { 
                 int idx = tasks.IndexOf(t); 
                 if(idx != -1) new EditRecurringTaskWindow(this, idx, t).Show(); 
@@ -191,7 +187,6 @@ public class App_RecurringTasks : UserControl {
             };
 
             string typeTag = string.Format("[{0}] ", t.TaskType);
-            // 判斷是否為單次/到期日的特定日期顯示方式
             string timeInfo = t.MonthStr == "特定日期" 
                 ? string.Format("[{0} {1}]", t.DateStr, t.TimeStr) 
                 : string.Format("[{0} {1} {2}]", t.MonthStr, t.DateStr, t.TimeStr);
@@ -299,7 +294,6 @@ public class App_RecurringTasks : UserControl {
             int h = int.Parse(timeParts[0]);
             int m = int.Parse(timeParts[1]);
 
-            // 【新增邏輯】：如果是指定日期
             if (t.MonthStr == "特定日期") {
                 if (DateTime.TryParseExact(t.DateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime specificDate)) {
                     target = new DateTime(specificDate.Year, specificDate.Month, specificDate.Day, h, m, 0);
@@ -374,7 +368,7 @@ public class App_RecurringTasks : UserControl {
         f.Width = 400; f.Height = 350; f.Text = "編輯備註"; 
         f.StartPosition = FormStartPosition.CenterScreen; 
         f.FormBorderStyle = FormBorderStyle.FixedDialog;
-        f.TopMost = true; // 保持上層
+        f.TopMost = true;
 
         Label lbl = new Label() { Text = "【" + name + "】", Left = 15, Top = 15, AutoSize = true, Font = new Font(MainFont, FontStyle.Bold) };
         TextBox txt = new TextBox() { Left = 15, Top = 50, Width = 350, Height = 180, Multiline = true, Text = current };
@@ -389,7 +383,7 @@ public class App_RecurringTasks : UserControl {
 }
 
 // ==========================================
-// 視窗：新增任務 (加入日期選擇器)
+// 視窗：新增任務
 // ==========================================
 public class AddRecurringTaskWindow : Form {
     private App_RecurringTasks parent;
@@ -401,7 +395,7 @@ public class AddRecurringTaskWindow : Form {
     public AddRecurringTaskWindow(App_RecurringTasks p) {
         this.parent = p; this.Text = "新增任務"; this.Width = 380; this.Height = 600; 
         this.StartPosition = FormStartPosition.CenterScreen;
-        this.TopMost = true; // 【修正】保持獨立最上層，釋放主視窗操作權
+        this.TopMost = true; 
 
         FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(25) };
 
@@ -427,13 +421,11 @@ public class AddRecurringTaskWindow : Form {
         cmD = new ComboBox() { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList }; 
         f.Controls.Add(cmD);
 
-        // 【新增】指定日期控制項
         lblDate = new Label() { Text = "指定日期：", Margin = new Padding(0, 10, 0, 0) };
         f.Controls.Add(lblDate);
         dtpDate = new DateTimePicker() { Width = 300, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd" };
         f.Controls.Add(dtpDate);
 
-        // 【動態顯示邏輯】：循環顯示選單，單次顯示日曆
         cmType.SelectedIndexChanged += (s, e) => {
             bool isLoop = cmType.Text == "循環";
             lblCycle.Visible = cmM.Visible = cmD.Visible = isLoop;
@@ -487,7 +479,7 @@ public class EditRecurringTaskWindow : Form {
     public EditRecurringTaskWindow(App_RecurringTasks p, int i, App_RecurringTasks.RecurringTask t) {
         this.parent = p; this.idx = i; this.Text = "調整任務"; this.Width = 380; this.Height = 600; 
         this.StartPosition = FormStartPosition.CenterScreen;
-        this.TopMost = true; // 【修正】
+        this.TopMost = true; 
 
         FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(25) };
 
@@ -570,7 +562,7 @@ public class RecurringSettingsWindow : Form {
     public RecurringSettingsWindow(App_RecurringTasks p) {
         this.parent = p; this.Text = "全域排程設定"; this.Width = 350; this.Height = 350; 
         this.StartPosition = FormStartPosition.CenterScreen;
-        this.TopMost = true; // 【修正】
+        this.TopMost = true;
 
         FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(20) };
         
@@ -612,16 +604,23 @@ public class RecurringSettingsWindow : Form {
 }
 
 // ==========================================
-// 視窗：全部檢視
+// 視窗：全部檢視 (含列印功能)
 // ==========================================
 public class AllTasksViewWindow : Form {
     private App_RecurringTasks parentControl;
     private FlowLayoutPanel flow;
 
+    // 【新增】列印資料封裝類別
+    private class PrintLineItem {
+        public string Text { get; set; }
+        public Font Font { get; set; }
+        public Brush Brush { get; set; }
+    }
+
     public AllTasksViewWindow(App_RecurringTasks parent) {
         this.parentControl = parent; this.Text = "週期任務總覽"; this.Width = 820; this.Height = 800; 
         this.BackColor = Color.White;
-        this.TopMost = true; // 【修正】
+        this.TopMost = true; 
 
         TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 60, BackColor = Color.WhiteSmoke, ColumnCount = 2 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
@@ -629,6 +628,10 @@ public class AllTasksViewWindow : Form {
 
         Label lbl = new Label() { Text = "週期任務排程總覽", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(15,0,0,0), Font = new Font("Microsoft JhengHei UI", 16f, FontStyle.Bold) };
         Button btnPrint = new Button() { Text = "轉存 PDF / 列印", Width = 150, Height = 35, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Anchor = AnchorStyles.Right, Margin = new Padding(0,0,15,0) };
+        
+        // 【新增】綁定列印功能事件
+        btnPrint.Click += (s, e) => ExecutePrint();
+
         header.Controls.Add(lbl, 0, 0); header.Controls.Add(btnPrint, 1, 0); this.Controls.Add(header);
 
         flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15, 20, 15, 15), FlowDirection = FlowDirection.TopDown, WrapContents = false };
@@ -639,6 +642,86 @@ public class AllTasksViewWindow : Form {
         this.Controls.Add(flow); flow.BringToFront(); RefreshData();
     }
 
+    // 【新增】執行列印與產生 PDF 邏輯
+    private void ExecutePrint() {
+        PrintDocument pd = new PrintDocument();
+        List<PrintLineItem> linesToPrint = BuildPrintLines();
+        int currentLine = 0;
+
+        pd.PrintPage += (sender, args) => {
+            float yPos = args.MarginBounds.Top;
+            float leftMargin = args.MarginBounds.Left;
+
+            while (currentLine < linesToPrint.Count) {
+                var item = linesToPrint[currentLine];
+                SizeF size = args.Graphics.MeasureString(item.Text, item.Font, args.MarginBounds.Width);
+                
+                // 處理換頁邏輯
+                if (yPos + size.Height > args.MarginBounds.Bottom) {
+                    args.HasMorePages = true;
+                    return; 
+                }
+
+                args.Graphics.DrawString(item.Text, item.Font, item.Brush, new RectangleF(leftMargin, yPos, args.MarginBounds.Width, size.Height));
+                yPos += size.Height + 8; // 行距
+                currentLine++;
+            }
+            args.HasMorePages = false;
+        };
+
+        PrintDialog pdlg = new PrintDialog();
+        pdlg.Document = pd;
+        pdlg.UseEXDialog = true; // 啟用現代化列印視窗
+
+        if (pdlg.ShowDialog() == DialogResult.OK) {
+            try {
+                pd.Print();
+                MessageBox.Show("列印 / 存檔指令已送出！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("列印失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    // 【新增】將畫面資料轉換為可列印的純文字行
+    private List<PrintLineItem> BuildPrintLines() {
+        List<PrintLineItem> lines = new List<PrintLineItem>();
+        Font titleFont = new Font("Microsoft JhengHei UI", 18f, FontStyle.Bold);
+        Font headerFont = new Font("Microsoft JhengHei UI", 12f, FontStyle.Bold);
+        Font txtFont = new Font("Microsoft JhengHei UI", 10f);
+        Font noteFont = new Font("Microsoft JhengHei UI", 9f);
+
+        lines.Add(new PrintLineItem { Text = "週期任務排程總覽", Font = titleFont, Brush = Brushes.Black });
+        lines.Add(new PrintLineItem { Text = "產生時間: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), Font = txtFont, Brush = Brushes.Gray });
+        lines.Add(new PrintLineItem { Text = " ", Font = txtFont, Brush = Brushes.Black });
+
+        var tasks = parentControl.tasks;
+        
+        Action<string, List<App_RecurringTasks.RecurringTask>> addGroup = (title, list) => {
+            if (list.Count == 0) return;
+            lines.Add(new PrintLineItem { Text = "【 " + title + " 】", Font = headerFont, Brush = Brushes.Blue });
+            foreach (var t in list) {
+                string timeInfo = t.MonthStr == "特定日期" ? string.Format("[{0} {1}]", t.DateStr, t.TimeStr) : string.Format("[{0}] {1}", t.TimeStr, t.DateStr);
+                string mainTxt = string.Format("[{0}] {1}  {2}", t.TaskType, timeInfo, t.Name);
+                
+                lines.Add(new PrintLineItem { Text = mainTxt, Font = txtFont, Brush = Brushes.Black });
+                if (!string.IsNullOrWhiteSpace(t.Note)) {
+                    // 將備註內容的換行替換為空白，避免列印時格式跑掉
+                    lines.Add(new PrintLineItem { Text = "   備註: " + t.Note.Replace("\r\n", " ").Replace("\n", " "), Font = noteFont, Brush = Brushes.DimGray });
+                }
+            }
+            lines.Add(new PrintLineItem { Text = " ", Font = txtFont, Brush = Brushes.Black });
+        };
+
+        addGroup("每天觸發", tasks.Where(t => t.MonthStr == "每天").ToList());
+        addGroup("每週觸發", tasks.Where(t => t.MonthStr == "每週").ToList());
+        addGroup("每月觸發", tasks.Where(t => t.MonthStr == "每月").ToList());
+        for (int i = 1; i <= 12; i++) addGroup(i.ToString() + "月 限定", tasks.Where(t => t.MonthStr == i.ToString() + "月").ToList());
+        addGroup("特定日期 (單次/到期日)", tasks.Where(t => t.MonthStr == "特定日期").ToList());
+
+        return lines;
+    }
+
     public void RefreshData() {
         flow.Controls.Clear(); 
         var tasks = parentControl.tasks;
@@ -647,8 +730,6 @@ public class AllTasksViewWindow : Form {
         AddGroup("每週觸發", tasks.Where(t => t.MonthStr == "每週").ToList());
         AddGroup("每月觸發", tasks.Where(t => t.MonthStr == "每月").ToList());
         for (int i = 1; i <= 12; i++) AddGroup(i.ToString() + "月 限定", tasks.Where(t => t.MonthStr == i.ToString() + "月").ToList());
-        
-        // 【新增】：顯示單次與到期日
         AddGroup("特定日期 (單次/到期日)", tasks.Where(t => t.MonthStr == "特定日期").ToList());
     }
 
