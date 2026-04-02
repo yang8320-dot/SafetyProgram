@@ -32,21 +32,26 @@ namespace GTaskNexus
             }
         }
 
-        // 修改：加入 showCompleted 參數，控制是否向 Google 抓取已完成的項目
         public async Task<IList<GData.Task>> GetAllTasksAsync(bool showCompleted = true)
         {
             var service = await InitializeServiceAsync();
             var listRequest = service.Tasks.List("@default");
-            listRequest.ShowCompleted = showCompleted; // 根據 UI 勾選狀態決定
+            listRequest.ShowCompleted = showCompleted;
             listRequest.ShowHidden = true;
             var list = await listRequest.ExecuteAsync();
             return list.Items ?? new List<GData.Task>();
         }
 
-        public async Task AddTaskAsync(string title)
+        // 修改：新增 dueDate 參數，支援建立時直接指定日期
+        public async Task AddTaskAsync(string title, DateTime? dueDate = null)
         {
             var service = await InitializeServiceAsync();
             var newTask = new GData.Task { Title = title };
+            
+            if (dueDate.HasValue) {
+                newTask.Due = dueDate.Value.ToString("yyyy-MM-dd'T'00:00:00.000'Z'");
+            }
+            
             await service.Tasks.Insert(newTask, "@default").ExecuteAsync();
         }
 
@@ -74,11 +79,10 @@ namespace GTaskNexus
             await service.Tasks.Delete("@default", taskId).ExecuteAsync();
         }
 
-        // 新增：呼叫 Google API 內建的一鍵清除功能
         public async Task ClearCompletedTasksAsync()
         {
             var service = await InitializeServiceAsync();
-            await service.Tasks.Clear("@default").ExecuteAsync(); // 直接清空該清單所有已完成任務
+            await service.Tasks.Clear("@default").ExecuteAsync();
         }
     }
 }
