@@ -5,32 +5,14 @@ on:
 
 jobs:
   build:
-    name: Build Portable EXE
     runs-on: windows-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Restore NuGet Packages
-        run: nuget restore "G-Task Nexus/GTaskNexus.sln"
-
-      - name: Build Solution to Single EXE
-        run: |
-          msbuild "G-Task Nexus/GTaskNexus.sln" `
-            /p:Configuration=Release `
-            /p:Platform="Any CPU"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - uses: NuGet/setup-nuget@v2
+      - run: nuget restore "G-Task Nexus/GTaskNexus.sln"
+      - run: msbuild "G-Task Nexus/GTaskNexus.sln" /p:Configuration=Release /p:PublishSingleFile=true
+      - uses: actions/upload-artifact@v4
         with:
           name: G-Task-Nexus-Portable
-          # 修正後的路徑，加上了 ** 確保能抓到框架資料夾內的檔案
           path: "G-Task Nexus/bin/Release/**/GTaskNexus.exe"
-          if-no-files-found: error
