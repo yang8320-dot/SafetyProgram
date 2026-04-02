@@ -42,8 +42,7 @@ namespace GTaskNexus
         private void SetupUI()
         {
             this.Text = "G-Task Nexus | 雙向同步中心 (快捷鍵: Ctrl+2)";
-            // 視窗加寬到 880，解決文字被切掉或重疊的問題
-            this.Size = new Size(880, 560); 
+            this.Size = new Size(950, 600); 
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Microsoft JhengHei UI", 10.5F, FontStyle.Regular);
             this.BackColor = Color.White;
@@ -55,33 +54,31 @@ namespace GTaskNexus
             configMenu.DropDownItems.Add(itemApi);
             menu.Items.Add(configMenu);
 
-            // --- 上方新增控制面板 (重新排列位置) ---
             Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.FromArgb(245, 245, 245), Padding = new Padding(10) };
             
-            _txtNewTask = new TextBox { Location = new Point(15, 15), Width = 260, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtNewTask = new TextBox { Location = new Point(15, 15), Width = 300, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtNewTask.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await AddNewTask(); };
 
-            // 新增：上方直接設定日期的元件
-            _chkNewTaskHasDate = new CheckBox { Text = "期限:", Location = new Point(285, 18), AutoSize = true, Cursor = Cursors.Hand };
-            _dtpNewTaskDate = new DateTimePicker { Location = new Point(345, 15), Width = 130, Format = DateTimePickerFormat.Short, Enabled = false };
+            _chkNewTaskHasDate = new CheckBox { Text = "期限:", Location = new Point(330, 18), AutoSize = true, Cursor = Cursors.Hand };
+            _dtpNewTaskDate = new DateTimePicker { Location = new Point(395, 15), Width = 140, Format = DateTimePickerFormat.Short, Enabled = false };
             _chkNewTaskHasDate.CheckedChanged += (s, e) => _dtpNewTaskDate.Enabled = _chkNewTaskHasDate.Checked;
 
             _btnAdd = new Button { 
-                Text = "+ 新增", Location = new Point(485, 14), Width = 80, Height = 30,
+                Text = "+ 新增", Location = new Point(555, 14), Width = 80, Height = 30,
                 BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnAdd.FlatAppearance.BorderSize = 0;
             _btnAdd.Click += async (s, e) => await AddNewTask();
 
             _btnClearDone = new Button {
-                Text = "🧹 清除已完成", Location = new Point(575, 14), Width = 120, Height = 30,
+                Text = "🧹 清除已完成", Location = new Point(650, 14), Width = 120, Height = 30,
                 BackColor = Color.FromArgb(204, 51, 51), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnClearDone.FlatAppearance.BorderSize = 0;
             _btnClearDone.Click += async (s, e) => await ClearAllCompletedTasks();
 
             _chkShowCompleted = new CheckBox {
-                Text = "顯示已完成", Location = new Point(705, 18), AutoSize = true, Checked = true, Cursor = Cursors.Hand
+                Text = "顯示已完成", Location = new Point(790, 18), AutoSize = true, Checked = false, Cursor = Cursors.Hand
             };
             _chkShowCompleted.CheckedChanged += async (s, e) => await SyncTasksSilently();
 
@@ -94,8 +91,8 @@ namespace GTaskNexus
                 ShowGroups = true, LabelEdit = false
             };
             
-            // 欄位加寬，讓字不會被切掉
-            _taskView.Columns.Add("任務名稱 (雙擊進行進階編輯)", 550);
+            _taskView.Columns.Add("刪除", 60, HorizontalAlignment.Center);
+            _taskView.Columns.Add("任務名稱 (雙擊進行進階編輯)", 560);
             _taskView.Columns.Add("到期日", 160);
             
             _groupTodo = new ListViewGroup("📌 待辦事項", HorizontalAlignment.Left);
@@ -103,14 +100,30 @@ namespace GTaskNexus
             _taskView.Groups.Add(_groupTodo);
             _taskView.Groups.Add(_groupDone);
 
+            // 事件綁定
             _taskView.ItemCheck += TaskView_ItemCheck; 
             _taskView.ItemChecked += async (s, e) => await HandleTaskChecked(e);
+            
+            _taskView.MouseClick += async (s, e) => {
+                if (e.Button != MouseButtons.Left) return;
+                var hit = _taskView.HitTest(e.Location);
+                if (hit.Item != null && hit.Item.SubItems.IndexOf(hit.SubItem) == 0 && hit.Location != ListViewHitTestLocations.StateImage) {
+                    await DeleteTaskAction(hit.Item);
+                }
+            };
+
             _taskView.DoubleClick += async (s, e) => await OpenEditDialog();
-            _taskView.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Delete) await DeleteSelectedTask(); };
+            
+            _taskView.KeyDown += async (s, e) => { 
+                if (e.KeyCode == Keys.Delete && _taskView.SelectedItems.Count > 0) 
+                    await DeleteTaskAction(_taskView.SelectedItems[0]); 
+            };
 
             ContextMenuStrip contextMenu = new ContextMenuStrip();
             ToolStripMenuItem deleteItem = new ToolStripMenuItem("🗑️ 刪除此任務");
-            deleteItem.Click += async (s, e) => await DeleteSelectedTask();
+            deleteItem.Click += async (s, e) => {
+                if (_taskView.SelectedItems.Count > 0) await DeleteTaskAction(_taskView.SelectedItems[0]);
+            };
             contextMenu.Items.Add(deleteItem);
             _taskView.ContextMenuStrip = contextMenu;
 
@@ -132,6 +145,23 @@ namespace GTaskNexus
             if (hitTest.Location != ListViewHitTestLocations.StateImage) e.NewValue = e.CurrentValue; 
         }
 
+        private async Task DeleteTaskAction(ListViewItem item)
+        {
+            if (item == null) return;
+            string taskId = item.Tag?.ToString();
+            string taskTitle = item.SubItems.Count > 1 ? item.SubItems[1].Text : "此任務";
+
+            if (MessageBox.Show($"確定要快速刪除「{taskTitle}」嗎？", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                UpdateStatus(" 正在刪除任務...");
+                try {
+                    await _service.DeleteTaskAsync(taskId);
+                    _taskView.Items.Remove(item);
+                    UpdateStatus(" 任務已刪除。");
+                } catch { UpdateStatus(" 刪除失敗。"); }
+            }
+        }
+
         private async Task ClearAllCompletedTasks()
         {
             if (MessageBox.Show("確定要永久刪除所有「已完成」的任務嗎？\n(此動作同步雲端且無法復原)", "一鍵清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
@@ -147,18 +177,22 @@ namespace GTaskNexus
 
         private async Task OpenEditDialog()
         {
+            var hit = _taskView.HitTest(_taskView.PointToClient(Cursor.Position));
+            if (hit.Item != null && hit.Item.SubItems.IndexOf(hit.SubItem) == 0) return; 
+
             if (_taskView.SelectedItems.Count == 0) return;
             var item = _taskView.SelectedItems[0];
             string taskId = item.Tag?.ToString();
             if (string.IsNullOrEmpty(taskId)) return;
 
             DateTime? existingDate = null;
-            if (item.SubItems.Count > 1 && DateTime.TryParse(item.SubItems[1].Text, out DateTime parsed)) existingDate = parsed;
+            if (item.SubItems.Count > 2 && DateTime.TryParse(item.SubItems[2].Text, out DateTime parsed)) existingDate = parsed;
 
             using (Form editForm = new Form { Text = "編輯任務詳情", Size = new Size(380, 250), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 Label lblTitle = new Label { Text = "任務名稱:", Location = new Point(15, 15), AutoSize = true };
-                TextBox txtTitle = new TextBox { Text = item.Text, Location = new Point(15, 40), Width = 330 };
+                TextBox txtTitle = new TextBox { Text = item.SubItems[1].Text, Location = new Point(15, 40), Width = 330 };
+                
                 Label lblDate = new Label { Text = "設定到期日:", Location = new Point(15, 80), AutoSize = true, ForeColor = Color.Gray };
                 CheckBox chkHasDate = new CheckBox { Text = "啟用日期", Location = new Point(15, 105), AutoSize = true, Checked = existingDate.HasValue };
                 DateTimePicker dtpDate = new DateTimePicker { Location = new Point(100, 102), Width = 245, Format = DateTimePickerFormat.Short, Enabled = chkHasDate.Checked };
@@ -180,9 +214,7 @@ namespace GTaskNexus
                     } finally { _isSyncing = false; _autoSyncTimer.Start(); }
                 };
 
-                // 將 ENTER 鍵綁定為預設的儲存按鈕
                 editForm.AcceptButton = btnSave;
-
                 editForm.Controls.AddRange(new Control[] { lblTitle, txtTitle, lblDate, chkHasDate, dtpDate, btnSave });
                 if (editForm.ShowDialog() == DialogResult.OK) await SyncTasksSilently();
             }
@@ -206,23 +238,6 @@ namespace GTaskNexus
             _autoSyncTimer.Start();
         }
 
-        private async Task DeleteSelectedTask()
-        {
-            if (_taskView.SelectedItems.Count == 0) return;
-            var item = _taskView.SelectedItems[0];
-            string taskId = item.Tag?.ToString();
-
-            if (MessageBox.Show($"確定要刪除「{item.Text}」嗎？", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
-            {
-                UpdateStatus(" 正在刪除任務...");
-                try {
-                    await _service.DeleteTaskAsync(taskId);
-                    _taskView.Items.Remove(item);
-                    UpdateStatus(" 任務已刪除。");
-                } catch { UpdateStatus(" 刪除失敗。"); }
-            }
-        }
-
         private async Task HandleTaskChecked(ItemCheckedEventArgs e)
         {
             if (_isSyncing) return;
@@ -231,7 +246,9 @@ namespace GTaskNexus
 
             if (!string.IsNullOrEmpty(taskId))
             {
-                UpdateStatus($"正在將 '{e.Item.Text}' 狀態同步至雲端...");
+                string taskTitle = e.Item.SubItems.Count > 1 ? e.Item.SubItems[1].Text : "";
+                UpdateStatus($"正在將 '{taskTitle}' 狀態同步至雲端...");
+                
                 e.Item.ForeColor = isDone ? Color.Gray : Color.Black;
                 e.Item.Font = new Font(e.Item.Font, isDone ? FontStyle.Strikeout : FontStyle.Regular);
                 e.Item.Group = isDone ? _groupDone : _groupTodo;
@@ -251,13 +268,11 @@ namespace GTaskNexus
             UpdateStatus(" 正在新增至 Google Tasks...");
 
             try {
-                // 讀取上方選單的日期
                 DateTime? dueDate = _chkNewTaskHasDate.Checked ? _dtpNewTaskDate.Value : (DateTime?)null;
-                
                 await _service.AddTaskAsync(title, dueDate);
                 
                 _txtNewTask.Clear();
-                _chkNewTaskHasDate.Checked = false; // 新增完畢後重置日期勾選
+                _chkNewTaskHasDate.Checked = false;
                 await SyncTasksSilently();
             } catch (Exception ex) { MessageBox.Show("新增失敗: " + ex.Message); } 
             finally { _txtNewTask.Enabled = true; _btnAdd.Enabled = true; _txtNewTask.Focus(); }
@@ -276,10 +291,12 @@ namespace GTaskNexus
                 _taskView.Items.Clear();
                 
                 foreach (var t in items) {
-                    var lvi = new ListViewItem(t.Title ?? "無標題");
+                    var lvi = new ListViewItem(" ❌"); 
                     lvi.Tag = t.Id; 
                     lvi.Checked = (t.Status == "completed");
                     
+                    lvi.SubItems.Add(t.Title ?? "無標題"); 
+
                     string dateStr = "";
                     if (!string.IsNullOrEmpty(t.Due) && DateTime.TryParse(t.Due, out DateTime parsedDate)) {
                         dateStr = parsedDate.ToString("yyyy/MM/dd");
