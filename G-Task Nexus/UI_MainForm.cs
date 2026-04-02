@@ -42,7 +42,8 @@ namespace GTaskNexus
         private void SetupUI()
         {
             this.Text = "G-Task Nexus | 雙向同步中心 (快捷鍵: Ctrl+2)";
-            this.Size = new Size(950, 600); 
+            // 視窗加寬至 980，確保所有按鈕都有寬裕的空間
+            this.Size = new Size(980, 600); 
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Microsoft JhengHei UI", 10.5F, FontStyle.Regular);
             this.BackColor = Color.White;
@@ -59,19 +60,22 @@ namespace GTaskNexus
             _txtNewTask = new TextBox { Location = new Point(15, 15), Width = 300, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtNewTask.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await AddNewTask(); };
 
-            _chkNewTaskHasDate = new CheckBox { Text = "期限:", Location = new Point(330, 18), AutoSize = true, Cursor = Cursors.Hand };
+            // 【修正重點 1】關閉 AutoSize，強制給定 65px 的寬度，絕不會再擋到後面的日期
+            _chkNewTaskHasDate = new CheckBox { Text = "期限:", Location = new Point(330, 18), AutoSize = false, Width = 65, Cursor = Cursors.Hand };
+            
+            // 將日期選擇器向右移至安全位置 (X:395)
             _dtpNewTaskDate = new DateTimePicker { Location = new Point(395, 15), Width = 140, Format = DateTimePickerFormat.Short, Enabled = false };
             _chkNewTaskHasDate.CheckedChanged += (s, e) => _dtpNewTaskDate.Enabled = _chkNewTaskHasDate.Checked;
 
             _btnAdd = new Button { 
-                Text = "+ 新增", Location = new Point(555, 14), Width = 80, Height = 30,
+                Text = "+ 新增", Location = new Point(550, 14), Width = 80, Height = 30,
                 BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnAdd.FlatAppearance.BorderSize = 0;
             _btnAdd.Click += async (s, e) => await AddNewTask();
 
             _btnClearDone = new Button {
-                Text = "🧹 清除已完成", Location = new Point(650, 14), Width = 120, Height = 30,
+                Text = "🧹 清除已完成", Location = new Point(645, 14), Width = 130, Height = 30,
                 BackColor = Color.FromArgb(204, 51, 51), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnClearDone.FlatAppearance.BorderSize = 0;
@@ -84,7 +88,6 @@ namespace GTaskNexus
 
             pnlTop.Controls.AddRange(new Control[] { _txtNewTask, _chkNewTaskHasDate, _dtpNewTaskDate, _btnAdd, _btnClearDone, _chkShowCompleted });
 
-            // --- 任務列表區塊 ---
             _taskView = new ListView { 
                 Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, 
                 GridLines = false, CheckBoxes = true, BorderStyle = BorderStyle.None,
@@ -100,7 +103,6 @@ namespace GTaskNexus
             _taskView.Groups.Add(_groupTodo);
             _taskView.Groups.Add(_groupDone);
 
-            // 事件綁定
             _taskView.ItemCheck += TaskView_ItemCheck; 
             _taskView.ItemChecked += async (s, e) => await HandleTaskChecked(e);
             
@@ -238,6 +240,7 @@ namespace GTaskNexus
             _autoSyncTimer.Start();
         }
 
+        // 【修正重點 2】處理打勾狀態變更時的字體顏色
         private async Task HandleTaskChecked(ItemCheckedEventArgs e)
         {
             if (_isSyncing) return;
@@ -249,8 +252,23 @@ namespace GTaskNexus
                 string taskTitle = e.Item.SubItems.Count > 1 ? e.Item.SubItems[1].Text : "";
                 UpdateStatus($"正在將 '{taskTitle}' 狀態同步至雲端...");
                 
-                e.Item.ForeColor = isDone ? Color.Gray : Color.Black;
-                e.Item.Font = new Font(e.Item.Font, isDone ? FontStyle.Strikeout : FontStyle.Regular);
+                // 確保第 0 欄 (❌) 永遠是紅色的
+                e.Item.UseItemStyleForSubItems = false; 
+                e.Item.ForeColor = Color.Red; 
+                
+                // 根據打勾狀態設定後面文字的顏色與刪除線
+                Color textColor = isDone ? Color.Gray : Color.Black;
+                Font textFont = new Font(_taskView.Font, isDone ? FontStyle.Strikeout : FontStyle.Regular);
+
+                if (e.Item.SubItems.Count > 1) {
+                    e.Item.SubItems[1].ForeColor = textColor;
+                    e.Item.SubItems[1].Font = textFont;
+                }
+                if (e.Item.SubItems.Count > 2) {
+                    e.Item.SubItems[2].ForeColor = textColor;
+                    e.Item.SubItems[2].Font = textFont;
+                }
+
                 e.Item.Group = isDone ? _groupDone : _groupTodo;
 
                 try {
@@ -294,20 +312,29 @@ namespace GTaskNexus
                     var lvi = new ListViewItem(" ❌"); 
                     lvi.Tag = t.Id; 
                     lvi.Checked = (t.Status == "completed");
+
+                    // 【修正重點 3】關閉子項目的統一風格，強制把第 0 欄變成紅色
+                    lvi.UseItemStyleForSubItems = false;
+                    lvi.ForeColor = Color.Red; 
                     
-                    lvi.SubItems.Add(t.Title ?? "無標題"); 
+                    var subTitle = lvi.SubItems.Add(t.Title ?? "無標題"); 
 
                     string dateStr = "";
                     if (!string.IsNullOrEmpty(t.Due) && DateTime.TryParse(t.Due, out DateTime parsedDate)) {
                         dateStr = parsedDate.ToString("yyyy/MM/dd");
                     }
-                    lvi.SubItems.Add(dateStr); 
+                    var subDate = lvi.SubItems.Add(dateStr); 
+
+                    // 針對後面的欄位動態套用顏色與字體
+                    Color rowColor = lvi.Checked ? Color.Gray : Color.Black;
+                    Font rowFont = new Font(_taskView.Font, lvi.Checked ? FontStyle.Strikeout : FontStyle.Regular);
+                    
+                    subTitle.ForeColor = rowColor;
+                    subTitle.Font = rowFont;
+                    subDate.ForeColor = rowColor;
+                    subDate.Font = rowFont;
 
                     lvi.Group = lvi.Checked ? _groupDone : _groupTodo;
-                    if (lvi.Checked) {
-                        lvi.ForeColor = Color.Gray;
-                        lvi.Font = new Font(_taskView.Font, FontStyle.Strikeout);
-                    }
                     _taskView.Items.Add(lvi);
                 }
                 _taskView.EndUpdate();
