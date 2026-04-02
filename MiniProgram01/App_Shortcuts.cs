@@ -10,6 +10,8 @@ public class App_Shortcuts : UserControl {
     private string shortcutFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo_shortcuts.txt");
     private FlowLayoutPanel taskPanel;
 
+    // 拖曳排序相關變數
+    private int dragInsertIndex = -1; 
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
 
@@ -38,7 +40,23 @@ public class App_Shortcuts : UserControl {
         header.Controls.Add(btnAdd, 1, 0);
         this.Controls.Add(header);
 
-        taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
+        // 初始化容器並開啟拖放功能
+        taskPanel = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, 
+            AutoScroll = true, 
+            FlowDirection = FlowDirection.TopDown, 
+            WrapContents = false, 
+            BackColor = Color.White,
+            AllowDrop = true 
+        };
+
+        // 綁定拖曳相關事件
+        taskPanel.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
+        taskPanel.DragOver += OnTaskDragOver;
+        taskPanel.DragLeave += (s, e) => { dragInsertIndex = -1; taskPanel.Invalidate(); };
+        taskPanel.DragDrop += OnTaskDragDrop;
+        taskPanel.Paint += OnTaskContainerPaint;
+
         taskPanel.Resize += (s, e) => {
             int safeWidth = taskPanel.ClientSize.Width - 25;
             if (safeWidth > 0) {
@@ -96,7 +114,19 @@ public class App_Shortcuts : UserControl {
                 }
             };
 
-            Label lbl = new Label() { Text = s.Name, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont, Padding = new Padding(5, 5, 0, 5) };
+            // 標題文字：新增滑鼠按下的事件來啟動拖曳
+            Label lbl = new Label() { 
+                Text = s.Name, 
+                Dock = DockStyle.Fill, 
+                TextAlign = ContentAlignment.MiddleLeft, 
+                AutoSize = true, 
+                Font = MainFont, 
+                Padding = new Padding(5, 5, 0, 5),
+                Cursor = Cursors.SizeAll // 讓使用者知道可以拖曳
+            };
+            lbl.MouseDown += (sender, e) => {
+                if (e.Button == MouseButtons.Left) card.DoDragDrop(card, DragDropEffects.Move);
+            };
 
             Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Top, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(5, 0, 0, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
             btnEdit.FlatAppearance.BorderSize = 0; 
@@ -114,6 +144,50 @@ public class App_Shortcuts : UserControl {
             taskPanel.Controls.Add(card);
         }
     }
+
+    // --- 拖曳排序核心邏輯 ---
+
+    private void OnTaskDragOver(object sender, DragEventArgs e) {
+        e.Effect = DragDropEffects.Move;
+        Point clientPoint = taskPanel.PointToClient(new Point(e.X, e.Y));
+        Control target = taskPanel.GetChildAtPoint(clientPoint);
+        if (target != null) {
+            int idx = taskPanel.Controls.GetChildIndex(target);
+            if (clientPoint.Y > target.Top + (target.Height / 2)) idx++;
+            if (dragInsertIndex != idx) { dragInsertIndex = idx; taskPanel.Invalidate(); }
+        }
+    }
+
+    private void OnTaskContainerPaint(object sender, PaintEventArgs e) {
+        if (dragInsertIndex != -1 && taskPanel.Controls.Count > 0) {
+            // 繪製藍色分隔線
+            int y = (dragInsertIndex < taskPanel.Controls.Count) ? taskPanel.Controls[dragInsertIndex].Top - 2 : taskPanel.Controls[taskPanel.Controls.Count - 1].Bottom + 2;
+            e.Graphics.FillRectangle(new SolidBrush(AppleBlue), 5, y, taskPanel.Width - 30, 3);
+        }
+    }
+
+    private void OnTaskDragDrop(object sender, DragEventArgs e) {
+        Panel draggedCard = (Panel)e.Data.GetData(typeof(Panel));
+        if (draggedCard != null && dragInsertIndex != -1) {
+            int targetIdx = dragInsertIndex;
+            int currentIdx = taskPanel.Controls.GetChildIndex(draggedCard);
+            if (currentIdx < targetIdx) targetIdx--; 
+            
+            // 同步記憶體內的 List 順序
+            var item = shortcuts[currentIdx];
+            shortcuts.RemoveAt(currentIdx);
+            // 確保 targetIdx 沒越界
+            int finalIdx = Math.Min(targetIdx, shortcuts.Count);
+            shortcuts.Insert(finalIdx, item);
+
+            dragInsertIndex = -1; 
+            taskPanel.Invalidate(); 
+            SaveShortcuts(); // 儲存新順序
+            RefreshUI();    // 重新整理介面
+        }
+    }
+
+    // --- 存檔與載入 ---
 
     public void SaveShortcuts() {
         List<string> lines = new List<string>();
