@@ -93,7 +93,6 @@ public class App_RecurringTasks : UserControl {
             btnNote.BackColor = string.IsNullOrEmpty(t.Note) ? Color.FromArgb(230, 230, 230) : Color.FromArgb(255, 193, 7);
             btnNote.Click += (s, e) => { string n = ShowNoteEditBox(t.Name, t.Note); if (n != null) { t.Note = n; SaveTasks(); RefreshUI(); } };
 
-            // 顯示類型標籤
             string typeTag = $"[{t.TaskType}] ";
             Label lbl = new Label() { Text = typeTag + string.Format("[{0} {1} {2}] {3}", t.MonthStr, t.DateStr, t.TimeStr, t.Name), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true, Font = MainFont };
             
@@ -139,7 +138,7 @@ public class App_RecurringTasks : UserControl {
                         t.LastTriggeredDate = targetDateStr; needsSave = true;
                         parentForm.AlertTab(1);
                         
-                        // 【邏輯修正】：如果是「單次」或已達「到期日」，觸發後標記移除
+                        // 如果是單次或到期日，觸發後從清單中移除
                         if (t.TaskType == "單次" || t.TaskType == "到期日") toRemove.Add(t);
                     }
                 }
@@ -212,88 +211,4 @@ public class App_RecurringTasks : UserControl {
     private string ShowNoteEditBox(string name, string current) {
         Form f = new Form() { Width = 400, Height = 350, Text = "編輯備註", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog };
         TextBox txt = new TextBox() { Left = 15, Top = 50, Width = 350, Height = 180, Multiline = true, Text = current };
-        Button btn = new Button() { Text = "儲存", Left = 265, Top = 250, Width = 100, Height = 35, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
-        f.Controls.AddRange(new Control[] { new Label(){Text="【"+name+"】", Left=15, Top=15, AutoSize=true, Font=new Font(MainFont, FontStyle.Bold)}, txt, btn });
-        return f.ShowDialog() == DialogResult.OK ? txt.Text : null;
-    }
-    private string EncodeBase64(string t) => string.IsNullOrEmpty(t) ? "" : Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(t));
-    private string DecodeBase64(string b) { try { return string.IsNullOrEmpty(b) ? "" : System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(b)); } catch { return ""; } }
-}
-
-// ==========================================
-// 視窗：新增/調整 (加入功能選擇選單)
-// ==========================================
-public class AddRecurringTaskWindow : Form {
-    private App_RecurringTasks parent;
-    private TextBox txtN, txtNote;
-    private ComboBox cmM, cmD, cmType;
-    private DateTimePicker dtp;
-    public AddRecurringTaskWindow(App_RecurringTasks p) {
-        this.parent = p; this.Text = "新增任務"; this.Width = 360; this.Height = 520; this.StartPosition = FormStartPosition.CenterScreen;
-        FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(25) };
-        f.Controls.Add(new Label() { Text = "任務名稱：" }); txtN = new TextBox() { Width = 290 }; f.Controls.Add(txtN);
-        f.Controls.Add(new Label() { Text = "詳細說明 (註)：", Margin = new Padding(0, 10, 0, 0) });
-        txtNote = new TextBox() { Width = 290, Height = 60, Multiline = true }; f.Controls.Add(txtNote);
-        
-        // 【新增功能選單】
-        f.Controls.Add(new Label() { Text = "任務類型：", Margin = new Padding(0, 10, 0, 0) });
-        cmType = new ComboBox() { Width = 290, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmType.Items.AddRange(new string[] { "循環", "單次", "到期日" }); cmType.SelectedIndex = 0; f.Controls.Add(cmType);
-
-        f.Controls.Add(new Label() { Text = "週期類型：", Margin = new Padding(0, 10, 0, 0) });
-        cmM = new ComboBox() { Width = 290, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmM.Items.AddRange(new string[]{"每天","每週","每月"}); for(int i=1;i<=12;i++) cmM.Items.Add(i+"月");
-        f.Controls.Add(cmM); cmD = new ComboBox() { Width = 290, DropDownStyle = ComboBoxStyle.DropDownList }; f.Controls.Add(cmD);
-        cmM.SelectedIndexChanged += (s,e) => {
-            cmD.Items.Clear();
-            if(cmM.Text=="每天") { cmD.Items.Add("每日"); cmD.Enabled=false; }
-            else if(cmM.Text=="每週") { cmD.Items.AddRange(new string[]{"一","二","三","四","五","六","日"}); cmD.Enabled=true; }
-            else { for(int i=1;i<=31;i++) cmD.Items.Add(i.ToString()); cmD.Items.Add("月底"); cmD.Enabled=true; }
-            cmD.SelectedIndex = 0;
-        }; cmM.SelectedIndex = 0;
-        dtp = new DateTimePicker() { Width = 290, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Value = DateTime.Today.AddHours(9), Margin = new Padding(0,10,0,0) };
-        f.Controls.Add(dtp);
-        Button btn = new Button() { Text = "建立任務", Width = 290, Height = 40, BackColor = Color.FromArgb(0,122,255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0,20,0,0) };
-        btn.Click += (s,e) => { if(!string.IsNullOrWhiteSpace(txtN.Text)) { parent.AddNewTask(txtN.Text, cmM.Text, cmD.Text, dtp.Value.ToString("HH:mm"), txtNote.Text, cmType.Text); this.Close(); } };
-        f.Controls.Add(btn); this.Controls.Add(f);
-    }
-}
-
-public class EditRecurringTaskWindow : Form {
-    private App_RecurringTasks parent;
-    private int idx;
-    private TextBox txtN, txtNote;
-    private ComboBox cmM, cmD, cmType;
-    private DateTimePicker dtp;
-    public EditRecurringTaskWindow(App_RecurringTasks p, int i, App_RecurringTasks.RecurringTask t) {
-        this.parent = p; this.idx = i; this.Text = "調整任務"; this.Width = 360; this.Height = 520; this.StartPosition = FormStartPosition.CenterScreen;
-        FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(25) };
-        f.Controls.Add(new Label() { Text = "任務名稱：" }); txtN = new TextBox() { Width = 290, Text = t.Name }; f.Controls.Add(txtN);
-        f.Controls.Add(new Label() { Text = "詳細說明 (註)：", Margin = new Padding(0, 10, 0, 0) });
-        txtNote = new TextBox() { Width = 290, Height = 60, Multiline = true, Text = t.Note }; f.Controls.Add(txtNote);
-        
-        f.Controls.Add(new Label() { Text = "任務類型：", Margin = new Padding(0, 10, 0, 0) });
-        cmType = new ComboBox() { Width = 290, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmType.Items.AddRange(new string[] { "循環", "單次", "到期日" }); cmType.Text = t.TaskType; f.Controls.Add(cmType);
-
-        f.Controls.Add(new Label() { Text = "週期類型：" });
-        cmM = new ComboBox() { Width = 290, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmM.Items.AddRange(new string[]{"每天","每週","每月"}); for(int k=1;k<=12;k++) cmM.Items.Add(k+"月");
-        cmM.Text = t.MonthStr; f.Controls.Add(cmM);
-        cmD = new ComboBox() { Width = 290, DropDownStyle = ComboBoxStyle.DropDownList }; f.Controls.Add(cmD);
-        cmM.SelectedIndexChanged += (s,e) => {
-            cmD.Items.Clear();
-            if(cmM.Text=="每天") { cmD.Items.Add("每日"); }
-            else if(cmM.Text=="每週") { cmD.Items.AddRange(new string[]{"一","二","三","四","五","六","日"}); }
-            else { for(int k=1;k<=31;k++) cmD.Items.Add(k.ToString()); cmD.Items.Add("月底"); }
-            if(cmD.Items.Count>0) cmD.SelectedIndex=0;
-        }; cmD.Text = t.DateStr;
-        dtp = new DateTimePicker() { Width = 290, Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true };
-        if(DateTime.TryParseExact(t.TimeStr, "HH:mm", null, System.Globalization.DateTimeStyles.None, out DateTime dtv)) dtp.Value = dtv;
-        f.Controls.Add(dtp);
-        Button btn = new Button() { Text = "儲存修改", Width = 290, Height = 40, BackColor = Color.FromArgb(0,153,76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 20, 0, 0) };
-        btn.Click += (s,e) => { parent.UpdateTask(idx, txtN.Text, cmM.Text, cmD.Text, dtp.Value.ToString("HH:mm"), txtNote.Text, cmType.Text); this.Close(); };
-        f.Controls.Add(btn); this.Controls.Add(f);
-    }
-}
-// (AllTasksViewWindow 和 RecurringSettingsWindow 部分保持原樣即可，不需更動)
+        Button btn = new Button() { Text = "儲存", Left = 265, Top = 250, Width = 100, Height = 35, DialogResult =
