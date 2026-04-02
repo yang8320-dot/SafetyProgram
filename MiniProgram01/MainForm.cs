@@ -35,10 +35,15 @@ public class MainForm : Form {
 
     public MainForm() {
         this.Text = "整合通知中心";
-        // 【修正1】寬度加寬到 520，確保內部元件有充足呼吸空間
         this.Width = 520; 
-        this.Height = 560; // 高度也順便加長一點點，檢視更舒服
+        this.Height = 560; 
+        
+        // 【核心修正 1】確保視窗可以調整大小與拖曳移動
         this.FormBorderStyle = FormBorderStyle.Sizable; 
+        
+        // 【核心修正 2】加入最小尺寸保護，防止視窗被縮太小導致內容破版
+        this.MinimumSize = new Size(450, 500); 
+
         this.StartPosition = FormStartPosition.Manual;
         this.TopMost = true; 
         this.ShowInTaskbar = false; 
@@ -68,7 +73,6 @@ public class MainForm : Form {
         tabControl = new TabControl();
         tabControl.Dock = DockStyle.Fill;
         tabControl.Font = new Font("Microsoft JhengHei UI", 10f);
-        // 【修正2】標籤寬度加寬至 80，配合 520 的視窗剛好滿版不擁擠
         tabControl.ItemSize = new Size(80, 32);
         tabControl.Padding = new Point(0, 0);
         tabControl.SizeMode = TabSizeMode.Fixed; 
