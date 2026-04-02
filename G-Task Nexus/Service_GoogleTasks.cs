@@ -78,10 +78,30 @@ namespace GTaskNexus
             await service.Tasks.Delete("@default", taskId).ExecuteAsync();
         }
 
+        // ==========================================
+        // 修正重點：將「隱藏」改為「徹底逐一刪除」
+        // ==========================================
         public async Task ClearCompletedTasksAsync()
         {
             var service = await InitializeServiceAsync();
-            await service.Tasks.Clear("@default").ExecuteAsync();
+            
+            // 1. 先抓出雲端上所有的任務 (包含被隱藏與已完成的)
+            var listRequest = service.Tasks.List("@default");
+            listRequest.ShowCompleted = true;
+            listRequest.ShowHidden = true;
+            var list = await listRequest.ExecuteAsync();
+
+            if (list.Items != null)
+            {
+                // 2. 逐一檢查，只要是「已完成」的，就發送真正的刪除指令
+                foreach (var task in list.Items)
+                {
+                    if (task.Status == "completed")
+                    {
+                        await service.Tasks.Delete("@default", task.Id).ExecuteAsync();
+                    }
+                }
+            }
         }
     }
 }
