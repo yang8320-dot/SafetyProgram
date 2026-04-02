@@ -49,7 +49,6 @@ namespace GTaskNexus
             await service.Tasks.Insert(newTask, "@default").ExecuteAsync();
         }
 
-        // 更新打勾狀態
         public async Task UpdateTaskStatusAsync(string taskId, bool isCompleted)
         {
             var service = await InitializeServiceAsync();
@@ -58,16 +57,26 @@ namespace GTaskNexus
             await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
         }
 
-        // 新增：更新任務標題 (編修功能)
-        public async Task UpdateTaskTitleAsync(string taskId, string newTitle)
+        // 升級：同時更新標題與到期日 (Google API 限制只能存日期，忽略時間)
+        public async Task UpdateTaskDetailsAsync(string taskId, string newTitle, DateTime? dueDate)
         {
             var service = await InitializeServiceAsync();
             var task = await service.Tasks.Get("@default", taskId).ExecuteAsync();
             task.Title = newTitle;
+            
+            if (dueDate.HasValue)
+            {
+                // 轉換為 Google 規定的 RFC 3339 格式，並將時間部分歸零
+                task.Due = dueDate.Value.ToString("yyyy-MM-dd'T'00:00:00.000'Z'");
+            }
+            else
+            {
+                task.Due = null; // 清除到期日
+            }
+
             await service.Tasks.Update(task, "@default", taskId).ExecuteAsync();
         }
 
-        // 新增：刪除任務
         public async Task DeleteTaskAsync(string taskId)
         {
             var service = await InitializeServiceAsync();
