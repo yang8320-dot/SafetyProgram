@@ -42,8 +42,8 @@ namespace GTaskNexus
         private void SetupUI()
         {
             this.Text = "G-Task Nexus | 雙向同步中心 (快捷鍵: Ctrl+2)";
-            // 視窗加寬至 980，確保所有按鈕都有寬裕的空間
-            this.Size = new Size(980, 600); 
+            // 因為改成上下兩排，視窗寬度可以收斂到更適中的 850，高度稍微拉長至 650
+            this.Size = new Size(850, 650); 
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Microsoft JhengHei UI", 10.5F, FontStyle.Regular);
             this.BackColor = Color.White;
@@ -55,39 +55,56 @@ namespace GTaskNexus
             configMenu.DropDownItems.Add(itemApi);
             menu.Items.Add(configMenu);
 
-            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.FromArgb(245, 245, 245), Padding = new Padding(10) };
+            // --- 建立主頂部容器 (加高至 100 以容納兩排) ---
+            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 100, BackColor = Color.FromArgb(245, 245, 245) };
+
+            // ==========================================
+            // 第一排隱形框 (Row 1): 文字、日期勾選、日期選單、新增按鈕
+            // ==========================================
+            Panel pnlRow1 = new Panel { Location = new Point(0, 0), Width = 850, Height = 50, BackColor = Color.Transparent };
             
-            _txtNewTask = new TextBox { Location = new Point(15, 15), Width = 300, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtNewTask = new TextBox { Location = new Point(15, 12), Width = 350, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtNewTask.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await AddNewTask(); };
 
-            // 【修正重點 1】關閉 AutoSize，強制給定 65px 的寬度，絕不會再擋到後面的日期
-            _chkNewTaskHasDate = new CheckBox { Text = "期限:", Location = new Point(330, 18), AutoSize = false, Width = 65, Cursor = Cursors.Hand };
+            // 恢復 AutoSize=true，並給予非常寬裕的 X 軸間隔 (X=390)，絕對不會再遮到文字
+            _chkNewTaskHasDate = new CheckBox { Text = "設定期限:", Location = new Point(390, 15), AutoSize = true, Cursor = Cursors.Hand };
             
-            // 將日期選擇器向右移至安全位置 (X:395)
-            _dtpNewTaskDate = new DateTimePicker { Location = new Point(395, 15), Width = 140, Format = DateTimePickerFormat.Short, Enabled = false };
+            _dtpNewTaskDate = new DateTimePicker { Location = new Point(490, 12), Width = 135, Format = DateTimePickerFormat.Short, Enabled = false };
             _chkNewTaskHasDate.CheckedChanged += (s, e) => _dtpNewTaskDate.Enabled = _chkNewTaskHasDate.Checked;
 
             _btnAdd = new Button { 
-                Text = "+ 新增", Location = new Point(550, 14), Width = 80, Height = 30,
+                Text = "+ 新增任務", Location = new Point(650, 11), Width = 110, Height = 30,
                 BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnAdd.FlatAppearance.BorderSize = 0;
             _btnAdd.Click += async (s, e) => await AddNewTask();
 
+            pnlRow1.Controls.AddRange(new Control[] { _txtNewTask, _chkNewTaskHasDate, _dtpNewTaskDate, _btnAdd });
+
+            // ==========================================
+            // 第二排隱形框 (Row 2): 清除已完成、顯示已完成
+            // ==========================================
+            Panel pnlRow2 = new Panel { Location = new Point(0, 50), Width = 850, Height = 50, BackColor = Color.Transparent };
+
             _btnClearDone = new Button {
-                Text = "🧹 清除已完成", Location = new Point(645, 14), Width = 130, Height = 30,
+                Text = "🧹 清除已完成", Location = new Point(15, 8), Width = 140, Height = 30,
                 BackColor = Color.FromArgb(204, 51, 51), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
             };
             _btnClearDone.FlatAppearance.BorderSize = 0;
             _btnClearDone.Click += async (s, e) => await ClearAllCompletedTasks();
 
             _chkShowCompleted = new CheckBox {
-                Text = "顯示已完成", Location = new Point(790, 18), AutoSize = true, Checked = false, Cursor = Cursors.Hand
+                Text = "顯示已完成的項目", Location = new Point(180, 13), AutoSize = true, Checked = false, Cursor = Cursors.Hand
             };
             _chkShowCompleted.CheckedChanged += async (s, e) => await SyncTasksSilently();
 
-            pnlTop.Controls.AddRange(new Control[] { _txtNewTask, _chkNewTaskHasDate, _dtpNewTaskDate, _btnAdd, _btnClearDone, _chkShowCompleted });
+            pnlRow2.Controls.AddRange(new Control[] { _btnClearDone, _chkShowCompleted });
 
+            // 將兩排隱形框加入頂部面板
+            pnlTop.Controls.Add(pnlRow1);
+            pnlTop.Controls.Add(pnlRow2);
+
+            // --- 任務列表區塊 ---
             _taskView = new ListView { 
                 Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, 
                 GridLines = false, CheckBoxes = true, BorderStyle = BorderStyle.None,
@@ -95,7 +112,7 @@ namespace GTaskNexus
             };
             
             _taskView.Columns.Add("刪除", 60, HorizontalAlignment.Center);
-            _taskView.Columns.Add("任務名稱 (雙擊進行進階編輯)", 560);
+            _taskView.Columns.Add("任務名稱 (雙擊進行進階編輯)", 500);
             _taskView.Columns.Add("到期日", 160);
             
             _groupTodo = new ListViewGroup("📌 待辦事項", HorizontalAlignment.Left);
@@ -240,7 +257,6 @@ namespace GTaskNexus
             _autoSyncTimer.Start();
         }
 
-        // 【修正重點 2】處理打勾狀態變更時的字體顏色
         private async Task HandleTaskChecked(ItemCheckedEventArgs e)
         {
             if (_isSyncing) return;
@@ -252,11 +268,11 @@ namespace GTaskNexus
                 string taskTitle = e.Item.SubItems.Count > 1 ? e.Item.SubItems[1].Text : "";
                 UpdateStatus($"正在將 '{taskTitle}' 狀態同步至雲端...");
                 
-                // 確保第 0 欄 (❌) 永遠是紅色的
+                // 保持第 0 欄 ❌ 顏色獨立 (紅色)
                 e.Item.UseItemStyleForSubItems = false; 
                 e.Item.ForeColor = Color.Red; 
                 
-                // 根據打勾狀態設定後面文字的顏色與刪除線
+                // 動態設定後續欄位顏色與刪除線
                 Color textColor = isDone ? Color.Gray : Color.Black;
                 Font textFont = new Font(_taskView.Font, isDone ? FontStyle.Strikeout : FontStyle.Regular);
 
@@ -309,11 +325,12 @@ namespace GTaskNexus
                 _taskView.Items.Clear();
                 
                 foreach (var t in items) {
+                    // 建立包含紅色 ❌ 的項目
                     var lvi = new ListViewItem(" ❌"); 
                     lvi.Tag = t.Id; 
                     lvi.Checked = (t.Status == "completed");
 
-                    // 【修正重點 3】關閉子項目的統一風格，強制把第 0 欄變成紅色
+                    // 取消整體樣式，讓第 0 欄固定紅色
                     lvi.UseItemStyleForSubItems = false;
                     lvi.ForeColor = Color.Red; 
                     
@@ -325,7 +342,7 @@ namespace GTaskNexus
                     }
                     var subDate = lvi.SubItems.Add(dateStr); 
 
-                    // 針對後面的欄位動態套用顏色與字體
+                    // 處理文字與日期的顏色與字體
                     Color rowColor = lvi.Checked ? Color.Gray : Color.Black;
                     Font rowFont = new Font(_taskView.Font, lvi.Checked ? FontStyle.Strikeout : FontStyle.Regular);
                     
