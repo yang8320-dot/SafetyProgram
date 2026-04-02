@@ -4,6 +4,8 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
+using System.IO;
+using System.Diagnostics; // 【新增】為了使用 Process.Start
 
 public class MainForm : Form {
     public NotifyIcon trayIcon;
@@ -16,14 +18,17 @@ public class MainForm : Form {
     private Timer flashTimer;
     private bool flashState = false;
 
+    // --- 快捷鍵相關 API 與常數 ---
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     private const int HOTKEY_ID = 9000;
+    private const int HOTKEY_GTASK_ID = 9001; // 【新增】G-Task 專屬的快捷鍵 ID
     private const uint MOD_CONTROL = 0x0002; 
     private const uint VK_1 = 0x31; 
+    private const uint VK_2 = 0x32; // 【新增】鍵盤數字鍵 2
     private const int WM_HOTKEY = 0x0312;
 
     public App_FileWatcher fileWatcherApp;
@@ -37,13 +42,8 @@ public class MainForm : Form {
         this.Text = "整合通知中心";
         this.Width = 520; 
         this.Height = 560; 
-        
-        // 【核心修正 1】確保視窗可以調整大小與拖曳移動
         this.FormBorderStyle = FormBorderStyle.Sizable; 
-        
-        // 【核心修正 2】加入最小尺寸保護，防止視窗被縮太小導致內容破版
         this.MinimumSize = new Size(450, 500); 
-
         this.StartPosition = FormStartPosition.Manual;
         this.TopMost = true; 
         this.ShowInTaskbar = false; 
@@ -53,23 +53,32 @@ public class MainForm : Form {
         this.Left = area.Right - this.Width - 10; 
         this.Top = area.Bottom - this.Height - 10;
 
+        // --- 設定常駐右鍵選單 ---
         trayMenu = new ContextMenu();
+        
         MenuItem startupItem = new MenuItem("開機自動啟動", ToggleStartup);
         startupItem.Checked = IsRunOnStartup();
         trayMenu.MenuItems.Add(startupItem);
         trayMenu.MenuItems.Add("-");
-        trayMenu.MenuItems.Add("顯示主視窗", (s, e) => ShowAppWindow());
+        
+        // 【新增】G-Task 選單按鈕
+        trayMenu.MenuItems.Add("啟動 G-Task (Ctrl+2)", (s, e) => LaunchGTask());
+        trayMenu.MenuItems.Add("顯示主視窗 (Ctrl+1)", (s, e) => ShowAppWindow());
+        trayMenu.MenuItems.Add("-");
         trayMenu.MenuItems.Add("完全退出", (s, e) => { trayIcon.Visible = false; Environment.Exit(0); });
         
         trayIcon = new NotifyIcon();
-        trayIcon.Icon = SystemIcons.Application;
+        trayIcon.Icon = SystemIcons.Application; // 若有自己設計的 icon 可以替換這裡
         trayIcon.ContextMenu = trayMenu;
         trayIcon.Visible = true;
-        trayIcon.Text = "整合通知中心 (Ctrl+1)";
+        trayIcon.Text = "整合通知中心";
         trayIcon.DoubleClick += (s, e) => ShowAppWindow();
 
+        // --- 註冊全域快捷鍵 ---
         RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_1);
+        RegisterHotKey(this.Handle, HOTKEY_GTASK_ID, MOD_CONTROL, VK_2); // 註冊 Ctrl + 2
 
+        // --- 初始化 TabControl ---
         tabControl = new TabControl();
         tabControl.Dock = DockStyle.Fill;
         tabControl.Font = new Font("Microsoft JhengHei UI", 10f);
@@ -84,6 +93,7 @@ public class MainForm : Form {
         };
         this.Controls.Add(tabControl);
 
+        // --- 載入各個子功能模組 ---
         fileWatcherApp = new App_FileWatcher(this, trayMenu);
         todoApp = new App_TodoList(this, "todo", "轉待規");
         planApp = new App_TodoList(this, "plan", "轉待辦");
@@ -114,6 +124,7 @@ public class MainForm : Form {
         tabControl.TabPages[4].Controls.Add(shortcutsApp);
         tabControl.TabPages[5].Controls.Add(screenshotApp);
 
+        // --- 閃爍提醒計時器 ---
         flashTimer = new Timer() { Interval = 500 };
         flashTimer.Tick += (s, e) => {
             if (alertTabs.Count == 0) { 
@@ -124,6 +135,26 @@ public class MainForm : Form {
                 tabControl.Invalidate(); 
             }
         };
+    }
+
+    // 【新增】啟動 G-Task 的核心邏輯
+    private void LaunchGTask() {
+        try {
+            // 組合出 \GTask\GTaskNexus.exe 的絕對路徑
+            string gTaskPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GTask", "GTaskNexus.exe");
+            
+            if (File.Exists(gTaskPath)) {
+                ProcessStartInfo psi = new ProcessStartInfo() {
+                    FileName = gTaskPath,
+                    UseShellExecute = true // 確保以系統預設方式執行外部程式
+                };
+                Process.Start(psi);
+            } else {
+                MessageBox.Show("找不到指定的程式檔案：\n" + gTaskPath + "\n\n請確認路徑與檔名是否正確！", "啟動失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        } catch (Exception ex) {
+            MessageBox.Show("啟動 G-Task 發生錯誤：\n" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
@@ -173,8 +204,17 @@ public class MainForm : Form {
         }
     }
 
+    // --- 快捷鍵攔截處理 ---
     protected override void WndProc(ref Message m) {
-        if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HOTKEY_ID) { ShowAppWindow(); }
+        if (m.Msg == WM_HOTKEY) {
+            int hotkeyId = m.WParam.ToInt32();
+            if (hotkeyId == HOTKEY_ID) { 
+                ShowAppWindow(); // Ctrl + 1
+            } 
+            else if (hotkeyId == HOTKEY_GTASK_ID) { 
+                LaunchGTask();   // Ctrl + 2
+            }
+        }
         base.WndProc(ref m);
     }
 
