@@ -7,34 +7,26 @@ namespace Safety_System
 {
     public class App_AirPollution
     {
+        private DataGridView _dgv;
+        private const string TableName = "AirPollutionRecords";
+
         public Control GetView()
         {
-            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(0, 20, 0, 0) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            GroupBox boxTop = new GroupBox { Text = "空污排放申報管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10) };
-            FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            DataManager.InitTable(TableName, @"CREATE TABLE IF NOT EXISTS [AirPollutionRecords] (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT, [申報季度] TEXT, [污染物種類] TEXT, [排放量] TEXT, [申報日期] TEXT);");
+
+            GroupBox gb = new GroupBox { Text = "📑 空污排放定期申報", Dock = DockStyle.Fill, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button b = new Button { Text = "💾 儲存紀錄", Size = new Size(120, 35), BackColor = Color.SlateGray, ForeColor = Color.White, Location = new Point(20, 30) };
+            b.Click += (s, e) => { _dgv.EndEdit(); foreach (DataRow r in ((DataTable)_dgv.DataSource).Rows) DataManager.UpsertRecord(TableName, r); MessageBox.Show("紀錄已存檔"); };
             
-            Button btnAdd = new Button { Text = "新增申報紀錄", Size = new Size(130, 35), BackColor = Color.LightBlue };
-            Button btnSave = new Button { Text = "💾 儲存數據", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
-            
-            flp.Controls.AddRange(new Control[] { btnAdd, btnSave });
-            boxTop.Controls.Add(flp);
-
-            DataGridView dgv = new DataGridView { 
-                Dock = DockStyle.Fill, 
-                BackgroundColor = Color.White, 
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill 
-            };
-            dgv.Columns.Add("Date", "申報日期");
-            dgv.Columns.Add("Type", "排放種類");
-            dgv.Columns.Add("Value", "排放量(m³)");
-            dgv.Columns.Add("Status", "申報狀態");
-
-            main.Controls.Add(boxTop, 0, 0);
-            main.Controls.Add(dgv, 0, 1);
-
+            gb.Controls.Add(b);
+            main.Controls.Add(gb, 0, 0);
+            _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true };
+            main.Controls.Add(_dgv, 0, 1);
             return main;
         }
     }
