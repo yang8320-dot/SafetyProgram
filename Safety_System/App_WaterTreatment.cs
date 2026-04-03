@@ -13,45 +13,66 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 主容器：使用 TableLayoutPanel 分成上下兩個大框
             TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 180F)); // 上框高度
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 下框滿版
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 200F)); 
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // --- 第一個框：操作與設定 ---
-            GroupBox boxTop = new GroupBox { Text = "控制與新增欄位", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // --- 第一個框：控制與設定 ---
+            GroupBox boxTop = new GroupBox { Text = "數據檢索與欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 第一行：讀取功能
+            // 1. 日期區間與讀取
             Label lblDate = new Label { Text = "日期區間:", Location = new Point(20, 40), AutoSize = true };
             _dtpStart = new DateTimePicker { Location = new Point(110, 35), Width = 150, Format = DateTimePickerFormat.Short };
+            
+            // 預設為 30 天前
+            _dtpStart.Value = DateTime.Now.AddDays(-30); 
+            
             Label lblTo = new Label { Text = "至", Location = new Point(270, 40), AutoSize = true };
             _dtpEnd = new DateTimePicker { Location = new Point(300, 35), Width = 150, Format = DateTimePickerFormat.Short };
             
-            Button btnRead = new Button { Text = "讀取資料", Location = new Point(470, 32), Size = new Size(120, 35), BackColor = Color.LightBlue };
+            Button btnRead = new Button { Text = "讀取資料庫", Location = new Point(470, 32), Size = new Size(120, 35), BackColor = Color.LightBlue };
             btnRead.Click += BtnRead_Click;
 
-            // 第二行：新增欄位功能
-            Label lblNewCol = new Label { Text = "新增欄位標題:", Location = new Point(20, 100), AutoSize = true };
-            _txtNewColName = new TextBox { Location = new Point(150, 95), Width = 200 };
-            Button btnAddCol = new Button { Text = "確認新增欄位", Location = new Point(370, 92), Size = new Size(150, 35), BackColor = Color.LightGray };
+            // 2. 新增欄位功能
+            Label lblNewCol = new Label { Text = "新增欄位標題:", Location = new Point(20, 90), AutoSize = true };
+            _txtNewColName = new TextBox { Location = new Point(150, 85), Width = 200 };
+            Button btnAddCol = new Button { Text = "確認新增欄位", Location = new Point(370, 82), Size = new Size(150, 35), BackColor = Color.LightGray };
             btnAddCol.Click += BtnAddCol_Click;
 
-            boxTop.Controls.AddRange(new Control[] { lblDate, _dtpStart, lblTo, _dtpEnd, btnRead, lblNewCol, _txtNewColName, btnAddCol });
+            // 3. 手動存入按鍵 (縮短寬度以騰出空間)
+            Button btnSaveManual = new Button { 
+                Text = "💾 手動儲存所有變更", 
+                Location = new Point(20, 140), 
+                Size = new Size(340, 40), 
+                BackColor = Color.ForestGreen, 
+                ForeColor = Color.White,
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
+            };
+            btnSaveManual.Click += BtnSaveManual_Click;
+
+            // 🟢 4. 新增：刪除選取資料按鍵
+            Button btnDeleteRow = new Button {
+                Text = "🗑️ 刪除選取資料",
+                Location = new Point(370, 140),
+                Size = new Size(150, 40),
+                BackColor = Color.IndianRed,
+                ForeColor = Color.White,
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
+            };
+            btnDeleteRow.Click += BtnDeleteRow_Click;
+
+            boxTop.Controls.AddRange(new Control[] { lblDate, _dtpStart, lblTo, _dtpEnd, btnRead, lblNewCol, _txtNewColName, btnAddCol, btnSaveManual, btnDeleteRow });
             mainLayout.Controls.Add(boxTop, 0, 0);
 
-            // --- 第二個框：數據顯示與即時編輯 ---
-            GroupBox boxBottom = new GroupBox { Text = "水處理數據明細 (即時存檔模式)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
+            // --- 第二個框：數據顯示 ---
+            GroupBox boxBottom = new GroupBox { Text = "水處理數據明細", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
             _dgv = new DataGridView {
                 Dock = DockStyle.Fill,
                 BackgroundColor = Color.White,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
-                SelectionMode = DataGridViewSelectionMode.CellSelect,
-                MultiSelect = false,
-                AllowUserToAddRows = true // 允許在最下方直接新增空行
+                SelectionMode = DataGridViewSelectionMode.RowHeaderSelect, // 方便整列選取
+                AllowUserToAddRows = true 
             };
-            
-            // 綁定事件：當儲存格修改完成後立即存檔
-            _dgv.CellValueChanged += Dgv_CellValueChanged;
             
             boxBottom.Controls.Add(_dgv);
             mainLayout.Controls.Add(boxBottom, 0, 1);
@@ -61,63 +82,98 @@ namespace Safety_System
 
         private void BtnRead_Click(object sender, EventArgs e)
         {
-            // 檢查資料庫是否存在
             if (!DataManager.IsDbFileExists())
             {
-                var result = MessageBox.Show("未找到資料庫檔案，是否立即建立新的水處理資料表？", "系統提示", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (result == DialogResult.Yes)
-                {
+                if (MessageBox.Show("未找到資料庫，是否新增？", "詢問", MessageBoxButtons.YesNo) == DialogResult.Yes)
                     DataManager.CreateWaterTable();
-                    MessageBox.Show("資料表已建立成功！");
-                }
                 else return;
             }
-
             RefreshGrid();
         }
 
         private void RefreshGrid()
         {
-            string s = _dtpStart.Value.ToString("yyyy-MM-dd");
-            string e = _dtpEnd.Value.ToString("yyyy-MM-dd");
-            _dgv.DataSource = DataManager.GetWaterData(s, e);
-            
-            // 隱藏 ID 欄位不讓使用者改
+            DataTable dt = DataManager.GetWaterData(_dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
+            _dgv.DataSource = dt;
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
+        }
+
+        private void BtnSaveManual_Click(object sender, EventArgs e)
+        {
+            _dgv.EndEdit(); 
+            DataTable dt = (DataTable)_dgv.DataSource;
+
+            if (dt == null) return;
+
+            int count = 0;
+            try
+            {
+                foreach (DataRow row in dt.Rows)
+                {
+                    if (row.RowState == DataRowState.Deleted) continue;
+                    
+                    DataManager.UpsertWaterRecord(row);
+                    count++;
+                }
+                MessageBox.Show(string.Format("成功處理 {0} 筆資料的新增/複寫作業。", count), "存檔完成");
+                RefreshGrid(); 
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("手動存檔失敗：" + ex.Message);
+            }
+        }
+
+        // 🟢 執行刪除邏輯
+        private void BtnDeleteRow_Click(object sender, EventArgs e)
+        {
+            // 檢查是否有點選資料列
+            if (_dgv.CurrentRow == null)
+            {
+                MessageBox.Show("請先點選您要刪除的資料行！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // 判斷是否為尚未存檔的空白新列
+            if (_dgv.CurrentRow.IsNewRow)
+            {
+                MessageBox.Show("無法刪除尚未存檔的空白行。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var idCell = _dgv.CurrentRow.Cells["Id"].Value;
+
+            // 再次確認該列是否有對應的資料庫 ID
+            if (idCell == null || idCell == DBNull.Value)
+            {
+                _dgv.Rows.Remove(_dgv.CurrentRow); // 僅存在於畫面的未儲存資料，直接移除
+                return;
+            }
+
+            int id = Convert.ToInt32(idCell);
+
+            // 跳出再次確認視窗
+            var confirmResult = MessageBox.Show(
+                "確定要刪除這筆紀錄嗎？\n刪除後將無法復原！", 
+                "刪除確認", 
+                MessageBoxButtons.YesNo, 
+                MessageBoxIcon.Warning);
+
+            if (confirmResult == DialogResult.Yes)
+            {
+                DataManager.DeleteWaterRecord(id);
+                MessageBox.Show("資料已成功刪除！", "刪除完成");
+                RefreshGrid(); // 重新載入資料表
+            }
         }
 
         private void BtnAddCol_Click(object sender, EventArgs e)
         {
             string colName = _txtNewColName.Text.Trim();
             if (string.IsNullOrEmpty(colName)) return;
-
-            try {
-                DataManager.AddColumnToWaterTable(colName);
-                MessageBox.Show("欄位 [" + colName + "] 新增成功！請重新點擊讀取以載入新架構。");
-                _txtNewColName.Clear();
-            }
-            catch (Exception ex) {
-                MessageBox.Show("欄位新增失敗：" + ex.Message);
-            }
-        }
-
-        private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
-        {
-            // 排除標題行與初始化階段
-            if (e.RowIndex < 0) return;
-
-            var row = _dgv.Rows[e.RowIndex];
-            var idVal = row.Cells["Id"].Value;
-
-            if (idVal != null && idVal != DBNull.Value)
-            {
-                int id = Convert.ToInt32(idVal);
-                string colName = _dgv.Columns[e.ColumnIndex].Name;
-                object newVal = row.Cells[e.ColumnIndex].Value;
-
-                // 執行即時更新
-                DataManager.UpdateWaterCell(id, colName, newVal);
-            }
+            DataManager.AddColumnToWaterTable(colName);
+            MessageBox.Show("欄位新增成功，請重新讀取。");
+            _txtNewColName.Clear();
         }
     }
 }
