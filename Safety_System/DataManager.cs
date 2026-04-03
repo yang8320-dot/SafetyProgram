@@ -39,12 +39,10 @@ namespace Safety_System
             return File.Exists(Path.Combine(BasePath, DbFileName));
         }
 
-        // 智慧重試封裝
         private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
             int delayMs = 500;
-
             for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
                 try
@@ -52,10 +50,7 @@ namespace Safety_System
                     using (var conn = new SQLiteConnection(GetConnString()))
                     {
                         conn.Open();
-                        using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn))
-                        {
-                            pragmaCmd.ExecuteNonQuery();
-                        }
+                        using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
                         dbAction(conn);
                         return;
                     }
@@ -64,18 +59,13 @@ namespace Safety_System
                 {
                     if (ex.ResultCode == SQLiteErrorCode.Busy || ex.ResultCode == SQLiteErrorCode.Locked)
                     {
-                        if (attempt == maxRetries)
-                            throw new Exception("多人同時存取導致資料庫忙碌。\n系統已自動重試 5 次依然失敗，請稍後再試！");
+                        if (attempt == maxRetries) throw new Exception("多人同時存取導致資料庫忙碌。\n系統已自動重試 5 次依然失敗，請稍後再試！");
                         Thread.Sleep(delayMs);
                     }
                     else throw;
                 }
             }
         }
-
-        // ==========================================
-        // 💧 水處理模組相關資料庫操作
-        // ==========================================
 
         public static void CreateWaterTable()
         {
@@ -162,8 +152,37 @@ namespace Safety_System
             });
         }
 
+        // 🟢 強制校正資料庫中的錯亂日期格式
+        private static void AutoFixDateFormats()
+        {
+            ExecuteWithRetry(conn => {
+                DataTable dt = new DataTable();
+                // 找出格式不對的日期 (有斜線或長度不是10碼)
+                using (var cmd = new SQLiteCommand("SELECT Id, [日期] FROM WaterMeterReadings WHERE [日期] LIKE '%/%' OR length([日期]) <> 10", conn))
+                {
+                    using (var adapter = new SQLiteDataAdapter(cmd)) { adapter.Fill(dt); }
+                }
+
+                foreach (DataRow row in dt.Rows)
+                {
+                    if (row["日期"] != DBNull.Value && DateTime.TryParse(row["日期"].ToString(), out DateTime d))
+                    {
+                        using (var updateCmd = new SQLiteCommand("UPDATE WaterMeterReadings SET [日期] = @d WHERE Id = @id", conn))
+                        {
+                            updateCmd.Parameters.AddWithValue("@d", d.ToString("yyyy-MM-dd"));
+                            updateCmd.Parameters.AddWithValue("@id", row["Id"]);
+                            updateCmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+            });
+        }
+
         public static DataTable GetWaterData(string start, string end)
         {
+            // 在讀取之前先背景洗一次資料，確保比對準確無誤
+            AutoFixDateFormats();
+
             DataTable dt = new DataTable();
             try
             {
@@ -178,6 +197,7 @@ namespace Safety_System
                         using (var adapter = new SQLiteDataAdapter(cmd)) { adapter.Fill(dt); }
                     }
 
+                    // 如果真的區間內沒資料，才會抓最近的30筆
                     if (dt.Rows.Count == 0)
                     {
                         string sqlTop30 = "SELECT * FROM WaterMeterReadings ORDER BY [日期] DESC LIMIT 30";
@@ -190,16 +210,11 @@ namespace Safety_System
             return dt;
         }
 
-        // ==========================================
-        // 👷 工安巡檢模組相關資料庫操作 (🟢 已經補回並加上防呆機制)
-        // ==========================================
-        
         public static void SaveInspectionRecord(string date, string location, string inspector, string status)
         {
             try
             {
                 ExecuteWithRetry(conn => {
-                    // 如果尚未建立過 Inspection 資料表，先自動建立
                     string createSql = @"
                         CREATE TABLE IF NOT EXISTS Inspection (
                             Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -210,7 +225,6 @@ namespace Safety_System
                         );";
                     using (var createCmd = new SQLiteCommand(createSql, conn)) { createCmd.ExecuteNonQuery(); }
 
-                    // 執行寫入
                     string sql = "INSERT INTO Inspection (LogDate, Location, Inspector, Status) VALUES (@date, @loc, @ins, @sta)";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     {
@@ -222,10 +236,7 @@ namespace Safety_System
                     }
                 });
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "巡檢紀錄儲存異常", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "儲存異常"); }
         }
     }
 }
