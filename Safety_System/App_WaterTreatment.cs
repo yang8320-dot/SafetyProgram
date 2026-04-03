@@ -4,7 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using OfficeOpenXml; // 需安裝 EPPlus 套件
+using OfficeOpenXml; 
 
 namespace Safety_System
 {
@@ -22,11 +22,20 @@ namespace Safety_System
 
             GroupBox boxTop = new GroupBox { Text = "數據檢索與欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 第一行
-            Label lblDate = new Label { Text = "日期區間:", Location = new Point(20, 40), AutoSize = true };
-            _dtpStart = new DateTimePicker { Location = new Point(110, 35), Width = 150, Format = DateTimePickerFormat.Short };
+            // 🟢 第一行：版面修正為「日期起」與「日期迄」，並強制鎖定格式 yyyy-MM-dd
+            Label lblDateStart = new Label { Text = "日期起:", Location = new Point(20, 40), AutoSize = true };
+            _dtpStart = new DateTimePicker { 
+                Location = new Point(90, 35), Width = 140, 
+                Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd" 
+            };
             _dtpStart.Value = DateTime.Now.AddDays(-30); 
-            _dtpEnd = new DateTimePicker { Location = new Point(300, 35), Width = 150, Format = DateTimePickerFormat.Short };
+            
+            Label lblDateEnd = new Label { Text = "日期迄:", Location = new Point(240, 40), AutoSize = true };
+            _dtpEnd = new DateTimePicker { 
+                Location = new Point(310, 35), Width = 140, 
+                Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd" 
+            };
+            
             Button btnRead = new Button { Text = "讀取資料庫", Location = new Point(470, 32), Size = new Size(120, 35), BackColor = Color.LightBlue };
             btnRead.Click += BtnRead_Click;
 
@@ -45,14 +54,13 @@ namespace Safety_System
             };
             btnSaveManual.Click += BtnSaveManual_Click;
 
-            // 🟢 加寬至 180，避免字體遮擋
             Button btnDeleteRow = new Button {
                 Text = "🗑️ 刪除選取資料", Location = new Point(370, 140), Size = new Size(180, 40),
                 BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
             btnDeleteRow.Click += BtnDeleteRow_Click;
 
-            boxTop.Controls.AddRange(new Control[] { lblDate, _dtpStart, _dtpEnd, btnRead, lblNewCol, _txtNewColName, btnAddCol, btnImportCsv, btnSaveManual, btnDeleteRow });
+            boxTop.Controls.AddRange(new Control[] { lblDateStart, _dtpStart, lblDateEnd, _dtpEnd, btnRead, lblNewCol, _txtNewColName, btnAddCol, btnImportCsv, btnSaveManual, btnDeleteRow });
             mainLayout.Controls.Add(boxTop, 0, 0);
 
             GroupBox boxBottom = new GroupBox { Text = "數據明細 (支援 Ctrl+V 貼上、右鍵匯出)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -63,8 +71,18 @@ namespace Safety_System
                 AllowUserToAddRows = true
             };
             _dgv.KeyDown += Dgv_KeyDown;
-            SetupContextMenu();
+            
+            // 手打日期防呆，移開游標立刻轉為 yyyy-MM-dd
+            _dgv.CellEndEdit += (s, e) => {
+                if (e.RowIndex >= 0 && _dgv.Columns[e.ColumnIndex].Name == "日期") {
+                    var cellVal = _dgv[e.ColumnIndex, e.RowIndex].Value;
+                    if (cellVal != null && DateTime.TryParse(cellVal.ToString(), out DateTime d)) {
+                        _dgv[e.ColumnIndex, e.RowIndex].Value = d.ToString("yyyy-MM-dd");
+                    }
+                }
+            };
 
+            SetupContextMenu();
             boxBottom.Controls.Add(_dgv);
             mainLayout.Controls.Add(boxBottom, 0, 1);
 
@@ -114,7 +132,6 @@ namespace Safety_System
             if (e.Control && e.KeyCode == Keys.V) { PasteClipboard(); e.Handled = true; }
         }
 
-        // 🟢 強化版貼上：支援日期校正與自動擴充行數
         private void PasteClipboard()
         {
             try {
@@ -139,7 +156,6 @@ namespace Safety_System
                         int currentCol = startCol + j;
                         if (currentCol < _dgv.Columns.Count && !_dgv.Columns[currentCol].ReadOnly) {
                             string val = cells[j].Trim();
-                            // 日期格式自動校正
                             if (_dgv.Columns[currentCol].Name == "日期" && DateTime.TryParse(val, out DateTime d))
                                 val = d.ToString("yyyy-MM-dd");
                             _dgv[currentCol, currentRow].Value = val;
@@ -208,7 +224,13 @@ namespace Safety_System
                             string[] vs = lines[i].Split(',');
                             for (int h = 0; h < headers.Length && h < vs.Length; h++) {
                                 string cn = headers[h].Trim();
-                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim();
+                                if (dt.Columns.Contains(cn) && cn != "Id") {
+                                    string val = vs[h].Trim();
+                                    if (cn == "日期" && DateTime.TryParse(val, out DateTime d)) {
+                                        val = d.ToString("yyyy-MM-dd");
+                                    }
+                                    nr[cn] = val;
+                                }
                             }
                             dt.Rows.Add(nr);
                         }
