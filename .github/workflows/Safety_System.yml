@@ -17,15 +17,17 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x' # 雖然跑 4.7.2，但編譯工具仍建議用最新 SDK
+        dotnet-version: '8.0.x'
 
-    - name: Build EXE
-      # .NET Framework 編譯簡單指令
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build Release
       run: dotnet build -c Release -o ./publish
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Safety_System-v4.7.2-EXE
-        # 此模式產出的檔案會在 publish 資料夾下，體積會非常小 (通常 < 500KB)
-        path: ./Safety_System/publish/Safety_System.exe
+        name: Safety_System-Complete-Package
+        # 🟢 關鍵：打包整個 publish 資料夾，包含 DLL 檔
+        path: ./Safety_System/publish/
