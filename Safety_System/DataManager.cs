@@ -74,9 +74,10 @@ namespace Safety_System
                     CREATE TABLE IF NOT EXISTS WaterMeterReadings (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         [日期] TEXT,
-                        [廢水處理量] TEXT,
-                        [廢水進流量] TEXT,
-                        [納廢回收6吋] TEXT,
+                        [廢水處理] TEXT,
+                        [廢水進流] TEXT,
+                        [納管排放] TEXT,
+                        [回收6吋] TEXT,
                         [雙介質A] TEXT,
                         [雙介質B] TEXT,
                         [貯存池] TEXT,
