@@ -11,5 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
+    
+    <PackageReference Include="EPPlus" Version="4.5.3.3" />
   </ItemGroup>
 </Project>
