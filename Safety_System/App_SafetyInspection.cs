@@ -14,8 +14,8 @@ namespace Safety_System
         {
             Panel pnl = new Panel();
             Label lblTitle = new Label { 
-                Text = "工安巡檢登錄 (4.7.2 版)", 
-                Font = new Font("Microsoft JhengHei", 20, FontStyle.Bold), 
+                Text = "工安巡檢登錄 (SQLite 版本)", 
+                Font = new Font("Microsoft JhengHei UI", 20, FontStyle.Bold), 
                 Location = new Point(20, 20), 
                 AutoSize = true 
             };
@@ -26,32 +26,40 @@ namespace Safety_System
             
             Label lblStatus = new Label { 
                 Text = "設備狀態:", 
-                Font = new Font("Microsoft JhengHei", 14), 
+                Font = new Font("Microsoft JhengHei UI", 14), 
                 Location = new Point(20, 220), 
                 AutoSize = true 
             };
             _cmbStatus.Location = new Point(180, 220);
             _cmbStatus.Width = 350;
-            _cmbStatus.Font = new Font("Microsoft JhengHei", 14);
+            _cmbStatus.Font = new Font("Microsoft JhengHei UI", 14);
             _cmbStatus.DropDownStyle = ComboBoxStyle.DropDownList;
             _cmbStatus.Items.AddRange(new object[] { "正常", "異常", "待派修" });
             _cmbStatus.SelectedIndex = 0;
-            
             pnl.Controls.Add(lblStatus);
             pnl.Controls.Add(_cmbStatus);
 
             Button btn = new Button { 
-                Text = "儲存紀錄", 
+                Text = "儲存至資料庫", 
                 Location = new Point(180, 300), 
-                Size = new Size(180, 60), 
+                Size = new Size(200, 60), 
                 BackColor = Color.LightSteelBlue,
-                Font = new Font("Microsoft JhengHei", 14, FontStyle.Bold)
+                Font = new Font("Microsoft JhengHei UI", 14, FontStyle.Bold)
             };
             btn.Click += (s, e) => {
                 if (string.IsNullOrEmpty(_txtLoc.Text)) return;
-                DataManager.SaveInspectionRecord(DateTime.Now.ToString("yyyy/MM/dd HH:mm"), _txtLoc.Text, _txtUser.Text, _cmbStatus.Text);
-                MessageBox.Show("紀錄已儲存。");
-                _txtLoc.Clear(); _txtUser.Clear();
+                
+                // 呼叫更新後的 SQLite 儲存方法
+                DataManager.SaveInspectionRecord(
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), 
+                    _txtLoc.Text, 
+                    _txtUser.Text, 
+                    _cmbStatus.Text
+                );
+                
+                MessageBox.Show("資料已存入 SQLite 資料庫！", "系統提示");
+                _txtLoc.Clear(); 
+                _txtUser.Clear();
             };
             pnl.Controls.Add(btn);
 
@@ -62,14 +70,14 @@ namespace Safety_System
         {
             Label lbl = new Label { 
                 Text = labelText, 
-                Font = new Font("Microsoft JhengHei", 14), 
+                Font = new Font("Microsoft JhengHei UI", 14), 
                 Location = new Point(20, y), 
                 AutoSize = true 
             };
             p.Controls.Add(lbl);
             inputControl.Location = new Point(180, y);
             inputControl.Width = 350;
-            inputControl.Font = new Font("Microsoft JhengHei", 14);
+            inputControl.Font = new Font("Microsoft JhengHei UI", 14);
             p.Controls.Add(inputControl);
         }
     }
