@@ -22,7 +22,6 @@ namespace Safety_System
 
             GroupBox boxTop = new GroupBox { Text = "數據檢索與欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 🟢 第一行：版面修正為「日期起」與「日期迄」，並強制鎖定格式 yyyy-MM-dd
             Label lblDateStart = new Label { Text = "日期起:", Location = new Point(20, 40), AutoSize = true };
             _dtpStart = new DateTimePicker { 
                 Location = new Point(90, 35), Width = 140, 
@@ -39,7 +38,6 @@ namespace Safety_System
             Button btnRead = new Button { Text = "讀取資料庫", Location = new Point(470, 32), Size = new Size(120, 35), BackColor = Color.LightBlue };
             btnRead.Click += BtnRead_Click;
 
-            // 第二行
             Label lblNewCol = new Label { Text = "新增欄位標題:", Location = new Point(20, 90), AutoSize = true };
             _txtNewColName = new TextBox { Location = new Point(150, 85), Width = 200 };
             Button btnAddCol = new Button { Text = "確認新增欄位", Location = new Point(370, 82), Size = new Size(150, 35), BackColor = Color.LightGray };
@@ -47,7 +45,6 @@ namespace Safety_System
             Button btnImportCsv = new Button { Text = "📥 匯入 CSV", Location = new Point(530, 82), Size = new Size(120, 35), BackColor = Color.Orange };
             btnImportCsv.Click += BtnImportCsv_Click;
 
-            // 第三行
             Button btnSaveManual = new Button { 
                 Text = "💾 手動儲存所有變更", Location = new Point(20, 140), Size = new Size(340, 40), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
@@ -72,7 +69,6 @@ namespace Safety_System
             };
             _dgv.KeyDown += Dgv_KeyDown;
             
-            // 手打日期防呆，移開游標立刻轉為 yyyy-MM-dd
             _dgv.CellEndEdit += (s, e) => {
                 if (e.RowIndex >= 0 && _dgv.Columns[e.ColumnIndex].Name == "日期") {
                     var cellVal = _dgv[e.ColumnIndex, e.RowIndex].Value;
@@ -91,7 +87,8 @@ namespace Safety_System
 
         private void BtnRead_Click(object sender, EventArgs e)
         {
-            if (!DataManager.IsDbFileExists()) DataManager.CreateWaterTable();
+            // 🟢 在這裡指定檢查 WaterData.sqlite 這個獨立的檔案
+            if (!DataManager.IsDbFileExists(DataManager.DbWater)) DataManager.CreateWaterTable();
             RefreshGrid();
         }
 
