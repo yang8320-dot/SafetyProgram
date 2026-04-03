@@ -10,6 +10,7 @@ namespace Safety_System
         private MenuStrip _mainMenu;
         private Panel _contentPanel;
 
+        // 全域熱鍵 Windows API
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
         [DllImport("user32.dll")]
@@ -82,7 +83,7 @@ namespace Safety_System
             // 5. 水資源
             var menuWater = new ToolStripMenuItem("水資源");
             
-            // 🟢 新增：水資源儀表版
+            // 🟢 水資源儀表版 (排第一位)
             var itemWaterDashboard = new ToolStripMenuItem("水資源儀表版");
             itemWaterDashboard.Click += (s, e) => LoadModule(new App_WaterDashboard().GetView());
 
@@ -98,7 +99,7 @@ namespace Safety_System
             var itemDischarge = new ToolStripMenuItem("納管排放數據");
             itemDischarge.Click += (s, e) => LoadModule(new App_DischargeData().GetView());
             
-            // 🟢 將儀表版放在陣列的第一個位置
+            // 將所有水資源選單加入，確保儀表版在最前面
             menuWater.DropDownItems.AddRange(new ToolStripItem[] { 
                 itemWaterDashboard, 
                 itemWaterTreat, 
@@ -113,10 +114,17 @@ namespace Safety_System
 
             // 7. 設定
             var menuSettings = new ToolStripMenuItem("設定");
+            
             var itemDbConfig = new ToolStripMenuItem("資料庫設定");
             itemDbConfig.Click += (s, e) => { new App_DbConfig().Show(); };
-            menuSettings.DropDownItems.Add(itemDbConfig);
+            
+            // 🟢 說明模組
+            var itemInstruction = new ToolStripMenuItem("說明");
+            itemInstruction.Click += (s, e) => LoadModule(new App_Instruction().GetView());
 
+            menuSettings.DropDownItems.AddRange(new ToolStripItem[] { itemDbConfig, itemInstruction });
+
+            // 整合所有主選單
             _mainMenu.Items.AddRange(new ToolStripItem[] {
                 menuHome, menuReport, menuSafety, menuEnv, menuWater, menuFire, 
                 new ToolStripMenuItem("ESG"), new ToolStripMenuItem("溫盤"), menuSettings
@@ -161,13 +169,25 @@ namespace Safety_System
             _contentPanel.Controls.Add(lbl);
         }
 
+        // --- 全域熱鍵邏輯 ---
         private void RegisterGlobalHotkey() { try { RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_3); } catch { } }
+        
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HOTKEY_ID) { WakeUpWindow(); }
             base.WndProc(ref m);
         }
-        private void WakeUpWindow() { if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal; this.Show(); this.Activate(); this.BringToFront(); }
-        protected override void OnFormClosing(FormClosingEventArgs e) { try { UnregisterHotKey(this.Handle, HOTKEY_ID); } catch { } base.OnFormClosing(e); }
+        
+        private void WakeUpWindow() { 
+            if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal; 
+            this.Show(); 
+            this.Activate(); 
+            this.BringToFront(); 
+        }
+        
+        protected override void OnFormClosing(FormClosingEventArgs e) { 
+            try { UnregisterHotKey(this.Handle, HOTKEY_ID); } catch { } 
+            base.OnFormClosing(e); 
+        }
     }
 }
