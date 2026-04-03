@@ -1,18 +1,24 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Data.SQLite;
 
 namespace Safety_System
 {
     public static class DataManager
     {
-        private static readonly object _fileLock = new object();
         private const string ConfigFile = "sys_config.txt";
+        private const string DbFileName = "SafetyData.sqlite";
         
-        // 預設路徑為程式執行檔路徑
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
-        // 初始化：由 Program.cs 呼叫
+        // 取得 SQLite 連線字串
+        private static string GetConnString()
+        {
+            string dbPath = Path.Combine(BasePath, DbFileName);
+            return string.Format("Data Source={0};Version=3;", dbPath);
+        }
+
         public static void LoadConfig()
         {
             if (File.Exists(ConfigFile))
@@ -20,27 +26,52 @@ namespace Safety_System
                 string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
                 if (Directory.Exists(savedPath)) BasePath = savedPath;
             }
+            InitializeDatabase();
         }
 
-        // 更新路徑並寫入設定檔
         public static void SetBasePath(string newPath)
         {
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
+            InitializeDatabase(); // 切換路徑後重新初始化
         }
 
-        // 取得完整檔案路徑的方法
-        private static string GetFullPath(string fileName)
+        // 初始化資料庫：建立資料表
+        private static void InitializeDatabase()
         {
-            return Path.Combine(BasePath, fileName);
+            using (var conn = new SQLiteConnection(GetConnString()))
+            {
+                conn.Open();
+                string sql = @"
+                    CREATE TABLE IF NOT EXISTS Inspection (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        LogDate TEXT,
+                        Location TEXT,
+                        Inspector TEXT,
+                        Status TEXT
+                    );";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
         }
 
+        // 插入巡檢紀錄
         public static void SaveInspectionRecord(string date, string location, string inspector, string status)
         {
-            string record = string.Format("{0}|{1}|{2}|{3}{4}", date, location, inspector, status, Environment.NewLine);
-            lock (_fileLock)
+            using (var conn = new SQLiteConnection(GetConnString()))
             {
-                File.AppendAllText(GetFullPath("InspectionData.txt"), record, Encoding.UTF8);
+                conn.Open();
+                string sql = "INSERT INTO Inspection (LogDate, Location, Inspector, Status) VALUES (@date, @loc, @ins, @sta)";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@date", date);
+                    cmd.Parameters.AddWithValue("@loc", location);
+                    cmd.Parameters.AddWithValue("@ins", inspector);
+                    cmd.Parameters.AddWithValue("@sta", status);
+                    cmd.ExecuteNonQuery();
+                }
             }
         }
     }
