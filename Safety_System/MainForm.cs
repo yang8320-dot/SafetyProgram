@@ -79,7 +79,7 @@ namespace Safety_System
             var menuEnv = new ToolStripMenuItem("環保");
             menuEnv.DropDownItems.Add(CreatePlaceholderItem("空污申報", "App_AirPollution.cs"));
 
-            // 🟢 5. 水資源 (新功能)
+            // 5. 水資源
             var menuWater = new ToolStripMenuItem("水資源");
             var itemWaterTreat = new ToolStripMenuItem("水處理記錄表");
             itemWaterTreat.Click += (s, e) => LoadModule(new App_WaterTreatment().GetView());
@@ -89,8 +89,12 @@ namespace Safety_System
             
             var itemWaterVol = new ToolStripMenuItem("自水水量");
             itemWaterVol.Click += (s, e) => LoadModule(new App_WaterVolume().GetView());
+
+            // 🟢 新增：納管排放數據
+            var itemDischarge = new ToolStripMenuItem("納管排放數據");
+            itemDischarge.Click += (s, e) => LoadModule(new App_DischargeData().GetView());
             
-            menuWater.DropDownItems.AddRange(new ToolStripItem[] { itemWaterTreat, itemWaterChem, itemWaterVol });
+            menuWater.DropDownItems.AddRange(new ToolStripItem[] { itemWaterTreat, itemWaterChem, itemWaterVol, itemDischarge });
 
             // 6. 消防
             var menuFire = new ToolStripMenuItem("消防");
@@ -108,7 +112,6 @@ namespace Safety_System
             });
         }
 
-        // 輔助方法：顯示建立中頁面
         private ToolStripMenuItem CreatePlaceholderItem(string text, string fileName)
         {
             var item = new ToolStripMenuItem(text);
@@ -147,7 +150,6 @@ namespace Safety_System
             _contentPanel.Controls.Add(lbl);
         }
 
-        // 熱鍵處理與釋放
         private void RegisterGlobalHotkey() { try { RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_3); } catch { } }
         protected override void WndProc(ref Message m)
         {
