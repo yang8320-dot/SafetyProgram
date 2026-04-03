@@ -6,32 +6,46 @@ namespace Safety_System
 {
     static class Program
     {
-        // 宣告一個全域的 Mutex
         private static Mutex mutex = null;
 
         [STAThread]
         static void Main()
         {
-            // 給你的程式一個唯一的識別碼
-            const string appName = "SafetySystem_SingleInstance_Mutex_v1";
-            bool createdNew;
-
-            // 嘗試取得 Mutex，若 createdNew 為 false，代表已經有一個實體在執行
-            mutex = new Mutex(true, appName, out createdNew);
-
-            if (!createdNew)
+            try 
             {
-                MessageBox.Show("工安系統已經在執行中，請勿重複啟動！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return; // 直接退出程式
+                // 1. 防止重複啟動檢查
+                const string appName = "SafetySystem_SingleInstance_Mutex_v1";
+                bool createdNew;
+                mutex = new Mutex(true, appName, out createdNew);
+
+                if (!createdNew)
+                {
+                    MessageBox.Show("工安系統已經在執行中！", "提示");
+                    return;
+                }
+
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                
+                // 2. 初始化資料庫設定 (這步最容易報錯，所以放進 try 裡面)
+                DataManager.LoadConfig();
+
+                // 3. 啟動主視窗
+                Application.Run(new MainForm());
             }
-
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            
-            // 程式啟動時，先載入設定好的資料庫路徑
-            DataManager.LoadConfig();
-
-            Application.Run(new MainForm());
+            catch (Exception ex)
+            {
+                // 如果程式啟動失敗，彈出具體錯誤原因
+                MessageBox.Show("程式啟動發生錯誤：\n" + ex.Message + "\n\n堆疊追蹤：\n" + ex.StackTrace, "啟動失敗");
+            }
+            finally
+            {
+                if (mutex != null)
+                {
+                    mutex.ReleaseMutex();
+                    mutex.Close();
+                }
+            }
         }
     }
 }
