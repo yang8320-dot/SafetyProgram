@@ -8,10 +8,12 @@ namespace Safety_System
     {
         public Control GetView()
         {
-            Panel p = new Panel { Dock = DockStyle.Fill, BackColor = Color.SeaShell };
-            Label lbl = new Label { Text = "🏥 職場健康與護理儀表版", Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), AutoSize = true, Location = new Point(30, 30) };
-            p.Controls.Add(lbl);
-            return p;
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 20, 0, 0) };
+            Panel p = new Panel { Dock = DockStyle.Fill, BackColor = Color.MistyRose };
+            Label t = new Label { Text = "🏥 職場健康管理儀表版", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), AutoSize = true, Location = new Point(30, 20) };
+            p.Controls.Add(t);
+            main.Controls.Add(p);
+            return main;
         }
     }
 }
