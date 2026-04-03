@@ -4,12 +4,12 @@ using System.Text;
 using System.Data;
 using System.Data.SQLite;
 using System.Threading;
-using System.Collections.Generic;
 
 namespace Safety_System
 {
     public static class DataManager
     {
+        private const string ConfigFile = "sys_config.txt";
         private const string DbFileName = "SafetyData.sqlite";
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
@@ -18,7 +18,29 @@ namespace Safety_System
             return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", Path.Combine(BasePath, DbFileName));
         }
 
-        // 通用重試邏輯
+        // 🟢 補回：讀取設定檔路徑
+        public static void LoadConfig()
+        {
+            if (File.Exists(ConfigFile))
+            {
+                string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
+                if (Directory.Exists(savedPath)) BasePath = savedPath;
+            }
+        }
+
+        // 🟢 補回：設定資料庫路徑
+        public static void SetBasePath(string newPath)
+        {
+            BasePath = newPath;
+            File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
+        }
+
+        // 🟢 補回：判斷資料庫檔案是否存在
+        public static bool IsDbFileExists()
+        {
+            return File.Exists(Path.Combine(BasePath, DbFileName));
+        }
+
         private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
@@ -37,7 +59,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 1. 通用：初始化資料表
         public static void InitTable(string tableName, string schemaSql)
         {
             ExecuteWithRetry(conn => {
@@ -45,7 +66,6 @@ namespace Safety_System
             });
         }
 
-        // 🟢 2. 通用：讀取資料 (支援日期區間)
         public static DataTable GetTableData(string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
@@ -61,7 +81,6 @@ namespace Safety_System
             return dt;
         }
 
-        // 🟢 3. 通用：新增或更新資料 (自動對應欄位)
         public static void UpsertRecord(string tableName, DataRow row)
         {
             ExecuteWithRetry(conn => {
@@ -88,7 +107,6 @@ namespace Safety_System
             });
         }
 
-        // 🟢 4. 通用：刪除資料
         public static void DeleteRecord(string tableName, int id)
         {
             ExecuteWithRetry(conn => {
@@ -98,7 +116,6 @@ namespace Safety_System
             });
         }
 
-        // 🟢 5. 通用：結構調整 (新增/改名/刪除欄位)
         public static void AddColumn(string tableName, string colName) => ExecuteWithRetry(conn => {
             using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] ADD COLUMN [{1}] TEXT", tableName, colName), conn)) { cmd.ExecuteNonQuery(); }
         });
