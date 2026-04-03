@@ -39,7 +39,6 @@ namespace Safety_System
             return File.Exists(Path.Combine(BasePath, DbFileName));
         }
 
-        // 智慧重試封裝
         private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
@@ -73,22 +72,23 @@ namespace Safety_System
             }
         }
 
+        // 🟢 修正 3：欄位全面中文化，緊接在 Id 後方增加「日期」
         public static void CreateWaterTable()
         {
             ExecuteWithRetry(conn => {
                 string sql = @"
                     CREATE TABLE IF NOT EXISTS WaterMeterReadings (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        LogDate TEXT,
-                        WasteWaterDischarge TEXT,
-                        WasteWaterInflow TEXT,
-                        Recycle6Inch TEXT,
-                        DualMediaA TEXT,
-                        DualMediaB TEXT,
-                        StorageTank TEXT,
-                        SoftWaterA TEXT,
-                        SoftWaterB TEXT,
-                        SoftWaterC TEXT
+                        [日期] TEXT,
+                        [廢水處理量] TEXT,
+                        [廢水進流量] TEXT,
+                        [納廢回收6吋] TEXT,
+                        [雙介質A] TEXT,
+                        [雙介質B] TEXT,
+                        [貯存池] TEXT,
+                        [軟水A] TEXT,
+                        [軟水B] TEXT,
+                        [軟水C] TEXT
                     );";
                 using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
             });
@@ -102,28 +102,6 @@ namespace Safety_System
             });
         }
 
-        // 單格即時更新
-        public static void UpdateWaterCell(int id, string columnName, object value)
-        {
-            try
-            {
-                ExecuteWithRetry(conn => {
-                    string sql = string.Format("UPDATE WaterMeterReadings SET [{0}] = @val WHERE Id = @id", columnName);
-                    using (var cmd = new SQLiteCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@val", value?.ToString() ?? "");
-                        cmd.Parameters.AddWithValue("@id", id);
-                        cmd.ExecuteNonQuery();
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "資料儲存異常", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
-        // 智慧儲存 (複寫或新增)
         public static void UpsertWaterRecord(DataRow row)
         {
             ExecuteWithRetry(conn => {
@@ -168,7 +146,6 @@ namespace Safety_System
             });
         }
 
-        // 🟢 新增：刪除指定資料列
         public static void DeleteWaterRecord(int id)
         {
             try
@@ -188,6 +165,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 修正：查詢條件改為使用中文化的 [日期]
         public static DataTable GetWaterData(string start, string end)
         {
             DataTable dt = new DataTable();
@@ -198,7 +176,7 @@ namespace Safety_System
                     conn.Open();
                     using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
 
-                    string sql = "SELECT * FROM WaterMeterReadings WHERE LogDate BETWEEN @s AND @e ORDER BY LogDate DESC";
+                    string sql = "SELECT * FROM WaterMeterReadings WHERE [日期] BETWEEN @s AND @e ORDER BY [日期] DESC";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@s", start);
@@ -208,7 +186,7 @@ namespace Safety_System
 
                     if (dt.Rows.Count == 0)
                     {
-                        string sqlTop30 = "SELECT * FROM WaterMeterReadings ORDER BY LogDate DESC LIMIT 30";
+                        string sqlTop30 = "SELECT * FROM WaterMeterReadings ORDER BY [日期] DESC LIMIT 30";
                         using (var cmd30 = new SQLiteCommand(sqlTop30, conn))
                         using (var adapter30 = new SQLiteDataAdapter(cmd30)) { dt.Clear(); adapter30.Fill(dt); }
                     }
