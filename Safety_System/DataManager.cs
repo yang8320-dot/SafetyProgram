@@ -39,6 +39,7 @@ namespace Safety_System
             return File.Exists(Path.Combine(BasePath, DbFileName));
         }
 
+        // 智慧重試封裝
         private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
@@ -72,7 +73,10 @@ namespace Safety_System
             }
         }
 
-        // 初始化中文化資料表，Id 後接 日期
+        // ==========================================
+        // 💧 水處理模組相關資料庫操作
+        // ==========================================
+
         public static void CreateWaterTable()
         {
             ExecuteWithRetry(conn => {
@@ -184,6 +188,44 @@ namespace Safety_System
             }
             catch (Exception ex) { MessageBox.Show("讀取失敗：" + ex.Message); }
             return dt;
+        }
+
+        // ==========================================
+        // 👷 工安巡檢模組相關資料庫操作 (🟢 已經補回並加上防呆機制)
+        // ==========================================
+        
+        public static void SaveInspectionRecord(string date, string location, string inspector, string status)
+        {
+            try
+            {
+                ExecuteWithRetry(conn => {
+                    // 如果尚未建立過 Inspection 資料表，先自動建立
+                    string createSql = @"
+                        CREATE TABLE IF NOT EXISTS Inspection (
+                            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            LogDate TEXT,
+                            Location TEXT,
+                            Inspector TEXT,
+                            Status TEXT
+                        );";
+                    using (var createCmd = new SQLiteCommand(createSql, conn)) { createCmd.ExecuteNonQuery(); }
+
+                    // 執行寫入
+                    string sql = "INSERT INTO Inspection (LogDate, Location, Inspector, Status) VALUES (@date, @loc, @ins, @sta)";
+                    using (var cmd = new SQLiteCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@date", date);
+                        cmd.Parameters.AddWithValue("@loc", location);
+                        cmd.Parameters.AddWithValue("@ins", inspector);
+                        cmd.Parameters.AddWithValue("@sta", status);
+                        cmd.ExecuteNonQuery();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "巡檢紀錄儲存異常", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 }
