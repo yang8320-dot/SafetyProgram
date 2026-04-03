@@ -83,7 +83,9 @@ namespace Safety_System
                         [貯存池] TEXT,
                         [軟水A] TEXT,
                         [軟水B] TEXT,
-                        [軟水C] TEXT
+                        [軟水C] TEXT,
+                        [濃水至調勻池] TEXT,
+                        [濃水至循環水] TEXT
                     );";
                 using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
             });
