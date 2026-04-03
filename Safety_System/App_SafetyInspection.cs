@@ -6,79 +6,34 @@ namespace Safety_System
 {
     public class App_SafetyInspection
     {
-        private TextBox _txtLoc = new TextBox();
-        private TextBox _txtUser = new TextBox();
-        private ComboBox _cmbStatus = new ComboBox();
-
         public Control GetView()
         {
-            Panel pnl = new Panel();
-            Label lblTitle = new Label { 
-                Text = "工安巡檢登錄 (SQLite 版本)", 
-                Font = new Font("Microsoft JhengHei UI", 20, FontStyle.Bold), 
-                Location = new Point(20, 20), 
-                AutoSize = true 
-            };
-            pnl.Controls.Add(lblTitle);
+            TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            AddRow(pnl, "巡檢地點:", _txtLoc, 100);
-            AddRow(pnl, "巡檢人員:", _txtUser, 160);
+            GroupBox boxTop = new GroupBox { Text = "📋 巡檢記錄管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10) };
+            FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
-            Label lblStatus = new Label { 
-                Text = "設備狀態:", 
-                Font = new Font("Microsoft JhengHei UI", 14), 
-                Location = new Point(20, 220), 
-                AutoSize = true 
-            };
-            _cmbStatus.Location = new Point(180, 220);
-            _cmbStatus.Width = 350;
-            _cmbStatus.Font = new Font("Microsoft JhengHei UI", 14);
-            _cmbStatus.DropDownStyle = ComboBoxStyle.DropDownList;
-            _cmbStatus.Items.AddRange(new object[] { "正常", "異常", "待派修" });
-            _cmbStatus.SelectedIndex = 0;
-            pnl.Controls.Add(lblStatus);
-            pnl.Controls.Add(_cmbStatus);
+            Button btnAdd = new Button { Text = "新增巡檢項", Size = new Size(120, 35), BackColor = Color.LightBlue };
+            Button btnSave = new Button { Text = "儲存記錄", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
+            
+            flp.Controls.AddRange(new Control[] { btnAdd, btnSave });
+            boxTop.Controls.Add(flp);
 
-            Button btn = new Button { 
-                Text = "儲存至資料庫", 
-                Location = new Point(180, 300), 
-                Size = new Size(200, 60), 
-                BackColor = Color.LightSteelBlue,
-                Font = new Font("Microsoft JhengHei UI", 14, FontStyle.Bold)
+            DataGridView dgv = new DataGridView { 
+                Dock = DockStyle.Fill, 
+                BackgroundColor = Color.White, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill 
             };
-            btn.Click += (s, e) => {
-                if (string.IsNullOrEmpty(_txtLoc.Text)) return;
-                
-                // 呼叫更新後的 SQLite 儲存方法
-                DataManager.SaveInspectionRecord(
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), 
-                    _txtLoc.Text, 
-                    _txtUser.Text, 
-                    _cmbStatus.Text
-                );
-                
-                MessageBox.Show("資料已存入 SQLite 資料庫！", "系統提示");
-                _txtLoc.Clear(); 
-                _txtUser.Clear();
-            };
-            pnl.Controls.Add(btn);
+            dgv.Columns.Add("Date", "日期");
+            dgv.Columns.Add("Area", "區域");
+            dgv.Columns.Add("Result", "檢查結果");
+            dgv.Columns.Add("Inspector", "巡檢人");
 
-            return pnl;
-        }
-
-        private void AddRow(Panel p, string labelText, Control inputControl, int y)
-        {
-            Label lbl = new Label { 
-                Text = labelText, 
-                Font = new Font("Microsoft JhengHei UI", 14), 
-                Location = new Point(20, y), 
-                AutoSize = true 
-            };
-            p.Controls.Add(lbl);
-            inputControl.Location = new Point(180, y);
-            inputControl.Width = 350;
-            inputControl.Font = new Font("Microsoft JhengHei UI", 14);
-            p.Controls.Add(inputControl);
+            tlp.Controls.Add(boxTop, 0, 0);
+            tlp.Controls.Add(dgv, 0, 1);
+            return tlp;
         }
     }
 }
