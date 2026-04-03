@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using OfficeOpenXml; // 🟢 必須引用 EPPlus 進行 XLSX 匯出
 
 namespace Safety_System
 {
@@ -22,7 +23,6 @@ namespace Safety_System
             // --- 第一個框：控制與設定 ---
             GroupBox boxTop = new GroupBox { Text = "數據檢索與欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 1. 日期區間與讀取
             Label lblDate = new Label { Text = "日期區間:", Location = new Point(20, 40), AutoSize = true };
             _dtpStart = new DateTimePicker { Location = new Point(110, 35), Width = 150, Format = DateTimePickerFormat.Short };
             _dtpStart.Value = DateTime.Now.AddDays(-30); 
@@ -33,30 +33,25 @@ namespace Safety_System
             Button btnRead = new Button { Text = "讀取資料庫", Location = new Point(470, 32), Size = new Size(120, 35), BackColor = Color.LightBlue };
             btnRead.Click += BtnRead_Click;
 
-            // 2. 新增欄位功能
             Label lblNewCol = new Label { Text = "新增欄位標題:", Location = new Point(20, 90), AutoSize = true };
             _txtNewColName = new TextBox { Location = new Point(150, 85), Width = 200 };
             Button btnAddCol = new Button { Text = "確認新增欄位", Location = new Point(370, 82), Size = new Size(150, 35), BackColor = Color.LightGray };
             btnAddCol.Click += BtnAddCol_Click;
 
-            // 🟢 新增：CSV 匯入按鍵
             Button btnImportCsv = new Button { 
-                Text = "📥 匯入 CSV", 
-                Location = new Point(530, 82), 
-                Size = new Size(120, 35), 
-                BackColor = Color.Orange 
+                Text = "📥 匯入 CSV", Location = new Point(530, 82), Size = new Size(120, 35), BackColor = Color.Orange 
             };
             btnImportCsv.Click += BtnImportCsv_Click;
 
-            // 3. 手動存入與刪除按鍵
             Button btnSaveManual = new Button { 
                 Text = "💾 手動儲存所有變更", Location = new Point(20, 140), Size = new Size(340, 40), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
             btnSaveManual.Click += BtnSaveManual_Click;
 
+            // 🟢 修正 2：刪除按鍵寬度從 150 加寬至 180 (增加 1/5)
             Button btnDeleteRow = new Button {
-                Text = "🗑️ 刪除選取資料", Location = new Point(370, 140), Size = new Size(150, 40),
+                Text = "🗑️ 刪除選取資料", Location = new Point(370, 140), Size = new Size(180, 40),
                 BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
             btnDeleteRow.Click += BtnDeleteRow_Click;
@@ -72,13 +67,10 @@ namespace Safety_System
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
                 SelectionMode = DataGridViewSelectionMode.CellSelect, 
                 AllowUserToAddRows = true,
-                ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText // 啟用複製
+                ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText
             };
             
-            // 🟢 新增：綁定鍵盤事件以支援 Ctrl+V 貼上
             _dgv.KeyDown += Dgv_KeyDown;
-
-            // 🟢 新增：右鍵匯出選單
             SetupContextMenu();
 
             boxBottom.Controls.Add(_dgv);
@@ -87,9 +79,6 @@ namespace Safety_System
             return mainLayout;
         }
 
-        // ==========================================
-        // 核心功能：讀取與儲存
-        // ==========================================
         private void BtnRead_Click(object sender, EventArgs e)
         {
             if (!DataManager.IsDbFileExists())
@@ -158,9 +147,6 @@ namespace Safety_System
             _txtNewColName.Clear();
         }
 
-        // ==========================================
-        // 🟢 新功能 1: 匯入 CSV
-        // ==========================================
         private void BtnImportCsv_Click(object sender, EventArgs e)
         {
             if (_dgv.DataSource == null)
@@ -179,7 +165,7 @@ namespace Safety_System
                         if (lines.Length <= 1) return;
 
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        string[] headers = lines[0].Split(','); // 第一行作為標題比對
+                        string[] headers = lines[0].Split(','); 
 
                         int importCount = 0;
                         for (int i = 1; i < lines.Length; i++)
@@ -191,13 +177,10 @@ namespace Safety_System
                             for (int h = 0; h < headers.Length; h++)
                             {
                                 string colName = headers[h].Trim();
-                                if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue; // 略過 ID，強制視為新資料
+                                if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue; 
                                 
-                                // 若 CSV 標題與資料庫欄位吻合，則寫入數據
                                 if (dt.Columns.Contains(colName) && h < vals.Length)
-                                {
                                     newRow[colName] = vals[h].Trim();
-                                }
                             }
                             dt.Rows.Add(newRow);
                             importCount++;
@@ -209,12 +192,8 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 新功能 2: 複製與貼上 (Ctrl+V)
-        // ==========================================
         private void Dgv_KeyDown(object sender, KeyEventArgs e)
         {
-            // 攔截 Ctrl + V
             if (e.Control && e.KeyCode == Keys.V)
             {
                 PasteClipboard();
@@ -238,10 +217,9 @@ namespace Safety_System
 
                 for (int i = 0; i < lines.Length; i++)
                 {
-                    string[] cells = lines[i].Split('\t'); // Excel 貼上預設是以 Tab 分隔
+                    string[] cells = lines[i].Split('\t');
                     int currentRow = startRow + i;
 
-                    // 若貼上的行數超過目前的表格列數，自動在 DataTable 新增空白列
                     if (currentRow >= _dgv.Rows.Count || (currentRow == _dgv.Rows.Count - 1 && _dgv.AllowUserToAddRows))
                     {
                         dt.Rows.Add(dt.NewRow());
@@ -252,7 +230,7 @@ namespace Safety_System
                     {
                         if (c < _dgv.Columns.Count)
                         {
-                            if (!_dgv.Columns[c].ReadOnly) // 避開 Id 等唯讀欄位
+                            if (!_dgv.Columns[c].ReadOnly)
                             {
                                 _dgv[c, currentRow].Value = cell.TrimEnd('\r');
                             }
@@ -264,9 +242,6 @@ namespace Safety_System
             catch (Exception ex) { MessageBox.Show("貼上失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
-        // ==========================================
-        // 🟢 新功能 3: 右鍵選單匯出 CSV / Excel
-        // ==========================================
         private void SetupContextMenu()
         {
             ContextMenuStrip cms = new ContextMenuStrip();
@@ -275,8 +250,9 @@ namespace Safety_System
             var itemCsv = new ToolStripMenuItem("📤 匯出為 CSV");
             itemCsv.Click += (s, e) => ExportData("csv");
             
-            var itemExcel = new ToolStripMenuItem("📊 匯出為 Excel (XLS)");
-            itemExcel.Click += (s, e) => ExportData("xls");
+            // 🟢 修正 1：改為匯出真正的 XLSX
+            var itemExcel = new ToolStripMenuItem("📊 匯出為 Excel (XLSX)");
+            itemExcel.Click += (s, e) => ExportData("xlsx");
 
             cms.Items.Add(itemCsv);
             cms.Items.Add(itemExcel);
@@ -289,38 +265,47 @@ namespace Safety_System
 
             using (SaveFileDialog sfd = new SaveFileDialog())
             {
-                sfd.Filter = format == "csv" ? "CSV 檔案 (*.csv)|*.csv" : "Excel 檔案 (*.xls)|*.xls";
+                sfd.Filter = format == "csv" ? "CSV 檔案 (*.csv)|*.csv" : "Excel 活頁簿 (*.xlsx)|*.xlsx";
                 sfd.FileName = "水處理數據_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + "." + format;
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        StringBuilder sb = new StringBuilder();
-                        string delimiter = format == "csv" ? "," : "\t";
+                        DataTable dt = (DataTable)_dgv.DataSource;
 
-                        // 組合標題
-                        for (int i = 0; i < _dgv.Columns.Count; i++)
+                        if (format == "csv")
                         {
-                            sb.Append(_dgv.Columns[i].HeaderText + delimiter);
-                        }
-                        sb.AppendLine();
-
-                        // 組合內容
-                        foreach (DataGridViewRow row in _dgv.Rows)
-                        {
-                            if (row.IsNewRow) continue;
+                            StringBuilder sb = new StringBuilder();
                             for (int i = 0; i < _dgv.Columns.Count; i++)
-                            {
-                                object val = row.Cells[i].Value;
-                                string cellVal = val != null ? val.ToString().Replace(",", "，").Replace("\n", " ") : ""; // 避免內容的逗號破壞 CSV 格式
-                                sb.Append(cellVal + delimiter);
-                            }
+                                sb.Append(_dgv.Columns[i].HeaderText + ",");
                             sb.AppendLine();
-                        }
 
-                        // 強制使用帶有 BOM 的 UTF-8，確保 Excel 開啟 CSV 時中文不會變成亂碼
-                        File.WriteAllText(sfd.FileName, sb.ToString(), new UTF8Encoding(true));
+                            foreach (DataGridViewRow row in _dgv.Rows)
+                            {
+                                if (row.IsNewRow) continue;
+                                for (int i = 0; i < _dgv.Columns.Count; i++)
+                                {
+                                    object val = row.Cells[i].Value;
+                                    string cellVal = val != null ? val.ToString().Replace(",", "，").Replace("\n", " ") : ""; 
+                                    sb.Append(cellVal + ",");
+                                }
+                                sb.AppendLine();
+                            }
+                            File.WriteAllText(sfd.FileName, sb.ToString(), new UTF8Encoding(true));
+                        }
+                        else if (format == "xlsx")
+                        {
+                            // 🟢 修正 1：透過 EPPlus 建立真正的 XLSX 檔案
+                            using (var package = new ExcelPackage())
+                            {
+                                var ws = package.Workbook.Worksheets.Add("水處理數據");
+                                ws.Cells["A1"].LoadFromDataTable(dt, true);
+                                ws.Cells.AutoFitColumns(); // 自動調整欄寬
+                                package.SaveAs(new FileInfo(sfd.FileName));
+                            }
+                        }
+                        
                         MessageBox.Show("資料匯出成功！", "匯出完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
