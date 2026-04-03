@@ -9,7 +9,7 @@ namespace Safety_System
     {
         private DataGridView _dgv;
         private DateTimePicker _dtpStart, _dtpEnd;
-        private TextBox _txtNewColName;
+        private TextBox _txtNewColName; // 🟢 已使用
 
         private const string DbName = "Safety"; 
         private const string TableName = "SafetyObservation"; 
@@ -17,34 +17,37 @@ namespace Safety_System
         public Control GetView()
         {
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [SafetyObservation] (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                [日期] TEXT, 
-                [觀查類別] TEXT, 
-                [觀查區域] TEXT, 
-                [不安全行為/環境描述] TEXT, 
-                [即時處置] TEXT, 
-                [觀查人] TEXT);");
+                Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT);");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            GroupBox box = new GroupBox { Text = "安全觀查紀錄 (BBS)", Dock = DockStyle.Fill, Font = new Font("UI", 12F), AutoSize = true };
+            GroupBox box = new GroupBox { Text = "安全觀查紀錄 (庫: Safety)", Dock = DockStyle.Fill, Font = new Font("UI", 12F), AutoSize = true };
             FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            
+
             _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
             _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
             Button bRead = new Button { Text = "讀取", Size = new Size(80, 35) };
-            bRead.Click += (s, e) => _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
-            Button bSave = new Button { Text = "💾 儲存", Size = new Size(80, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
-            bSave.Click += (s, e) => { _dgv.EndEdit(); foreach (DataRow r in ((DataTable)_dgv.DataSource).Rows) DataManager.UpsertRecord(DbName, TableName, r); MessageBox.Show("完成"); };
+            bRead.Click += (s, e) => RefreshGrid();
 
-            flp.Controls.AddRange(new Control[] { new Label { Text = "範圍:" }, _dtpStart, _dtpEnd, bRead, bSave });
+            _txtNewColName = new TextBox { Width = 120 };
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(90, 35) };
+            bAdd.Click += (s, e) => { if(!string.IsNullOrEmpty(_txtNewColName.Text)) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); } };
+
+            Button bSave = new Button { Text = "💾 儲存", Size = new Size(80, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
+            bSave.Click += (s, e) => { _dgv.EndEdit(); DataTable dt = (DataTable)_dgv.DataSource; foreach (DataRow r in dt.Rows) DataManager.UpsertRecord(DbName, TableName, r); MessageBox.Show("存檔完成"); RefreshGrid(); };
+
+            flp.Controls.AddRange(new Control[] { _dtpStart, _dtpEnd, bRead, _txtNewColName, bAdd, bSave });
             box.Controls.Add(flp); main.Controls.Add(box, 0, 0);
 
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true };
             main.Controls.Add(_dgv, 0, 1);
             return main;
+        }
+
+        private void RefreshGrid() {
+            _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
         }
     }
 }
