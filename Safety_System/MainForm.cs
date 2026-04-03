@@ -12,36 +12,29 @@ namespace Safety_System
         public MainForm()
         {
             InitializeComponent();
-            // 🟢 注意：全域快捷鍵功能已移除，由 Program.cs 處理重複啟動時的自動喚醒
         }
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v4.7.2 - SQLite 版)";
+            this.Text = "工安系統看板 (v4.8.0 - 結構優化版)";
             this.Size = new Size(1440, 810);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1440, 810);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
-            // 初始化選單欄
             _mainMenu = new MenuStrip();
             _mainMenu.Font = new Font("Microsoft JhengHei UI", 12F);
             BuildMenu();
             this.Controls.Add(_mainMenu);
 
-            // 初始化動態內容容器
-            _contentPanel = new Panel
-            {
+            _contentPanel = new Panel {
                 Dock = DockStyle.Fill,
                 BackColor = Color.WhiteSmoke,
                 Padding = new Padding(30),
                 AutoScroll = true
             };
             this.Controls.Add(_contentPanel);
-            
             _mainMenu.BringToFront();
-
-            // 預設載入歡迎畫面
             LoadWelcomeScreen();
         }
 
@@ -53,120 +46,71 @@ namespace Safety_System
 
             // --- 2. 報表 ---
             var menuReport = new ToolStripMenuItem("報表");
-            var itemMonthly = new ToolStripMenuItem("月報表");
-            itemMonthly.Click += (s, e) => LoadModule(new App_MonthlyReport().GetView());
-            var itemYearly = new ToolStripMenuItem("年報表");
-            itemYearly.Click += (s, e) => LoadModule(new App_YearlyReport().GetView());
-            menuReport.DropDownItems.AddRange(new ToolStripItem[] { itemMonthly, itemYearly });
+            menuReport.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
+            menuReport.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
             // --- 3. 工安 ---
             var menuSafety = new ToolStripMenuItem("工安");
-            var itemInspection = new ToolStripMenuItem("巡檢");
-            itemInspection.Click += (s, e) => LoadModule(new App_SafetyInspection().GetView());
-            menuSafety.DropDownItems.Add(itemInspection);
-            menuSafety.DropDownItems.Add(CreatePlaceholderItem("虛驚", "App_NearMiss.cs"));
-            menuSafety.DropDownItems.Add(CreatePlaceholderItem("工傷", "App_WorkInjury.cs"));
-            menuSafety.DropDownItems.Add(CreatePlaceholderItem("交傷", "App_TrafficInjury.cs"));
+            menuSafety.DropDownItems.Add(CreateItem("巡檢", () => new App_SafetyInspection().GetView()));
 
-            // --- 4. 環保 ---
-            var menuEnv = new ToolStripMenuItem("環保");
-            menuEnv.DropDownItems.Add(CreatePlaceholderItem("空污申報", "App_AirPollution.cs"));
+            // --- 4. 護理 (新增於工安旁) ---
+            var menuNursing = new ToolStripMenuItem("護理");
+            menuNursing.DropDownItems.Add(CreateItem("護理儀表版", () => new App_NursingDashboard().GetView()));
+            menuNursing.DropDownItems.Add(CreateItem("職災申報數據", () => new App_WorkInjuryReport().GetView()));
+            menuNursing.DropDownItems.Add(CreateItem("健康促進", () => new App_HealthPromotion().GetView()));
 
-            // --- 5. 水資源 (排序優化) ---
-            var menuWater = new ToolStripMenuItem("水資源");
-            
-            var itemWaterDashboard = new ToolStripMenuItem("水資源儀表版");
-            itemWaterDashboard.Click += (s, e) => LoadModule(new App_WaterDashboard().GetView());
+            // --- 5. 空污 (原環保改名) ---
+            var menuAir = new ToolStripMenuItem("空污");
+            menuAir.DropDownItems.Add(CreateItem("空污儀表版", () => new App_AirDashboard().GetView()));
+            menuAir.DropDownItems.Add(CreateItem("空污申報", () => new App_AirPollution().GetView()));
 
-            var itemWaterTreat = new ToolStripMenuItem("水處理記錄表");
-            itemWaterTreat.Click += (s, e) => LoadModule(new App_WaterTreatment().GetView());
-            
-            var itemWaterChem = new ToolStripMenuItem("用藥記錄表");
-            itemWaterChem.Click += (s, e) => LoadModule(new App_WaterChemicals().GetView());
-            
-            var itemWaterVol = new ToolStripMenuItem("自水水量");
-            itemWaterVol.Click += (s, e) => LoadModule(new App_WaterVolume().GetView());
+            // --- 6. 水 (原水資源改名) ---
+            var menuWater = new ToolStripMenuItem("水");
+            menuWater.DropDownItems.Add(CreateItem("水資源儀表版", () => new App_WaterDashboard().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("水處理記錄表", () => new App_WaterTreatment().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("用藥記錄表", () => new App_WaterChemicals().GetView()));
 
-            var itemDischarge = new ToolStripMenuItem("納管排放數據");
-            itemDischarge.Click += (s, e) => LoadModule(new App_DischargeData().GetView());
-            
-            // 確保儀表版排在第一個
-            menuWater.DropDownItems.AddRange(new ToolStripItem[] { 
-                itemWaterDashboard, 
-                itemWaterTreat, 
-                itemWaterChem, 
-                itemWaterVol, 
-                itemDischarge 
-            });
+            // --- 7. 廢棄物 (新增於水旁) ---
+            var menuWaste = new ToolStripMenuItem("廢棄物");
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物儀表版", () => new App_WasteDashboard().GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("生產月報表", () => new App_WasteMonthly().GetView()));
 
-            // --- 6. 消防 ---
+            // --- 8. 消防 (重新排序與新增) ---
             var menuFire = new ToolStripMenuItem("消防");
-            menuFire.DropDownItems.Add(CreatePlaceholderItem("消防設備", "App_FireEquip.cs"));
+            menuFire.DropDownItems.Add(CreateItem("消防儀表版", () => new App_FireDashboard().GetView()));
+            menuFire.DropDownItems.Add(CreateItem("消防設備", () => new App_FireEquip().GetView()));
+            menuFire.DropDownItems.Add(CreateItem("火源責任人", () => new App_FireResponsible().GetView()));
+            menuFire.DropDownItems.Add(CreateItem("公危統計表", () => new App_HazardStats().GetView()));
 
-            // --- 7. 設定 ---
+            // --- 9. 設定 ---
             var menuSettings = new ToolStripMenuItem("設定");
-            
-            var itemDbConfig = new ToolStripMenuItem("資料庫設定");
-            itemDbConfig.Click += (s, e) => { new App_DbConfig().Show(); };
-            
-            var itemInstruction = new ToolStripMenuItem("說明");
-            itemInstruction.Click += (s, e) => LoadModule(new App_Instruction().GetView());
+            menuSettings.DropDownItems.Add(CreateItem("說明", () => new App_Instruction().GetView()));
 
-            menuSettings.DropDownItems.AddRange(new ToolStripItem[] { itemDbConfig, itemInstruction });
-
-            // 將所有主選單加入選單列
             _mainMenu.Items.AddRange(new ToolStripItem[] {
-                menuHome, menuReport, menuSafety, menuEnv, menuWater, menuFire, 
-                new ToolStripMenuItem("ESG"), new ToolStripMenuItem("溫盤"), menuSettings
+                menuHome, menuReport, menuSafety, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuSettings
             });
         }
 
-        /// <summary>
-        /// 動態切換顯示的模組視圖
-        /// </summary>
+        // 輔助方法：簡化選單建立邏輯
+        private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
+        {
+            var item = new ToolStripMenuItem(text);
+            item.Click += (s, e) => LoadModule(getViewFunc());
+            return item;
+        }
+
         public void LoadModule(Control moduleControl)
         {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action(() => LoadModule(moduleControl)));
-                return;
-            }
             _contentPanel.Controls.Clear();
             moduleControl.Dock = DockStyle.Fill;
             _contentPanel.Controls.Add(moduleControl);
         }
 
-        /// <summary>
-        /// 載入首頁歡迎畫面
-        /// </summary>
         private void LoadWelcomeScreen()
         {
             _contentPanel.Controls.Clear();
-            Label lbl = new Label {
-                Text = "=== 工安系統看板 ===\n資料引擎：SQLite\n(偵測重複開啟：自動喚醒舊視窗模式)",
-                Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold),
-                AutoSize = true, 
-                Location = new Point(50, 50)
-            };
+            Label lbl = new Label { Text = "工安系統看板 v4.8\n歡迎使用", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), AutoSize = true, Location = new Point(50, 50) };
             _contentPanel.Controls.Add(lbl);
-        }
-
-        /// <summary>
-        /// 建立尚在開發中模組的佔位符
-        /// </summary>
-        private ToolStripMenuItem CreatePlaceholderItem(string text, string fileName)
-        {
-            var item = new ToolStripMenuItem(text);
-            item.Click += (s, e) => {
-                _contentPanel.Controls.Clear();
-                Label lbl = new Label {
-                    Text = string.Format("本頁面對應 {0}, 資料尚在建立中", fileName),
-                    Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Italic),
-                    ForeColor = Color.DarkGray, AutoSize = true, Location = new Point(50, 50)
-                };
-                _contentPanel.Controls.Add(lbl);
-            };
-            return item;
         }
     }
 }
