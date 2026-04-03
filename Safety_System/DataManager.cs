@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Data.SQLite;
+using System.Data.SQLite; // 必須引用此命名空間
 
 namespace Safety_System
 {
@@ -12,7 +12,6 @@ namespace Safety_System
         
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
-        // 取得 SQLite 連線字串
         private static string GetConnString()
         {
             string dbPath = Path.Combine(BasePath, DbFileName);
@@ -33,10 +32,9 @@ namespace Safety_System
         {
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
-            InitializeDatabase(); // 切換路徑後重新初始化
+            InitializeDatabase();
         }
 
-        // 初始化資料庫：建立資料表
         private static void InitializeDatabase()
         {
             using (var conn = new SQLiteConnection(GetConnString()))
@@ -57,7 +55,6 @@ namespace Safety_System
             }
         }
 
-        // 插入巡檢紀錄
         public static void SaveInspectionRecord(string date, string location, string inspector, string status)
         {
             using (var conn = new SQLiteConnection(GetConnString()))
