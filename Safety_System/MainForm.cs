@@ -4,6 +4,9 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
+    /// <summary>
+    /// 主視窗：負責整體佈局與模組畫面切換
+    /// </summary>
     public class MainForm : Form
     {
         private MenuStrip _mainMenu;
@@ -11,15 +14,31 @@ namespace Safety_System
 
         public MainForm()
         {
+            InitializeComponent();
+        }
+
+        private void InitializeComponent()
+        {
+            // 視窗基本設定為 1440 x 810
             this.Text = "工安系統看板 (v4.7.2)";
             this.Size = new Size(1440, 810);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1440, 810);
 
+            // 🟢 關鍵修正 1.2: 將系統預設字體改為較銳利的 UI 字體
+            this.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, ((byte)(136)));
+
+            // 🟢 關鍵修正 2.1: 確保視窗啟用快捷鍵預覽
+            this.KeyPreview = true;
+
+            // 初始化選單
             _mainMenu = new MenuStrip();
+            // 選單字體也要單獨設定以保持一致
+            _mainMenu.Font = new Font("Microsoft JhengHei UI", 12F);
             BuildMenu();
             this.Controls.Add(_mainMenu);
 
+            // 主顯示容器 (大框)
             _contentPanel = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -33,53 +52,31 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
-        // ==========================================
-        // 1. 新增快捷鍵 Ctrl + 3 攔截邏輯
-        // ==========================================
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            if (keyData == (Keys.Control | Keys.D3) || keyData == (Keys.Control | Keys.NumPad3))
-            {
-                // TODO: 這裡你可以改為你要的功能，例如：
-                // LoadModule(new App_SafetyInspection().GetView());
-                
-                MessageBox.Show("觸發快捷鍵：Ctrl + 3\n(可在此設定快速開啟某個模組)", "快捷鍵", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                
-                return true; // 代表按鍵事件已處理，不要再往下傳遞
-            }
-            return base.ProcessCmdKey(ref msg, keyData);
-        }
-
         private void BuildMenu()
         {
+            // 工安選單
             var menuSafety = new ToolStripMenuItem("工安");
             var itemInspection = new ToolStripMenuItem("巡檢");
             itemInspection.Click += (s, e) => LoadModule(new App_SafetyInspection().GetView());
             
-            // 待辦清單 (若你剛剛有實作 App_TodoList.cs，可取消註解下面這兩行)
-            // var itemTodo = new ToolStripMenuItem("待辦清單");
-            // itemTodo.Click += (s, e) => LoadModule(new App_TodoList().GetView());
-
             menuSafety.DropDownItems.Add(itemInspection);
-            // menuSafety.DropDownItems.Add(itemTodo);
             menuSafety.DropDownItems.Add(new ToolStripMenuItem("虛驚"));
             menuSafety.DropDownItems.Add(new ToolStripMenuItem("工傷"));
             menuSafety.DropDownItems.Add(new ToolStripMenuItem("交傷"));
 
+            // 環保選單
             var menuEnv = new ToolStripMenuItem("環保");
             menuEnv.DropDownItems.Add(new ToolStripMenuItem("空污申報"));
 
+            // 消防選單
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(new ToolStripMenuItem("消防設備"));
 
-            // ==========================================
-            // 2. 新增設定選單 -> 設定資料庫
-            // ==========================================
+            // 設定選單
             var menuSettings = new ToolStripMenuItem("設定");
-            var itemDbConfig = new ToolStripMenuItem("設定資料庫");
-            itemDbConfig.Click += ItemDbConfig_Click;
-            menuSettings.DropDownItems.Add(itemDbConfig);
+            menuSettings.DropDownItems.Add(new ToolStripMenuItem("使用者設定"));
 
+            // 將所有選單加入列
             _mainMenu.Items.AddRange(new ToolStripItem[] {
                 menuSafety, menuEnv, menuFire, 
                 new ToolStripMenuItem("ESG"), 
@@ -88,26 +85,28 @@ namespace Safety_System
             });
         }
 
-        // ==========================================
-        // 3. 設定資料庫路徑的彈出視窗事件
-        // ==========================================
-        private void ItemDbConfig_Click(object sender, EventArgs e)
+        /// <summary>
+        /// 🟢 關鍵修正 2.2: 實際處理 Ctrl + 3 快捷鍵並載入畫面
+        /// </summary>
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+            if (keyData == (Keys.Control | Keys.D3) || keyData == (Keys.Control | Keys.NumPad3))
             {
-                fbd.Description = "請選擇「工安系統資料庫 (純文字檔)」要集中儲存的資料夾：";
-                fbd.SelectedPath = DataManager.BasePath; // 預設指向當前設定的路徑
-                
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    DataManager.SetBasePath(fbd.SelectedPath);
-                    MessageBox.Show($"系統資料儲存路徑已更新為：\n{fbd.SelectedPath}", "設定成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                // 當按下了 Ctrl + 3 (主鍵盤或數字鍵盤)，直接載入「巡檢紀錄」畫面
+                LoadModule(new App_SafetyInspection().GetView());
+                return true; // 代表按鍵事件已處理，不要再往下傳遞
             }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         public void LoadModule(Control moduleControl)
         {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => LoadModule(moduleControl)));
+                return;
+            }
+
             _contentPanel.Controls.Clear();
             moduleControl.Dock = DockStyle.Fill;
             _contentPanel.Controls.Add(moduleControl);
@@ -115,10 +114,11 @@ namespace Safety_System
 
         private void LoadWelcomeScreen()
         {
+            // 使用 UI 字體設定歡迎文字
             Label lbl = new Label
             {
-                Text = "=== 工安系統看板 ===\n架構：.NET Framework 4.7.2",
-                Font = new Font("Microsoft JhengHei", 24, FontStyle.Bold),
+                Text = "=== 工安系統看板 ===\n架構：.NET Framework 4.7.2\n(快捷鍵: Ctrl+3 快速開啟巡檢)",
+                Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold),
                 AutoSize = true,
                 Location = new Point(50, 50)
             };
