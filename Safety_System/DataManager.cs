@@ -11,18 +11,12 @@ namespace Safety_System
     public static class DataManager
     {
         private const string ConfigFile = "sys_config.txt";
-        
-        // 🟢 核心修正 1：定義各個模組專屬的獨立資料庫檔案名稱
-        public const string DbWater = "WaterData.sqlite";
-        public const string DbInspection = "InspectionData.sqlite";
-        // 未來如果有新模組，直接在這裡加一行 DbNew = "NewData.sqlite" 即可！
-
+        private const string DbFileName = "SafetyData.sqlite";
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
-        // 🟢 核心修正 2：連線字串改為動態接收「dbFileName」
-        private static string GetConnString(string dbFileName)
+        private static string GetConnString()
         {
-            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", Path.Combine(BasePath, dbFileName));
+            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", Path.Combine(BasePath, DbFileName));
         }
 
         public static void LoadConfig()
@@ -40,14 +34,12 @@ namespace Safety_System
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
         }
 
-        // 🟢 核心修正 3：檢查資料庫是否存在時，必須傳入對應的資料庫名稱
-        public static bool IsDbFileExists(string dbFileName)
+        public static bool IsDbFileExists()
         {
-            return File.Exists(Path.Combine(BasePath, dbFileName));
+            return File.Exists(Path.Combine(BasePath, DbFileName));
         }
 
-        // 🟢 核心修正 4：防呆重試機制現在會根據傳入的資料庫名稱，對目標資料庫進行連線
-        private static void ExecuteWithRetry(string dbFileName, Action<SQLiteConnection> dbAction)
+        private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
             int delayMs = 500;
@@ -55,7 +47,7 @@ namespace Safety_System
             {
                 try
                 {
-                    using (var conn = new SQLiteConnection(GetConnString(dbFileName)))
+                    using (var conn = new SQLiteConnection(GetConnString()))
                     {
                         conn.Open();
                         using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
@@ -75,29 +67,22 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 💧 水處理模組相關操作 (綁定 DbWater)
-        // ==========================================
-
         public static void CreateWaterTable()
         {
-            ExecuteWithRetry(DbWater, conn => {
+            ExecuteWithRetry(conn => {
                 string sql = @"
                     CREATE TABLE IF NOT EXISTS WaterMeterReadings (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         [日期] TEXT,
-                        [廢水處理] TEXT,
-                        [廢水進流] TEXT,
-                        [納管排放] TEXT,
-                        [回收6吋] TEXT,
+                        [廢水處理量] TEXT,
+                        [廢水進流量] TEXT,
+                        [納廢回收6吋] TEXT,
                         [雙介質A] TEXT,
                         [雙介質B] TEXT,
                         [貯存池] TEXT,
                         [軟水A] TEXT,
                         [軟水B] TEXT,
-                        [軟水C] TEXT,
-                        [濃水至調勻池] TEXT,
-                        [濃水至循環水] TEXT
+                        [軟水C] TEXT
                     );";
                 using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
             });
@@ -105,15 +90,32 @@ namespace Safety_System
 
         public static void AddColumnToWaterTable(string columnName)
         {
-            ExecuteWithRetry(DbWater, conn => {
+            ExecuteWithRetry(conn => {
                 string sql = string.Format("ALTER TABLE WaterMeterReadings ADD COLUMN [{0}] TEXT", columnName);
+                using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
+            });
+        }
+
+        // 🟢 改名與刪除欄位邏輯
+        public static void RenameColumnInWaterTable(string oldName, string newName)
+        {
+            ExecuteWithRetry(conn => {
+                string sql = string.Format("ALTER TABLE WaterMeterReadings RENAME COLUMN [{0}] TO [{1}]", oldName, newName);
+                using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
+            });
+        }
+
+        public static void DropColumnFromWaterTable(string columnName)
+        {
+            ExecuteWithRetry(conn => {
+                string sql = string.Format("ALTER TABLE WaterMeterReadings DROP COLUMN [{0}]", columnName);
                 using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
             });
         }
 
         public static void UpsertWaterRecord(DataRow row)
         {
-            ExecuteWithRetry(DbWater, conn => {
+            ExecuteWithRetry(conn => {
                 bool isUpdate = row["Id"] != DBNull.Value;
                 string sql;
 
@@ -157,7 +159,7 @@ namespace Safety_System
 
         public static void DeleteWaterRecord(int id)
         {
-            ExecuteWithRetry(DbWater, conn => {
+            ExecuteWithRetry(conn => {
                 string sql = "DELETE FROM WaterMeterReadings WHERE Id = @Id";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -169,7 +171,7 @@ namespace Safety_System
 
         private static void AutoFixDateFormats()
         {
-            ExecuteWithRetry(DbWater, conn => {
+            ExecuteWithRetry(conn => {
                 DataTable dt = new DataTable();
                 using (var cmd = new SQLiteCommand("SELECT Id, [日期] FROM WaterMeterReadings WHERE [日期] LIKE '%/%' OR length([日期]) <> 10", conn))
                 {
@@ -194,10 +196,11 @@ namespace Safety_System
         public static DataTable GetWaterData(string start, string end)
         {
             AutoFixDateFormats();
+
             DataTable dt = new DataTable();
             try
             {
-                using (var conn = new SQLiteConnection(GetConnString(DbWater)))
+                using (var conn = new SQLiteConnection(GetConnString()))
                 {
                     conn.Open();
                     string sql = "SELECT * FROM WaterMeterReadings WHERE [日期] BETWEEN @s AND @e ORDER BY [日期] DESC";
@@ -220,15 +223,11 @@ namespace Safety_System
             return dt;
         }
 
-        // ==========================================
-        // 👷 工安巡檢模組相關操作 (綁定 DbInspection)
-        // ==========================================
-
         public static void SaveInspectionRecord(string date, string location, string inspector, string status)
         {
             try
             {
-                ExecuteWithRetry(DbInspection, conn => {
+                ExecuteWithRetry(conn => {
                     string createSql = @"
                         CREATE TABLE IF NOT EXISTS Inspection (
                             Id INTEGER PRIMARY KEY AUTOINCREMENT,
