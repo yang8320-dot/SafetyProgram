@@ -26,12 +26,12 @@ public class MainForm : Form {
 
     private const int HOTKEY_ID = 9000;
     private const int HOTKEY_GTASK_ID = 9001; 
-    private const int HOTKEY_SAFETY_ID = 9002; // 【新增】Safety System 專屬快捷鍵 ID
+    private const int HOTKEY_SAFETY_ID = 9002; 
 
     private const uint MOD_CONTROL = 0x0002; 
     private const uint VK_1 = 0x31; 
     private const uint VK_2 = 0x32; 
-    private const uint VK_3 = 0x33; // 【新增】鍵盤數字鍵 3
+    private const uint VK_3 = 0x33; 
     private const int WM_HOTKEY = 0x0312;
 
     public App_FileWatcher fileWatcherApp;
@@ -64,10 +64,9 @@ public class MainForm : Form {
         trayMenu.MenuItems.Add(startupItem);
         trayMenu.MenuItems.Add("-");
         
-        // 【更新】整合所有快捷鍵選單
         trayMenu.MenuItems.Add("顯示主視窗 (Ctrl+1)", (s, e) => ShowAppWindow());
         trayMenu.MenuItems.Add("啟動 G-Task (Ctrl+2)", (s, e) => LaunchGTask());
-        trayMenu.MenuItems.Add("啟動 Safety System (Ctrl+3)", (s, e) => LaunchSafetySystem()); // 【新增】
+        trayMenu.MenuItems.Add("啟動 Safety System (Ctrl+3)", (s, e) => LaunchSafetySystem()); 
         trayMenu.MenuItems.Add("-");
         trayMenu.MenuItems.Add("完全退出", (s, e) => { trayIcon.Visible = false; Environment.Exit(0); });
         
@@ -81,7 +80,7 @@ public class MainForm : Form {
         // --- 註冊全域快捷鍵 ---
         RegisterHotKey(this.Handle, HOTKEY_ID, MOD_CONTROL, VK_1);
         RegisterHotKey(this.Handle, HOTKEY_GTASK_ID, MOD_CONTROL, VK_2); 
-        RegisterHotKey(this.Handle, HOTKEY_SAFETY_ID, MOD_CONTROL, VK_3); // 【新增】註冊 Ctrl + 3
+        RegisterHotKey(this.Handle, HOTKEY_SAFETY_ID, MOD_CONTROL, VK_3); 
 
         // --- 初始化 TabControl ---
         tabControl = new TabControl();
@@ -98,7 +97,6 @@ public class MainForm : Form {
         };
         this.Controls.Add(tabControl);
 
-        // --- 載入各個子功能模組 ---
         fileWatcherApp = new App_FileWatcher(this, trayMenu);
         todoApp = new App_TodoList(this, "todo", "轉待規");
         planApp = new App_TodoList(this, "plan", "轉待辦");
@@ -129,7 +127,6 @@ public class MainForm : Form {
         tabControl.TabPages[4].Controls.Add(shortcutsApp);
         tabControl.TabPages[5].Controls.Add(screenshotApp);
 
-        // --- 閃爍提醒計時器 ---
         flashTimer = new Timer() { Interval = 500 };
         flashTimer.Tick += (s, e) => {
             if (alertTabs.Count == 0) { 
@@ -142,64 +139,51 @@ public class MainForm : Form {
         };
     }
 
-    // 啟動 G-Task 
+    // 啟動 G-Task (路徑: \GTask\GTaskNexus.exe)
     private void LaunchGTask() {
         try {
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GTask", "GTaskNexus.exe");
             if (File.Exists(path)) {
-                ProcessStartInfo psi = new ProcessStartInfo() { FileName = path, UseShellExecute = true };
-                Process.Start(psi);
+                Process.Start(new ProcessStartInfo() { FileName = path, UseShellExecute = true });
             } else {
-                MessageBox.Show("找不到指定的程式檔案：\n" + path + "\n\n請確認路徑與檔名是否正確！", "啟動失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("找不到 G-Task 檔案：\n" + path, "啟動失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         } catch (Exception ex) {
-            MessageBox.Show("啟動 G-Task 發生錯誤：\n" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("錯誤: " + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
-    // 【新增】啟動 Safety System
+    // 啟動 Safety System (修正後路徑: \SafetySystem\Safety_System.exe)
     private void LaunchSafetySystem() {
         try {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GTask", "Safety_System.exe");
+            // 【路徑修正點】
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SafetySystem", "Safety_System.exe");
             if (File.Exists(path)) {
-                ProcessStartInfo psi = new ProcessStartInfo() { FileName = path, UseShellExecute = true };
-                Process.Start(psi);
+                Process.Start(new ProcessStartInfo() { FileName = path, UseShellExecute = true });
             } else {
-                MessageBox.Show("找不到指定的程式檔案：\n" + path + "\n\n請確認路徑與檔名是否正確！", "啟動失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("找不到 Safety System 檔案：\n" + path, "啟動失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         } catch (Exception ex) {
-            MessageBox.Show("啟動 Safety System 發生錯誤：\n" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("錯誤: " + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
-        Graphics g = e.Graphics; 
-        TabPage page = tabControl.TabPages[e.Index]; 
-        Rectangle rect = e.Bounds;
+        Graphics g = e.Graphics; TabPage page = tabControl.TabPages[e.Index]; Rectangle rect = e.Bounds;
         bool isSelected = (tabControl.SelectedIndex == e.Index);
         bool isAlert = alertTabs.Contains(e.Index) && flashState;
-
         Color bg = isAlert ? Color.IndianRed : (isSelected ? Color.White : Color.FromArgb(230, 230, 230));
         Color fg = isAlert ? Color.White : (isSelected ? Color.FromArgb(0, 122, 255) : Color.Gray);
-
         g.FillRectangle(new SolidBrush(bg), rect);
-        if (isSelected && !isAlert) {
-            g.FillRectangle(new SolidBrush(Color.FromArgb(0, 122, 255)), rect.Left, rect.Bottom - 3, rect.Width, 3);
-        }
-
-        StringFormat sf = new StringFormat();
-        sf.Alignment = StringAlignment.Center;
-        sf.LineAlignment = StringAlignment.Center;
+        if (isSelected && !isAlert) g.FillRectangle(new SolidBrush(Color.FromArgb(0, 122, 255)), rect.Left, rect.Bottom - 3, rect.Width, 3);
+        StringFormat sf = new StringFormat() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         g.DrawString(page.Text, new Font(tabControl.Font, isSelected ? FontStyle.Bold : FontStyle.Regular), new SolidBrush(fg), rect, sf);
     }
 
     public void AlertTab(int targetTabIndex) {
         if (tabControl.SelectedIndex != targetTabIndex) {
             alertTabs.Add(targetTabIndex);
-            if (!flashState) { 
-                flashState = true; 
-                flashTimer.Start(); 
-            }
+            if (!flashState) { flashState = true; flashTimer.Start(); }
             tabControl.Invalidate();
         }
     }
@@ -207,70 +191,46 @@ public class MainForm : Form {
     public void ShowAppWindow(int targetTabIndex = -1) {
         if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
         if (!this.Visible) this.Show();
-        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) { tabControl.SelectedIndex = targetTabIndex; }
+        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) tabControl.SelectedIndex = targetTabIndex;
         this.Activate(); 
     }
 
     protected override void OnResize(EventArgs e) {
         base.OnResize(e);
-        if (this.WindowState == FormWindowState.Minimized) { 
-            this.Hide(); 
-            this.WindowState = FormWindowState.Normal; 
-        }
+        if (this.WindowState == FormWindowState.Minimized) { this.Hide(); this.WindowState = FormWindowState.Normal; }
     }
 
-    // --- 快捷鍵攔截處理 ---
     protected override void WndProc(ref Message m) {
         if (m.Msg == WM_HOTKEY) {
             int hotkeyId = m.WParam.ToInt32();
-            if (hotkeyId == HOTKEY_ID) { 
-                ShowAppWindow(); // Ctrl + 1
-            } 
-            else if (hotkeyId == HOTKEY_GTASK_ID) { 
-                LaunchGTask();   // Ctrl + 2
-            }
-            else if (hotkeyId == HOTKEY_SAFETY_ID) { 
-                LaunchSafetySystem(); // 【新增】Ctrl + 3
-            }
+            if (hotkeyId == HOTKEY_ID) ShowAppWindow(); 
+            else if (hotkeyId == HOTKEY_GTASK_ID) LaunchGTask();
+            else if (hotkeyId == HOTKEY_SAFETY_ID) LaunchSafetySystem();
         }
         base.WndProc(ref m);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e) { 
-        if (e.CloseReason == CloseReason.UserClosing) { 
-            e.Cancel = true; 
-            this.Hide(); 
-        } 
+        if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; this.Hide(); } 
         base.OnFormClosing(e); 
     }
 
     private bool IsRunOnStartup() {
         try { 
             RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
-            if (rk != null) {
-                bool exists = (rk.GetValue(appName) != null);
-                rk.Close();
-                return exists;
-            }
-        } catch { } 
-        return false;
+            if (rk != null) { bool exists = (rk.GetValue(appName) != null); rk.Close(); return exists; }
+        } catch { } return false;
     }
 
     private void ToggleStartup(object sender, EventArgs e) {
-        MenuItem item = (MenuItem)sender; 
-        item.Checked = !item.Checked;
+        MenuItem item = (MenuItem)sender; item.Checked = !item.Checked;
         try { 
             RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
             if (rk != null) {
-                if (item.Checked) {
-                    rk.SetValue(appName, "\"" + Application.ExecutablePath + "\"");
-                } else {
-                    rk.DeleteValue(appName, false);
-                }
+                if (item.Checked) rk.SetValue(appName, "\"" + Application.ExecutablePath + "\"");
+                else rk.DeleteValue(appName, false);
                 rk.Close();
             }
-        } catch { 
-            MessageBox.Show("權限不足，無法設定開機啟動。"); 
-        }
+        } catch { MessageBox.Show("權限不足。"); }
     }
 }
