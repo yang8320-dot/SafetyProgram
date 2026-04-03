@@ -11,12 +11,18 @@ namespace Safety_System
     public static class DataManager
     {
         private const string ConfigFile = "sys_config.txt";
-        private const string DbFileName = "SafetyData.sqlite";
+        
+        // 🟢 核心修正 1：定義各個模組專屬的獨立資料庫檔案名稱
+        public const string DbWater = "WaterData.sqlite";
+        public const string DbInspection = "InspectionData.sqlite";
+        // 未來如果有新模組，直接在這裡加一行 DbNew = "NewData.sqlite" 即可！
+
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
-        private static string GetConnString()
+        // 🟢 核心修正 2：連線字串改為動態接收「dbFileName」
+        private static string GetConnString(string dbFileName)
         {
-            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", Path.Combine(BasePath, DbFileName));
+            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", Path.Combine(BasePath, dbFileName));
         }
 
         public static void LoadConfig()
@@ -34,12 +40,14 @@ namespace Safety_System
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
         }
 
-        public static bool IsDbFileExists()
+        // 🟢 核心修正 3：檢查資料庫是否存在時，必須傳入對應的資料庫名稱
+        public static bool IsDbFileExists(string dbFileName)
         {
-            return File.Exists(Path.Combine(BasePath, DbFileName));
+            return File.Exists(Path.Combine(BasePath, dbFileName));
         }
 
-        private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
+        // 🟢 核心修正 4：防呆重試機制現在會根據傳入的資料庫名稱，對目標資料庫進行連線
+        private static void ExecuteWithRetry(string dbFileName, Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
             int delayMs = 500;
@@ -47,7 +55,7 @@ namespace Safety_System
             {
                 try
                 {
-                    using (var conn = new SQLiteConnection(GetConnString()))
+                    using (var conn = new SQLiteConnection(GetConnString(dbFileName)))
                     {
                         conn.Open();
                         using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
@@ -67,9 +75,13 @@ namespace Safety_System
             }
         }
 
+        // ==========================================
+        // 💧 水處理模組相關操作 (綁定 DbWater)
+        // ==========================================
+
         public static void CreateWaterTable()
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(DbWater, conn => {
                 string sql = @"
                     CREATE TABLE IF NOT EXISTS WaterMeterReadings (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +105,7 @@ namespace Safety_System
 
         public static void AddColumnToWaterTable(string columnName)
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(DbWater, conn => {
                 string sql = string.Format("ALTER TABLE WaterMeterReadings ADD COLUMN [{0}] TEXT", columnName);
                 using (var cmd = new SQLiteCommand(sql, conn)) { cmd.ExecuteNonQuery(); }
             });
@@ -101,7 +113,7 @@ namespace Safety_System
 
         public static void UpsertWaterRecord(DataRow row)
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(DbWater, conn => {
                 bool isUpdate = row["Id"] != DBNull.Value;
                 string sql;
 
@@ -145,7 +157,7 @@ namespace Safety_System
 
         public static void DeleteWaterRecord(int id)
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(DbWater, conn => {
                 string sql = "DELETE FROM WaterMeterReadings WHERE Id = @Id";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -155,12 +167,10 @@ namespace Safety_System
             });
         }
 
-        // 🟢 強制校正資料庫中的錯亂日期格式
         private static void AutoFixDateFormats()
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(DbWater, conn => {
                 DataTable dt = new DataTable();
-                // 找出格式不對的日期 (有斜線或長度不是10碼)
                 using (var cmd = new SQLiteCommand("SELECT Id, [日期] FROM WaterMeterReadings WHERE [日期] LIKE '%/%' OR length([日期]) <> 10", conn))
                 {
                     using (var adapter = new SQLiteDataAdapter(cmd)) { adapter.Fill(dt); }
@@ -183,13 +193,11 @@ namespace Safety_System
 
         public static DataTable GetWaterData(string start, string end)
         {
-            // 在讀取之前先背景洗一次資料，確保比對準確無誤
             AutoFixDateFormats();
-
             DataTable dt = new DataTable();
             try
             {
-                using (var conn = new SQLiteConnection(GetConnString()))
+                using (var conn = new SQLiteConnection(GetConnString(DbWater)))
                 {
                     conn.Open();
                     string sql = "SELECT * FROM WaterMeterReadings WHERE [日期] BETWEEN @s AND @e ORDER BY [日期] DESC";
@@ -200,7 +208,6 @@ namespace Safety_System
                         using (var adapter = new SQLiteDataAdapter(cmd)) { adapter.Fill(dt); }
                     }
 
-                    // 如果真的區間內沒資料，才會抓最近的30筆
                     if (dt.Rows.Count == 0)
                     {
                         string sqlTop30 = "SELECT * FROM WaterMeterReadings ORDER BY [日期] DESC LIMIT 30";
@@ -213,11 +220,15 @@ namespace Safety_System
             return dt;
         }
 
+        // ==========================================
+        // 👷 工安巡檢模組相關操作 (綁定 DbInspection)
+        // ==========================================
+
         public static void SaveInspectionRecord(string date, string location, string inspector, string status)
         {
             try
             {
-                ExecuteWithRetry(conn => {
+                ExecuteWithRetry(DbInspection, conn => {
                     string createSql = @"
                         CREATE TABLE IF NOT EXISTS Inspection (
                             Id INTEGER PRIMARY KEY AUTOINCREMENT,
