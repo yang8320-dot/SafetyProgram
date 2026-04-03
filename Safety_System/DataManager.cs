@@ -10,15 +10,15 @@ namespace Safety_System
     public static class DataManager
     {
         private const string ConfigFile = "sys_config.txt";
-        private const string DbFileName = "SafetyData.sqlite";
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
-        private static string GetConnString()
+        // 🟢 動態取得連線字串：現在根據傳入的資料庫名稱（如 "Water"）決定路徑
+        private static string GetConnString(string dbName)
         {
-            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", Path.Combine(BasePath, DbFileName));
+            string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
+            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
         }
 
-        // 🟢 補回：讀取設定檔路徑
         public static void LoadConfig()
         {
             if (File.Exists(ConfigFile))
@@ -28,27 +28,21 @@ namespace Safety_System
             }
         }
 
-        // 🟢 補回：設定資料庫路徑
         public static void SetBasePath(string newPath)
         {
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
         }
 
-        // 🟢 補回：判斷資料庫檔案是否存在
-        public static bool IsDbFileExists()
-        {
-            return File.Exists(Path.Combine(BasePath, DbFileName));
-        }
-
-        private static void ExecuteWithRetry(Action<SQLiteConnection> dbAction)
+        // 🟢 通用執行邏輯 (需傳入 dbName)
+        private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
             for (int i = 1; i <= maxRetries; i++)
             {
                 try
                 {
-                    using (var conn = new SQLiteConnection(GetConnString()))
+                    using (var conn = new SQLiteConnection(GetConnString(dbName)))
                     {
                         conn.Open();
                         using (var pragma = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragma.ExecuteNonQuery(); }
@@ -59,17 +53,19 @@ namespace Safety_System
             }
         }
 
-        public static void InitTable(string tableName, string schemaSql)
+        // 🟢 初始化資料表 (需傳入 dbName)
+        public static void InitTable(string dbName, string tableName, string schemaSql)
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(dbName, conn => {
                 using (var cmd = new SQLiteCommand(schemaSql, conn)) { cmd.ExecuteNonQuery(); }
             });
         }
 
-        public static DataTable GetTableData(string tableName, string dateCol, string start, string end)
+        // 🟢 讀取資料 (需傳入 dbName)
+        public static DataTable GetTableData(string dbName, string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(dbName, conn => {
                 string sql = string.Format("SELECT * FROM [{0}] WHERE [{1}] BETWEEN @s AND @e ORDER BY [{1}] DESC", tableName, dateCol);
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -81,9 +77,10 @@ namespace Safety_System
             return dt;
         }
 
-        public static void UpsertRecord(string tableName, DataRow row)
+        // 🟢 新增或更新 (需傳入 dbName)
+        public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(dbName, conn => {
                 bool isUpdate = row["Id"] != DBNull.Value;
                 StringBuilder sb = new StringBuilder();
                 if (isUpdate) {
@@ -107,24 +104,25 @@ namespace Safety_System
             });
         }
 
-        public static void DeleteRecord(string tableName, int id)
+        // 🟢 刪除資料 (需傳入 dbName)
+        public static void DeleteRecord(string dbName, string tableName, int id)
         {
-            ExecuteWithRetry(conn => {
+            ExecuteWithRetry(dbName, conn => {
                 using (var cmd = new SQLiteCommand(string.Format("DELETE FROM [{0}] WHERE Id=@Id", tableName), conn)) {
                     cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
                 }
             });
         }
 
-        public static void AddColumn(string tableName, string colName) => ExecuteWithRetry(conn => {
+        public static void AddColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] ADD COLUMN [{1}] TEXT", tableName, colName), conn)) { cmd.ExecuteNonQuery(); }
         });
 
-        public static void RenameColumn(string tableName, string oldN, string newN) => ExecuteWithRetry(conn => {
+        public static void RenameColumn(string dbName, string tableName, string oldN, string newN) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] RENAME COLUMN [{1}] TO [{2}]", tableName, oldN, newN), conn)) { cmd.ExecuteNonQuery(); }
         });
 
-        public static void DropColumn(string tableName, string colName) => ExecuteWithRetry(conn => {
+        public static void DropColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] DROP COLUMN [{1}]", tableName, colName), conn)) { cmd.ExecuteNonQuery(); }
         });
     }
