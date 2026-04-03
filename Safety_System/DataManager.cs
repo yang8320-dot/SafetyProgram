@@ -72,7 +72,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修正 3：欄位全面中文化，緊接在 Id 後方增加「日期」
+        // 初始化中文化資料表，Id 後接 日期
         public static void CreateWaterTable()
         {
             ExecuteWithRetry(conn => {
@@ -148,24 +148,16 @@ namespace Safety_System
 
         public static void DeleteWaterRecord(int id)
         {
-            try
-            {
-                ExecuteWithRetry(conn => {
-                    string sql = "DELETE FROM WaterMeterReadings WHERE Id = @Id";
-                    using (var cmd = new SQLiteCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@Id", id);
-                        cmd.ExecuteNonQuery();
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("刪除資料失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            ExecuteWithRetry(conn => {
+                string sql = "DELETE FROM WaterMeterReadings WHERE Id = @Id";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@Id", id);
+                    cmd.ExecuteNonQuery();
+                }
+            });
         }
 
-        // 🟢 修正：查詢條件改為使用中文化的 [日期]
         public static DataTable GetWaterData(string start, string end)
         {
             DataTable dt = new DataTable();
@@ -174,8 +166,6 @@ namespace Safety_System
                 using (var conn = new SQLiteConnection(GetConnString()))
                 {
                     conn.Open();
-                    using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
-
                     string sql = "SELECT * FROM WaterMeterReadings WHERE [日期] BETWEEN @s AND @e ORDER BY [日期] DESC";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     {
@@ -192,33 +182,8 @@ namespace Safety_System
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("讀取資料庫失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            catch (Exception ex) { MessageBox.Show("讀取失敗：" + ex.Message); }
             return dt;
-        }
-
-        public static void SaveInspectionRecord(string date, string location, string inspector, string status)
-        {
-            try
-            {
-                ExecuteWithRetry(conn => {
-                    string sql = "INSERT INTO Inspection (LogDate, Location, Inspector, Status) VALUES (@date, @loc, @ins, @sta)";
-                    using (var cmd = new SQLiteCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@date", date);
-                        cmd.Parameters.AddWithValue("@loc", location);
-                        cmd.Parameters.AddWithValue("@ins", inspector);
-                        cmd.Parameters.AddWithValue("@sta", status);
-                        cmd.ExecuteNonQuery();
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "巡檢紀錄儲存異常", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
         }
     }
 }
