@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -6,44 +8,48 @@ namespace Safety_System
 {
     static class Program
     {
-        private static Mutex mutex = null;
+        // 匯入 Windows API 用於喚醒視窗
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        private const int SW_RESTORE = 9; // 強制還原並顯示視窗的指令
 
         [STAThread]
         static void Main()
         {
-            try 
+            bool createdNew;
+            // 使用 Mutex 確保系統中只有一個此名稱的程式在執行
+            using (Mutex mutex = new Mutex(true, "SafetySystem_Unique_Mutex_Name", out createdNew))
             {
-                // 1. 防止重複啟動檢查
-                const string appName = "SafetySystem_SingleInstance_Mutex_v1";
-                bool createdNew;
-                mutex = new Mutex(true, appName, out createdNew);
-
-                if (!createdNew)
+                if (createdNew)
                 {
-                    MessageBox.Show("工安系統已經在執行中！", "提示");
-                    return;
+                    // 第一次執行，正常啟動
+                    Application.EnableVisualStyles();
+                    Application.SetCompatibleTextRenderingDefault(false);
+                    Application.Run(new MainForm());
                 }
-
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                
-                // 2. 初始化資料庫設定 (這步最容易報錯，所以放進 try 裡面)
-                DataManager.LoadConfig();
-
-                // 3. 啟動主視窗
-                Application.Run(new MainForm());
-            }
-            catch (Exception ex)
-            {
-                // 如果程式啟動失敗，彈出具體錯誤原因
-                MessageBox.Show("程式啟動發生錯誤：\n" + ex.Message + "\n\n堆疊追蹤：\n" + ex.StackTrace, "啟動失敗");
-            }
-            finally
-            {
-                if (mutex != null)
+                else
                 {
-                    mutex.ReleaseMutex();
-                    mutex.Close();
+                    // 程式已在執行，尋找原本的視窗
+                    Process current = Process.GetCurrentProcess();
+                    foreach (Process process in Process.GetProcessesByName(current.ProcessName))
+                    {
+                        if (process.Id != current.Id)
+                        {
+                            IntPtr handle = process.MainWindowHandle;
+                            if (handle != IntPtr.Zero)
+                            {
+                                // 1. 還原視窗（避免視窗處於最小化狀態）
+                                ShowWindow(handle, SW_RESTORE);
+                                // 2. 將視窗帶到最前端
+                                SetForegroundWindow(handle);
+                            }
+                            break;
+                        }
+                    }
+                    // 執行完畢，結束當前這個重複的實例，不跳提示視窗
                 }
             }
         }
