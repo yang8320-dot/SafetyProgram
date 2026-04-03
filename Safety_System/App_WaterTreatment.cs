@@ -12,17 +12,17 @@ namespace Safety_System
     {
         private DataGridView _dgv;
         private DateTimePicker _dtpStart, _dtpEnd;
-        private TextBox _txtNewColName;
+        private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
-        private TextBox _txtRenameCol;
 
-        // 🟢 定義此模組專用的資料表名稱
-        private const string TableName = "WaterMeterReadings"; 
+        // 🟢 定義此模組歸屬的資料庫與資料表
+        private const string DbName = "Water"; // 對應 Water.sqlite
+        private const string TableName = "WaterMeterReadings"; // 對應水處理記錄表
 
         public Control GetView()
         {
-            // 1. 初始化資料表結構 (如果不存在則建立)
-            DataManager.InitTable(TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
+            // 1. 初始化資料表結構 (如果資料庫或資料表不存在則自動建立)
+            DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
                 [廢水處理量] TEXT, 
@@ -35,13 +35,13 @@ namespace Safety_System
                 [軟水B] TEXT, 
                 [軟水C] TEXT);");
 
-            // 2. 主排版：Row 0 為控制區 (AutoSize)，Row 1 為資料表 (100%)
+            // 2. 主排版設定 (動態自適應)
             TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             GroupBox boxTop = new GroupBox { 
-                Text = "水處理數據檢索與欄位管理", 
+                Text = "水處理數據管理 (庫: " + DbName + " / 表: " + TableName + ")", 
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 12F),
                 AutoSize = true, 
@@ -91,7 +91,12 @@ namespace Safety_System
             _txtNewColName = new TextBox { Width = 150, Margin = new Padding(3, 7, 3, 3) }; 
             flpRow2.Controls.Add(_txtNewColName);
             Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(5, 2, 3, 3) };
-            btnAddCol.Click += BtnAddCol_Click;
+            btnAddCol.Click += (s, e) => {
+                if (!string.IsNullOrWhiteSpace(_txtNewColName.Text)) {
+                    DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
+                    _txtNewColName.Clear(); RefreshGrid();
+                }
+            };
             flpRow2.Controls.Add(btnAddCol);
 
             flpRow2.Controls.Add(new Label { Text = "管理欄位:", AutoSize = true, Margin = new Padding(25, 10, 3, 0) });
@@ -121,72 +126,27 @@ namespace Safety_System
             boxTop.Controls.Add(tlpControls);
             mainLayout.Controls.Add(boxTop, 0, 0);
 
-            // ==========================================
             // 3. 下方表格區
-            // ==========================================
             GroupBox boxBottom = new GroupBox { Text = "數據明細 (支援 Ctrl+V 貼上、右鍵匯出)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
             _dgv = new DataGridView {
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToAddRows = true
             };
             _dgv.KeyDown += Dgv_KeyDown;
-            _dgv.CellEndEdit += (s, e) => {
-                if (e.RowIndex >= 0 && _dgv.Columns[e.ColumnIndex].Name == "日期") {
-                    var cellVal = _dgv[e.ColumnIndex, e.RowIndex].Value;
-                    if (cellVal != null && DateTime.TryParse(cellVal.ToString(), out DateTime d)) _dgv[e.ColumnIndex, e.RowIndex].Value = d.ToString("yyyy-MM-dd");
-                }
-            };
-
-            SetupContextMenu();
             boxBottom.Controls.Add(_dgv);
             mainLayout.Controls.Add(boxBottom, 0, 1);
 
             return mainLayout;
         }
 
-        private bool VerifyPassword()
-        {
-            Form prompt = new Form() {
-                Width = 450, Height = 240, FormBorderStyle = FormBorderStyle.FixedDialog,
-                Text = "安全授權驗證", StartPosition = FormStartPosition.CenterParent, MaximizeBox = false
-            };
-            Label textLabel = new Label() { Left = 30, Top = 30, Text = "執行此操作需要管理員權限，\n請輸入授權密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 14F) };
-            TextBox textBox = new TextBox() { Left = 30, Top = 95, Width = 370, PasswordChar = '*', Font = new Font("Microsoft JhengHei UI", 14F) };
-            Button confirmation = new Button() { Text = "確認執行", Left = 280, Top = 145, Width = 120, Height = 40, DialogResult = DialogResult.OK, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), BackColor = Color.LightGray };
-            prompt.Controls.Add(textLabel); prompt.Controls.Add(textBox); prompt.Controls.Add(confirmation);
-            prompt.AcceptButton = confirmation;
-            return prompt.ShowDialog() == DialogResult.OK && textBox.Text == "tces";
-        }
-
-        private void BtnRenameCol_Click(object sender, EventArgs e)
-        {
-            string targetCol = _cboColumns.SelectedItem?.ToString();
-            string newName = _txtRenameCol.Text.Trim();
-            if (string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(newName)) return;
-            if (!VerifyPassword()) return;
-            try {
-                DataManager.RenameColumn(TableName, targetCol, newName); // 🟢 使用通用方法
-                MessageBox.Show("更名成功！"); _txtRenameCol.Clear(); RefreshGrid();
-            } catch (Exception ex) { MessageBox.Show("更名失敗：" + ex.Message); }
-        }
-
-        private void BtnDropCol_Click(object sender, EventArgs e)
-        {
-            string targetCol = _cboColumns.SelectedItem?.ToString();
-            if (string.IsNullOrEmpty(targetCol)) return;
-            if (MessageBox.Show($"確定徹底刪除 [{targetCol}] 欄位？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                if (!VerifyPassword()) return;
-                try { DataManager.DropColumn(TableName, targetCol); // 🟢 使用通用方法
-                MessageBox.Show("已刪除欄位！"); RefreshGrid(); }
-                catch (Exception ex) { MessageBox.Show("刪除失敗：" + ex.Message); }
-            }
-        }
-
         private void RefreshGrid()
         {
-            _dgv.DataSource = DataManager.GetTableData(TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
+            _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
+            
             _cboColumns.Items.Clear();
-            foreach (DataGridViewColumn col in _dgv.Columns) { if (col.Name != "Id" && col.Name != "日期") _cboColumns.Items.Add(col.Name); }
+            foreach (DataGridViewColumn col in _dgv.Columns) {
+                if (col.Name != "Id" && col.Name != "日期") _cboColumns.Items.Add(col.Name);
+            }
             if (_cboColumns.Items.Count > 0) _cboColumns.SelectedIndex = 0;
         }
 
@@ -196,8 +156,8 @@ namespace Safety_System
             DataTable dt = (DataTable)_dgv.DataSource;
             if (dt == null) return;
             try {
-                foreach (DataRow row in dt.Rows) { 
-                    if (row.RowState != DataRowState.Deleted) DataManager.UpsertRecord(TableName, row); // 🟢 使用通用方法
+                foreach (DataRow row in dt.Rows) {
+                    if (row.RowState != DataRowState.Deleted) DataManager.UpsertRecord(DbName, TableName, row);
                 }
                 MessageBox.Show("資料儲存完畢！"); RefreshGrid();
             } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
@@ -209,36 +169,64 @@ namespace Safety_System
             var idVal = _dgv.CurrentRow.Cells["Id"].Value;
             if (idVal != null && idVal != DBNull.Value) {
                 if (MessageBox.Show("確定刪除此筆資料？", "警告", MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                    DataManager.DeleteRecord(TableName, Convert.ToInt32(idVal)); // 🟢 使用通用方法
+                    DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(idVal));
                     RefreshGrid();
                 }
             } else { _dgv.Rows.Remove(_dgv.CurrentRow); }
         }
 
-        private void Dgv_KeyDown(object sender, KeyEventArgs e) { if (e.Control && e.KeyCode == Keys.V) { PasteClipboard(); e.Handled = true; } }
+        private void BtnRenameCol_Click(object sender, EventArgs e)
+        {
+            string targetCol = _cboColumns.Text;
+            string newName = _txtRenameCol.Text.Trim();
+            if (string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(newName)) return;
+            if (!VerifyPassword()) return;
+            try {
+                DataManager.RenameColumn(DbName, TableName, targetCol, newName);
+                MessageBox.Show("更名成功！"); _txtRenameCol.Clear(); RefreshGrid();
+            } catch (Exception ex) { MessageBox.Show("失敗：" + ex.Message); }
+        }
+
+        private void BtnDropCol_Click(object sender, EventArgs e)
+        {
+            string targetCol = _cboColumns.Text;
+            if (string.IsNullOrEmpty(targetCol)) return;
+            if (MessageBox.Show($"確定徹底刪除 [{targetCol}] 欄位？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                if (!VerifyPassword()) return;
+                try { DataManager.DropColumn(DbName, TableName, targetCol); RefreshGrid(); }
+                catch (Exception ex) { MessageBox.Show("失敗：" + ex.Message); }
+            }
+        }
+
+        private bool VerifyPassword()
+        {
+            Form prompt = new Form() { Width = 450, Height = 240, FormBorderStyle = FormBorderStyle.FixedDialog, Text = "安全授權驗證", StartPosition = FormStartPosition.CenterParent };
+            Label lbl = new Label() { Left = 30, Top = 30, Text = "執行此操作需要管理員權限，\n請輸入授權密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 14F) };
+            TextBox txt = new TextBox() { Left = 30, Top = 95, Width = 370, PasswordChar = '*', Font = new Font("Microsoft JhengHei UI", 14F) };
+            Button btn = new Button() { Text = "確認執行", Left = 280, Top = 145, Width = 120, Height = 40, DialogResult = DialogResult.OK, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            prompt.Controls.Add(lbl); prompt.Controls.Add(txt); prompt.Controls.Add(btn);
+            prompt.AcceptButton = btn;
+            return prompt.ShowDialog() == DialogResult.OK && txt.Text == "tces";
+        }
+
+        private void Dgv_KeyDown(object sender, KeyEventArgs e) { if (e.Control && e.KeyCode == Keys.V) PasteClipboard(); }
 
         private void PasteClipboard()
         {
             try {
                 string text = Clipboard.GetText();
                 if (string.IsNullOrEmpty(text)) return;
-                if (_dgv.IsCurrentCellInEditMode) _dgv.EndEdit();
                 string[] lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
-                int lineCount = lines.Length; if (lineCount > 0 && string.IsNullOrEmpty(lines[lineCount - 1])) lineCount--;
-                int startRow = _dgv.CurrentCell.RowIndex;
-                int startCol = _dgv.CurrentCell.ColumnIndex;
+                int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
                 DataTable dt = (DataTable)_dgv.DataSource;
-                for (int i = 0; i < lineCount; i++) {
-                    string[] cells = lines[i].Split('\t'); int currentRow = startRow + i;
-                    if (currentRow >= _dgv.Rows.Count - (_dgv.AllowUserToAddRows ? 1 : 0)) dt.Rows.Add(dt.NewRow());
-                    for (int j = 0; j < cells.Length; j++) {
-                        int currentCol = startCol + j;
-                        if (currentCol < _dgv.Columns.Count && !_dgv.Columns[currentCol].ReadOnly) {
-                            string val = cells[j].Trim();
-                            if (_dgv.Columns[currentCol].Name == "日期" && DateTime.TryParse(val, out DateTime d)) val = d.ToString("yyyy-MM-dd");
-                            _dgv[currentCol, currentRow].Value = val;
-                        }
+                foreach (string line in lines) {
+                    if (string.IsNullOrEmpty(line)) continue;
+                    if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
+                    string[] cells = line.Split('\t');
+                    for (int i = 0; i < cells.Length; i++) {
+                        if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly) _dgv[c + i, r].Value = cells[i].Trim();
                     }
+                    r++;
                 }
             } catch (Exception ex) { MessageBox.Show("貼上失敗：" + ex.Message); }
         }
@@ -278,14 +266,6 @@ namespace Safety_System
             }
         }
 
-        private void BtnAddCol_Click(object sender, EventArgs e)
-        {
-            if (!string.IsNullOrWhiteSpace(_txtNewColName.Text)) {
-                DataManager.AddColumn(TableName, _txtNewColName.Text.Trim()); // 🟢 使用通用方法
-                MessageBox.Show("新增欄位成功！"); _txtNewColName.Clear(); RefreshGrid();
-            }
-        }
-
         private void BtnImportCsv_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV|*.csv" }) {
@@ -298,11 +278,7 @@ namespace Safety_System
                             DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
                             for (int h = 0; h < headers.Length && h < vs.Length; h++) {
                                 string cn = headers[h].Trim();
-                                if (dt.Columns.Contains(cn) && cn != "Id") {
-                                    string val = vs[h].Trim();
-                                    if (cn == "日期" && DateTime.TryParse(val, out DateTime d)) val = d.ToString("yyyy-MM-dd");
-                                    nr[cn] = val;
-                                }
+                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim();
                             }
                             dt.Rows.Add(nr);
                         }
