@@ -1,30 +1,32 @@
 using System;
-using System.Windows.Forms;
+using System.Data;
 using System.Drawing;
+using System.Windows.Forms;
 
 namespace Safety_System
 {
     public class App_FireResponsible
     {
+        private DataGridView _dgv;
+        private const string TableName = "FireResponsiblePersons";
+
         public Control GetView()
         {
-            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(0, 20, 0, 0) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(10) };
-            Button btnAdd = new Button { Text = "新增責任人", Size = new Size(120, 35), BackColor = Color.LightBlue };
-            Button btnSave = new Button { Text = "儲存變更", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
-            
-            flp.Controls.AddRange(new Control[] { btnAdd, btnSave });
-            
-            DataGridView dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
-            dgv.Columns.Add("Area", "管轄區域");
-            dgv.Columns.Add("Name", "負責人姓名");
-            dgv.Columns.Add("Ext", "分機");
+            DataManager.InitTable(TableName, @"CREATE TABLE IF NOT EXISTS [FireResponsiblePersons] (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT, [管轄區域] TEXT, [正負責人] TEXT, [副負責人] TEXT, [分機] TEXT);");
 
-            main.Controls.Add(flp, 0, 0);
-            main.Controls.Add(dgv, 0, 1);
+            GroupBox gb = new GroupBox { Text = "👨‍🚒 火源責任人管理", Dock = DockStyle.Fill, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button b = new Button { Text = "💾 儲存名單", Size = new Size(120, 35), BackColor = Color.OrangeRed, ForeColor = Color.White, Location = new Point(20, 30) };
+            b.Click += (s, e) => { _dgv.EndEdit(); foreach (DataRow r in ((DataTable)_dgv.DataSource).Rows) DataManager.UpsertRecord(TableName, r); MessageBox.Show("責任人名單已存檔"); };
+            
+            gb.Controls.Add(b);
+            main.Controls.Add(gb, 0, 0);
+            _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true };
+            main.Controls.Add(_dgv, 0, 1);
             return main;
         }
     }
