@@ -19,7 +19,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 最外層主排版：將 Row 0 設為 AutoSize，隨內部控制項自動長高
+            // 主排版：Row 0 為控制區 (AutoSize)，Row 1 為資料表 (100%)
             TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -29,89 +29,83 @@ namespace Safety_System
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 12F),
                 AutoSize = true, 
-                Padding = new Padding(5, 20, 5, 5)
+                Padding = new Padding(10, 25, 10, 10)
             };
 
-            // 🟢 控制區內部排版：縮減為 2 行
+            // 內層容器：垂直堆疊兩行 FlowLayoutPanel
             TableLayoutPanel tlpControls = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true 
             };
-            tlpControls.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            tlpControls.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             // ==========================================
-            // 🟢 第 1 行：日期、讀取、匯入、儲存
+            // 🟢 第 1 行：日期區間 + 讀取 + 匯出 + 儲存
             // ==========================================
-            FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 5) };
+            FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             
-            Label lblDateStart = new Label { Text = "日期起:", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
-            _dtpStart = new DateTimePicker { Width = 170, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
+            Label lblDateStart = new Label { Text = "日期起:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) };
+            _dtpStart = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
             _dtpStart.Value = DateTime.Now.AddDays(-30); 
             
-            Label lblDateEnd = new Label { Text = "日期迄:", AutoSize = true, Margin = new Padding(15, 8, 3, 3) };
-            _dtpEnd = new DateTimePicker { Width = 170, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
+            Label lblDateEnd = new Label { Text = "日期迄:", AutoSize = true, Margin = new Padding(15, 10, 3, 0) };
+            _dtpEnd = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
             
-            Button btnRead = new Button { Text = "讀取資料庫", Size = new Size(120, 35), BackColor = Color.LightBlue, Margin = new Padding(20, 0, 3, 3) };
+            Button btnRead = new Button { Text = "讀取資料庫", Size = new Size(110, 35), BackColor = Color.LightBlue, Margin = new Padding(15, 2, 3, 3) };
             btnRead.Click += BtnRead_Click;
 
-            Button btnImportCsv = new Button { Text = "📥 匯入 CSV", Size = new Size(120, 35), BackColor = Color.Orange, Margin = new Padding(10, 0, 3, 3) };
+            Button btnImportCsv = new Button { Text = "📥 匯入 CSV", Size = new Size(110, 35), BackColor = Color.Orange, Margin = new Padding(5, 2, 3, 3) };
             btnImportCsv.Click += BtnImportCsv_Click;
 
-            // 🟢 將儲存按鍵改名並移至此處
             Button btnSaveManual = new Button { 
                 Text = "💾 儲存", Size = new Size(100, 35), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                Margin = new Padding(10, 0, 3, 3)
+                Margin = new Padding(5, 2, 3, 3)
             };
             btnSaveManual.Click += BtnSaveManual_Click;
 
             flpRow1.Controls.AddRange(new Control[] { lblDateStart, _dtpStart, lblDateEnd, _dtpEnd, btnRead, btnImportCsv, btnSaveManual });
 
             // ==========================================
-            // 🟢 第 2 行：新增欄位、管理欄位、刪除選取資料
+            // 🟢 第 2 行：新增欄位 + 管理欄位 + 刪除資料
             // ==========================================
-            FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 10) };
+            FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 10, 0, 5) };
             
-            Label lblNewCol = new Label { Text = "新增欄位:", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
-            _txtNewColName = new TextBox { Width = 140, Margin = new Padding(3, 5, 3, 3) }; 
-            Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(10, 0, 3, 3) };
+            Label lblNewCol = new Label { Text = "新增欄位:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) };
+            _txtNewColName = new TextBox { Width = 150, Margin = new Padding(3, 7, 3, 3) }; 
+            Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(5, 2, 3, 3) };
             btnAddCol.Click += BtnAddCol_Click;
 
-            Label lblManageCol = new Label { Text = "管理欄位:", AutoSize = true, Margin = new Padding(30, 8, 3, 3) };
-            _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3, 5, 3, 3) };
-            _txtRenameCol = new TextBox { Width = 130, Margin = new Padding(10, 5, 3, 3) }; 
+            Label lblManageCol = new Label { Text = "管理欄位:", AutoSize = true, Margin = new Padding(25, 10, 3, 0) };
+            _cboColumns = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3, 7, 3, 3) };
+            _txtRenameCol = new TextBox { Width = 140, Margin = new Padding(5, 7, 3, 3) }; 
             
-            Button btnRenameCol = new Button { Text = "✏️ 改名", Size = new Size(90, 35), BackColor = Color.LightYellow, Margin = new Padding(10, 0, 3, 3) };
+            Button btnRenameCol = new Button { Text = "✏️ 改名", Size = new Size(80, 35), BackColor = Color.LightYellow, Margin = new Padding(5, 2, 3, 3) };
             btnRenameCol.Click += BtnRenameCol_Click;
             
-            Button btnDropCol = new Button { Text = "⚠️ 刪除欄位", Size = new Size(120, 35), BackColor = Color.LightPink, Margin = new Padding(10, 0, 3, 3) };
+            Button btnDropCol = new Button { Text = "⚠️ 刪除欄", Size = new Size(100, 35), BackColor = Color.LightPink, Margin = new Padding(5, 2, 3, 3) };
             btnDropCol.Click += BtnDropCol_Click;
 
-            // 🟢 將刪除資料按鍵移至此處
             Button btnDeleteRow = new Button {
-                Text = "🗑️ 刪除選取資料", Size = new Size(160, 35), 
+                Text = "🗑️ 刪除選取資料", Size = new Size(150, 35), 
                 BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                Margin = new Padding(20, 0, 3, 3)
+                Margin = new Padding(15, 2, 3, 3)
             };
             btnDeleteRow.Click += BtnDeleteRow_Click;
 
             flpRow2.Controls.AddRange(new Control[] { lblNewCol, _txtNewColName, btnAddCol, lblManageCol, _cboColumns, _txtRenameCol, btnRenameCol, btnDropCol, btnDeleteRow });
 
-            // 組合控制區
             tlpControls.Controls.Add(flpRow1, 0, 0);
             tlpControls.Controls.Add(flpRow2, 0, 1);
             boxTop.Controls.Add(tlpControls);
             mainLayout.Controls.Add(boxTop, 0, 0);
 
             // ==========================================
-            // --- 底部明細區 ---
+            // 下方表格區
             // ==========================================
             GroupBox boxBottom = new GroupBox { Text = "數據明細 (支援 Ctrl+V 貼上、右鍵匯出)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
             _dgv = new DataGridView {
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToAddRows = true
             };
             _dgv.KeyDown += Dgv_KeyDown;
-            
             _dgv.CellEndEdit += (s, e) => {
                 if (e.RowIndex >= 0 && _dgv.Columns[e.ColumnIndex].Name == "日期") {
                     var cellVal = _dgv[e.ColumnIndex, e.RowIndex].Value;
@@ -126,83 +120,51 @@ namespace Safety_System
             return mainLayout;
         }
 
-        // ==========================================
-        // 授權驗證小視窗機制
-        // ==========================================
         private bool VerifyPassword()
         {
             Form prompt = new Form() {
-                Width = 350, Height = 180, FormBorderStyle = FormBorderStyle.FixedDialog,
+                Width = 450, Height = 240, FormBorderStyle = FormBorderStyle.FixedDialog,
                 Text = "安全授權驗證", StartPosition = FormStartPosition.CenterParent, MaximizeBox = false
             };
-            Label textLabel = new Label() { Left = 20, Top = 20, Text = "執行此操作需要管理員權限，\n請輸入授權密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            TextBox textBox = new TextBox() { Left = 20, Top = 70, Width = 280, PasswordChar = '*', Font = new Font("Microsoft JhengHei UI", 12F) };
-            Button confirmation = new Button() { Text = "確認執行", Left = 200, Width = 100, Top = 105, DialogResult = DialogResult.OK, Font = new Font("Microsoft JhengHei UI", 10F) };
-            
-            prompt.Controls.Add(textLabel);
-            prompt.Controls.Add(textBox);
-            prompt.Controls.Add(confirmation);
+            Label textLabel = new Label() { Left = 30, Top = 30, Text = "執行此操作需要管理員權限，\n請輸入授權密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 14F) };
+            TextBox textBox = new TextBox() { Left = 30, Top = 95, Width = 370, PasswordChar = '*', Font = new Font("Microsoft JhengHei UI", 14F) };
+            Button confirmation = new Button() { Text = "確認執行", Left = 280, Top = 145, Width = 120, Height = 40, DialogResult = DialogResult.OK, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), BackColor = Color.LightGray };
+            prompt.Controls.Add(textLabel); prompt.Controls.Add(textBox); prompt.Controls.Add(confirmation);
             prompt.AcceptButton = confirmation;
-
             return prompt.ShowDialog() == DialogResult.OK && textBox.Text == "tces";
         }
 
-        // ==========================================
-        // 重新命名與刪除欄位邏輯
-        // ==========================================
         private void BtnRenameCol_Click(object sender, EventArgs e)
         {
             string targetCol = _cboColumns.SelectedItem?.ToString();
             string newName = _txtRenameCol.Text.Trim();
-            
-            if (string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(newName)) {
-                MessageBox.Show("請先選擇目標欄位，並在旁邊輸入新的欄位名稱！", "提示"); return;
-            }
-            if (!VerifyPassword()) { MessageBox.Show("密碼錯誤或取消操作，授權失敗。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
-
+            if (string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(newName)) return;
+            if (!VerifyPassword()) return;
             try {
                 DataManager.RenameColumnInWaterTable(targetCol, newName);
-                MessageBox.Show($"欄位已成功更名為 [{newName}]！", "成功");
-                _txtRenameCol.Clear();
-                RefreshGrid();
+                MessageBox.Show("更名成功！"); _txtRenameCol.Clear(); RefreshGrid();
             } catch (Exception ex) { MessageBox.Show("更名失敗：" + ex.Message); }
         }
 
         private void BtnDropCol_Click(object sender, EventArgs e)
         {
             string targetCol = _cboColumns.SelectedItem?.ToString();
-            if (string.IsNullOrEmpty(targetCol)) { MessageBox.Show("請先選擇要刪除的目標欄位！", "提示"); return; }
-            
-            if (MessageBox.Show($"⚠️ 極度危險操作！\n\n您確定要徹底刪除 [{targetCol}] 欄位及其內部「所有歷史資料」嗎？\n此操作無法復原！", "刪除欄位確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
-            {
-                if (!VerifyPassword()) { MessageBox.Show("密碼錯誤或取消操作，授權失敗。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
-
-                try {
-                    DataManager.DropColumnFromWaterTable(targetCol);
-                    MessageBox.Show($"欄位 [{targetCol}] 已徹底刪除！", "成功");
-                    RefreshGrid();
-                } catch (Exception ex) { MessageBox.Show("刪除失敗：" + ex.Message); }
+            if (string.IsNullOrEmpty(targetCol)) return;
+            if (MessageBox.Show($"確定徹底刪除 [{targetCol}] 欄位？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                if (!VerifyPassword()) return;
+                try { DataManager.DropColumnFromWaterTable(targetCol); MessageBox.Show("已刪除欄位！"); RefreshGrid(); }
+                catch (Exception ex) { MessageBox.Show("刪除失敗：" + ex.Message); }
             }
         }
 
-        // ==========================================
-        // 讀取與綁定邏輯
-        // ==========================================
-        private void BtnRead_Click(object sender, EventArgs e)
-        {
-            if (!DataManager.IsDbFileExists()) DataManager.CreateWaterTable();
-            RefreshGrid();
-        }
+        private void BtnRead_Click(object sender, EventArgs e) { if (!DataManager.IsDbFileExists()) DataManager.CreateWaterTable(); RefreshGrid(); }
 
         private void RefreshGrid()
         {
             _dgv.DataSource = DataManager.GetWaterData(_dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
-
             _cboColumns.Items.Clear();
-            foreach (DataGridViewColumn col in _dgv.Columns) {
-                if (col.Name != "Id" && col.Name != "日期") _cboColumns.Items.Add(col.Name);
-            }
+            foreach (DataGridViewColumn col in _dgv.Columns) { if (col.Name != "Id" && col.Name != "日期") _cboColumns.Items.Add(col.Name); }
             if (_cboColumns.Items.Count > 0) _cboColumns.SelectedIndex = 0;
         }
 
@@ -212,15 +174,15 @@ namespace Safety_System
             if (dt == null) return;
             try {
                 foreach (DataRow row in dt.Rows) { if (row.RowState != DataRowState.Deleted) DataManager.UpsertWaterRecord(row); }
-                MessageBox.Show("存檔完成！"); RefreshGrid();
-            } catch (Exception ex) { MessageBox.Show("存檔失敗：" + ex.Message); }
+                MessageBox.Show("資料儲存完畢！"); RefreshGrid();
+            } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
         }
 
         private void BtnDeleteRow_Click(object sender, EventArgs e) {
             if (_dgv.CurrentRow == null || _dgv.CurrentRow.IsNewRow) return;
             var idVal = _dgv.CurrentRow.Cells["Id"].Value;
             if (idVal != null && idVal != DBNull.Value) {
-                if (MessageBox.Show("確定刪除？", "警告", MessageBoxButtons.YesNo) == DialogResult.Yes) {
+                if (MessageBox.Show("確定刪除此筆資料？", "警告", MessageBoxButtons.YesNo) == DialogResult.Yes) {
                     DataManager.DeleteWaterRecord(Convert.ToInt32(idVal)); RefreshGrid();
                 }
             } else { _dgv.Rows.Remove(_dgv.CurrentRow); }
@@ -234,14 +196,12 @@ namespace Safety_System
                 if (string.IsNullOrEmpty(text)) return;
                 if (_dgv.IsCurrentCellInEditMode) _dgv.EndEdit();
                 string[] lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
-                int lineCount = lines.Length;
-                if (lineCount > 0 && string.IsNullOrEmpty(lines[lineCount - 1])) lineCount--;
+                int lineCount = lines.Length; if (lineCount > 0 && string.IsNullOrEmpty(lines[lineCount - 1])) lineCount--;
                 int startRow = _dgv.CurrentCell.RowIndex;
                 int startCol = _dgv.CurrentCell.ColumnIndex;
                 DataTable dt = (DataTable)_dgv.DataSource;
                 for (int i = 0; i < lineCount; i++) {
-                    string[] cells = lines[i].Split('\t');
-                    int currentRow = startRow + i;
+                    string[] cells = lines[i].Split('\t'); int currentRow = startRow + i;
                     if (currentRow >= _dgv.Rows.Count - (_dgv.AllowUserToAddRows ? 1 : 0)) dt.Rows.Add(dt.NewRow());
                     for (int j = 0; j < cells.Length; j++) {
                         int currentCol = startCol + j;
@@ -280,12 +240,11 @@ namespace Safety_System
                             using (var p = new ExcelPackage()) {
                                 var ws = p.Workbook.Worksheets.Add("Data");
                                 ws.Cells["A1"].LoadFromDataTable(dt, true);
-                                ws.Cells.AutoFitColumns();
-                                p.SaveAs(new FileInfo(sfd.FileName));
+                                ws.Cells.AutoFitColumns(); p.SaveAs(new FileInfo(sfd.FileName));
                             }
                         }
                         MessageBox.Show("匯出成功！");
-                    } catch (Exception ex) { MessageBox.Show("失敗：" + ex.Message); }
+                    } catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message); }
                 }
             }
         }
@@ -293,9 +252,7 @@ namespace Safety_System
         private void BtnAddCol_Click(object sender, EventArgs e) {
             if (!string.IsNullOrWhiteSpace(_txtNewColName.Text)) {
                 DataManager.AddColumnToWaterTable(_txtNewColName.Text.Trim());
-                MessageBox.Show("新增成功，請重新讀取。");
-                _txtNewColName.Clear();
-                RefreshGrid();
+                MessageBox.Show("新增欄位成功！"); _txtNewColName.Clear(); RefreshGrid();
             }
         }
 
@@ -307,8 +264,7 @@ namespace Safety_System
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = lines[0].Split(',');
                         for (int i = 1; i < lines.Length; i++) {
-                            DataRow nr = dt.NewRow();
-                            string[] vs = lines[i].Split(',');
+                            DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
                             for (int h = 0; h < headers.Length && h < vs.Length; h++) {
                                 string cn = headers[h].Trim();
                                 if (dt.Columns.Contains(cn) && cn != "Id") {
