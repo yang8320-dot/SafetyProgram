@@ -8,26 +8,23 @@ namespace Safety_System
     {
         public Control GetView()
         {
-            Panel pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, Padding = new Padding(30) };
+            // 🟢 增加頂部 Padding 防止被遮擋
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 20, 0, 0) };
+            Panel pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke };
             
             Label lblTitle = new Label { 
                 Text = "🛡️ 工安管理儀表版", 
                 Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), 
-                AutoSize = true, Location = new Point(30, 30) 
+                AutoSize = true, Location = new Point(30, 20) 
             };
 
-            // 範例：零災害天數看板
-            Panel pnlCard = new Panel { 
-                Size = new Size(400, 150), Location = new Point(35, 100), 
-                BackColor = Color.FromArgb(45, 45, 45), // 深色質感
-            };
-            Label lblDaysTitle = new Label { Text = "安全生產天數", ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F), Location = new Point(20, 20), AutoSize = true };
-            Label lblDays = new Label { Text = "365 天", ForeColor = Color.LimeGreen, Font = new Font("Impact", 40F), Location = new Point(20, 60), AutoSize = true };
-            
-            pnlCard.Controls.AddRange(new Control[] { lblDaysTitle, lblDays });
-            pnl.Controls.AddRange(new Control[] { lblTitle, pnlCard });
-            
-            return pnl;
+            GroupBox box = new GroupBox { Text = "安全指標", Size = new Size(400, 200), Location = new Point(30, 80), Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblDays = new Label { Text = "零災害累計天數：365 天", ForeColor = Color.Green, AutoSize = true, Location = new Point(20, 40) };
+            box.Controls.Add(lblDays);
+
+            pnl.Controls.AddRange(new Control[] { lblTitle, box });
+            main.Controls.Add(pnl);
+            return main;
         }
     }
 }
