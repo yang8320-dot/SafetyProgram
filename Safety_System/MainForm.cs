@@ -25,15 +25,14 @@ namespace Safety_System
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1440, 810);
 
-            // 🟢 關鍵修正 1.2: 將系統預設字體改為較銳利的 UI 字體
+            // 設定系統預設字體以確保清晰度
             this.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, ((byte)(136)));
 
-            // 🟢 關鍵修正 2.1: 確保視窗啟用快捷鍵預覽
+            // 確保視窗啟用快捷鍵預覽 (支援 Ctrl + 3)
             this.KeyPreview = true;
 
             // 初始化選單
             _mainMenu = new MenuStrip();
-            // 選單字體也要單獨設定以保持一致
             _mainMenu.Font = new Font("Microsoft JhengHei UI", 12F);
             BuildMenu();
             this.Controls.Add(_mainMenu);
@@ -54,7 +53,11 @@ namespace Safety_System
 
         private void BuildMenu()
         {
-            // 工安選單
+            // --- 1. 首頁 (新增於首位，無下拉選單) ---
+            var menuHome = new ToolStripMenuItem("首頁");
+            menuHome.Click += (s, e) => LoadWelcomeScreen(); // 點擊直接帶回主頁
+
+            // --- 2. 工安 ---
             var menuSafety = new ToolStripMenuItem("工安");
             var itemInspection = new ToolStripMenuItem("巡檢");
             itemInspection.Click += (s, e) => LoadModule(new App_SafetyInspection().GetView());
@@ -64,20 +67,21 @@ namespace Safety_System
             menuSafety.DropDownItems.Add(new ToolStripMenuItem("工傷"));
             menuSafety.DropDownItems.Add(new ToolStripMenuItem("交傷"));
 
-            // 環保選單
+            // --- 3. 環保 ---
             var menuEnv = new ToolStripMenuItem("環保");
             menuEnv.DropDownItems.Add(new ToolStripMenuItem("空污申報"));
 
-            // 消防選單
+            // --- 4. 消防 ---
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(new ToolStripMenuItem("消防設備"));
 
-            // 設定選單
+            // --- 5. 設定 ---
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(new ToolStripMenuItem("使用者設定"));
 
-            // 將所有選單加入列
+            // 將所有選單加入列，首頁放在第一個
             _mainMenu.Items.AddRange(new ToolStripItem[] {
+                menuHome, 
                 menuSafety, menuEnv, menuFire, 
                 new ToolStripMenuItem("ESG"), 
                 new ToolStripMenuItem("溫盤"), 
@@ -86,19 +90,21 @@ namespace Safety_System
         }
 
         /// <summary>
-        /// 🟢 關鍵修正 2.2: 實際處理 Ctrl + 3 快捷鍵並載入畫面
+        /// 處理 Ctrl + 3 快捷鍵並快速開啟巡檢畫面
         /// </summary>
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == (Keys.Control | Keys.D3) || keyData == (Keys.Control | Keys.NumPad3))
             {
-                // 當按下了 Ctrl + 3 (主鍵盤或數字鍵盤)，直接載入「巡檢紀錄」畫面
                 LoadModule(new App_SafetyInspection().GetView());
-                return true; // 代表按鍵事件已處理，不要再往下傳遞
+                return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
+        /// <summary>
+        /// 切換內容面板的通用方法
+        /// </summary>
         public void LoadModule(Control moduleControl)
         {
             if (this.InvokeRequired)
@@ -112,9 +118,12 @@ namespace Safety_System
             _contentPanel.Controls.Add(moduleControl);
         }
 
+        /// <summary>
+        /// 回到首頁畫面
+        /// </summary>
         private void LoadWelcomeScreen()
         {
-            // 使用 UI 字體設定歡迎文字
+            _contentPanel.Controls.Clear();
             Label lbl = new Label
             {
                 Text = "=== 工安系統看板 ===\n架構：.NET Framework 4.7.2\n(快捷鍵: Ctrl+3 快速開啟巡檢)",
