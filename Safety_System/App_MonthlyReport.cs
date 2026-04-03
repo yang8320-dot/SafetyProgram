@@ -8,28 +8,12 @@ namespace Safety_System
     {
         public Control GetView()
         {
-            Panel pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.AliceBlue };
-            
-            Label lblTitle = new Label
-            {
-                Text = "數據分析 - 月報表中心",
-                Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold),
-                Location = new Point(30, 30),
-                AutoSize = true
-            };
-            pnl.Controls.Add(lblTitle);
-
-            Label lblInfo = new Label
-            {
-                Text = "本頁面對應 App_MonthlyReport.cs, 資料尚在建立中\n(未來功能：從 SQLite 提取當月巡檢次數、異常率統計圖表)",
-                Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Italic),
-                Location = new Point(30, 100),
-                AutoSize = true,
-                ForeColor = Color.DimGray
-            };
-            pnl.Controls.Add(lblInfo);
-
-            return pnl;
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 20, 0, 0) };
+            Panel p = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
+            Label t = new Label { Text = "📅 系統月度統計報表", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), AutoSize = true, Location = new Point(30, 20) };
+            p.Controls.Add(t);
+            main.Controls.Add(p);
+            return main;
         }
     }
 }
