@@ -19,7 +19,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 🟢 1. 最外層主排版：將 Row 0 設為 AutoSize，隨內部控制項自動長高
+            // 最外層主排版：將 Row 0 設為 AutoSize，隨內部控制項自動長高
             TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -28,29 +28,28 @@ namespace Safety_System
                 Text = "數據檢索與欄位管理", 
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 12F),
-                AutoSize = true, // 允許 GroupBox 隨內容擴展
+                AutoSize = true, 
                 Padding = new Padding(5, 20, 5, 5)
             };
 
-            // 🟢 2. 控制區內部排版：使用 TableLayoutPanel 分出三行
+            // 🟢 控制區內部排版：縮減為 2 行
             TableLayoutPanel tlpControls = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, AutoSize = true 
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true 
             };
-            tlpControls.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlpControls.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlpControls.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             // ==========================================
-            // 🟢 第 1 行：日期與讀取、匯入 (使用 FlowLayoutPanel 讓元件自動由左至右流動排列)
+            // 🟢 第 1 行：日期、讀取、匯入、儲存
             // ==========================================
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 5) };
             
             Label lblDateStart = new Label { Text = "日期起:", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
-            _dtpStart = new DateTimePicker { Width = 170, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd" };
+            _dtpStart = new DateTimePicker { Width = 170, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
             _dtpStart.Value = DateTime.Now.AddDays(-30); 
             
             Label lblDateEnd = new Label { Text = "日期迄:", AutoSize = true, Margin = new Padding(15, 8, 3, 3) };
-            _dtpEnd = new DateTimePicker { Width = 170, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd" };
+            _dtpEnd = new DateTimePicker { Width = 170, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
             
             Button btnRead = new Button { Text = "讀取資料庫", Size = new Size(120, 35), BackColor = Color.LightBlue, Margin = new Padding(20, 0, 3, 3) };
             btnRead.Click += BtnRead_Click;
@@ -58,19 +57,27 @@ namespace Safety_System
             Button btnImportCsv = new Button { Text = "📥 匯入 CSV", Size = new Size(120, 35), BackColor = Color.Orange, Margin = new Padding(10, 0, 3, 3) };
             btnImportCsv.Click += BtnImportCsv_Click;
 
-            flpRow1.Controls.AddRange(new Control[] { lblDateStart, _dtpStart, lblDateEnd, _dtpEnd, btnRead, btnImportCsv });
+            // 🟢 將儲存按鍵改名並移至此處
+            Button btnSaveManual = new Button { 
+                Text = "💾 儲存", Size = new Size(100, 35), 
+                BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
+                Margin = new Padding(10, 0, 3, 3)
+            };
+            btnSaveManual.Click += BtnSaveManual_Click;
+
+            flpRow1.Controls.AddRange(new Control[] { lblDateStart, _dtpStart, lblDateEnd, _dtpEnd, btnRead, btnImportCsv, btnSaveManual });
 
             // ==========================================
-            // 🟢 第 2 行：新增欄位 與 管理欄位
+            // 🟢 第 2 行：新增欄位、管理欄位、刪除選取資料
             // ==========================================
-            FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 5) };
+            FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 10) };
             
             Label lblNewCol = new Label { Text = "新增欄位:", AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
             _txtNewColName = new TextBox { Width = 140, Margin = new Padding(3, 5, 3, 3) }; 
             Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(10, 0, 3, 3) };
             btnAddCol.Click += BtnAddCol_Click;
 
-            Label lblManageCol = new Label { Text = "管理欄位:", AutoSize = true, Margin = new Padding(30, 8, 3, 3) }; // 增加左距與前方區隔
+            Label lblManageCol = new Label { Text = "管理欄位:", AutoSize = true, Margin = new Padding(30, 8, 3, 3) };
             _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3, 5, 3, 3) };
             _txtRenameCol = new TextBox { Width = 130, Margin = new Padding(10, 5, 3, 3) }; 
             
@@ -80,33 +87,19 @@ namespace Safety_System
             Button btnDropCol = new Button { Text = "⚠️ 刪除欄位", Size = new Size(120, 35), BackColor = Color.LightPink, Margin = new Padding(10, 0, 3, 3) };
             btnDropCol.Click += BtnDropCol_Click;
 
-            flpRow2.Controls.AddRange(new Control[] { lblNewCol, _txtNewColName, btnAddCol, lblManageCol, _cboColumns, _txtRenameCol, btnRenameCol, btnDropCol });
-
-            // ==========================================
-            // 🟢 第 3 行：資料存檔與刪除
-            // ==========================================
-            FlowLayoutPanel flpRow3 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 5, 0, 10) };
-            
-            Button btnSaveManual = new Button { 
-                Text = "💾 手動儲存所有變更", Size = new Size(340, 40), 
-                BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                Margin = new Padding(3, 0, 3, 3)
-            };
-            btnSaveManual.Click += BtnSaveManual_Click;
-
+            // 🟢 將刪除資料按鍵移至此處
             Button btnDeleteRow = new Button {
-                Text = "🗑️ 刪除選取資料", Size = new Size(180, 40), 
+                Text = "🗑️ 刪除選取資料", Size = new Size(160, 35), 
                 BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                 Margin = new Padding(20, 0, 3, 3)
             };
             btnDeleteRow.Click += BtnDeleteRow_Click;
 
-            flpRow3.Controls.AddRange(new Control[] { btnSaveManual, btnDeleteRow });
+            flpRow2.Controls.AddRange(new Control[] { lblNewCol, _txtNewColName, btnAddCol, lblManageCol, _cboColumns, _txtRenameCol, btnRenameCol, btnDropCol, btnDeleteRow });
 
             // 組合控制區
             tlpControls.Controls.Add(flpRow1, 0, 0);
             tlpControls.Controls.Add(flpRow2, 0, 1);
-            tlpControls.Controls.Add(flpRow3, 0, 2);
             boxTop.Controls.Add(tlpControls);
             mainLayout.Controls.Add(boxTop, 0, 0);
 
