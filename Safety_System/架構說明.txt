@@ -1,40 +1,42 @@
-一、 系統架構總結
-本系統採用層次分明的模組化設計，主要分為四大層級：
-1.	引導與環境層 (Bootstrapping)：處理程式啟動、單一執行體檢查及環境適應（High-DPI）。
-2.	核心資料層 (Data Access Layer)：負責所有數據的持久化儲存（純文字檔讀寫）與執行緒安全控制。
-3.	主導覽外殼 (Main Shell)：系統的主視窗，負責菜單管理、快捷鍵攔截及動態載入功能模組。
-4.	功能模組層 (Business Modules)：獨立的業務邏輯頁面，如巡檢、報表、設定等。
-二、 程式碼檔案對應說明
-1. 專案配置與環境
-• Safety_System.csproj
-• 說明：專案的「身分證」。定義了編譯目標（.NET 4.7.2）、輸出格式（WinExe）以及專案名稱。它決定了程式如何被打包與編譯。
-• app.config
-• 說明：環境設定檔。最關鍵的功能是啟動 PerMonitorV2 的 High-DPI 支援，修正了 WinForms 在高解析度螢幕下字體模糊的問題。
-2. 核心邏輯
-• Program.cs
-• 說明：程式的進入點。
-• 關鍵功能：
-• 使用 Mutex 實作 防止程式重複啟動。
-• 啟動時呼叫 DataManager.LoadConfig() 預載資料路徑。
-• DataManager.cs
-• 說明：系統的「資料庫管理員」。
-• 關鍵功能：
-• 路徑動態化：管理 BasePath，支援使用者自定義資料存放資料夾。
-• 執行緒安全 (Thread-Safety)：使用 lock 關鍵字確保在多工作業下寫入文字檔不會產生衝突。
-• 資料格式化：以 | 作為欄位分隔符號進行讀寫。
-3. 主介面控制
-• MainForm.cs
-• 說明：系統的「主戰情室」。
-• 關鍵功能：
-• 1440 x 810 佈局：定義主視窗大小與 UI 字體清晰度。
-• 動態模組切換 (LoadModule)：點擊選單時，動態替換中間 Panel 的內容，無需切換多個視窗。
-• 快捷鍵攔截：透過 ProcessCmdKey 實作 Ctrl + 3 快速跳轉功能。
-• 選單架構：整合「首頁」、「報表」、「工安」等導覽。
-4. 業務功能模組 (獨立 .cs 檔案)
-• App_SafetyInspection.cs
-• 說明：工安巡檢功能模組。實作了巡檢地點、人員、狀態的輸入介面與資料儲存邏輯。
-• App_DbConfig.cs
-• 說明：資料庫路徑設定視窗。
-• 關鍵功能：實作為一個 Modeless (非互動式) 視窗，允許使用者在不關閉主視窗的情況下同時進行設定，支援資料夾選取與路徑持久化。
-• App_Report.cs
-• 說明：報表中心。目前預留了「月報表」與「年報表」的容器空間，用於未來的數據分析與圖表展示。
+這套程式目前已經演進為一個模組化、多資料庫隔離、高度可擴充的企業級工安管理系統。以下為您總結目前的架構與詳細對應表：
+一、 核心架構總結
+ * 開發架構：採用 C# WinForms (.NET 8.0) 模組化設計。MainForm 作為容器，動態載入各個 App_xxxx.cs 模組。
+ * 資料庫設計：「一主選單、一資料庫」。不同領域（如水、工安、消防）資料完全隔離，提升安全性與維護性。
+ * 通用引擎：DataManager.cs 封裝了跨資料庫的通用操作（InitTable, Upsert, Add/Rename Column），支援自動日期校正與連線池管理。
+ * 自動化編譯：使用 GitHub Actions (YML) 進行自動打包，支援 Node.js 24 環境與 Artifacts 產出。
+二、 選單、程式碼與資料庫對應總表
+| 主選單 | 子選單選項 | 程式檔名 (.cs) | 資料庫 (.sqlite) | 資料表 (Table) | 核心功能 |
+|---|---|---|---|---|---|
+| 首頁 | 系統看板 | MainForm.cs | - | - | 單一實例檢查、模組切換 |
+| 工安 | 巡檢記錄 | App_SafetyInspection.cs | Safety.sqlite | SafetyInspection | 區域巡檢、缺失描述、改善措施 |
+|  | 虛驚事件 | App_NearMiss.cs | Safety.sqlite | NearMiss | 事件經過、提報人、管理員驗證 |
+|  | 安全觀查 | App_SafetyObservation.cs | Safety.sqlite | SafetyObservation | BBS 行為觀查、不安全環境紀錄 |
+|  | 工傷事件 | App_WorkInjury.cs | Safety.sqlite | WorkInjury | 廠內事故、受傷部位、原因分析 |
+|  | 交傷事件 | App_TrafficInjury.cs | Safety.sqlite | TrafficInjury | 上下班交通意外、處理進度 |
+| 水 | 水處理記錄表 | App_WaterTreatment.cs | Water.sqlite | WaterMeterReadings | 水錶讀數、CSV 匯入、動態欄位管理 |
+|  | 用藥記錄表 | App_WaterChemicals.cs | Water.sqlite | WaterChemicals | 藥劑入庫/領用、庫存統計 |
+|  | 自水水量 | App_WaterVolume.cs | Water.sqlite | WaterVolume | 自來水讀數、每日耗水量計算 |
+|  | 納管排放數據 | App_DischargeData.cs | Water.sqlite | DischargeData | pH/COD/SS 監測數據錄入 |
+| 護理 | 職災申報數據 | App_WorkInjuryReport.cs | Nursing.sqlite | WorkInjuryReport | 勞保申報案號、損失日數追蹤 |
+|  | 健康促進 | App_HealthPromotion.cs | Nursing.sqlite | HealthPromotion | 活動參與、滿意度、成果摘要 |
+| 空污 | 空污申報 | App_AirPollution.cs | Air.sqlite | AirPollution | 排放口濃度、申報狀態紀錄 |
+| 廢棄物 | 生產月報表 | App_WasteMonthly.cs | Waste.sqlite | WasteMonthly | 廢棄物代碼、清理商、聯單編號 |
+| 消防 | 消防設備 | App_FireEquip.cs | Fire.sqlite | FireEquip | 設備清冊、有效日期、巡檢結果 |
+|  | 火源責任人 | App_FireResponsible.cs | Fire.sqlite | FireResponsible | 各區負責人名單、聯絡分機 |
+|  | 公危統計表 | App_HazardStats.cs | Fire.sqlite | HazardStats | 危險物品存放數量、管制倍數計算 |
+| 設定 | 資料庫設定 | App_DbConfig.cs | - | - | 自定義資料庫路徑儲存 |
+|  | 說明 | App_Instruction.cs | - | - | 操作指南、密碼提示 (tces) |
+三、 系統五大核心功能亮點
+ * 動態資料結構 (Dynamic Schema)：
+   * 使用者可在 UI 直接「新增欄位」或「欄位改名」，程式會自動修改對應 SQLite 的 Table 結構。
+ * Excel 高度相容性：
+   * 貼上功能：支援直接從 Excel 複製多列資料並在系統 DataGridView 按 Ctrl+V 貼上。
+   * 匯出功能：支援右鍵點擊匯出 CSV 或 XLSX (Excel) 格式。
+ * 雙行式動態 UI：
+   * 頂部控制區採用自動折行佈局，無論視窗如何縮放，按鈕均不會被遮擋，最大化數據顯示空間。
+ * 管理員安全機制：
+   * 執行敏感操作（如刪除資料、改名欄位）時，需輸入管理員密碼 tces，並具備放大版的驗證視窗提升操作體驗。
+ * 穩定性設計：
+   * WAL 模式：SQLite 開啟預寫日誌模式，避免資料庫鎖定錯誤。
+   * 自動格式化：日期欄位自動校正為 yyyy-MM-dd，確保查詢結果精準。
+這套程式目前結構非常完整，且 GitHub Actions 已達成 0 Error / 0 Code Warning 的狀態，是一個非常健康的開發基石。
