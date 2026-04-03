@@ -16,27 +16,35 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v4.8.6 - 模組增修版)";
+            this.Text = "工安系統看板 (v4.8.8 - 佈局優化版)";
             this.Size = new Size(1440, 810);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1280, 720);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
+            // 1. 初始化選單欄
             _mainMenu = new MenuStrip();
             _mainMenu.Font = new Font("Microsoft JhengHei UI", 12F);
+            _mainMenu.Dock = DockStyle.Top;
             BuildMenu();
-            this.Controls.Add(_mainMenu);
 
+            // 2. 初始化內容容器
             _contentPanel = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.WhiteSmoke,
-                Padding = new Padding(20),
+                // 🟢 修正：增加頂部 Padding (20)，確保內容下移不被選單遮擋
+                Padding = new Padding(20, 20, 20, 20),
                 AutoScroll = true
             };
+
+            // 3. 按照正確順序加入控制項
             this.Controls.Add(_contentPanel);
+            this.Controls.Add(_mainMenu); // MenuStrip 放在後面加入或 BringToFront
             
             _mainMenu.BringToFront();
+
+            // 預設載入歡迎畫面
             LoadWelcomeScreen();
         }
 
@@ -51,12 +59,11 @@ namespace Safety_System
             menuReport.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReport.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
-            // --- 3. 工安 (更新後的選單排序) ---
+            // --- 3. 工安 ---
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安儀表版", () => new App_SafetyDashboard().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_SafetyInspection().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("虛驚事件", () => new App_NearMiss().GetView()));
-            // 🟢 新增：安全觀查
             menuSafety.DropDownItems.Add(CreateItem("安全觀查", () => new App_SafetyObservation().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_WorkInjury().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("交傷事件", () => new App_TrafficInjury().GetView()));
@@ -92,10 +99,18 @@ namespace Safety_System
             menuFire.DropDownItems.Add(CreateItem("火源責任人", () => new App_FireResponsible().GetView()));
             menuFire.DropDownItems.Add(CreateItem("公危統計表", () => new App_HazardStats().GetView()));
 
-            // --- 9. 設定 ---
+            // --- 9. 設定 (🟢 補回資料庫設定選項) ---
             var menuSettings = new ToolStripMenuItem("設定");
-            menuSettings.DropDownItems.Add(CreateItem("說明", () => new App_Instruction().GetView()));
+            
+            var itemDbConfig = new ToolStripMenuItem("資料庫設定");
+            itemDbConfig.Click += (s, e) => { new App_DbConfig().Show(); };
+            
+            var itemInstruction = new ToolStripMenuItem("說明");
+            itemInstruction.Click += (s, e) => LoadModule(new App_Instruction().GetView());
 
+            menuSettings.DropDownItems.AddRange(new ToolStripItem[] { itemDbConfig, itemInstruction });
+
+            // 加入所有主選單
             _mainMenu.Items.AddRange(new ToolStripItem[] {
                 menuHome, menuReport, menuSafety, menuNursing, menuAir, menuWater, menuWaste, menuFire, 
                 new ToolStripMenuItem("ESG"), new ToolStripMenuItem("溫盤"), menuSettings
@@ -131,7 +146,7 @@ namespace Safety_System
         {
             _contentPanel.Controls.Clear();
             Label lbl = new Label {
-                Text = "=== 工安系統看板 ===\n資料引擎：SQLite\n(已更新：工安選單納入安全觀查功能)",
+                Text = "=== 工安系統看板 ===\n資料引擎：SQLite\n系統狀態：已修正選單遮擋與資料庫設定選單",
                 Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold),
                 AutoSize = true, 
                 Location = new Point(50, 50)
