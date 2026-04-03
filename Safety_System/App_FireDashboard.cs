@@ -8,20 +8,12 @@ namespace Safety_System
     {
         public Control GetView()
         {
-            Panel pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, Padding = new Padding(20) };
-            Label lblTitle = new Label { 
-                Text = "🔥 消防安全監控儀表版", 
-                Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), 
-                AutoSize = true, Location = new Point(20, 20) 
-            };
-            
-            // 範例統計方塊
-            GroupBox boxStats = new GroupBox { Text = "本月概況", Size = new Size(400, 150), Location = new Point(20, 80), Font = new Font("Microsoft JhengHei UI", 12F) };
-            Label lblInfo = new Label { Text = "• 設備檢查完成度: 95%\n• 火源責任人簽署: 12/12\n• 公危物品申報狀態: 已完成", AutoSize = true, Location = new Point(20, 40) };
-            
-            boxStats.Controls.Add(lblInfo);
-            pnl.Controls.AddRange(new Control[] { lblTitle, boxStats });
-            return pnl;
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 20, 0, 0) };
+            Panel p = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke };
+            Label t = new Label { Text = "🔥 消防安全管理儀表版", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), AutoSize = true, Location = new Point(30, 20) };
+            p.Controls.Add(t);
+            main.Controls.Add(p);
+            return main;
         }
     }
 }
