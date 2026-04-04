@@ -1,129 +1,191 @@
 using System;
-using System.IO;
-using System.Text;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace Safety_System
 {
     public static class DataManager
     {
-        private const string ConfigFile = "sys_config.txt";
-        public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
+        private static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
+        private static readonly string ConfigFile = Path.Combine(AppDir, "sys_config.txt");
+        private static readonly string KeyConfigFile = Path.Combine(AppDir, "table_keys.txt"); // 存放防重寫設定
 
-        // 🟢 動態取得連線字串：現在根據傳入的資料庫名稱（如 "Water"）決定路徑
-        private static string GetConnString(string dbName)
-        {
-            string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
-            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
-        }
+        public static string BasePath { get; private set; }
 
         public static void LoadConfig()
         {
+            // 🟢 需求 3.2：預設路徑為程式目錄下的 DB 子資料夾
+            BasePath = Path.Combine(AppDir, "DB");
+
             if (File.Exists(ConfigFile))
             {
                 string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
-                if (Directory.Exists(savedPath)) BasePath = savedPath;
+                if (!string.IsNullOrEmpty(savedPath)) BasePath = savedPath;
             }
+
+            // 確保資料夾存在以防異常
+            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
         public static void SetBasePath(string newPath)
         {
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
+            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
-        // 🟢 通用執行邏輯 (需傳入 dbName)
-        private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
+        private static string GetConnString(string dbName)
         {
-            int maxRetries = 5;
-            for (int i = 1; i <= maxRetries; i++)
+            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
+            string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
+            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
+        }
+
+        // 🟢 [讀取防重寫設定] (純文字 TXT，| 分隔)
+        public static (string col1, string col2) GetTableKeys(string dbName, string tableName)
+        {
+            if (!File.Exists(KeyConfigFile)) return ("", "");
+            foreach (var line in File.ReadAllLines(KeyConfigFile, Encoding.UTF8))
             {
-                try
-                {
-                    using (var conn = new SQLiteConnection(GetConnString(dbName)))
-                    {
-                        conn.Open();
-                        using (var pragma = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { pragma.ExecuteNonQuery(); }
-                        dbAction(conn); return;
-                    }
-                }
-                catch (SQLiteException) { if (i == maxRetries) throw; Thread.Sleep(500); }
+                var p = line.Split('|');
+                if (p.Length >= 4 && p[0] == dbName && p[1] == tableName) return (p[2], p[3]);
             }
+            return ("", "");
         }
 
-        // 🟢 初始化資料表 (需傳入 dbName)
-        public static void InitTable(string dbName, string tableName, string schemaSql)
+        // 🟢 [儲存防重寫設定]
+        public static void SaveTableKeys(string dbName, string tableName, string col1, string col2)
         {
-            ExecuteWithRetry(dbName, conn => {
-                using (var cmd = new SQLiteCommand(schemaSql, conn)) { cmd.ExecuteNonQuery(); }
-            });
+            List<string> lines = new List<string>();
+            if (File.Exists(KeyConfigFile)) lines = new List<string>(File.ReadAllLines(KeyConfigFile, Encoding.UTF8));
+            
+            lines.RemoveAll(x => x.StartsWith($"{dbName}|{tableName}|")); // 移除舊設定
+            lines.Add($"{dbName}|{tableName}|{col1}|{col2}"); // 寫入新設定
+            File.WriteAllLines(KeyConfigFile, lines, Encoding.UTF8);
         }
 
-        // 🟢 讀取資料 (需傳入 dbName)
+        // 取得資料表的所有欄位 (供設定介面使用)
+        public static List<string> GetColumnNames(string dbName, string tableName)
+        {
+            var cols = new List<string>();
+            try {
+                ExecuteWithRetry(dbName, conn => {
+                    using (var cmd = new SQLiteCommand($"PRAGMA table_info([{tableName}])", conn))
+                    using (var r = cmd.ExecuteReader()) { while (r.Read()) cols.Add(r["name"].ToString()); }
+                });
+            } catch { /* 忽略尚未建立的表 */ }
+            return cols;
+        }
+
+        // === 原有 DML/DDL 簡化保留 ===
+        public static void InitTable(string dbName, string tableName, string createSql) => ExecuteWithRetry(dbName, conn => {
+            using (var cmd = new SQLiteCommand(createSql, conn)) cmd.ExecuteNonQuery();
+        });
+
         public static DataTable GetTableData(string dbName, string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
             ExecuteWithRetry(dbName, conn => {
-                string sql = string.Format("SELECT * FROM [{0}] WHERE [{1}] BETWEEN @s AND @e ORDER BY [{1}] DESC", tableName, dateCol);
-                using (var cmd = new SQLiteCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@s", start);
-                    cmd.Parameters.AddWithValue("@e", end);
-                    using (var adp = new SQLiteDataAdapter(cmd)) { adp.Fill(dt); }
+                string q = string.IsNullOrEmpty(start) ? $"SELECT * FROM [{tableName}]" : $"SELECT * FROM [{tableName}] WHERE [{dateCol}] BETWEEN @s AND @e";
+                using (var cmd = new SQLiteCommand(q, conn)) {
+                    if (!string.IsNullOrEmpty(start)) { cmd.Parameters.AddWithValue("@s", start); cmd.Parameters.AddWithValue("@e", end); }
+                    using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                 }
             });
             return dt;
         }
 
-        // 🟢 新增或更新 (需傳入 dbName)
+        // 🟢 寫入與更新核心邏輯
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
+            // 🟢 需求 2：日期強制統一格式處理
+            foreach (DataColumn col in row.Table.Columns)
+            {
+                if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString()))
+                {
+                    if (DateTime.TryParse(row[col].ToString(), out DateTime dt))
+                        row[col] = dt.ToString("yyyy-MM-dd"); // 強制轉為 yyyy-MM-dd
+                }
+            }
+
+            // 🟢 需求 4：讀取設定，判斷是否觸發防重寫 (複寫邏輯)
+            var keys = GetTableKeys(dbName, tableName);
+            if (!string.IsNullOrEmpty(keys.col1) && row.Table.Columns.Contains(keys.col1))
+            {
+                string v1 = row[keys.col1]?.ToString();
+                string v2 = (!string.IsNullOrEmpty(keys.col2) && row.Table.Columns.Contains(keys.col2)) ? row[keys.col2]?.ToString() : null;
+
+                string query = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @v1";
+                if (!string.IsNullOrEmpty(keys.col2)) query += $" AND [{keys.col2}] = @v2";
+
+                int existingId = -1;
+                ExecuteWithRetry(dbName, conn => {
+                    using (var cmd = new SQLiteCommand(query, conn)) {
+                        cmd.Parameters.AddWithValue("@v1", v1 ?? "");
+                        if (!string.IsNullOrEmpty(keys.col2)) cmd.Parameters.AddWithValue("@v2", v2 ?? "");
+                        var res = cmd.ExecuteScalar();
+                        if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
+                    }
+                });
+
+                // 如果找到重複的鍵值，強制將當前 Row 的 Id 覆寫，讓後續邏輯視為 UPDATE
+                if (existingId != -1)
+                {
+                    bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
+                    row.Table.Columns["Id"].ReadOnly = false;
+                    row["Id"] = existingId;
+                    row.Table.Columns["Id"].ReadOnly = isReadOnly;
+                }
+            }
+
+            // 執行實際的 INSERT 或 UPDATE
             ExecuteWithRetry(dbName, conn => {
-                bool isUpdate = row["Id"] != DBNull.Value;
-                StringBuilder sb = new StringBuilder();
+                bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && !string.IsNullOrEmpty(row["Id"].ToString()) && Convert.ToInt32(row["Id"]) > 0;
+                var cmd = new SQLiteCommand(conn);
+                string sql = "";
+
                 if (isUpdate) {
-                    sb.Append(string.Format("UPDATE [{0}] SET ", tableName));
-                    foreach (DataColumn col in row.Table.Columns) 
-                        if (col.ColumnName != "Id") sb.Append(string.Format("[{0}]=@{0}, ", col.ColumnName));
-                    sb.Remove(sb.Length - 2, 2).Append(" WHERE Id=@Id");
+                    sql = $"UPDATE [{tableName}] SET ";
+                    List<string> sets = new List<string>();
+                    foreach (DataColumn col in row.Table.Columns) {
+                        if (col.ColumnName == "Id") continue;
+                        sets.Add($"[{col.ColumnName}]=@{col.ColumnName}");
+                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? "");
+                    }
+                    sql += string.Join(", ", sets) + " WHERE Id=@Id";
+                    cmd.Parameters.AddWithValue("@Id", row["Id"]);
                 } else {
-                    sb.Append(string.Format("INSERT INTO [{0}] (", tableName));
-                    foreach (DataColumn col in row.Table.Columns) 
-                        if (col.ColumnName != "Id") sb.Append(string.Format("[{0}], ", col.ColumnName));
-                    sb.Remove(sb.Length - 2, 2).Append(") VALUES (");
-                    foreach (DataColumn col in row.Table.Columns) 
-                        if (col.ColumnName != "Id") sb.Append(string.Format("@{0}, ", col.ColumnName));
-                    sb.Remove(sb.Length - 2, 2).Append(")");
+                    List<string> cols = new List<string>(), vals = new List<string>();
+                    foreach (DataColumn col in row.Table.Columns) {
+                        if (col.ColumnName == "Id") continue;
+                        cols.Add($"[{col.ColumnName}]");
+                        vals.Add($"@{col.ColumnName}");
+                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? "");
+                    }
+                    sql = $"INSERT INTO [{tableName}] ({string.Join(", ", cols)}) VALUES ({string.Join(", ", vals)})";
                 }
-                using (var cmd = new SQLiteCommand(sb.ToString(), conn)) {
-                    foreach (DataColumn col in row.Table.Columns) cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
-                    cmd.ExecuteNonQuery();
-                }
+                cmd.CommandText = sql;
+                cmd.ExecuteNonQuery();
             });
         }
 
-        // 🟢 刪除資料 (需傳入 dbName)
-        public static void DeleteRecord(string dbName, string tableName, int id)
+        private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
         {
-            ExecuteWithRetry(dbName, conn => {
-                using (var cmd = new SQLiteCommand(string.Format("DELETE FROM [{0}] WHERE Id=@Id", tableName), conn)) {
-                    cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
+            int maxRetries = 5;
+            for (int i = 1; i <= maxRetries; i++) {
+                try {
+                    using (var conn = new SQLiteConnection(GetConnString(dbName))) {
+                        conn.Open(); dbAction(conn); return;
+                    }
+                } catch (SQLiteException ex) when (ex.ResultCode == SQLiteErrorCode.Locked || ex.ResultCode == SQLiteErrorCode.Busy) {
+                    if (i == maxRetries) throw;
+                    Thread.Sleep(100 * i);
                 }
-            });
+            }
         }
-
-        public static void AddColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
-            using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] ADD COLUMN [{1}] TEXT", tableName, colName), conn)) { cmd.ExecuteNonQuery(); }
-        });
-
-        public static void RenameColumn(string dbName, string tableName, string oldN, string newN) => ExecuteWithRetry(dbName, conn => {
-            using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] RENAME COLUMN [{1}] TO [{2}]", tableName, oldN, newN), conn)) { cmd.ExecuteNonQuery(); }
-        });
-
-        public static void DropColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
-            using (var cmd = new SQLiteCommand(string.Format("ALTER TABLE [{0}] DROP COLUMN [{1}]", tableName, colName), conn)) { cmd.ExecuteNonQuery(); }
-        });
     }
 }
