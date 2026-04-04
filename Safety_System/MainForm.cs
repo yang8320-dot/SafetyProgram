@@ -31,7 +31,7 @@ namespace Safety_System
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.WhiteSmoke,
-                Padding = new Padding(15, 20, 15, 15),
+                Padding = new Padding(15, 15, 15, 15),
                 AutoScroll = true
             };
 
