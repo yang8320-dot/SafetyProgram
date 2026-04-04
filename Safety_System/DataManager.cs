@@ -22,14 +22,13 @@ namespace Safety_System
 
         public static void LoadConfig()
         {
-            // 優先讀取設定檔，若無則使用預設的 DB 資料夾
             if (File.Exists(ConfigFile))
             {
                 string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
                 if (Directory.Exists(savedPath)) BasePath = savedPath;
             }
             
-            // 🟢 自動建立 DB 資料夾，確保不會因路徑不存在而崩潰
+            // 🟢 自動建立 DB 資料夾，確保路徑存在
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
