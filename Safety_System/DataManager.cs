@@ -12,7 +12,6 @@ namespace Safety_System
         private const string ConfigFile = "sys_config.txt";
         public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
 
-        // 🟢 動態取得連線字串：現在根據傳入的資料庫名稱（如 "Water"）決定路徑
         private static string GetConnString(string dbName)
         {
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
@@ -34,7 +33,6 @@ namespace Safety_System
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
         }
 
-        // 🟢 通用執行邏輯 (需傳入 dbName)
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
         {
             int maxRetries = 5;
@@ -53,7 +51,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 初始化資料表 (需傳入 dbName)
         public static void InitTable(string dbName, string tableName, string schemaSql)
         {
             ExecuteWithRetry(dbName, conn => {
@@ -61,11 +58,11 @@ namespace Safety_System
             });
         }
 
-        // 🟢 讀取資料 (需傳入 dbName)
         public static DataTable GetTableData(string dbName, string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
             ExecuteWithRetry(dbName, conn => {
+                // 使用參數化查詢並確保格式一致
                 string sql = string.Format("SELECT * FROM [{0}] WHERE [{1}] BETWEEN @s AND @e ORDER BY [{1}] DESC", tableName, dateCol);
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -77,10 +74,19 @@ namespace Safety_System
             return dt;
         }
 
-        // 🟢 新增或更新 (需傳入 dbName)
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             ExecuteWithRetry(dbName, conn => {
+                // 🟢 修正：強制將「日期」欄位轉換為 yyyy-MM-dd 格式
+                if (row.Table.Columns.Contains("日期") && row["日期"] != DBNull.Value)
+                {
+                    string dateStr = row["日期"].ToString();
+                    if (DateTime.TryParse(dateStr, out DateTime dt))
+                    {
+                        row["日期"] = dt.ToString("yyyy-MM-dd");
+                    }
+                }
+
                 bool isUpdate = row["Id"] != DBNull.Value;
                 StringBuilder sb = new StringBuilder();
                 if (isUpdate) {
@@ -98,13 +104,13 @@ namespace Safety_System
                     sb.Remove(sb.Length - 2, 2).Append(")");
                 }
                 using (var cmd = new SQLiteCommand(sb.ToString(), conn)) {
-                    foreach (DataColumn col in row.Table.Columns) cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
+                    foreach (DataColumn col in row.Table.Columns) 
+                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
                     cmd.ExecuteNonQuery();
                 }
             });
         }
 
-        // 🟢 刪除資料 (需傳入 dbName)
         public static void DeleteRecord(string dbName, string tableName, int id)
         {
             ExecuteWithRetry(dbName, conn => {
