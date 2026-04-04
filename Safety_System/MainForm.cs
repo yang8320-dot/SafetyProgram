@@ -16,18 +16,15 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v5.0.5 - 穩健防崩潰版)";
+            this.Text = "工安系統看板 (v5.0.7 - 精簡選單版)";
             this.Size = new Size(1440, 810);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1280, 720);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
-            // 確保載入設定
             DataManager.LoadConfig();
 
-            _mainMenu = new MenuStrip();
-            _mainMenu.Font = new Font("Microsoft JhengHei UI", 12F);
-            _mainMenu.Dock = DockStyle.Top;
+            _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
             BuildMenu();
 
             _contentPanel = new Panel
@@ -93,21 +90,18 @@ namespace Safety_System
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
-                    if (VerifyAdminPassword()) {
-                        LoadModule(new App_DbConfig().GetView());
-                    } else {
-                        MessageBox.Show("密碼錯誤，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    if (VerifyAdminPassword()) { LoadModule(new App_DbConfig().GetView()); } 
+                    else { MessageBox.Show("密碼錯誤，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
+            // 🟢 已經將 ESG 與 溫盤 移除，介面會變得更簡潔
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuNursing, menuAir, 
-                menuWater, menuWaste, menuFire, new ToolStripMenuItem("ESG"), 
-                new ToolStripMenuItem("溫盤"), menuSettings 
+                menuWater, menuWaste, menuFire, menuSettings 
             });
         }
 
@@ -124,8 +118,6 @@ namespace Safety_System
         public void LoadModule(Control moduleControl)
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
-            
-            // 🟢 終極防禦：攔截載入過程中的任何異常
             if (moduleControl == null) {
                 MessageBox.Show("無法渲染該頁面 (回傳了空值)", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
