@@ -1,4 +1,4 @@
-        using System;
+using System;
 using System.Data;
 using System.Drawing;
 using System.IO;
@@ -33,46 +33,45 @@ namespace Safety_System
                 [軟水B] TEXT, 
                 [軟水C] TEXT);");
 
-            // 🟢 修正：主排版 Padding 加入 Top 40，將整個控制區往下移
+            // 🟢 修正：增加 Top Padding 到 70，避免與上方選單重疊
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 RowCount = 2,
-                Padding = new Padding(15, 40, 15, 10) 
+                Padding = new Padding(15, 70, 15, 10) 
             };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 🟢 修正：boxTop 內邊距，增加內部空間感
             GroupBox boxTop = new GroupBox { 
                 Text = "水處理數據管理 (庫: " + DbName + " / 表: " + TableName + ")", 
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 12F),
                 AutoSize = true, 
-                Padding = new Padding(15, 30, 15, 15)
+                Padding = new Padding(15, 35, 15, 15)
             };
 
+            // 🟢 修正：使用 RowStyles 固定高度來控制行距，不使用 Margin
             TableLayoutPanel tlpControls = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true 
             };
+            tlpControls.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 第一行高度
+            tlpControls.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 第二行高度
 
+            // --- 第一行 ---
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             flpRow1.Controls.Add(new Label { Text = "日期起:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) });
             _dtpStart = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
             _dtpStart.Value = DateTime.Now.AddDays(-30); 
             flpRow1.Controls.Add(_dtpStart);
-            
             flpRow1.Controls.Add(new Label { Text = "日期迄:", AutoSize = true, Margin = new Padding(15, 10, 3, 0) });
             _dtpEnd = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
             flpRow1.Controls.Add(_dtpEnd);
-            
             Button btnRead = new Button { Text = "讀取資料庫", Size = new Size(110, 35), BackColor = Color.LightBlue, Margin = new Padding(15, 2, 3, 3) };
             btnRead.Click += (s, e) => RefreshGrid();
             flpRow1.Controls.Add(btnRead);
-
             Button btnImportCsv = new Button { Text = "📥 匯入 CSV", Size = new Size(110, 35), BackColor = Color.Orange, Margin = new Padding(5, 2, 3, 3) };
             btnImportCsv.Click += BtnImportCsv_Click;
             flpRow1.Controls.Add(btnImportCsv);
-
             Button btnSave = new Button { 
                 Text = "💾 儲存", Size = new Size(100, 35), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
@@ -81,15 +80,21 @@ namespace Safety_System
             btnSave.Click += BtnSave_Click;
             flpRow1.Controls.Add(btnSave);
 
-            FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Margin = new Padding(0, 15, 0, 5) };
+            // --- 第二行 ---
+            FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             flpRow2.Controls.Add(new Label { Text = "新增欄位:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) });
             _txtNewColName = new TextBox { Width = 150, Margin = new Padding(3, 7, 3, 3) }; 
             flpRow2.Controls.Add(_txtNewColName);
             Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(5, 2, 3, 3) };
+            
+            // 🟢 修正：新增欄位功能加入密碼驗證
             btnAddCol.Click += (s, e) => {
                 if (!string.IsNullOrWhiteSpace(_txtNewColName.Text)) {
-                    DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
-                    _txtNewColName.Clear(); RefreshGrid();
+                    if (VerifyPassword()) {
+                        DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
+                        _txtNewColName.Clear(); RefreshGrid();
+                        MessageBox.Show("新增欄位成功！");
+                    }
                 }
             };
             flpRow2.Controls.Add(btnAddCol);
@@ -99,15 +104,12 @@ namespace Safety_System
             flpRow2.Controls.Add(_cboColumns);
             _txtRenameCol = new TextBox { Width = 140, Margin = new Padding(5, 7, 3, 3) }; 
             flpRow2.Controls.Add(_txtRenameCol);
-            
             Button btnRenameCol = new Button { Text = "✏️ 改名", Size = new Size(80, 35), BackColor = Color.LightYellow, Margin = new Padding(5, 2, 3, 3) };
             btnRenameCol.Click += BtnRenameCol_Click;
             flpRow2.Controls.Add(btnRenameCol);
-            
             Button btnDropCol = new Button { Text = "⚠️ 刪除欄", Size = new Size(100, 35), BackColor = Color.LightPink, Margin = new Padding(5, 2, 3, 3) };
             btnDropCol.Click += BtnDropCol_Click;
             flpRow2.Controls.Add(btnDropCol);
-
             Button btnDeleteRow = new Button {
                 Text = "🗑️ 刪除選取資料", Size = new Size(150, 35), 
                 BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
@@ -126,8 +128,6 @@ namespace Safety_System
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToAddRows = true
             };
             _dgv.KeyDown += Dgv_KeyDown;
-            
-            // 🟢 修正：自動預填今日日期
             _dgv.DefaultValuesNeeded += (s, e) => {
                 e.Row.Cells["日期"].Value = DateTime.Now.ToString("yyyy-MM-dd");
             };
@@ -141,18 +141,11 @@ namespace Safety_System
 
         private void RefreshGrid()
         {
-            // 🟢 修正：讀取時確保時間字串格式化，避免 SQLite 字串比對失敗
             string start = _dtpStart.Value.ToString("yyyy-MM-dd");
             string end = _dtpEnd.Value.ToString("yyyy-MM-dd");
-            
             _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", start, end);
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
-            
-            if (_dgv.Columns.Contains("日期"))
-            {
-                _dgv.Columns["日期"].DefaultCellStyle.Format = "yyyy-MM-dd";
-            }
-
+            if (_dgv.Columns.Contains("日期")) _dgv.Columns["日期"].DefaultCellStyle.Format = "yyyy-MM-dd";
             _cboColumns.Items.Clear();
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 if (col.Name != "Id" && col.Name != "日期") _cboColumns.Items.Add(col.Name);
@@ -162,13 +155,8 @@ namespace Safety_System
 
         private void BtnSave_Click(object sender, EventArgs e)
         {
-            // 🟢 修正：存檔前強制結束 DataGridView 編輯，確保最後一筆資料有提交
             _dgv.EndEdit();
-            if (_dgv.BindingContext != null && _dgv.DataSource != null)
-            {
-                _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
-            }
-
+            if (_dgv.BindingContext != null && _dgv.DataSource != null) _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
             DataTable dt = (DataTable)_dgv.DataSource;
             if (dt == null) return;
             try {
@@ -233,7 +221,6 @@ namespace Safety_System
                 string text = Clipboard.GetText();
                 if (string.IsNullOrEmpty(text)) return;
                 if (_dgv.IsCurrentCellInEditMode) _dgv.EndEdit();
-                
                 string[] lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
                 int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
                 DataTable dt = (DataTable)_dgv.DataSource;
@@ -245,11 +232,7 @@ namespace Safety_System
                         if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
                         {
                             string val = cells[i].Trim();
-                            // 🟢 修正：貼上時若是日期欄位，自動格式化
-                            if (_dgv.Columns[c + i].Name == "日期" && DateTime.TryParse(val, out DateTime dateVal))
-                            {
-                                val = dateVal.ToString("yyyy-MM-dd");
-                            }
+                            if (_dgv.Columns[c + i].Name == "日期" && DateTime.TryParse(val, out DateTime dateVal)) val = dateVal.ToString("yyyy-MM-dd");
                             _dgv[c + i, r].Value = val;
                         }
                     }
