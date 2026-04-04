@@ -10,7 +10,6 @@ namespace Safety_System
         private TextBox _txtPath;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
-        // 預先對應各資料庫的所有資料表，方便下拉選單切換
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury" } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
@@ -24,10 +23,12 @@ namespace Safety_System
         {
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
 
-            // 🟢 第一區塊：資料庫存放路徑設定
             GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 140, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
-            _txtPath = new TextBox { Location = new Point(20, 40), Width = 450, ReadOnly = true, Text = DataManager.BasePath, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 🟢 安全取得路徑字串
+            string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
+            _txtPath = new TextBox { Location = new Point(20, 40), Width = 450, ReadOnly = true, Text = currentPath, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
             Button btnBrowse = new Button { Text = "選擇資料夾", Location = new Point(480, 38), Size = new Size(120, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
             btnBrowse.Click += BtnBrowse_Click;
             
@@ -36,7 +37,6 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            // 🟢 第二區塊：防重寫欄位設定 (複合鍵)
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 250, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 20, 0, 0);
 
@@ -45,7 +45,6 @@ namespace Safety_System
             Label lblCol1 = new Label { Text = "判斷欄位一:", Location = new Point(20, 90), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(330, 90), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // ⚠️ 修正重點 1：先實例化所有的 ComboBox 控制項，防止觸發事件時找不到物件
             _cboDb = new ComboBox { Location = new Point(130, 38), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboTable = new ComboBox { Location = new Point(440, 38), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboCol1 = new ComboBox { Location = new Point(130, 88), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -62,12 +61,10 @@ namespace Safety_System
             main.Controls.Add(spacer);
             main.Controls.Add(boxPath);
 
-            // ⚠️ 修正重點 2：所有物件都排版完畢後，最後才掛載事件，安全可靠
             foreach (var key in _dbMap.Keys) _cboDb.Items.Add(key);
             _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
             
-            // 自動觸發第一項，讓畫面載入時就聯動選好第一筆資料庫與資料表
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
 
             return main;
@@ -93,45 +90,46 @@ namespace Safety_System
 
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // ⚠️ 修正重點 3：雙重防護，確保物件存在才執行清空操作
-            if (_cboTable == null || _cboCol1 == null || _cboCol2 == null) return;
+            try {
+                if (_cboTable == null || _cboCol1 == null || _cboCol2 == null) return;
 
-            _cboTable.Items.Clear();
-            _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
-            if (_cboDb.SelectedItem == null) return;
-            string db = _cboDb.SelectedItem.ToString();
-            if (_dbMap.ContainsKey(db)) {
-                _cboTable.Items.AddRange(_dbMap[db]);
-                if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
-            }
+                _cboTable.Items.Clear();
+                _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
+                if (_cboDb.SelectedItem == null) return;
+                
+                string db = _cboDb.SelectedItem.ToString();
+                if (_dbMap.ContainsKey(db)) {
+                    _cboTable.Items.AddRange(_dbMap[db]);
+                    if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
+                }
+            } catch { /* 攔截聯動錯誤 */ }
         }
 
         private void CboTable_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // ⚠️ 修正重點 3：雙重防護
-            if (_cboCol1 == null || _cboCol2 == null) return;
+            try {
+                if (_cboCol1 == null || _cboCol2 == null) return;
 
-            _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
-            _cboCol1.Items.Add(""); _cboCol2.Items.Add(""); // 加入空選項
+                _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
+                _cboCol1.Items.Add(""); _cboCol2.Items.Add(""); 
 
-            if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) return;
-            
-            string dbName = _cboDb.SelectedItem.ToString();
-            string tableName = _cboTable.SelectedItem.ToString();
+                if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) return;
+                
+                string dbName = _cboDb.SelectedItem.ToString();
+                string tableName = _cboTable.SelectedItem.ToString();
 
-            // 動態去資料庫抓欄位名稱
-            List<string> cols = DataManager.GetColumnNames(dbName, tableName);
-            foreach(var c in cols) {
-                if (c != "Id") { _cboCol1.Items.Add(c); _cboCol2.Items.Add(c); }
-            }
+                List<string> cols = DataManager.GetColumnNames(dbName, tableName);
+                foreach(var c in cols) {
+                    if (c != "Id") { _cboCol1.Items.Add(c); _cboCol2.Items.Add(c); }
+                }
 
-            // 載入目前設定的記憶值
-            var keys = DataManager.GetTableKeys(dbName, tableName);
-            if (!string.IsNullOrEmpty(keys.col1) && _cboCol1.Items.Contains(keys.col1)) _cboCol1.SelectedItem = keys.col1;
-            else _cboCol1.SelectedIndex = 0;
+                var keys = DataManager.GetTableKeys(dbName, tableName);
+                if (!string.IsNullOrEmpty(keys.col1) && _cboCol1.Items.Contains(keys.col1)) _cboCol1.SelectedItem = keys.col1;
+                else _cboCol1.SelectedIndex = 0;
 
-            if (!string.IsNullOrEmpty(keys.col2) && _cboCol2.Items.Contains(keys.col2)) _cboCol2.SelectedItem = keys.col2;
-            else _cboCol2.SelectedIndex = 0;
+                if (!string.IsNullOrEmpty(keys.col2) && _cboCol2.Items.Contains(keys.col2)) _cboCol2.SelectedItem = keys.col2;
+                else _cboCol2.SelectedIndex = 0;
+            } catch { /* 攔截聯動錯誤 */ }
         }
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
