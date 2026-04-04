@@ -64,22 +64,22 @@ namespace Safety_System
             menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_WorkInjuryReport().GetView()));
 
             var menuAir = new ToolStripMenuItem("空污");
-            menuAir.DropDownItems.Add(CreateItem("空氣汙染防治看板", () => new App_AirDashboard().GetView()));
+            menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
             menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_AirPollution().GetView()));
 
-            var menuWater = new ToolStripMenuItem("水質");
+            var menuWater = new ToolStripMenuItem("水");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("水處理記錄", () => new App_WaterTreatment().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("水處理用藥記錄", () => new App_WaterChemicals().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("廢水處理用水記錄表", () => new App_WaterTreatment().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("廢水處理用藥記錄表", () => new App_WaterChemicals().GetView()));
             menuWater.DropDownItems.Add(CreateItem("自來水量統計", () => new App_WaterVolume().GetView()));
             menuWater.DropDownItems.Add(CreateItem("納管排放數據", () => new App_DischargeData().GetView()));
 
             var menuWaste = new ToolStripMenuItem("廢棄物");
-            menuWaste.DropDownItems.Add(CreateItem("廢棄物清運看板", () => new App_WasteDashboard().GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("廢棄物月報管理", () => new App_WasteMonthly().GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物看板", () => new App_WasteDashboard().GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物月報表", () => new App_WasteMonthly().GetView()));
 
-            var menuFire = new ToolStripMenuItem("消防安全");
-            menuFire.DropDownItems.Add(CreateItem("消防安全看板", () => new App_FireDashboard().GetView()));
+            var menuFire = new ToolStripMenuItem("消防");
+            menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_FireResponsible().GetView()));
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_HazardStats().GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_FireEquip().GetView()));
