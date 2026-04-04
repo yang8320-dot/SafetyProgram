@@ -82,7 +82,7 @@ namespace Safety_System
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
             
-            Button bRen = new Button { Text = "改名", Size = new Size(120, 35) };
+            Button bRen = new Button { Text = "欄位改名", Size = new Size(120, 35) };
             bRen.Click += (s, e) => {
                 if (_cboColumns.SelectedItem == null || string.IsNullOrEmpty(_txtRenameCol.Text)) return;
                 if (VerifyPassword()) {
