@@ -28,12 +28,6 @@ namespace Safety_System
                     // 第一次執行，正常啟動
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-
-                    // 🟢 關鍵修正：在 Run MainForm 之前，先載入路徑設定
-                    // 這會讀取 sys_config.txt 並更新 DataManager.BasePath
-                    // 如果檔案不存在或路徑無效，DataManager 會自動使用預設的 ./DB
-                    DataManager.LoadConfig();
-
                     Application.Run(new MainForm());
                 }
                 else
@@ -55,7 +49,7 @@ namespace Safety_System
                             break;
                         }
                     }
-                    // 執行完畢，結束當前這個重複的實例
+                    // 執行完畢，結束當前這個重複的實例，不跳提示視窗
                 }
             }
         }
