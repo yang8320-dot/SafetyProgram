@@ -24,7 +24,7 @@ namespace Safety_System
         {
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
 
-            // 🟢 第一區塊：資料庫存放路徑設定 (框內與文字間隔 15)
+            // 🟢 第一區塊：資料庫存放路徑設定
             GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 140, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             _txtPath = new TextBox { Location = new Point(20, 40), Width = 450, ReadOnly = true, Text = DataManager.BasePath, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -38,22 +38,17 @@ namespace Safety_System
 
             // 🟢 第二區塊：防重寫欄位設定 (複合鍵)
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 250, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
-            // 利用 Margin 推開與上方 GroupBox 的距離
             boxKeys.Margin = new Padding(0, 20, 0, 0);
 
             Label lblDb = new Label { Text = "選擇資料庫:", Location = new Point(20, 40), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboDb = new ComboBox { Location = new Point(130, 38), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            foreach (var key in _dbMap.Keys) _cboDb.Items.Add(key);
-            _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
-
             Label lblTable = new Label { Text = "選擇資料表:", Location = new Point(330, 40), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboTable = new ComboBox { Location = new Point(440, 38), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
-
             Label lblCol1 = new Label { Text = "判斷欄位一:", Location = new Point(20, 90), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol1 = new ComboBox { Location = new Point(130, 88), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-
             Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(330, 90), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            // ⚠️ 修正重點 1：先實例化所有的 ComboBox 控制項，防止觸發事件時找不到物件
+            _cboDb = new ComboBox { Location = new Point(130, 38), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboTable = new ComboBox { Location = new Point(440, 38), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol1 = new ComboBox { Location = new Point(130, 88), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboCol2 = new ComboBox { Location = new Point(440, 88), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(20, 140), Size = new Size(180, 40), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -61,12 +56,19 @@ namespace Safety_System
 
             boxKeys.Controls.AddRange(new Control[] { lblDb, _cboDb, lblTable, _cboTable, lblCol1, _cboCol1, lblCol2, _cboCol2, btnSaveKeys });
 
-            // 為了讓兩個 GroupBox 之間有間距，插入一個空白 Panel
             Panel spacer = new Panel { Dock = DockStyle.Top, Height = 20 };
 
             main.Controls.Add(boxKeys);
             main.Controls.Add(spacer);
             main.Controls.Add(boxPath);
+
+            // ⚠️ 修正重點 2：所有物件都排版完畢後，最後才掛載事件，安全可靠
+            foreach (var key in _dbMap.Keys) _cboDb.Items.Add(key);
+            _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
+            _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
+            
+            // 自動觸發第一項，讓畫面載入時就聯動選好第一筆資料庫與資料表
+            if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
 
             return main;
         }
@@ -91,6 +93,9 @@ namespace Safety_System
 
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
         {
+            // ⚠️ 修正重點 3：雙重防護，確保物件存在才執行清空操作
+            if (_cboTable == null || _cboCol1 == null || _cboCol2 == null) return;
+
             _cboTable.Items.Clear();
             _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
             if (_cboDb.SelectedItem == null) return;
@@ -103,6 +108,9 @@ namespace Safety_System
 
         private void CboTable_SelectedIndexChanged(object sender, EventArgs e)
         {
+            // ⚠️ 修正重點 3：雙重防護
+            if (_cboCol1 == null || _cboCol2 == null) return;
+
             _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
             _cboCol1.Items.Add(""); _cboCol2.Items.Add(""); // 加入空選項
 
