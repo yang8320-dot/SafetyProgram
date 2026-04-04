@@ -10,7 +10,10 @@ namespace Safety_System
     public static class DataManager
     {
         private const string ConfigFile = "sys_config.txt";
-        public static string BasePath { get; private set; } = AppDomain.CurrentDomain.BaseDirectory;
+        
+        // 🟢 修正：預設路徑改為程式目錄下的 DB 資料夾
+        private static string _defaultPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
+        public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
         private static string GetConnString(string dbName)
         {
@@ -25,12 +28,16 @@ namespace Safety_System
                 string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
                 if (Directory.Exists(savedPath)) BasePath = savedPath;
             }
+            
+            // 🟢 修正：確保 DB 資料夾存在，避免存取錯誤
+            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
         public static void SetBasePath(string newPath)
         {
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
+            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
@@ -62,7 +69,7 @@ namespace Safety_System
         {
             DataTable dt = new DataTable();
             ExecuteWithRetry(dbName, conn => {
-                // 使用參數化查詢並確保格式一致
+                // 🟢 修正：確保查詢字串參數化
                 string sql = string.Format("SELECT * FROM [{0}] WHERE [{1}] BETWEEN @s AND @e ORDER BY [{1}] DESC", tableName, dateCol);
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -77,7 +84,7 @@ namespace Safety_System
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             ExecuteWithRetry(dbName, conn => {
-                // 🟢 修正：強制將「日期」欄位轉換為 yyyy-MM-dd 格式
+                // 🟢 修正：存檔前強制將「日期」欄位標準化，解決讀取不到資料的問題
                 if (row.Table.Columns.Contains("日期") && row["日期"] != DBNull.Value)
                 {
                     string dateStr = row["日期"].ToString();
@@ -104,8 +111,7 @@ namespace Safety_System
                     sb.Remove(sb.Length - 2, 2).Append(")");
                 }
                 using (var cmd = new SQLiteCommand(sb.ToString(), conn)) {
-                    foreach (DataColumn col in row.Table.Columns) 
-                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
+                    foreach (DataColumn col in row.Table.Columns) cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
                     cmd.ExecuteNonQuery();
                 }
             });
