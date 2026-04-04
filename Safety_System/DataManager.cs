@@ -18,7 +18,7 @@ namespace Safety_System
 
         public static void LoadConfig()
         {
-            // 🟢 需求 3.2：預設路徑為程式目錄下的 DB 子資料夾
+            // 預設路徑為程式目錄下的 DB 子資料夾
             BasePath = Path.Combine(AppDir, "DB");
 
             if (File.Exists(ConfigFile))
@@ -45,7 +45,23 @@ namespace Safety_System
             return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
         }
 
-        // 🟢 [讀取防重寫設定] (純文字 TXT，| 分隔)
+        // 執行資料庫指令與自動重試機制 (防止資料庫 Lock)
+        private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
+        {
+            int maxRetries = 5;
+            for (int i = 1; i <= maxRetries; i++) {
+                try {
+                    using (var conn = new SQLiteConnection(GetConnString(dbName))) {
+                        conn.Open(); dbAction(conn); return;
+                    }
+                } catch (SQLiteException ex) when (ex.ResultCode == SQLiteErrorCode.Locked || ex.ResultCode == SQLiteErrorCode.Busy) {
+                    if (i == maxRetries) throw;
+                    Thread.Sleep(100 * i);
+                }
+            }
+        }
+
+        // [讀取防重寫設定] (純文字 TXT，| 分隔)
         public static (string col1, string col2) GetTableKeys(string dbName, string tableName)
         {
             if (!File.Exists(KeyConfigFile)) return ("", "");
@@ -57,7 +73,7 @@ namespace Safety_System
             return ("", "");
         }
 
-        // 🟢 [儲存防重寫設定]
+        // [儲存防重寫設定]
         public static void SaveTableKeys(string dbName, string tableName, string col1, string col2)
         {
             List<string> lines = new List<string>();
@@ -68,7 +84,7 @@ namespace Safety_System
             File.WriteAllLines(KeyConfigFile, lines, Encoding.UTF8);
         }
 
-        // 取得資料表的所有欄位 (供設定介面使用)
+        // 取得資料表的所有欄位 (供設定介面與動態操作使用)
         public static List<string> GetColumnNames(string dbName, string tableName)
         {
             var cols = new List<string>();
@@ -81,11 +97,12 @@ namespace Safety_System
             return cols;
         }
 
-        // === 原有 DML/DDL 簡化保留 ===
+        // 初始化建立資料表
         public static void InitTable(string dbName, string tableName, string createSql) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand(createSql, conn)) cmd.ExecuteNonQuery();
         });
 
+        // 讀取資料表內容，支援日期區間篩選
         public static DataTable GetTableData(string dbName, string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
@@ -99,10 +116,10 @@ namespace Safety_System
             return dt;
         }
 
-        // 🟢 寫入與更新核心邏輯
+        // 🟢 核心寫入與更新邏輯 (含防重寫判斷與日期格式化)
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
-            // 🟢 需求 2：日期強制統一格式處理
+            // 日期強制統一格式處理
             foreach (DataColumn col in row.Table.Columns)
             {
                 if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString()))
@@ -112,7 +129,7 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 需求 4：讀取設定，判斷是否觸發防重寫 (複寫邏輯)
+            // 讀取設定，判斷是否觸發防重寫 (複寫邏輯)
             var keys = GetTableKeys(dbName, tableName);
             if (!string.IsNullOrEmpty(keys.col1) && row.Table.Columns.Contains(keys.col1))
             {
@@ -173,19 +190,26 @@ namespace Safety_System
             });
         }
 
-        private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
+        // 🟢 恢復先前遺漏的 DML/DDL 功能 (解決編譯錯誤的關鍵)
+        public static void DeleteRecord(string dbName, string tableName, int id)
         {
-            int maxRetries = 5;
-            for (int i = 1; i <= maxRetries; i++) {
-                try {
-                    using (var conn = new SQLiteConnection(GetConnString(dbName))) {
-                        conn.Open(); dbAction(conn); return;
-                    }
-                } catch (SQLiteException ex) when (ex.ResultCode == SQLiteErrorCode.Locked || ex.ResultCode == SQLiteErrorCode.Busy) {
-                    if (i == maxRetries) throw;
-                    Thread.Sleep(100 * i);
+            ExecuteWithRetry(dbName, conn => {
+                using (var cmd = new SQLiteCommand($"DELETE FROM [{tableName}] WHERE Id=@Id", conn)) {
+                    cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
                 }
-            }
+            });
         }
+
+        public static void AddColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
+            using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] ADD COLUMN [{colName}] TEXT", conn)) { cmd.ExecuteNonQuery(); }
+        });
+
+        public static void RenameColumn(string dbName, string tableName, string oldN, string newN) => ExecuteWithRetry(dbName, conn => {
+            using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] RENAME COLUMN [{oldN}] TO [{newN}]", conn)) { cmd.ExecuteNonQuery(); }
+        });
+
+        public static void DropColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
+            using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] DROP COLUMN [{colName}]", conn)) { cmd.ExecuteNonQuery(); }
+        });
     }
 }
