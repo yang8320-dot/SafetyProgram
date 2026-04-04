@@ -141,7 +141,6 @@ namespace Safety_System
             return true;
         }
 
-        // 🟢 核心修改區：比對差異並彈出確認視窗
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             foreach (DataColumn col in row.Table.Columns) {
@@ -153,26 +152,27 @@ namespace Safety_System
 
             var keys = GetTableKeys(dbName, tableName);
             int existingId = -1;
+            string v1 = "";
+            string v2 = "";
 
             if (!string.IsNullOrEmpty(keys.col1) && row.Table.Columns.Contains(keys.col1))
             {
-                string v1 = row[keys.col1]?.ToString();
-                string v2 = (!string.IsNullOrEmpty(keys.col2) && row.Table.Columns.Contains(keys.col2)) ? row[keys.col2]?.ToString() : null;
+                v1 = row[keys.col1]?.ToString() ?? "";
+                v2 = (!string.IsNullOrEmpty(keys.col2) && row.Table.Columns.Contains(keys.col2)) ? (row[keys.col2]?.ToString() ?? "") : "";
 
                 string query = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @v1";
                 if (!string.IsNullOrEmpty(keys.col2)) query += $" AND [{keys.col2}] = @v2";
 
                 ExecuteWithRetry(dbName, conn => {
                     using (var cmd = new SQLiteCommand(query, conn)) {
-                        cmd.Parameters.AddWithValue("@v1", v1 ?? "");
-                        if (!string.IsNullOrEmpty(keys.col2)) cmd.Parameters.AddWithValue("@v2", v2 ?? "");
+                        cmd.Parameters.AddWithValue("@v1", v1);
+                        if (!string.IsNullOrEmpty(keys.col2)) cmd.Parameters.AddWithValue("@v2", v2);
                         var res = cmd.ExecuteScalar();
                         if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
                     }
                 });
             }
 
-            // 🟢 若發現重複資料，進行新舊資料比對
             if (existingId != -1) {
                 DataTable oldDt = new DataTable();
                 ExecuteWithRetry(dbName, conn => {
@@ -185,11 +185,20 @@ namespace Safety_System
                 if (oldDt.Rows.Count > 0) {
                     DataRow oldRow = oldDt.Rows[0];
                     StringBuilder msg = new StringBuilder();
-                    msg.AppendLine($"發現已存在的重複紀錄 (依據防重寫規則)，是否確定要覆蓋此紀錄？\n");
+                    
+                    // 🟢 加入 ID 與 觸發條件的顯示
+                    msg.AppendLine($"⚠️ 發現已存在的紀錄，是否確定要覆蓋？\n");
+                    msg.AppendLine($"📌 【系統 ID】: {existingId}");
+                    
+                    string matchCondition = $"📌 【重複條件】: [{keys.col1}] = {(string.IsNullOrEmpty(v1) ? "(空)" : v1)}";
+                    if (!string.IsNullOrEmpty(keys.col2)) {
+                        matchCondition += $" 且 [{keys.col2}] = {(string.IsNullOrEmpty(v2) ? "(空)" : v2)}";
+                    }
+                    msg.AppendLine(matchCondition);
+                    msg.AppendLine("\n--- 變更明細 ---\n");
                     
                     bool hasDifferences = false;
 
-                    // 逐一比對欄位，只列出有被修改的內容
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
                         
@@ -197,35 +206,30 @@ namespace Safety_System
                         string newVal = row[col]?.ToString() ?? "";
 
                         if (oldVal != newVal) {
-                            msg.AppendLine($"【{col.ColumnName}】");
+                            msg.AppendLine($"[{col.ColumnName}]");
                             msg.AppendLine($"  原本值：{(string.IsNullOrEmpty(oldVal) ? "(空)" : oldVal)}");
                             msg.AppendLine($"  取代值：{(string.IsNullOrEmpty(newVal) ? "(空)" : newVal)}\n");
                             hasDifferences = true;
                         }
                     }
 
-                    // 如果資料完全沒有變動，直接略過，不吵使用者也不重複寫入
                     if (!hasDifferences) {
                         return; 
                     }
 
-                    // 彈出確認視窗
                     var result = MessageBox.Show(msg.ToString(), "確認覆蓋取代", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     
-                    // 如果使用者選「否」，直接 return 中斷這一筆的存檔
                     if (result == DialogResult.No) {
                         return; 
                     }
                 }
 
-                // 若選擇「是」，將舊資料的 Id 指定給新列，觸發覆蓋(UPDATE)邏輯
                 bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
                 row.Table.Columns["Id"].ReadOnly = false;
                 row["Id"] = existingId;
                 row.Table.Columns["Id"].ReadOnly = isReadOnly;
             }
 
-            // 執行寫入或更新
             ExecuteWithRetry(dbName, conn => {
                 bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && !string.IsNullOrEmpty(row["Id"].ToString()) && Convert.ToInt32(row["Id"]) > 0;
                 var cmd = new SQLiteCommand(conn);
