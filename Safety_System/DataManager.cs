@@ -72,7 +72,6 @@ namespace Safety_System
         {
             List<string> lines = new List<string>();
             if (File.Exists(KeyConfigFile)) lines = new List<string>(File.ReadAllLines(KeyConfigFile, Encoding.UTF8));
-            
             lines.RemoveAll(x => x.StartsWith($"{dbName}|{tableName}|")); 
             lines.Add($"{dbName}|{tableName}|{col1}|{col2}"); 
             File.WriteAllLines(KeyConfigFile, lines, Encoding.UTF8);
@@ -94,6 +93,7 @@ namespace Safety_System
             using (var cmd = new SQLiteCommand(createSql, conn)) cmd.ExecuteNonQuery();
         });
 
+        // 🟢 一般依日期區間讀取
         public static DataTable GetTableData(string dbName, string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
@@ -101,6 +101,23 @@ namespace Safety_System
                 string q = string.IsNullOrEmpty(start) ? $"SELECT * FROM [{tableName}]" : $"SELECT * FROM [{tableName}] WHERE [{dateCol}] BETWEEN @s AND @e";
                 using (var cmd = new SQLiteCommand(q, conn)) {
                     if (!string.IsNullOrEmpty(start)) { cmd.Parameters.AddWithValue("@s", start); cmd.Parameters.AddWithValue("@e", end); }
+                    using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                }
+            });
+            return dt;
+        }
+
+        // ====================================================================
+        // 🟢 [全新加入] 直接撈取最新 N 筆資料 (預設 30 筆)
+        // ====================================================================
+        public static DataTable GetLatestRecords(string dbName, string tableName, int limit = 30)
+        {
+            DataTable dt = new DataTable();
+            ExecuteWithRetry(dbName, conn => {
+                // 先撈取最後寫入的資料，再將它們依 Id 正序排列以符合閱讀邏輯
+                string q = $"SELECT * FROM (SELECT * FROM [{tableName}] ORDER BY Id DESC LIMIT @limit) sub ORDER BY Id ASC";
+                using (var cmd = new SQLiteCommand(q, conn)) {
+                    cmd.Parameters.AddWithValue("@limit", limit);
                     using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                 }
             });
@@ -122,9 +139,7 @@ namespace Safety_System
                         {
                             MessageBox.Show(
                                 $"【存檔中斷】\n\n第 {i + 1} 列的【{col.ColumnName}】輸入了無效的格式：「{row[col]}」\n\n請修正為正確的日期 (例如: 2024-04-05) 後，再重新按儲存。", 
-                                "日期格式錯誤", 
-                                MessageBoxButtons.OK, 
-                                MessageBoxIcon.Warning);
+                                "日期格式錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return false; 
                         }
                     }
@@ -133,10 +148,7 @@ namespace Safety_System
 
             foreach (DataRow row in dt.Rows)
             {
-                if (row.RowState != DataRowState.Deleted)
-                {
-                    UpsertRecord(dbName, tableName, row);
-                }
+                if (row.RowState != DataRowState.Deleted) UpsertRecord(dbName, tableName, row);
             }
             return true;
         }
@@ -185,20 +197,16 @@ namespace Safety_System
                 if (oldDt.Rows.Count > 0) {
                     DataRow oldRow = oldDt.Rows[0];
                     StringBuilder msg = new StringBuilder();
-                    
-                    // 🟢 加入 ID 與 觸發條件的顯示
                     msg.AppendLine($"⚠️ 發現已存在的紀錄，是否確定要覆蓋？\n");
                     msg.AppendLine($"📌 【系統 ID】: {existingId}");
                     
                     string matchCondition = $"📌 【重複條件】: [{keys.col1}] = {(string.IsNullOrEmpty(v1) ? "(空)" : v1)}";
-                    if (!string.IsNullOrEmpty(keys.col2)) {
-                        matchCondition += $" 且 [{keys.col2}] = {(string.IsNullOrEmpty(v2) ? "(空)" : v2)}";
-                    }
+                    if (!string.IsNullOrEmpty(keys.col2)) matchCondition += $" 且 [{keys.col2}] = {(string.IsNullOrEmpty(v2) ? "(空)" : v2)}";
+                    
                     msg.AppendLine(matchCondition);
                     msg.AppendLine("\n--- 變更明細 ---\n");
                     
                     bool hasDifferences = false;
-
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
                         
@@ -213,15 +221,10 @@ namespace Safety_System
                         }
                     }
 
-                    if (!hasDifferences) {
-                        return; 
-                    }
+                    if (!hasDifferences) return; 
 
                     var result = MessageBox.Show(msg.ToString(), "確認覆蓋取代", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                    
-                    if (result == DialogResult.No) {
-                        return; 
-                    }
+                    if (result == DialogResult.No) return; 
                 }
 
                 bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
