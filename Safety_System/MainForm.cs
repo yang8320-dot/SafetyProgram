@@ -50,10 +50,10 @@ namespace Safety_System
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
-            var menuSafety = new ToolStripMenuItem("工安管理");
-            menuSafety.DropDownItems.Add(CreateItem("工安管理看板", () => new App_SafetyDashboard().GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("虛驚事件管理", () => new App_NearMiss().GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("巡檢記錄管理", () => new App_SafetyInspection().GetView()));
+            var menuSafety = new ToolStripMenuItem("工安");
+            menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("虛驚事件紀錄", () => new App_NearMiss().GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("巡檢異常記錄", () => new App_SafetyInspection().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("安全觀察紀錄", () => new App_SafetyObservation().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("交通意外紀錄", () => new App_TrafficInjury().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件管理", () => new App_WorkInjury().GetView()));
@@ -69,10 +69,10 @@ namespace Safety_System
 
             var menuWater = new ToolStripMenuItem("水質");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("納管排放數據", () => new App_DischargeData().GetView()));
             menuWater.DropDownItems.Add(CreateItem("水處理記錄", () => new App_WaterTreatment().GetView()));
             menuWater.DropDownItems.Add(CreateItem("水處理用藥記錄", () => new App_WaterChemicals().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("用水量統計", () => new App_WaterVolume().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("自來水量統計", () => new App_WaterVolume().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("納管排放數據", () => new App_DischargeData().GetView()));
 
             var menuWaste = new ToolStripMenuItem("廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("廢棄物清運看板", () => new App_WasteDashboard().GetView()));
