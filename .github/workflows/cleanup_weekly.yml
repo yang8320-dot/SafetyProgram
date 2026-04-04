@@ -10,7 +10,7 @@ on:
       days_to_keep:
         description: '自訂保留天數 (請輸入數字)'
         required: true
-        default: '7'
+        default: '0'
         type: string
 
 jobs:
