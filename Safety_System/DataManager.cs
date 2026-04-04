@@ -5,7 +5,7 @@ using System.Data.SQLite;
 using System.IO;
 using System.Text;
 using System.Threading;
-using System.Windows.Forms; // 🟢 為了使用 MessageBox 提示
+using System.Windows.Forms;
 
 namespace Safety_System
 {
@@ -107,23 +107,17 @@ namespace Safety_System
             return dt;
         }
 
-        // ====================================================================
-        // 🟢 [全新加入] 全域統一的整表驗證與存檔方法 (防呆核心)
-        // ====================================================================
         public static bool ValidateAndSaveTable(string dbName, string tableName, DataTable dt)
         {
-            // 1. 【事前驗證】全面掃描整張表的日期欄位
             for (int i = 0; i < dt.Rows.Count; i++)
             {
                 DataRow row = dt.Rows[i];
-                if (row.RowState == DataRowState.Deleted) continue; // 忽略已刪除的列
+                if (row.RowState == DataRowState.Deleted) continue;
 
                 foreach (DataColumn col in dt.Columns)
                 {
-                    // 如果欄位名稱包含「日期」，且使用者有填寫內容
                     if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString()))
                     {
-                        // 嘗試轉換為日期格式，若失敗則觸發防呆
                         if (!DateTime.TryParse(row[col].ToString(), out DateTime date))
                         {
                             MessageBox.Show(
@@ -131,14 +125,12 @@ namespace Safety_System
                                 "日期格式錯誤", 
                                 MessageBoxButtons.OK, 
                                 MessageBoxIcon.Warning);
-                            
-                            return false; // 直接中斷，不進行任何存檔！
+                            return false; 
                         }
                     }
                 }
             }
 
-            // 2. 【正式寫入】驗證全數通過，才開始逐筆寫入資料庫
             foreach (DataRow row in dt.Rows)
             {
                 if (row.RowState != DataRowState.Deleted)
@@ -146,10 +138,10 @@ namespace Safety_System
                     UpsertRecord(dbName, tableName, row);
                 }
             }
-            return true; // 存檔成功
+            return true;
         }
 
-        // 底層的單筆寫入邏輯保持不變
+        // 🟢 核心修改區：比對差異並彈出確認視窗
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             foreach (DataColumn col in row.Table.Columns) {
@@ -160,6 +152,8 @@ namespace Safety_System
             }
 
             var keys = GetTableKeys(dbName, tableName);
+            int existingId = -1;
+
             if (!string.IsNullOrEmpty(keys.col1) && row.Table.Columns.Contains(keys.col1))
             {
                 string v1 = row[keys.col1]?.ToString();
@@ -168,7 +162,6 @@ namespace Safety_System
                 string query = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @v1";
                 if (!string.IsNullOrEmpty(keys.col2)) query += $" AND [{keys.col2}] = @v2";
 
-                int existingId = -1;
                 ExecuteWithRetry(dbName, conn => {
                     using (var cmd = new SQLiteCommand(query, conn)) {
                         cmd.Parameters.AddWithValue("@v1", v1 ?? "");
@@ -177,15 +170,62 @@ namespace Safety_System
                         if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
                     }
                 });
-
-                if (existingId != -1) {
-                    bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
-                    row.Table.Columns["Id"].ReadOnly = false;
-                    row["Id"] = existingId;
-                    row.Table.Columns["Id"].ReadOnly = isReadOnly;
-                }
             }
 
+            // 🟢 若發現重複資料，進行新舊資料比對
+            if (existingId != -1) {
+                DataTable oldDt = new DataTable();
+                ExecuteWithRetry(dbName, conn => {
+                    using (var cmd = new SQLiteCommand($"SELECT * FROM [{tableName}] WHERE Id=@Id", conn)) {
+                        cmd.Parameters.AddWithValue("@Id", existingId);
+                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(oldDt);
+                    }
+                });
+
+                if (oldDt.Rows.Count > 0) {
+                    DataRow oldRow = oldDt.Rows[0];
+                    StringBuilder msg = new StringBuilder();
+                    msg.AppendLine($"發現已存在的重複紀錄 (依據防重寫規則)，是否確定要覆蓋此紀錄？\n");
+                    
+                    bool hasDifferences = false;
+
+                    // 逐一比對欄位，只列出有被修改的內容
+                    foreach (DataColumn col in row.Table.Columns) {
+                        if (col.ColumnName == "Id") continue;
+                        
+                        string oldVal = oldRow.Table.Columns.Contains(col.ColumnName) ? oldRow[col.ColumnName]?.ToString() : "";
+                        string newVal = row[col]?.ToString() ?? "";
+
+                        if (oldVal != newVal) {
+                            msg.AppendLine($"【{col.ColumnName}】");
+                            msg.AppendLine($"  原本值：{(string.IsNullOrEmpty(oldVal) ? "(空)" : oldVal)}");
+                            msg.AppendLine($"  取代值：{(string.IsNullOrEmpty(newVal) ? "(空)" : newVal)}\n");
+                            hasDifferences = true;
+                        }
+                    }
+
+                    // 如果資料完全沒有變動，直接略過，不吵使用者也不重複寫入
+                    if (!hasDifferences) {
+                        return; 
+                    }
+
+                    // 彈出確認視窗
+                    var result = MessageBox.Show(msg.ToString(), "確認覆蓋取代", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    
+                    // 如果使用者選「否」，直接 return 中斷這一筆的存檔
+                    if (result == DialogResult.No) {
+                        return; 
+                    }
+                }
+
+                // 若選擇「是」，將舊資料的 Id 指定給新列，觸發覆蓋(UPDATE)邏輯
+                bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
+                row.Table.Columns["Id"].ReadOnly = false;
+                row["Id"] = existingId;
+                row.Table.Columns["Id"].ReadOnly = isReadOnly;
+            }
+
+            // 執行寫入或更新
             ExecuteWithRetry(dbName, conn => {
                 bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && !string.IsNullOrEmpty(row["Id"].ToString()) && Convert.ToInt32(row["Id"]) > 0;
                 var cmd = new SQLiteCommand(conn);
