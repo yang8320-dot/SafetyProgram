@@ -4,7 +4,6 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using OfficeOpenXml; 
 
 namespace Safety_System
 {
@@ -23,23 +22,23 @@ namespace Safety_System
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [廢水處理量] TEXT, [廢水進流量] TEXT, [納廢回收6吋] TEXT, [雙介質A] TEXT, [雙介質B] TEXT, [貯存池] TEXT, [軟水A] TEXT, [軟水B] TEXT, [軟水C] TEXT);");
 
-            // 🟢 紅色圈選處修正：Padding.Top 設為 30，主選單與頁面保持舒適間隔
+            // 🟢 修正紅色圈選處：Top Padding 改為 30
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(15, 30, 15, 10) 
             };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 🟢 綠色圈選處修正：Padding.Top 從 20 改為 15，框內文字更緊湊
+            // 🟢 修正綠色圈選處：GroupBox 內部 Top Padding 改為 15
             GroupBox boxTop = new GroupBox { 
                 Text = "水處理數據管理 (庫: " + DbName + " / 表: " + TableName + ")", 
                 Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F),
-                AutoSize = true, Padding = new Padding(15, 15, 15, 5)
+                AutoSize = true, Padding = new Padding(15, 15, 15, 5) 
             };
 
             TableLayoutPanel tlpControls = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true };
 
-            // 第一行：數據查詢
+            // 第一行
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             flpRow1.Controls.Add(new Label { Text = "日期起:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) });
             _dtpStart = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
@@ -55,19 +54,21 @@ namespace Safety_System
             btnSave.Click += BtnSave_Click;
             flpRow1.Controls.Add(btnSave);
 
-            // 第二行：欄位管理
+            // 第二行
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             flpRow2.Controls.Add(new Label { Text = "新增欄位:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) });
             _txtNewColName = new TextBox { Width = 150, Margin = new Padding(3, 7, 3, 3) }; 
             flpRow2.Controls.Add(_txtNewColName);
             Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(5, 2, 3, 3) };
             
-            // 🟢 新增欄位密碼驗證 (tces)
+            // 🟢 新增欄位加入密碼驗證 (tces)
             btnAddCol.Click += (s, e) => {
-                if (!string.IsNullOrWhiteSpace(_txtNewColName.Text) && VerifyPassword()) {
-                    DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
-                    _txtNewColName.Clear(); RefreshGrid();
-                    MessageBox.Show("新增欄位成功！");
+                if (!string.IsNullOrWhiteSpace(_txtNewColName.Text)) {
+                    if (VerifyPassword()) {
+                        DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
+                        _txtNewColName.Clear(); RefreshGrid();
+                        MessageBox.Show("新增欄位成功！");
+                    }
                 }
             };
             flpRow2.Controls.Add(btnAddCol);
@@ -99,7 +100,6 @@ namespace Safety_System
             return mainLayout;
         }
 
-        // --- 以下私有方法維持穩定功能 ---
         private void RefreshGrid() {
             string s = _dtpStart.Value.ToString("yyyy-MM-dd"), e = _dtpEnd.Value.ToString("yyyy-MM-dd");
             _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", s, e);
