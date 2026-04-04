@@ -50,7 +50,7 @@ namespace Safety_System
             Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => RefreshGrid();
 
-            Button bSave = new Button { Text = "💾 儲存變更", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
+            Button bSave = new Button { Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit();
                 DataTable dt = (DataTable)_dgv.DataSource;
