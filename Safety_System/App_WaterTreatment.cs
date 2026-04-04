@@ -15,13 +15,11 @@ namespace Safety_System
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
 
-        // 🟢 定義此模組歸屬的資料庫與資料表
         private const string DbName = "Water"; 
         private const string TableName = "WaterMeterReadings"; 
 
         public Control GetView()
         {
-            // 初始化資料表結構
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
@@ -35,46 +33,55 @@ namespace Safety_System
                 [軟水B] TEXT, 
                 [軟水C] TEXT);");
 
-            TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄 (庫: Water / 表: WaterMeterReadings)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 25, 10, 10) };
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true };
 
-            // 第一列：查詢、儲存、匯入與匯出
+            // --- 第一行：區間與存取 ---
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            
+            Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
+            
+            // 🟢 加入波浪符號
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
             _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
             
-            Button bRead = new Button { Text = "讀取資料", Size = new Size(100, 35) };
+            // 🟢 按鈕統一寬度 120
+            Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => RefreshGrid();
 
-            // 🟢 最新防呆存檔邏輯：只要有日期格式錯，就不會寫入資料庫
             Button bSave = new Button { Text = "💾 儲存變更", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit();
                 DataTable dt = (DataTable)_dgv.DataSource;
-                
-                // 呼叫底層的全域防呆驗證
+                // 🟢 套用最新的全域防呆存檔邏輯
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, dt)) {
                     MessageBox.Show("儲存完成！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
                 }
             };
+            
+            Button bExport = new Button { Text = "匯出", Size = new Size(120, 35) };
+            bExport.Click += BtnExport_Click;
 
-            Button bImport = new Button { Text = "匯入 CSV", Size = new Size(100, 35) };
+            Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) };
             bImport.Click += BtnImportCsv_Click;
 
-            Button bExport = new Button { Text = "匯出 Excel", Size = new Size(110, 35) };
-            bExport.Click += BtnExportExcel_Click;
+            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bSave, bExport, bImport });
 
-            row1.Controls.AddRange(new Control[] { new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, _dtpStart, _dtpEnd, bRead, bSave, bImport, bExport });
-
-            // 第二列：欄位操作
+            // --- 第二行：欄位操作 ---
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            
+            // 🟢 修正：移除左邊多餘的 Margin 讓上下「區間」與「欄位操作」對齊
+            Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
             _txtNewColName = new TextBox { Width = 120 };
-            Button bAdd = new Button { Text = "新增欄位", Size = new Size(90, 35) };
+            
+            // 🟢 按鈕改名為「新增欄位」並統一寬度 120
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) };
             bAdd.Click += (s, e) => {
                 if (string.IsNullOrEmpty(_txtNewColName.Text)) return;
                 DataManager.AddColumn(DbName, TableName, _txtNewColName.Text);
@@ -83,7 +90,8 @@ namespace Safety_System
 
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
-            Button bRen = new Button { Text = "改名", Size = new Size(70, 35) };
+            
+            Button bRen = new Button { Text = "改名", Size = new Size(120, 35) };
             bRen.Click += (s, e) => {
                 if (_cboColumns.SelectedItem == null || string.IsNullOrEmpty(_txtRenameCol.Text)) return;
                 if (VerifyPassword()) {
@@ -92,7 +100,7 @@ namespace Safety_System
                 }
             };
 
-            Button bDel = new Button { Text = "刪除整列", Size = new Size(90, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button bDel = new Button { Text = "刪除整列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDel.Click += (s, e) => {
                 if (_dgv.CurrentRow == null || _dgv.CurrentRow.Cells["Id"].Value == DBNull.Value) return;
                 if (VerifyPassword()) {
@@ -101,18 +109,18 @@ namespace Safety_System
                 }
             };
 
-            row2.Controls.AddRange(new Control[] { new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(20, 8, 0, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDel });
+            row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDel });
 
             tlp.Controls.Add(row1, 0, 0);
             tlp.Controls.Add(row2, 0, 1);
             boxTop.Controls.Add(tlp);
-            mainLayout.Controls.Add(boxTop, 0, 0);
+            main.Controls.Add(boxTop, 0, 0);
 
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells };
-            mainLayout.Controls.Add(_dgv, 0, 1);
+            main.Controls.Add(_dgv, 0, 1);
 
             RefreshGrid();
-            return mainLayout;
+            return main;
         }
 
         private void RefreshGrid() {
@@ -122,55 +130,106 @@ namespace Safety_System
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
         }
 
+        private bool VerifyPassword() {
+            Form p = new Form { Width = 450, Height = 270, Text = "授權驗證", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false };
+            Label lbl = new Label() { Left = 30, Top = 30, Text = "請輸入管理員密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            TextBox t = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 80, Font = new Font("Microsoft JhengHei UI", 14F) };
+            Button b = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 150, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
+            p.Controls.Add(lbl); p.Controls.Add(t); p.Controls.Add(b);
+            p.AcceptButton = b;
+            return p.ShowDialog() == DialogResult.OK && t.Text == "tces";
+        }
+
+        // 🟢 修改：支援 Excel 與 CSV 兩種匯出格式選擇
+        private void BtnExport_Click(object sender, EventArgs e)
+        {
+            if (_dgv.Rows.Count == 0 || (_dgv.Rows.Count == 1 && _dgv.Rows[0].IsNewRow)) { 
+                MessageBox.Show("沒有資料可匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); 
+                return; 
+            }
+
+            using (SaveFileDialog sfd = new SaveFileDialog { 
+                Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx|CSV 檔案 (*.csv)|*.csv", 
+                FileName = "廢水處理水量記錄_" + DateTime.Now.ToString("yyyyMMdd") 
+            })
+            {
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try 
+                    {
+                        DataTable dt = (DataTable)_dgv.DataSource;
+                        
+                        // 判斷使用者選擇的副檔名 (FilterIndex 1 = Excel, 2 = CSV)
+                        if (sfd.FilterIndex == 1) 
+                        {
+                            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                            using (ExcelPackage p = new ExcelPackage())
+                            {
+                                var ws = p.Workbook.Worksheets.Add("Data");
+                                ws.Cells["A1"].LoadFromDataTable(dt, true);
+                                ws.Cells.AutoFitColumns(); 
+                                p.SaveAs(new FileInfo(sfd.FileName));
+                            }
+                        }
+                        else 
+                        {
+                            StringBuilder sb = new StringBuilder();
+                            // 標頭
+                            string[] colNames = new string[dt.Columns.Count];
+                            for (int i = 0; i < dt.Columns.Count; i++) colNames[i] = dt.Columns[i].ColumnName;
+                            sb.AppendLine(string.Join(",", colNames));
+                            
+                            // 內容 (將欄位內含的半形逗號替換為全形，避免 CSV 錯位)
+                            foreach (DataRow row in dt.Rows)
+                            {
+                                string[] fields = new string[dt.Columns.Count];
+                                for (int i = 0; i < dt.Columns.Count; i++) 
+                                    fields[i] = row[i]?.ToString().Replace(",", "，");
+                                sb.AppendLine(string.Join(",", fields));
+                            }
+                            File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
+                        }
+
+                        MessageBox.Show("資料匯出成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex) { 
+                        MessageBox.Show("匯出失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    }
+                }
+            }
+        }
+
         private void BtnImportCsv_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案|*.csv" }) {
-                if (ofd.ShowDialog() == DialogResult.OK) {
-                    try {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) 
+            {
+                if (ofd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
+                        if (lines.Length < 2) return; // 沒有資料列
+
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = lines[0].Split(',');
-                        for (int i = 1; i < lines.Length; i++) {
-                            DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) {
+                        for (int i = 1; i < lines.Length; i++) 
+                        {
+                            if (string.IsNullOrWhiteSpace(lines[i])) continue;
+                            DataRow nr = dt.NewRow(); 
+                            string[] vs = lines[i].Split(',');
+                            for (int h = 0; h < headers.Length && h < vs.Length; h++) 
+                            {
                                 string cn = headers[h].Trim();
                                 if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim();
                             }
                             dt.Rows.Add(nr);
                         }
-                    } catch (Exception ex) { MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                    } 
+                    catch (Exception ex) { 
+                        MessageBox.Show("匯入失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    }
                 }
             }
-        }
-
-        private void BtnExportExcel_Click(object sender, EventArgs e)
-        {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿|*.xlsx", FileName = $"廢水處理水量記錄_{DateTime.Now:yyyyMMdd}" }) {
-                if (sfd.ShowDialog() == DialogResult.OK) {
-                    try {
-                        using (var p = new ExcelPackage()) {
-                            var ws = p.Workbook.Worksheets.Add("水處理紀錄");
-                            DataTable dt = (DataTable)_dgv.DataSource;
-                            ws.Cells["A1"].LoadFromDataTable(dt, true);
-                            ws.Cells.AutoFitColumns(); 
-                            p.SaveAs(new FileInfo(sfd.FileName));
-                        }
-                        MessageBox.Show("匯出成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-                }
-            }
-        }
-
-        private bool VerifyPassword() {
-            // 🟢 授權視窗高度優化版 (Height: 270)
-            Form p = new Form { Width = 450, Height = 270, Text = "授權驗證", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false };
-            Label lbl = new Label() { Left = 30, Top = 30, Text = "請輸入管理員密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            TextBox t = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 80, Font = new Font("Microsoft JhengHei UI", 14F) };
-            Button b = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 150, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
-            
-            p.Controls.Add(lbl); p.Controls.Add(t); p.Controls.Add(b);
-            p.AcceptButton = b;
-            return p.ShowDialog() == DialogResult.OK && t.Text == "tces";
         }
     }
 }
