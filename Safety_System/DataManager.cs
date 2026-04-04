@@ -14,8 +14,23 @@ namespace Safety_System
         // 🟢 修正：預設路徑鎖定在程式目錄下的 DB 資料夾
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
+        // 🟢 靜態建構子：確保在任何程式存取 DataManager 時，DB 資料夾就已經建立好
+        static DataManager()
+        {
+            EnsureDirectoryExists(BasePath);
+        }
+
+        private static void EnsureDirectoryExists(string path)
+        {
+            try {
+                if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+            } catch { /* 處理可能的權限錯誤 */ }
+        }
+
         private static string GetConnString(string dbName)
         {
+            // 每次連線前再次確認路徑存在 (防止執行中被刪除)
+            EnsureDirectoryExists(BasePath);
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
             return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
         }
@@ -27,17 +42,17 @@ namespace Safety_System
                 string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
                 if (Directory.Exists(savedPath)) BasePath = savedPath;
             }
-            
-            // 🟢 自動建立 DB 資料夾，確保路徑存在
-            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
+            EnsureDirectoryExists(BasePath);
         }
 
         public static void SetBasePath(string newPath)
         {
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
-            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
+            EnsureDirectoryExists(BasePath);
         }
+
+        // --- 以下為資料操作邏輯，維持不變 ---
 
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
         {
