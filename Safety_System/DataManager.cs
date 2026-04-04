@@ -5,6 +5,7 @@ using System.Data.SQLite;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Windows.Forms; // 🟢 為了使用 MessageBox 提示
 
 namespace Safety_System
 {
@@ -14,7 +15,6 @@ namespace Safety_System
         private static readonly string ConfigFile = Path.Combine(AppDir, "sys_config.txt");
         private static readonly string KeyConfigFile = Path.Combine(AppDir, "table_keys.txt"); 
 
-        // 🟢 終極防禦：直接在宣告時賦予預設路徑，避免任何沒呼叫 LoadConfig 導致的 Null 錯誤
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
         public static void LoadConfig()
@@ -37,7 +37,6 @@ namespace Safety_System
 
         private static string GetConnString(string dbName)
         {
-            // 確保資料夾存在
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
             return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
@@ -87,7 +86,7 @@ namespace Safety_System
                     using (var cmd = new SQLiteCommand($"PRAGMA table_info([{tableName}])", conn))
                     using (var r = cmd.ExecuteReader()) { while (r.Read()) cols.Add(r["name"].ToString()); }
                 });
-            } catch { } // 忽略尚未建立的表
+            } catch { } 
             return cols;
         }
 
@@ -108,6 +107,49 @@ namespace Safety_System
             return dt;
         }
 
+        // ====================================================================
+        // 🟢 [全新加入] 全域統一的整表驗證與存檔方法 (防呆核心)
+        // ====================================================================
+        public static bool ValidateAndSaveTable(string dbName, string tableName, DataTable dt)
+        {
+            // 1. 【事前驗證】全面掃描整張表的日期欄位
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                DataRow row = dt.Rows[i];
+                if (row.RowState == DataRowState.Deleted) continue; // 忽略已刪除的列
+
+                foreach (DataColumn col in dt.Columns)
+                {
+                    // 如果欄位名稱包含「日期」，且使用者有填寫內容
+                    if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString()))
+                    {
+                        // 嘗試轉換為日期格式，若失敗則觸發防呆
+                        if (!DateTime.TryParse(row[col].ToString(), out DateTime date))
+                        {
+                            MessageBox.Show(
+                                $"【存檔中斷】\n\n第 {i + 1} 列的【{col.ColumnName}】輸入了無效的格式：「{row[col]}」\n\n請修正為正確的日期 (例如: 2024-04-05) 後，再重新按儲存。", 
+                                "日期格式錯誤", 
+                                MessageBoxButtons.OK, 
+                                MessageBoxIcon.Warning);
+                            
+                            return false; // 直接中斷，不進行任何存檔！
+                        }
+                    }
+                }
+            }
+
+            // 2. 【正式寫入】驗證全數通過，才開始逐筆寫入資料庫
+            foreach (DataRow row in dt.Rows)
+            {
+                if (row.RowState != DataRowState.Deleted)
+                {
+                    UpsertRecord(dbName, tableName, row);
+                }
+            }
+            return true; // 存檔成功
+        }
+
+        // 底層的單筆寫入邏輯保持不變
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             foreach (DataColumn col in row.Table.Columns) {
