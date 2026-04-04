@@ -37,20 +37,16 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄 (庫: Water / 表: WaterMeterReadings)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 25, 10, 10) };
+            GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄 (庫: Water / 表: WaterMeterReadings)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 10, 10, 10) };
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true };
 
-            // --- 第一行：區間與存取 ---
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
-            
-            // 🟢 加入波浪符號
             Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
             _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
             
-            // 🟢 按鈕統一寬度 120
             Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => RefreshGrid();
 
@@ -58,7 +54,6 @@ namespace Safety_System
             bSave.Click += (s, e) => {
                 _dgv.EndEdit();
                 DataTable dt = (DataTable)_dgv.DataSource;
-                // 🟢 套用最新的全域防呆存檔邏輯
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, dt)) {
                     MessageBox.Show("儲存完成！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
@@ -73,14 +68,10 @@ namespace Safety_System
 
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bSave, bExport, bImport });
 
-            // --- 第二行：欄位操作 ---
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            
-            // 🟢 修正：移除左邊多餘的 Margin 讓上下「區間」與「欄位操作」對齊
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
             _txtNewColName = new TextBox { Width = 120 };
             
-            // 🟢 按鈕改名為「新增欄位」並統一寬度 120
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) };
             bAdd.Click += (s, e) => {
                 if (string.IsNullOrEmpty(_txtNewColName.Text)) return;
@@ -140,7 +131,6 @@ namespace Safety_System
             return p.ShowDialog() == DialogResult.OK && t.Text == "tces";
         }
 
-        // 🟢 修改：支援 Excel 與 CSV 兩種匯出格式選擇
         private void BtnExport_Click(object sender, EventArgs e)
         {
             if (_dgv.Rows.Count == 0 || (_dgv.Rows.Count == 1 && _dgv.Rows[0].IsNewRow)) { 
@@ -159,10 +149,9 @@ namespace Safety_System
                     {
                         DataTable dt = (DataTable)_dgv.DataSource;
                         
-                        // 判斷使用者選擇的副檔名 (FilterIndex 1 = Excel, 2 = CSV)
                         if (sfd.FilterIndex == 1) 
                         {
-                            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                            // 🟢 修正：移除了 EPPlus 5+ 才需要的 LicenseContext
                             using (ExcelPackage p = new ExcelPackage())
                             {
                                 var ws = p.Workbook.Worksheets.Add("Data");
@@ -174,12 +163,10 @@ namespace Safety_System
                         else 
                         {
                             StringBuilder sb = new StringBuilder();
-                            // 標頭
                             string[] colNames = new string[dt.Columns.Count];
                             for (int i = 0; i < dt.Columns.Count; i++) colNames[i] = dt.Columns[i].ColumnName;
                             sb.AppendLine(string.Join(",", colNames));
                             
-                            // 內容 (將欄位內含的半形逗號替換為全形，避免 CSV 錯位)
                             foreach (DataRow row in dt.Rows)
                             {
                                 string[] fields = new string[dt.Columns.Count];
@@ -208,7 +195,7 @@ namespace Safety_System
                     try 
                     {
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
-                        if (lines.Length < 2) return; // 沒有資料列
+                        if (lines.Length < 2) return; 
 
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = lines[0].Split(',');
