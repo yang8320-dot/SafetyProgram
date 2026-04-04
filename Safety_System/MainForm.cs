@@ -50,8 +50,8 @@ namespace Safety_System
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
-            var menuSafety = new ToolStripMenuItem("工安管理");
-            menuSafety.DropDownItems.Add(CreateItem("工安管理看板", () => new App_SafetyDashboard().GetView()));
+            var menuSafety = new ToolStripMenuItem("工安");
+            menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("虛驚事件管理", () => new App_NearMiss().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("巡檢記錄管理", () => new App_SafetyInspection().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("安全觀察紀錄", () => new App_SafetyObservation().GetView()));
@@ -59,27 +59,27 @@ namespace Safety_System
             menuSafety.DropDownItems.Add(CreateItem("工傷事件管理", () => new App_WorkInjury().GetView()));
 
             var menuNursing = new ToolStripMenuItem("職場護理");
-            menuNursing.DropDownItems.Add(CreateItem("職場健康看板", () => new App_NursingDashboard().GetView()));
+            menuNursing.DropDownItems.Add(CreateItem("職場護理看板", () => new App_NursingDashboard().GetView()));
             menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_HealthPromotion().GetView()));
             menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_WorkInjuryReport().GetView()));
 
             var menuAir = new ToolStripMenuItem("空污");
-            menuAir.DropDownItems.Add(CreateItem("空氣汙染防治看板", () => new App_AirDashboard().GetView()));
+            menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
             menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_AirPollution().GetView()));
 
-            var menuWater = new ToolStripMenuItem("水質");
+            var menuWater = new ToolStripMenuItem("水");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             menuWater.DropDownItems.Add(CreateItem("納管排放數據", () => new App_DischargeData().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("水處理記錄", () => new App_WaterTreatment().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("水處理用藥記錄", () => new App_WaterChemicals().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("用水量統計", () => new App_WaterVolume().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("廢水處理水量記錄", () => new App_WaterTreatment().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("廢水處理用藥記錄", () => new App_WaterChemicals().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("自來水用量統計", () => new App_WaterVolume().GetView()));
 
             var menuWaste = new ToolStripMenuItem("廢棄物");
-            menuWaste.DropDownItems.Add(CreateItem("廢棄物清運看板", () => new App_WasteDashboard().GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("廢棄物月報管理", () => new App_WasteMonthly().GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物看板", () => new App_WasteDashboard().GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物統計表", () => new App_WasteMonthly().GetView()));
 
-            var menuFire = new ToolStripMenuItem("消防安全");
-            menuFire.DropDownItems.Add(CreateItem("消防安全看板", () => new App_FireDashboard().GetView()));
+            var menuFire = new ToolStripMenuItem("消防");
+            menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_FireResponsible().GetView()));
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_HazardStats().GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_FireEquip().GetView()));
