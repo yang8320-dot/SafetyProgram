@@ -1,62 +1,94 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.IO;
 
 namespace Safety_System
 {
-    public class App_DbConfig
+    public class App_DbConfig : Form
     {
-        private TextBox _txtPath;
+        private TextBox _txtPath = new TextBox();
 
-        public Control GetView()
+        public App_DbConfig()
         {
-            TableLayoutPanel mainLayout = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(15, 30, 15, 10) 
-            };
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-            GroupBox box = new GroupBox { 
-                Text = "資料庫路徑設置", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F),
-                AutoSize = true, Padding = new Padding(15, 15, 15, 5) 
-            };
-
-            FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            flp.Controls.Add(new Label { Text = "目前位置:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) });
-
-            _txtPath = new TextBox { Width = 400, ReadOnly = true, Text = DataManager.BasePath, Margin = new Padding(3, 7, 3, 3) };
-            flp.Controls.Add(_txtPath);
-
-            Button btnBrowse = new Button { Text = "瀏覽...", Size = new Size(80, 35), BackColor = Color.LightGray };
-            btnBrowse.Click += (s, e) => {
-                using (FolderBrowserDialog fbd = new FolderBrowserDialog()) {
-                    if (fbd.ShowDialog() == DialogResult.OK) _txtPath.Text = fbd.SelectedPath;
-                }
-            };
-            flp.Controls.Add(btnBrowse);
-
-            Button btnSave = new Button { Text = "儲存", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
-            btnSave.Click += (s, e) => {
-                if (VerifyPassword()) {
-                    DataManager.SetBasePath(_txtPath.Text);
-                    MessageBox.Show("設定已更新");
-                }
-            };
-            flp.Controls.Add(btnSave);
-
-            box.Controls.Add(flp);
-            mainLayout.Controls.Add(box, 0, 0);
-            return mainLayout;
+            InitializeComponent();
         }
 
-        private bool VerifyPassword()
+        private void InitializeComponent()
         {
-            Form prompt = new Form() { Width = 400, Height = 200, FormBorderStyle = FormBorderStyle.FixedDialog, Text = "安全驗證", StartPosition = FormStartPosition.CenterParent };
-            TextBox txt = new TextBox() { Left = 50, Top = 50, Width = 280, PasswordChar = '*' };
-            Button btn = new Button() { Text = "確認", Left = 250, Top = 100, DialogResult = DialogResult.OK };
-            prompt.Controls.Add(new Label() { Left = 50, Top = 20, Text = "請輸入密碼 (tces):" });
-            prompt.Controls.Add(txt); prompt.Controls.Add(btn); prompt.AcceptButton = btn;
-            return prompt.ShowDialog() == DialogResult.OK && txt.Text == "tces";
+            this.Text = "資料庫路徑設定";
+            this.Size = new Size(600, 250);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.Font = new Font("Microsoft JhengHei UI", 12F);
+
+            // 標題文字串
+            Label lblHeader = new Label
+            {
+                Text = "數據資料存放設定",
+                Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
+                Location = new Point(20, 20),
+                AutoSize = true
+            };
+            this.Controls.Add(lblHeader);
+
+            // 路徑顯示欄位
+            _txtPath.Location = new Point(20, 70);
+            _txtPath.Width = 400;
+            _txtPath.ReadOnly = true;
+            _txtPath.Text = DataManager.BasePath; // 顯示目前路徑
+            this.Controls.Add(_txtPath);
+
+            // 選擇資料夾按鍵
+            Button btnBrowse = new Button
+            {
+                Text = "選擇資料夾",
+                Location = new Point(430, 68),
+                Size = new Size(120, 35),
+                BackColor = Color.LightGray
+            };
+            btnBrowse.Click += BtnBrowse_Click;
+            this.Controls.Add(btnBrowse);
+
+            // 確認儲存按鍵 (放在下兩行位置)
+            Button btnSave = new Button
+            {
+                Text = "確認儲存設定",
+                Location = new Point(20, 130),
+                Size = new Size(530, 45),
+                BackColor = Color.SteelBlue,
+                ForeColor = Color.White,
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
+            };
+            btnSave.Click += BtnSave_Click;
+            this.Controls.Add(btnSave);
+        }
+
+        private void BtnBrowse_Click(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "請選擇數據資料存放的資料夾";
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    _txtPath.Text = fbd.SelectedPath;
+                }
+            }
+        }
+
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            if (Directory.Exists(_txtPath.Text))
+            {
+                DataManager.SetBasePath(_txtPath.Text);
+                MessageBox.Show("資料存放路徑已成功更新！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.Close(); // 儲存後自動關閉
+            }
+            else
+            {
+                MessageBox.Show("請選擇有效的資料夾路徑。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
