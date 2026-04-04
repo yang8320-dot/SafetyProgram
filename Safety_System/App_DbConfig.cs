@@ -23,39 +23,49 @@ namespace Safety_System
         {
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
 
-            GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 140, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            // 🟢 第一區塊：資料庫存放路徑設定 (加高至 180)
+            GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
-            // 🟢 安全取得路徑字串
             string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
-            _txtPath = new TextBox { Location = new Point(20, 40), Width = 450, ReadOnly = true, Text = currentPath, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 拉寬路徑輸入框至 600
+            _txtPath = new TextBox { Location = new Point(30, 50), Width = 600, ReadOnly = true, Text = currentPath, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Button btnBrowse = new Button { Text = "選擇資料夾", Location = new Point(480, 38), Size = new Size(120, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 放大按鈕並向右移
+            Button btnBrowse = new Button { Text = "選擇資料夾", Location = new Point(650, 48), Size = new Size(150, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
             btnBrowse.Click += BtnBrowse_Click;
             
-            Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(20, 85), Size = new Size(180, 40), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 放大儲存按鈕，並增加與上方的間距
+            Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += BtnSavePath_Click;
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 250, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
-            boxKeys.Margin = new Padding(0, 20, 0, 0);
+            // 🟢 第二區塊：防重寫欄位設定 (加高至 320)
+            GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 320, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            boxKeys.Margin = new Padding(0, 30, 0, 0);
 
-            Label lblDb = new Label { Text = "選擇資料庫:", Location = new Point(20, 40), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            Label lblTable = new Label { Text = "選擇資料表:", Location = new Point(330, 40), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            Label lblCol1 = new Label { Text = "判斷欄位一:", Location = new Point(20, 90), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(330, 90), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 第一列：資料庫與資料表選擇 (向右拉開間距)
+            Label lblDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboDb = new ComboBox { Location = new Point(150, 58), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
+            Label lblTable = new Label { Text = "選擇資料表:", Location = new Point(420, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboTable = new ComboBox { Location = new Point(540, 58), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            _cboDb = new ComboBox { Location = new Point(130, 38), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboTable = new ComboBox { Location = new Point(440, 38), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol1 = new ComboBox { Location = new Point(130, 88), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol2 = new ComboBox { Location = new Point(440, 88), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 第二列：防重寫欄位選擇 (向右拉開間距，並與第一列保持較大高度差)
+            Label lblCol1 = new Label { Text = "判斷欄位一:", Location = new Point(30, 130), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol1 = new ComboBox { Location = new Point(150, 128), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(20, 140), Size = new Size(180, 40), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(420, 130), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol2 = new ComboBox { Location = new Point(540, 128), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            // 放大儲存按鈕
+            Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(30, 210), Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveKeys.Click += BtnSaveKeys_Click;
 
             boxKeys.Controls.AddRange(new Control[] { lblDb, _cboDb, lblTable, _cboTable, lblCol1, _cboCol1, lblCol2, _cboCol2, btnSaveKeys });
 
-            Panel spacer = new Panel { Dock = DockStyle.Top, Height = 20 };
+            // 區塊之間的空白緩衝加大
+            Panel spacer = new Panel { Dock = DockStyle.Top, Height = 30 };
 
             main.Controls.Add(boxKeys);
             main.Controls.Add(spacer);
