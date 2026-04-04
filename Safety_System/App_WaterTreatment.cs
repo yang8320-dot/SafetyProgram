@@ -23,23 +23,23 @@ namespace Safety_System
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [廢水處理量] TEXT, [廢水進流量] TEXT, [納廢回收6吋] TEXT, [雙介質A] TEXT, [雙介質B] TEXT, [貯存池] TEXT, [軟水A] TEXT, [軟水B] TEXT, [軟水C] TEXT);");
 
-            // 🟢 修正紅色圈選處：Padding.Top 從 15 改為 30
+            // 🟢 紅色圈選處修正：Padding.Top 設為 30，主選單與頁面保持舒適間隔
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(15, 30, 15, 10) 
             };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 🟢 修正綠色圈選處：內部 Padding.Top 從 25 改為 20
+            // 🟢 綠色圈選處修正：Padding.Top 從 20 改為 15，框內文字更緊湊
             GroupBox boxTop = new GroupBox { 
                 Text = "水處理數據管理 (庫: " + DbName + " / 表: " + TableName + ")", 
                 Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F),
-                AutoSize = true, Padding = new Padding(15, 20, 15, 10)
+                AutoSize = true, Padding = new Padding(15, 15, 15, 5)
             };
 
             TableLayoutPanel tlpControls = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true };
 
-            // 第一行：檢索與儲存
+            // 第一行：數據查詢
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             flpRow1.Controls.Add(new Label { Text = "日期起:", AutoSize = true, Margin = new Padding(3, 10, 3, 0) });
             _dtpStart = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Margin = new Padding(3, 5, 3, 3) };
@@ -61,6 +61,8 @@ namespace Safety_System
             _txtNewColName = new TextBox { Width = 150, Margin = new Padding(3, 7, 3, 3) }; 
             flpRow2.Controls.Add(_txtNewColName);
             Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(5, 2, 3, 3) };
+            
+            // 🟢 新增欄位密碼驗證 (tces)
             btnAddCol.Click += (s, e) => {
                 if (!string.IsNullOrWhiteSpace(_txtNewColName.Text) && VerifyPassword()) {
                     DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
@@ -97,7 +99,7 @@ namespace Safety_System
             return mainLayout;
         }
 
-        // --- 私有功能方法 ---
+        // --- 以下私有方法維持穩定功能 ---
         private void RefreshGrid() {
             string s = _dtpStart.Value.ToString("yyyy-MM-dd"), e = _dtpEnd.Value.ToString("yyyy-MM-dd");
             _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", s, e);
@@ -136,13 +138,35 @@ namespace Safety_System
         private bool VerifyPassword() {
             Form prompt = new Form() { Width = 450, Height = 240, FormBorderStyle = FormBorderStyle.FixedDialog, Text = "安全驗證", StartPosition = FormStartPosition.CenterParent };
             TextBox txt = new TextBox() { Left = 30, Top = 95, Width = 370, PasswordChar = '*', Font = new Font("UI", 14F) };
-            Button btn = new Button() { Text = "確認", Left = 280, Top = 145, Width = 120, Height = 40, DialogResult = DialogResult.OK };
+            Button btn = new Button() { Text = "確認執行", Left = 280, Top = 145, Width = 120, Height = 40, DialogResult = DialogResult.OK };
             prompt.Controls.Add(new Label() { Left = 30, Top = 30, Text = "請輸入授權密碼：", AutoSize = true, Font = new Font("UI", 14F) });
             prompt.Controls.Add(txt); prompt.Controls.Add(btn); prompt.AcceptButton = btn;
             return prompt.ShowDialog() == DialogResult.OK && txt.Text == "tces";
         }
 
         private void Dgv_KeyDown(object sender, KeyEventArgs e) { if (e.Control && e.KeyCode == Keys.V) PasteClipboard(); }
-        private void PasteClipboard() { /* 保持原有的貼上邏輯 */ }
+        private void PasteClipboard() {
+            try {
+                string text = Clipboard.GetText();
+                if (string.IsNullOrEmpty(text)) return;
+                if (_dgv.IsCurrentCellInEditMode) _dgv.EndEdit();
+                string[] lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+                int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
+                DataTable dt = (DataTable)_dgv.DataSource;
+                foreach (string line in lines) {
+                    if (string.IsNullOrEmpty(line)) continue;
+                    if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
+                    string[] cells = line.Split('\t');
+                    for (int i = 0; i < cells.Length; i++) {
+                        if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly) {
+                            string val = cells[i].Trim();
+                            if (_dgv.Columns[c + i].Name == "日期" && DateTime.TryParse(val, out DateTime d)) val = d.ToString("yyyy-MM-dd");
+                            _dgv[c + i, r].Value = val;
+                        }
+                    }
+                    r++;
+                }
+            } catch { }
+        }
     }
 }
