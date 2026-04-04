@@ -11,26 +11,20 @@ namespace Safety_System
     {
         private const string ConfigFile = "sys_config.txt";
         
-        // 🟢 預設路徑：程式目錄下的 DB 資料夾
+        // 預設路徑：程式目錄下的 DB 資料夾
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
         static DataManager() {
-            // 🟢 靜態建構子：確保 BasePath 在任何時候被存取前，資料夾就已經存在
             EnsureDirectoryExists(BasePath);
         }
 
         private static void EnsureDirectoryExists(string path) {
             try {
-                if (!string.IsNullOrEmpty(path) && !Directory.Exists(path)) {
-                    Directory.CreateDirectory(path);
-                }
-            } catch (Exception ex) {
-                // 可在此處記錄 Log，防止權限不足導致崩潰
-            }
+                if (!string.IsNullOrEmpty(path) && !Directory.Exists(path)) Directory.CreateDirectory(path);
+            } catch { }
         }
 
         private static string GetConnString(string dbName) {
-            // 每次連線前再次確認資料夾存在
             EnsureDirectoryExists(BasePath);
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
             return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
@@ -39,28 +33,21 @@ namespace Safety_System
         public static void LoadConfig() {
             if (File.Exists(ConfigFile)) {
                 string savedPath = File.ReadAllText(ConfigFile, Encoding.UTF8).Trim();
-                if (!string.IsNullOrEmpty(savedPath)) {
+                // 🟢 修正：如果有指定新路徑且有效，則以新路徑為主
+                if (!string.IsNullOrEmpty(savedPath) && Directory.Exists(savedPath)) {
                     BasePath = savedPath;
-                    // 🟢 關鍵：載入指定路徑後，立即檢查並建立該資料夾
-                    EnsureDirectoryExists(BasePath);
                 }
-            } else {
-                // 若無設定檔，確保預設的 DB 資料夾存在
-                EnsureDirectoryExists(BasePath);
             }
+            EnsureDirectoryExists(BasePath);
         }
 
         public static void SetBasePath(string newPath) {
             if (string.IsNullOrEmpty(newPath)) return;
             BasePath = newPath;
             File.WriteAllText(ConfigFile, newPath, Encoding.UTF8);
-            // 🟢 關鍵：設定新路徑後，立即建立該資料夾
             EnsureDirectoryExists(BasePath);
-            // 清除連線池，強制下次讀取時使用新路徑
             SQLiteConnection.ClearAllPools();
         }
-
-        // --- 以下為通用資料操作邏輯 ---
 
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction) {
             int maxRetries = 5;
@@ -95,25 +82,44 @@ namespace Safety_System
 
         public static void UpsertRecord(string dbName, string tableName, DataRow row) {
             ExecuteWithRetry(dbName, conn => {
-                // 🟢 強制日期校正，防止讀取不到
+                // 1. 日期標準化
                 if (row.Table.Columns.Contains("日期") && row["日期"] != DBNull.Value) {
-                    if (DateTime.TryParse(row["日期"].ToString(), out DateTime dt)) row["日期"] = dt.ToString("yyyy-MM-dd");
+                    if (DateTime.TryParse(row["日期"].ToString(), out DateTime dt)) 
+                        row["日期"] = dt.ToString("yyyy-MM-dd");
                 }
-                bool isUpdate = row["Id"] != DBNull.Value;
+
+                // 2. 🟢 預防機制：檢查日期是否重複 (當 Id 為空時)
+                object targetId = row["Id"];
+                if (targetId == DBNull.Value && row.Table.Columns.Contains("日期")) {
+                    using (var checkCmd = new SQLiteCommand(string.Format("SELECT Id FROM [{0}] WHERE [日期] = @d LIMIT 1", tableName), conn)) {
+                        checkCmd.Parameters.AddWithValue("@d", row["日期"].ToString());
+                        var existId = checkCmd.ExecuteScalar();
+                        if (existId != null) targetId = existId; // 發現重複日期，轉為覆寫模式
+                    }
+                }
+
+                bool isUpdate = (targetId != DBNull.Value);
                 StringBuilder sb = new StringBuilder();
                 if (isUpdate) {
                     sb.Append(string.Format("UPDATE [{0}] SET ", tableName));
-                    foreach (DataColumn col in row.Table.Columns) if (col.ColumnName != "Id") sb.Append(string.Format("[{0}]=@{0}, ", col.ColumnName));
+                    foreach (DataColumn col in row.Table.Columns) 
+                        if (col.ColumnName != "Id") sb.Append(string.Format("[{0}]=@{0}, ", col.ColumnName));
                     sb.Remove(sb.Length - 2, 2).Append(" WHERE Id=@Id");
                 } else {
                     sb.Append(string.Format("INSERT INTO [{0}] (", tableName));
-                    foreach (DataColumn col in row.Table.Columns) if (col.ColumnName != "Id") sb.Append(string.Format("[{0}], ", col.ColumnName));
+                    foreach (DataColumn col in row.Table.Columns) 
+                        if (col.ColumnName != "Id") sb.Append(string.Format("[{0}], ", col.ColumnName));
                     sb.Remove(sb.Length - 2, 2).Append(") VALUES (");
-                    foreach (DataColumn col in row.Table.Columns) if (col.ColumnName != "Id") sb.Append(string.Format("@{0}, ", col.ColumnName));
+                    foreach (DataColumn col in row.Table.Columns) 
+                        if (col.ColumnName != "Id") sb.Append(string.Format("@{0}, ", col.ColumnName));
                     sb.Remove(sb.Length - 2, 2).Append(")");
                 }
+
                 using (var cmd = new SQLiteCommand(sb.ToString(), conn)) {
-                    foreach (DataColumn col in row.Table.Columns) cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
+                    foreach (DataColumn col in row.Table.Columns) {
+                        if (col.ColumnName == "Id") cmd.Parameters.AddWithValue("@Id", targetId);
+                        else cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col.ColumnName] ?? "");
+                    }
                     cmd.ExecuteNonQuery();
                 }
             });
