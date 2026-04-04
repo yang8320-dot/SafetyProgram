@@ -26,6 +26,7 @@ namespace Safety_System
         }
 
         private static string GetConnString(string dbName) {
+            // 🟢 再次確認路徑存在，防止執行中資料夾被意外刪除
             EnsureDirectoryExists(BasePath);
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
             return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
@@ -45,6 +46,7 @@ namespace Safety_System
             EnsureDirectoryExists(BasePath);
         }
 
+        // --- 以下為資料操作邏輯，包含日期格式強制轉換 ---
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction) {
             int maxRetries = 5;
             for (int i = 1; i <= maxRetries; i++) {
