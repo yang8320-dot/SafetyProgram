@@ -37,20 +37,25 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄 (庫: Water / 表: WaterMeterReadings)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 10, 10, 10) };
+            GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄 (庫: Water / 表: WaterMeterReadings)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 25, 10, 10) };
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true };
 
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
+            
+            // 🟢 修正：預設為前30天
+            _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddDays(-30) };
+            
             Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
-            _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short };
+            
+            // 🟢 修正：預設為當天
+            _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today };
             
             Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => RefreshGrid();
 
-            Button bSave = new Button { Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
+            Button bSave = new Button { Text = "💾 儲存變更", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit();
                 DataTable dt = (DataTable)_dgv.DataSource;
@@ -82,7 +87,7 @@ namespace Safety_System
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
             
-            Button bRen = new Button { Text = "欄位改名", Size = new Size(120, 35) };
+            Button bRen = new Button { Text = "改名", Size = new Size(120, 35) };
             bRen.Click += (s, e) => {
                 if (_cboColumns.SelectedItem == null || string.IsNullOrEmpty(_txtRenameCol.Text)) return;
                 if (VerifyPassword()) {
@@ -151,7 +156,6 @@ namespace Safety_System
                         
                         if (sfd.FilterIndex == 1) 
                         {
-                            // 🟢 修正：移除了 EPPlus 5+ 才需要的 LicenseContext
                             using (ExcelPackage p = new ExcelPackage())
                             {
                                 var ws = p.Workbook.Worksheets.Add("Data");
