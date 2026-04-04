@@ -1,0 +1,30 @@
+name: 清理 Actios 執行檔
+
+on:
+  schedule:
+    # 每週日凌晨 00:00 (UTC 時間) 執行一次清理任務，預設保留 7 天
+    - cron: '0 0 * * 0'
+  workflow_dispatch: 
+    # 加入手動參數輸入功能，方便你隨時在介面上動態修改天數
+    inputs:
+      days_to_keep:
+        description: '自訂保留天數 (請輸入數字)'
+        required: true
+        default: '7'
+        type: string
+
+jobs:
+  cleanup-process:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write 
+      contents: read
+    steps:
+      - name: Delete workflow runs based on retention days
+        uses: Mattraiano/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          # 核心邏輯：讀取手動輸入的天數，若是自動排程執行則預設為 7
+          retain_days: ${{ inputs.days_to_keep || 7 }}       
+          keep_minimum_runs: 3 # 容錯機制：強制保留最後 3 次執行紀錄
