@@ -33,29 +33,28 @@ namespace Safety_System
                 [軟水B] TEXT, 
                 [軟水C] TEXT);");
 
-            // 🟢 修正：增加 Top Padding 到 70，避免與上方選單重疊
+            // 🟢 修正：縮減 Top Padding (從 70 降為 5)，解決紅色圈選處間距過大問題
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 RowCount = 2,
-                Padding = new Padding(15, 70, 15, 10) 
+                Padding = new Padding(15, 5, 15, 10) 
             };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
+            // 🟢 修正：縮減內部 Top Padding (從 35 降為 20)，解決綠色圈選處間距過大問題
             GroupBox boxTop = new GroupBox { 
                 Text = "水處理數據管理 (庫: " + DbName + " / 表: " + TableName + ")", 
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 12F),
                 AutoSize = true, 
-                Padding = new Padding(15, 35, 15, 15)
+                Padding = new Padding(15, 20, 15, 10)
             };
 
-            // 🟢 修正：使用 RowStyles 固定高度來控制行距，不使用 Margin
+            // 🟢 修正：移除固定高度設定，讓行距回歸自然 AutoSize，避免垂直空間浪費
             TableLayoutPanel tlpControls = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true 
             };
-            tlpControls.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 第一行高度
-            tlpControls.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 第二行高度
 
             // --- 第一行 ---
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
@@ -87,10 +86,10 @@ namespace Safety_System
             flpRow2.Controls.Add(_txtNewColName);
             Button btnAddCol = new Button { Text = "確認新增", Size = new Size(100, 35), BackColor = Color.LightGray, Margin = new Padding(5, 2, 3, 3) };
             
-            // 🟢 修正：新增欄位功能加入密碼驗證
+            // 🟢 修正：新增欄位時也加入密碼驗證 (tces)
             btnAddCol.Click += (s, e) => {
                 if (!string.IsNullOrWhiteSpace(_txtNewColName.Text)) {
-                    if (VerifyPassword()) {
+                    if (VerifyPassword()) { // 🟢 加入密碼檢查
                         DataManager.AddColumn(DbName, TableName, _txtNewColName.Text.Trim());
                         _txtNewColName.Clear(); RefreshGrid();
                         MessageBox.Show("新增欄位成功！");
