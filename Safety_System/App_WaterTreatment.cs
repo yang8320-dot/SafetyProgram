@@ -40,22 +40,19 @@ namespace Safety_System
             GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄 (庫: Water / 表: WaterMeterReadings)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 25, 10, 10) };
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true };
 
+            // --- 第一行：區間與存取 ---
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            
-            // 🟢 修正：預設為前30天
             _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddDays(-30) };
-            
             Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
-            
-            // 🟢 修正：預設為當天
             _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today };
             
             Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => RefreshGrid();
 
-            Button bSave = new Button { Text = "💾 儲存變更", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
+            // 🟢 改名為「儲存」
+            Button bSave = new Button { Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit();
                 DataTable dt = (DataTable)_dgv.DataSource;
@@ -73,6 +70,7 @@ namespace Safety_System
 
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bSave, bExport, bImport });
 
+            // --- 第二行：欄位操作 ---
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
             _txtNewColName = new TextBox { Width = 120 };
@@ -80,19 +78,25 @@ namespace Safety_System
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) };
             bAdd.Click += (s, e) => {
                 if (string.IsNullOrEmpty(_txtNewColName.Text)) return;
-                DataManager.AddColumn(DbName, TableName, _txtNewColName.Text);
-                RefreshGrid();
+                // 🟢 新增欄位現在也需要授權驗證
+                if (VerifyPassword()) {
+                    DataManager.AddColumn(DbName, TableName, _txtNewColName.Text);
+                    RefreshGrid();
+                    _txtNewColName.Clear();
+                }
             };
 
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
             
-            Button bRen = new Button { Text = "改名", Size = new Size(120, 35) };
+            // 🟢 改名為「標題更改」
+            Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35) };
             bRen.Click += (s, e) => {
                 if (_cboColumns.SelectedItem == null || string.IsNullOrEmpty(_txtRenameCol.Text)) return;
                 if (VerifyPassword()) {
                     DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text);
                     RefreshGrid();
+                    _txtRenameCol.Clear();
                 }
             };
 
@@ -153,7 +157,6 @@ namespace Safety_System
                     try 
                     {
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        
                         if (sfd.FilterIndex == 1) 
                         {
                             using (ExcelPackage p = new ExcelPackage())
@@ -170,7 +173,6 @@ namespace Safety_System
                             string[] colNames = new string[dt.Columns.Count];
                             for (int i = 0; i < dt.Columns.Count; i++) colNames[i] = dt.Columns[i].ColumnName;
                             sb.AppendLine(string.Join(",", colNames));
-                            
                             foreach (DataRow row in dt.Rows)
                             {
                                 string[] fields = new string[dt.Columns.Count];
@@ -180,7 +182,6 @@ namespace Safety_System
                             }
                             File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
                         }
-
                         MessageBox.Show("資料匯出成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) { 
@@ -200,7 +201,6 @@ namespace Safety_System
                     {
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
                         if (lines.Length < 2) return; 
-
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = lines[0].Split(',');
                         for (int i = 1; i < lines.Length; i++) 
