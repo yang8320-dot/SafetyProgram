@@ -24,9 +24,22 @@ namespace Safety_System
         public Control GetView()
         {
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [廢水處理量] TEXT, [廢水進流量] TEXT, 
-                [納廢回收6吋] TEXT, [雙介質A] TEXT, [雙介質B] TEXT, [貯存池] TEXT, 
-                [軟水A] TEXT, [軟水B] TEXT, [軟水C] TEXT);");
+                Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                [日期] TEXT, 
+                [用電量] TEXT, 
+                [廢水處理量] TEXT, 
+                [廢水進流量] TEXT, 
+                [納廢回收6吋] TEXT, 
+                [雙介質A] TEXT, 
+                [雙介質B] TEXT, 
+                [自來水至貯存池] TEXT, 
+                [軟水A] TEXT, 
+                [軟水B] TEXT, 
+                [軟水C] TEXT),
+                [濃縮水至冷卻水池] TEXT),
+                [濃縮水至逆洗池] TEXT),
+                [污泥產出量_包] TEXT),
+                [備註] TEXT);");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
