@@ -46,16 +46,15 @@ namespace Safety_System
                 RefreshGrid(); 
                 if (!_isFirstLoad) { 
                     int count = ((DataTable)_dgv.DataSource).Rows.Count; 
-                    // 🟢 綁定主視窗避免假死
                     MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
                 } 
             };
 
-            Button bSave = new Button { Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White };
+            // 🟢 替儲存按鈕加上左側 Margin，讓它在畫面上更獨立靠右
+            Button bSave = new Button { Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
             bSave.Click += (s, e) => {
-                _dgv.EndEdit(); // 確保離開編輯模式，避免卡死
+                _dgv.EndEdit(); 
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, (DataTable)_dgv.DataSource)) {
-                    // 🟢 綁定主視窗避免假死
                     MessageBox.Show(Form.ActiveForm, "儲存完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
                 }
@@ -74,7 +73,8 @@ namespace Safety_System
                 _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bSave, bExport, bImport, _btnToggle });
+            // 🟢 修改加入順序：將 bSave 移到陣列的最末端，讓它排在最後面（最右邊）
+            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
             boxTop.Controls.Add(row1);
 
             _boxAdvanced = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
@@ -96,7 +96,6 @@ namespace Safety_System
             bDelCol.Click += (s, e) => { 
                 if (_cboColumns.SelectedItem != null) {
                     string colToDrop = _cboColumns.SelectedItem.ToString();
-                    // 🟢 綁定主視窗避免假死
                     if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？\n刪除後該欄位所有歷史資料將永久遺失！", "刪除欄位確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                         if (VerifyPassword()) { 
                             DataManager.DropColumn(DbName, TableName, colToDrop); 
@@ -126,7 +125,6 @@ namespace Safety_System
             if (_isFirstLoad) {
                 DataTable dt = DataManager.GetLatestRecords(DbName, TableName, 30);
                 _dgv.DataSource = dt;
-                // 🟢 綁定主視窗避免假死
                 if (dt.Rows.Count == 0) MessageBox.Show(Form.ActiveForm, "【系統連線成功】目前資料表尚無任何紀錄。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 else {
                     DateTime minD = DateTime.MaxValue, maxD = DateTime.MinValue;
@@ -150,12 +148,10 @@ namespace Safety_System
             p.Controls.Add(lbl); p.Controls.Add(t); p.Controls.Add(b);
             p.AcceptButton = b;
             
-            // 🟢 強制把密碼視窗綁在主畫面上，絕對不會躲到後面
             return p.ShowDialog(Form.ActiveForm) == DialogResult.OK && t.Text == "tces";
         }
 
         private void BtnExport_Click(object sender, EventArgs e) {
-            // 🟢 綁定主視窗避免假死
             if (_dgv.Rows.Count == 0 || (_dgv.Rows.Count == 1 && _dgv.Rows[0].IsNewRow)) { MessageBox.Show(Form.ActiveForm, "沒有資料可匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx|CSV 檔案 (*.csv)|*.csv", FileName = "廢水處理水量記錄_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog(Form.ActiveForm) == DialogResult.OK) {
@@ -170,7 +166,6 @@ namespace Safety_System
                             foreach (DataRow row in dt.Rows) { string[] fields = new string[dt.Columns.Count]; for (int i = 0; i < dt.Columns.Count; i++) fields[i] = row[i]?.ToString().Replace(",", "，"); sb.AppendLine(string.Join(",", fields)); }
                             File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
                         }
-                        // 🟢 綁定主視窗避免假死
                         MessageBox.Show(Form.ActiveForm, "資料匯出成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { MessageBox.Show(Form.ActiveForm, "匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 }
@@ -191,7 +186,6 @@ namespace Safety_System
                             for (int h = 0; h < headers.Length && h < vs.Length; h++) { string cn = headers[h].Trim(); if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim(); }
                             dt.Rows.Add(nr);
                         }
-                        // 🟢 綁定主視窗避免假死
                         MessageBox.Show(Form.ActiveForm, $"載入 {lines.Length - 1} 筆！請記得按儲存。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { MessageBox.Show(Form.ActiveForm, "匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 }
