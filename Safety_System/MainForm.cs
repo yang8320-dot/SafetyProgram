@@ -41,7 +41,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 新增：全域快捷鍵攔截邏輯 (Ctrl + S 存檔)
+        // 🟢 全域快捷鍵攔截邏輯 (Ctrl + S 存檔)
         // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
@@ -119,6 +119,23 @@ namespace Safety_System
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_HazardStats().GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_FireEquip().GetView()));
 
+            // ==========================================
+            // 🟢 新增：檢測數據 主選單與對應的子模組
+            // ==========================================
+            var menuTest = new ToolStripMenuItem("檢測數據");
+            menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_EnvMonitor().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_WastewaterPeriodic().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_DrinkingWater().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("工業區檢驗", () => new App_IndustrialZoneTest().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("土壤氣體檢測", () => new App_SoilGasTest().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("廢水自主檢驗", () => new App_WastewaterSelfTest().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("循環水檢測(廠商)", () => new App_CoolingWaterVendor().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("循環水檢測(自評)", () => new App_CoolingWaterSelf().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("TCLP", () => new App_TCLP().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("水錶校正", () => new App_WaterMeterCalibration().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("其它檢測數據", () => new App_OtherTests().GetView()));
+
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
             
@@ -133,9 +150,10 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
+            // 🟢 將 menuTest 插入到 menuFire 和 menuSettings 之間
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuNursing, menuAir, 
-                menuWater, menuWaste, menuFire, menuSettings 
+                menuWater, menuWaste, menuFire, menuTest, menuSettings 
             });
         }
 
@@ -144,7 +162,7 @@ namespace Safety_System
             var item = new ToolStripMenuItem(text);
             item.Click += (s, e) => {
                 try { LoadModule(getViewFunc()); } 
-                catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}\n(您可能尚未建立此功能的 CS 檔案)", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
             return item;
         }
