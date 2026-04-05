@@ -1,3 +1,4 @@
+/// FILE: Safety_System/MainForm.cs ///
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -21,7 +22,6 @@ namespace Safety_System
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1280, 720);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
-
             DataManager.LoadConfig();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
@@ -40,6 +40,42 @@ namespace Safety_System
             
             LoadWelcomeScreen();
         }
+
+        // ==========================================
+        // 🟢 新增：全域快捷鍵攔截邏輯 (Ctrl + S 存檔)
+        // ==========================================
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.S))
+            {
+                // 在內容面板中尋找名稱為 "btnSave" 的按鈕
+                Button activeSaveButton = FindControlByName(_contentPanel, "btnSave") as Button;
+
+                if (activeSaveButton != null && activeSaveButton.Enabled)
+                {
+                    // 強制結束所有控制項的輸入狀態，確保 DataGridView 的最後一格資料被確認
+                    this.Validate(); 
+                    
+                    // 模擬點擊儲存按鈕
+                    activeSaveButton.PerformClick();
+                    return true; // 攔截按鍵，防止發出系統警告音
+                }
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        // 🟢 輔助方法：遞迴尋找控制項
+        private Control FindControlByName(Control parent, string name)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                if (c.Name == name) return c;
+                Control found = FindControlByName(c, name);
+                if (found != null) return found;
+            }
+            return null;
+        }
+        // ==========================================
 
         private void BuildMenu()
         {
@@ -118,7 +154,6 @@ namespace Safety_System
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
-
             try {
                 _contentPanel.Controls.Clear();
                 moduleControl.Dock = DockStyle.Fill;
@@ -130,14 +165,10 @@ namespace Safety_System
 
         private bool VerifyAdminPassword()
         {
-            // 🟢 修正：高度增加至 230，確保按鈕不被遮擋
             Form p = new Form { Width = 400, Height = 230, Text = "管理員驗證", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false };
             Label l = new Label { Text = "請輸入系統管理員密碼：", Left = 20, Top = 20, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             TextBox t = new TextBox { PasswordChar = '*', Left = 20, Top = 60, Width = 340, Font = new Font("Microsoft JhengHei UI", 14F) };
-            
-            // 🟢 修正：按鈕 Top 調整至 120，留出更多空間
             Button b = new Button { Text = "確認", Left = 260, Top = 120, Width = 100, Height = 35, DialogResult = DialogResult.OK, Font = new Font("Microsoft JhengHei UI", 12F) };
-            
             p.Controls.Add(l); p.Controls.Add(t); p.Controls.Add(b);
             p.AcceptButton = b;
             return p.ShowDialog() == DialogResult.OK && t.Text == "tces";
