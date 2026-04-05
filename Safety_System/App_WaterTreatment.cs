@@ -61,7 +61,7 @@ namespace Safety_System
             bImport.Click += BtnImportCsv_Click;
 
             // 🟢 展開按鈕：設定在第一行最右邊
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(140, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
