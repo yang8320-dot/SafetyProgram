@@ -3,7 +3,7 @@ name: Generate Safety System Context
 on:
   push:
     branches: [ "main", "master" ]
-  workflow_dispatch:
+  workflow_dispatch: # 允許在 Actions 頁面手動點擊執行
 
 jobs:
   build:
@@ -23,27 +23,32 @@ jobs:
         cat << 'EOF' > generate_context.py
         import os
 
-        # 1. 鎖定你的專案資料夾名稱
+        # 1. 絕對精準對齊你的大小寫
         TARGET_DIR = 'Safety_System'
         
-        valid_extensions = ('.cs', '.csproj', '.json', '.xml')
-        exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
+        # 2. 擴充到「所有常見程式碼」的副檔名，確保全抓
+        valid_extensions = (
+            '.cs', '.csproj', '.json', '.xml', '.config', 
+            '.cshtml', '.html', '.css', '.js', '.ts', 
+            '.sql', '.md', '.txt', '.py', '.bat', '.sh'
+        )
+        
+        # 3. 排除編譯產生的垃圾檔案與套件包
+        exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults', 'node_modules'}
 
-        # 2. 檢查資料夾是否存在，避免報錯
         if not os.path.exists(TARGET_DIR):
-            print(f"找不到資料夾: {TARGET_DIR}，請確認名稱大小寫是否正確。")
+            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！請檢查大小寫是否完全一致。")
             exit(1)
 
         with open('project_context.txt', 'w', encoding='utf-8') as f:
-            f.write("# Safety System 專案完整代碼上下文\n\n")
+            f.write(f"# {TARGET_DIR} 專案完整代碼上下文\n\n")
             
-            # 3. 讓 os.walk 只針對 TARGET_DIR 進行掃描
             for root, dirs, files in os.walk(TARGET_DIR):
                 dirs[:] = [d for d in dirs if d not in exclude_dirs]
                 for file in files:
-                    if file.endswith(valid_extensions):
+                    # 強制把檔名轉小寫後比對，避免 .CS 或 .JSON 被漏掉
+                    if file.lower().endswith(valid_extensions):
                         file_path = os.path.join(root, file)
-                        # 讓輸出的路徑包含 Safety_system/ 前綴，讓架構更清晰
                         rel_path = os.path.relpath(file_path, '.')
                         
                         f.write(f"\n{'='*50}\n")
@@ -51,7 +56,8 @@ jobs:
                         f.write(f"{'='*50}\n\n")
                         
                         try:
-                            with open(file_path, 'r', encoding='utf-8') as code_f:
+                            # 加上 errors='ignore'，遇到舊版 Windows 編碼亂碼時會跳過亂碼強行讀取
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
                                 f.write(code_f.read())
                         except Exception as e:
                             f.write(f"// 無法讀取此檔案: {e}\n")
