@@ -2,7 +2,7 @@ using System;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq; // 🟢 新增 Linq 支援排序
+using System.Linq; // 🟢 新增 Linq 支援排序操作
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -74,10 +74,17 @@ namespace Safety_System
             };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
+                
+                // 🟢 1. 無條件先存排序 (避免因為沒修改資料而略過)
+                SaveColumnOrder(); 
+
+                // 🟢 2. 儲存資料
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, (DataTable)_dgv.DataSource)) {
-                    SaveColumnOrder(); // 🟢 儲存資料時，同時記憶當下的欄位順序
-                    MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶最新欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
+                } else {
+                    // 若資料沒有異動，也要明確告訴使用者「版面有存起來」
+                    MessageBox.Show(Form.ActiveForm, "欄位排序已儲存！(資料無異動)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
             
@@ -142,7 +149,7 @@ namespace Safety_System
                     _cboColumns.Items.Clear();
                     foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
 
-                    RestoreColumnOrder(); // 🟢 讀取自訂筆數後套用欄位排序
+                    RestoreColumnOrder(); // 讀取自訂筆數後，立刻套用排序
 
                     MessageBox.Show(Form.ActiveForm, $"讀取完成！共載入最近 {dt.Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     
@@ -209,12 +216,20 @@ namespace Safety_System
                 // 將畫面上目前的欄位照著顯示的順序 (DisplayIndex) 抓出來
                 var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
                                       .OrderBy(c => c.DisplayIndex)
-                                      .Select(c => c.Name);
+                                      .Select(c => c.Name).ToArray();
                 
-                // 存成文字檔 (如: ColOrder_Water_WaterMeterReadings.txt)
                 string fileName = $"ColOrder_{DbName}_{TableName}.txt";
                 File.WriteAllText(fileName, string.Join(",", orderedCols), Encoding.UTF8);
-            } catch { /* 避免寫入權限問題導致崩潰 */ }
+
+                // 同步底層 DataTable 的順序，這樣匯出時才會按照畫面順序
+                if (_dgv.DataSource is DataTable dt) {
+                    for (int i = 0; i < orderedCols.Length; i++) {
+                        if (dt.Columns.Contains(orderedCols[i])) {
+                            dt.Columns[orderedCols[i]].SetOrdinal(i);
+                        }
+                    }
+                }
+            } catch { }
         }
 
         // ==========================================
@@ -226,13 +241,24 @@ namespace Safety_System
                 if (File.Exists(fileName)) {
                     string[] savedCols = File.ReadAllText(fileName, Encoding.UTF8).Split(',');
                     for (int i = 0; i < savedCols.Length; i++) {
-                        // 確保該欄位存在於現在的表格中才改變它的順序
                         if (_dgv.Columns.Contains(savedCols[i])) {
                             _dgv.Columns[savedCols[i]].DisplayIndex = i;
                         }
                     }
+
+                    // 確保讀取時也將 DataTable 底層結構對齊，防止匯出錯亂
+                    if (_dgv.DataSource is DataTable dt) {
+                        var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
+                                              .OrderBy(c => c.DisplayIndex)
+                                              .Select(c => c.Name).ToArray();
+                        for (int i = 0; i < orderedCols.Length; i++) {
+                            if (dt.Columns.Contains(orderedCols[i])) {
+                                dt.Columns[orderedCols[i]].SetOrdinal(i);
+                            }
+                        }
+                    }
                 }
-            } catch { /* 如果讀取失敗，就維持系統預設順序 */ }
+            } catch { }
         }
 
         private bool VerifyPassword() {
@@ -248,6 +274,15 @@ namespace Safety_System
 
         private void BtnExport_Click(object sender, EventArgs e) {
             if (_dgv.Rows.Count == 0 || (_dgv.Rows.Count == 1 && _dgv.Rows[0].IsNewRow)) { MessageBox.Show(Form.ActiveForm, "沒有資料可匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            
+            // 🟢 匯出前最後確認：把畫面順序強制寫入底層 DataTable，保證匯出的資料順序 100% 同步
+            if (_dgv.DataSource is DataTable dTable) {
+                var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray();
+                for (int i = 0; i < orderedCols.Length; i++) {
+                    if (dTable.Columns.Contains(orderedCols[i])) dTable.Columns[orderedCols[i]].SetOrdinal(i);
+                }
+            }
+
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx|CSV 檔案 (*.csv)|*.csv", FileName = "廢水處理水量記錄_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog(Form.ActiveForm) == DialogResult.OK) {
                     try {
