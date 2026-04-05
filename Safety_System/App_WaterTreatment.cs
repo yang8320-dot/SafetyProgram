@@ -35,10 +35,10 @@ namespace Safety_System
                 [自來水至貯存池] TEXT, 
                 [軟水A] TEXT, 
                 [軟水B] TEXT, 
-                [軟水C] TEXT),
-                [濃縮水至冷卻水池] TEXT),
-                [濃縮水至逆洗池] TEXT),
-                [污泥產出量_包] TEXT),
+                [軟水C] TEXT,
+                [濃縮水至冷卻水池] TEXT,
+                [濃縮水至逆洗池] TEXT,
+                [污泥產出量_包] TEXT,
                 [備註] TEXT);");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
