@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Linq; // 🟢 新增 Linq 支援排序
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -74,7 +75,8 @@ namespace Safety_System
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, (DataTable)_dgv.DataSource)) {
-                    MessageBox.Show(Form.ActiveForm, "儲存完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    SaveColumnOrder(); // 🟢 儲存資料時，同時記憶當下的欄位順序
+                    MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
                 }
             };
@@ -95,13 +97,9 @@ namespace Safety_System
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
             boxTop.Controls.Add(row1);
 
-            // --- 第二區塊：隱藏的進階管理框 ---
             _boxAdvanced = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
-            
-            // 🟢 新增一個垂直的容器，用來包裝第一排與第二排
             FlowLayoutPanel flpAdvMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
 
-            // 【第一排：欄位操作】
             FlowLayoutPanel row2 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
             _txtNewColName = new TextBox { Width = 120 };
@@ -130,7 +128,6 @@ namespace Safety_System
 
             row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
 
-            // 🟢 【第二排：調閱最近寫入筆數】
             FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
             Label lblLatest = new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             TextBox txtLatestCount = new TextBox { Width = 120, Text = "50" }; 
@@ -144,6 +141,8 @@ namespace Safety_System
                     if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
                     _cboColumns.Items.Clear();
                     foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+
+                    RestoreColumnOrder(); // 🟢 讀取自訂筆數後套用欄位排序
 
                     MessageBox.Show(Form.ActiveForm, $"讀取完成！共載入最近 {dt.Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     
@@ -164,13 +163,12 @@ namespace Safety_System
 
             row3.Controls.AddRange(new Control[] { lblLatest, txtLatestCount, bReadLatest });
 
-            // 將兩排加入垂直容器，再放入 GroupBox
             flpAdvMain.Controls.Add(row2);
             flpAdvMain.Controls.Add(row3);
             _boxAdvanced.Controls.Add(flpAdvMain);
 
-            // --- 第三區塊：表格區 ---
-            _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells };
+            // 🟢 開啟 AllowUserToOrderColumns 允許使用者拖曳移動欄位
+            _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToOrderColumns = true };
             
             main.Controls.Add(boxTop, 0, 0);
             main.Controls.Add(_boxAdvanced, 0, 1);
@@ -195,8 +193,46 @@ namespace Safety_System
                 _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
             }
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
+            
             _cboColumns.Items.Clear();
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+
+            // 🟢 每次刷新表格後，自動套用記憶的欄位排序
+            RestoreColumnOrder();
+        }
+
+        // ==========================================
+        // 🟢 欄位排序記憶功能：儲存
+        // ==========================================
+        private void SaveColumnOrder() {
+            try {
+                // 將畫面上目前的欄位照著顯示的順序 (DisplayIndex) 抓出來
+                var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
+                                      .OrderBy(c => c.DisplayIndex)
+                                      .Select(c => c.Name);
+                
+                // 存成文字檔 (如: ColOrder_Water_WaterMeterReadings.txt)
+                string fileName = $"ColOrder_{DbName}_{TableName}.txt";
+                File.WriteAllText(fileName, string.Join(",", orderedCols), Encoding.UTF8);
+            } catch { /* 避免寫入權限問題導致崩潰 */ }
+        }
+
+        // ==========================================
+        // 🟢 欄位排序記憶功能：讀取
+        // ==========================================
+        private void RestoreColumnOrder() {
+            try {
+                string fileName = $"ColOrder_{DbName}_{TableName}.txt";
+                if (File.Exists(fileName)) {
+                    string[] savedCols = File.ReadAllText(fileName, Encoding.UTF8).Split(',');
+                    for (int i = 0; i < savedCols.Length; i++) {
+                        // 確保該欄位存在於現在的表格中才改變它的順序
+                        if (_dgv.Columns.Contains(savedCols[i])) {
+                            _dgv.Columns[savedCols[i]].DisplayIndex = i;
+                        }
+                    }
+                }
+            } catch { /* 如果讀取失敗，就維持系統預設順序 */ }
         }
 
         private bool VerifyPassword() {
