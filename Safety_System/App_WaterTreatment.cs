@@ -63,9 +63,8 @@ namespace Safety_System
                 } 
             };
 
-            // 🟢 修正重點：加上 Name = "btnSave"，讓 MainForm 的快捷鍵能自動觸發它
             Button bSave = new Button { 
-                Name = "btnSave", // 👈 新增這個屬性
+                Name = "btnSave", 
                 Text = "💾 儲存", 
                 Size = new Size(120, 35), 
                 BackColor = Color.ForestGreen, 
@@ -96,9 +95,14 @@ namespace Safety_System
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
             boxTop.Controls.Add(row1);
 
+            // --- 第二區塊：隱藏的進階管理框 ---
             _boxAdvanced = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
-            FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
+            // 🟢 新增一個垂直的容器，用來包裝第一排與第二排
+            FlowLayoutPanel flpAdvMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
+
+            // 【第一排：欄位操作】
+            FlowLayoutPanel row2 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
             _txtNewColName = new TextBox { Width = 120 };
             
@@ -116,10 +120,7 @@ namespace Safety_System
                 if (_cboColumns.SelectedItem != null) {
                     string colToDrop = _cboColumns.SelectedItem.ToString();
                     if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？\n刪除後該欄位所有歷史資料將永久遺失！", "刪除欄位確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        if (VerifyPassword()) { 
-                            DataManager.DropColumn(DbName, TableName, colToDrop); 
-                            RefreshGrid(); 
-                        } 
+                        if (VerifyPassword()) { DataManager.DropColumn(DbName, TableName, colToDrop); RefreshGrid(); } 
                     }
                 } 
             };
@@ -128,8 +129,47 @@ namespace Safety_System
             bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
 
             row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
-            _boxAdvanced.Controls.Add(row2);
 
+            // 🟢 【第二排：調閱最近寫入筆數】
+            FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
+            Label lblLatest = new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
+            TextBox txtLatestCount = new TextBox { Width = 120, Text = "50" }; 
+            
+            Button bReadLatest = new Button { Text = "讀取筆數", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            bReadLatest.Click += (s, e) => {
+                if (int.TryParse(txtLatestCount.Text, out int limit) && limit > 0) {
+                    DataTable dt = DataManager.GetLatestRecords(DbName, TableName, limit);
+                    _dgv.DataSource = dt;
+                    
+                    if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
+                    _cboColumns.Items.Clear();
+                    foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+
+                    MessageBox.Show(Form.ActiveForm, $"讀取完成！共載入最近 {dt.Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    if (dt.Rows.Count > 0) {
+                        DateTime minD = DateTime.MaxValue, maxD = DateTime.MinValue;
+                        foreach(DataRow r in dt.Rows) {
+                            if (DateTime.TryParse(r["日期"]?.ToString(), out DateTime d)) { 
+                                if (d < minD) minD = d; 
+                                if (d > maxD) maxD = d; 
+                            }
+                        }
+                        if (minD <= maxD) { _dtpStart.Value = minD; _dtpEnd.Value = maxD; }
+                    }
+                } else {
+                    MessageBox.Show(Form.ActiveForm, "請輸入有效的正整數！", "輸入錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
+
+            row3.Controls.AddRange(new Control[] { lblLatest, txtLatestCount, bReadLatest });
+
+            // 將兩排加入垂直容器，再放入 GroupBox
+            flpAdvMain.Controls.Add(row2);
+            flpAdvMain.Controls.Add(row3);
+            _boxAdvanced.Controls.Add(flpAdvMain);
+
+            // --- 第三區塊：表格區 ---
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells };
             
             main.Controls.Add(boxTop, 0, 0);
