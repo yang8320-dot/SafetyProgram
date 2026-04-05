@@ -24,7 +24,7 @@ jobs:
         import os
 
         # 1. 鎖定你的專案資料夾名稱
-        TARGET_DIR = 'Safety_system'
+        TARGET_DIR = 'Safety_System'
         
         valid_extensions = ('.cs', '.csproj', '.json', '.xml')
         exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
