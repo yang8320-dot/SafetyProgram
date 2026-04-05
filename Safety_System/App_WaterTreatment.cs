@@ -50,8 +50,15 @@ namespace Safety_System
                 } 
             };
 
-            // 🟢 替儲存按鈕加上左側 Margin，讓它在畫面上更獨立靠右
-            Button bSave = new Button { Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
+            // 🟢 修正重點：加上 Name = "btnSave"，讓 MainForm 的快捷鍵能自動觸發它
+            Button bSave = new Button { 
+                Name = "btnSave", // 👈 新增這個屬性
+                Text = "💾 儲存", 
+                Size = new Size(120, 35), 
+                BackColor = Color.ForestGreen, 
+                ForeColor = Color.White, 
+                Margin = new Padding(30, 0, 0, 0) 
+            };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, (DataTable)_dgv.DataSource)) {
@@ -73,7 +80,6 @@ namespace Safety_System
                 _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            // 🟢 修改加入順序：將 bSave 移到陣列的最末端，讓它排在最後面（最右邊）
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
             boxTop.Controls.Add(row1);
 
