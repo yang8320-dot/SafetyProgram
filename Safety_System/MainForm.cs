@@ -58,8 +58,8 @@ namespace Safety_System
             menuSafety.DropDownItems.Add(CreateItem("交通意外紀錄", () => new App_TrafficInjury().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件管理", () => new App_WorkInjury().GetView()));
 
-            var menuNursing = new ToolStripMenuItem("職場護理");
-            menuNursing.DropDownItems.Add(CreateItem("職場護理看板", () => new App_NursingDashboard().GetView()));
+            var menuNursing = new ToolStripMenuItem("護理");
+            menuNursing.DropDownItems.Add(CreateItem("護理看板", () => new App_NursingDashboard().GetView()));
             menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_HealthPromotion().GetView()));
             menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_WorkInjuryReport().GetView()));
 
@@ -67,7 +67,7 @@ namespace Safety_System
             menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
             menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_AirPollution().GetView()));
 
-            var menuWater = new ToolStripMenuItem("水");
+            var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             menuWater.DropDownItems.Add(CreateItem("納管排放數據", () => new App_DischargeData().GetView()));
             menuWater.DropDownItems.Add(CreateItem("廢水處理水量記錄", () => new App_WaterTreatment().GetView()));
