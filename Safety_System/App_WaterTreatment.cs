@@ -34,7 +34,8 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 第三列：資料表格
 
             // --- 第一區塊：主操作區 ---
-            GroupBox boxTop = new GroupBox { Text = "廢水處理水量記錄", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
+            // 🟢 修正：標題動態顯示 庫名稱 與 表名稱
+            GroupBox boxTop = new GroupBox { Text = $"廢水處理水量記錄 (庫：{DbName} 表：{TableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
@@ -60,7 +61,6 @@ namespace Safety_System
             Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) };
             bImport.Click += BtnImportCsv_Click;
 
-            // 🟢 展開按鈕：設定在第一行最右邊
             _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
@@ -77,18 +77,37 @@ namespace Safety_System
             
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
             _txtNewColName = new TextBox { Width = 120 };
+            
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) };
             bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && VerifyPassword()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
 
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
+            
             Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35) };
             bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && VerifyPassword()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
 
-            Button bDel = new Button { Text = "刪除整列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
-            bDel.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
+            // 🟢 新增：刪除整欄按鈕 (橘色警示)
+            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
+            bDelCol.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null) {
+                    string colToDrop = _cboColumns.SelectedItem.ToString();
+                    // 雙重確認防線，避免手滑
+                    if (MessageBox.Show($"警告：確定要刪除整欄【{colToDrop}】嗎？\n刪除後該欄位所有歷史資料將永久遺失！", "刪除欄位確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        if (VerifyPassword()) { 
+                            DataManager.DropColumn(DbName, TableName, colToDrop); 
+                            RefreshGrid(); 
+                        } 
+                    }
+                } 
+            };
 
-            row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDel });
+            // 🟢 原有的刪除整列按鈕 (紅色警示)
+            Button bDelRow = new Button { Text = "刪除整列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
+
+            // 🟢 將 bDelCol 加入到介面中
+            row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
             _boxAdvanced.Controls.Add(row2);
 
             // --- 第三區塊：表格區 ---
