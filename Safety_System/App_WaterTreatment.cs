@@ -12,7 +12,10 @@ namespace Safety_System
     public class App_WaterTreatment
     {
         private DataGridView _dgv;
-        private DateTimePicker _dtpStart, _dtpEnd;
+        // 🟢 將原本的 DateTimePicker 改為三個 ComboBox
+        private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
+        private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
+        
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
@@ -52,10 +55,44 @@ namespace Safety_System
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddDays(-30) };
-            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
-            _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today };
             
+            // 🟢 初始化下拉選單
+            _cboStartYear = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndYear = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            // 🟢 產生當年度算前後各 6 年
+            int currentYear = DateTime.Now.Year;
+            for (int i = currentYear - 6; i <= currentYear + 6; i++) {
+                _cboStartYear.Items.Add(i);
+                _cboEndYear.Items.Add(i);
+            }
+            // 月份 1~12
+            for (int i = 1; i <= 12; i++) {
+                _cboStartMonth.Items.Add(i.ToString("D2"));
+                _cboEndMonth.Items.Add(i.ToString("D2"));
+            }
+            // 日期 1~31
+            for (int i = 1; i <= 31; i++) {
+                _cboStartDay.Items.Add(i.ToString("D2"));
+                _cboEndDay.Items.Add(i.ToString("D2"));
+            }
+
+            // 預設日期連動 (起：前30天，迄：今天)
+            SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+            SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
+
+            Label lblStartYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblStartMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblStartDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
+            Label lblEndYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+
             Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => { 
                 RefreshGrid(); 
@@ -76,15 +113,16 @@ namespace Safety_System
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
                 
-                // 🟢 1. 無條件先存排序 (避免因為沒修改資料而略過)
                 SaveColumnOrder(); 
 
-                // 🟢 2. 儲存資料
-                if (DataManager.ValidateAndSaveTable(DbName, TableName, (DataTable)_dgv.DataSource)) {
+                DataTable dtToSave = (DataTable)_dgv.DataSource;
+                // 🟢 2. 寫入時判斷是否有「月份」欄位，強制轉換成 yyyy-mm
+                EnforceMonthFormat(dtToSave);
+
+                if (DataManager.ValidateAndSaveTable(DbName, TableName, dtToSave)) {
                     MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶最新欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
                 } else {
-                    // 若資料沒有異動，也要明確告訴使用者「版面有存起來」
                     MessageBox.Show(Form.ActiveForm, "欄位排序已儲存！(資料無異動)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
@@ -102,7 +140,14 @@ namespace Safety_System
                 _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
+            // 🟢 加入新式的下拉選單介面到 row1
+            row1.Controls.AddRange(new Control[] { 
+                lblRange, 
+                _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, _cboStartDay, lblStartDay, 
+                lblTilde, 
+                _cboEndYear, lblEndYear, _cboEndMonth, lblEndMonth, _cboEndDay, lblEndDay, 
+                bRead, bExport, bImport, _btnToggle, bSave 
+            });
             boxTop.Controls.Add(row1);
 
             _boxAdvanced = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
@@ -144,13 +189,16 @@ namespace Safety_System
             bReadLatest.Click += (s, e) => {
                 if (int.TryParse(txtLatestCount.Text, out int limit) && limit > 0) {
                     DataTable dt = DataManager.GetLatestRecords(DbName, TableName, limit);
+                    
+                    // 🟢 2. 讀取時判斷是否有「月份」欄位，強制轉換成 yyyy-mm
+                    EnforceMonthFormat(dt);
                     _dgv.DataSource = dt;
                     
                     if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
                     _cboColumns.Items.Clear();
                     foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
 
-                    RestoreColumnOrder(); // 讀取自訂筆數後，立刻套用排序
+                    RestoreColumnOrder(); 
 
                     MessageBox.Show(Form.ActiveForm, $"讀取完成！共載入最近 {dt.Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     
@@ -162,7 +210,11 @@ namespace Safety_System
                                 if (d > maxD) maxD = d; 
                             }
                         }
-                        if (minD <= maxD) { _dtpStart.Value = minD; _dtpEnd.Value = maxD; }
+                        // 🟢 回填日期區間邏輯
+                        if (minD <= maxD) { 
+                            SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, minD); 
+                            SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, maxD); 
+                        }
                     }
                 } else {
                     MessageBox.Show(Form.ActiveForm, "請輸入有效的正整數！", "輸入錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -175,7 +227,6 @@ namespace Safety_System
             flpAdvMain.Controls.Add(row3);
             _boxAdvanced.Controls.Add(flpAdvMain);
 
-            // 🟢 開啟 AllowUserToOrderColumns 允許使用者拖曳移動欄位
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToOrderColumns = true };
             
             main.Controls.Add(boxTop, 0, 0);
@@ -189,32 +240,104 @@ namespace Safety_System
         private void RefreshGrid() {
             if (_isFirstLoad) {
                 DataTable dt = DataManager.GetLatestRecords(DbName, TableName, 30);
+                // 🟢 2. 讀取時判斷是否有「月份」欄位，強制轉換
+                EnforceMonthFormat(dt);
                 _dgv.DataSource = dt;
+                
                 if (dt.Rows.Count == 0) MessageBox.Show(Form.ActiveForm, "【系統連線成功】目前資料表尚無任何紀錄。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 else {
                     DateTime minD = DateTime.MaxValue, maxD = DateTime.MinValue;
                     foreach(DataRow r in dt.Rows) if (DateTime.TryParse(r["日期"]?.ToString(), out DateTime d)) { if (d < minD) minD = d; if (d > maxD) maxD = d; }
-                    if (minD <= maxD) { _dtpStart.Value = minD; _dtpEnd.Value = maxD; }
+                    // 🟢 回填日期區間邏輯
+                    if (minD <= maxD) { 
+                        SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, minD); 
+                        SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, maxD); 
+                    }
                 }
                 _isFirstLoad = false;
             } else {
-                _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
+                // 🟢 取出下拉選單組裝的日期
+                string sDate = GetStartDate().ToString("yyyy-MM-dd");
+                string eDate = GetEndDate().ToString("yyyy-MM-dd");
+                DataTable dt = DataManager.GetTableData(DbName, TableName, "日期", sDate, eDate);
+                
+                // 🟢 2. 讀取時判斷是否有「月份」欄位，強制轉換
+                EnforceMonthFormat(dt);
+                _dgv.DataSource = dt;
             }
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             
             _cboColumns.Items.Clear();
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
 
-            // 🟢 每次刷新表格後，自動套用記憶的欄位排序
             RestoreColumnOrder();
         }
 
         // ==========================================
-        // 🟢 欄位排序記憶功能：儲存
+        // 🟢 處理「月份」強制轉換成 yyyy-MM 格式方法
+        // ==========================================
+        private void EnforceMonthFormat(DataTable dt) {
+            if (dt != null && dt.Columns.Contains("月份")) {
+                foreach (DataRow row in dt.Rows) {
+                    if (row.RowState == DataRowState.Deleted) continue;
+                    string val = row["月份"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(val)) {
+                        // 嘗試正規解析
+                        if (DateTime.TryParse(val, out DateTime parsedDate)) {
+                            row["月份"] = parsedDate.ToString("yyyy-MM");
+                        } else {
+                            // 針對使用者可能輸入 2024/05 或 24/5 等特殊輸入進行容錯解析
+                            string normalized = val.Replace("/", "-");
+                            var parts = normalized.Split('-');
+                            if (parts.Length >= 2) {
+                                if (int.TryParse(parts[0], out int y) && int.TryParse(parts[1], out int m)) {
+                                    if (y < 100) y += 2000; // 簡略處理世紀
+                                    row["月份"] = $"{y:D4}-{m:D2}";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 🟢 日期下拉選單的讀寫輔助方法
+        // ==========================================
+        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
+            if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
+            m.SelectedItem = date.Month.ToString("D2");
+            d.SelectedItem = date.Day.ToString("D2");
+        }
+
+        private DateTime GetStartDate() {
+            return ParseComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+        }
+
+        private DateTime GetEndDate() {
+            return ParseComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
+        }
+
+        private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime defaultDate) {
+            if (y.SelectedItem == null || m.SelectedItem == null || d.SelectedItem == null) return defaultDate;
+            if (int.TryParse(y.SelectedItem.ToString(), out int year) &&
+                int.TryParse(m.SelectedItem.ToString(), out int month) &&
+                int.TryParse(d.SelectedItem.ToString(), out int day)) {
+                try {
+                    // 防呆：如果選擇的日期大於該月的最大天數 (例如 2/31)
+                    int daysInMonth = DateTime.DaysInMonth(year, month);
+                    if (day > daysInMonth) day = daysInMonth;
+                    return new DateTime(year, month, day);
+                } catch { return defaultDate; }
+            }
+            return defaultDate;
+        }
+
+        // ==========================================
+        // 欄位排序記憶功能：儲存
         // ==========================================
         private void SaveColumnOrder() {
             try {
-                // 將畫面上目前的欄位照著顯示的順序 (DisplayIndex) 抓出來
                 var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
                                       .OrderBy(c => c.DisplayIndex)
                                       .Select(c => c.Name).ToArray();
@@ -222,7 +345,6 @@ namespace Safety_System
                 string fileName = $"ColOrder_{DbName}_{TableName}.txt";
                 File.WriteAllText(fileName, string.Join(",", orderedCols), Encoding.UTF8);
 
-                // 同步底層 DataTable 的順序，這樣匯出時才會按照畫面順序
                 if (_dgv.DataSource is DataTable dt) {
                     for (int i = 0; i < orderedCols.Length; i++) {
                         if (dt.Columns.Contains(orderedCols[i])) {
@@ -234,7 +356,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 欄位排序記憶功能：讀取
+        // 欄位排序記憶功能：讀取
         // ==========================================
         private void RestoreColumnOrder() {
             try {
@@ -247,7 +369,6 @@ namespace Safety_System
                         }
                     }
 
-                    // 確保讀取時也將 DataTable 底層結構對齊，防止匯出錯亂
                     if (_dgv.DataSource is DataTable dt) {
                         var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
                                               .OrderBy(c => c.DisplayIndex)
@@ -276,7 +397,6 @@ namespace Safety_System
         private void BtnExport_Click(object sender, EventArgs e) {
             if (_dgv.Rows.Count == 0 || (_dgv.Rows.Count == 1 && _dgv.Rows[0].IsNewRow)) { MessageBox.Show(Form.ActiveForm, "沒有資料可匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             
-            // 🟢 匯出前最後確認：把畫面順序強制寫入底層 DataTable，保證匯出的資料順序 100% 同步
             if (_dgv.DataSource is DataTable dTable) {
                 var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray();
                 for (int i = 0; i < orderedCols.Length; i++) {
