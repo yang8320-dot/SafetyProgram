@@ -88,7 +88,7 @@ namespace Safety_System
             Label lblStartYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblStartMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblStartDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblEndYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblEndMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblEndDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
@@ -108,7 +108,7 @@ namespace Safety_System
                 Size = new Size(120, 35), 
                 BackColor = Color.ForestGreen, 
                 ForeColor = Color.White, 
-                Margin = new Padding(8, 0, 0, 0) 
+                Margin = new Padding(0, 8, 5, 0) 
             };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
@@ -127,7 +127,7 @@ namespace Safety_System
                 }
             };
             
-            Button bExport = new Button { Text = "匯出", Size = new Size(120, 35) };
+            Button bExport = new Button { Text = "匯出", Size = new Size(100, 35) };
             bExport.Click += BtnExport_Click;
 
             Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) };
