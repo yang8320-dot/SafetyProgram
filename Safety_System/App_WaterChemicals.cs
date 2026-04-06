@@ -12,7 +12,10 @@ namespace Safety_System
     public class App_WaterChemicals
     {
         private DataGridView _dgv;
-        private DateTimePicker _dtpStart, _dtpEnd;
+        // 🟢 改為三個 ComboBox 以對應新版面
+        private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
+        private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
+        
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
@@ -24,7 +27,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 🟢 更新為新的資料表結構
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterChemicals] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
@@ -37,15 +39,48 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 🟢 更新標題
             GroupBox boxTop = new GroupBox { Text = $"水處理用藥記錄 (庫：{DbName} 表：{TableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddDays(-30) };
-            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
-            _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today };
             
+            // 🟢 初始化下拉選單
+            _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            // 🟢 產生當年度算前後各 25 年
+            int currentYear = DateTime.Now.Year;
+            for (int i = currentYear - 25; i <= currentYear + 25; i++) {
+                _cboStartYear.Items.Add(i);
+                _cboEndYear.Items.Add(i);
+            }
+            // 月份 1~12
+            for (int i = 1; i <= 12; i++) {
+                _cboStartMonth.Items.Add(i.ToString("D2"));
+                _cboEndMonth.Items.Add(i.ToString("D2"));
+            }
+            // 日期 1~31
+            for (int i = 1; i <= 31; i++) {
+                _cboStartDay.Items.Add(i.ToString("D2"));
+                _cboEndDay.Items.Add(i.ToString("D2"));
+            }
+
+            // 預設日期連動 (起：前30天，迄：今天)
+            SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+            SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
+
+            Label lblStartYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblStartMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblStartDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+
             Button bRead = new Button { Text = "讀取資料", Size = new Size(120, 35) };
             bRead.Click += (s, e) => { 
                 RefreshGrid(); 
@@ -61,7 +96,7 @@ namespace Safety_System
                 Size = new Size(120, 35), 
                 BackColor = Color.ForestGreen, 
                 ForeColor = Color.White, 
-                Margin = new Padding(30, 0, 0, 0) 
+                Margin = new Padding(0, 3, 3, 3) 
             };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
@@ -69,8 +104,10 @@ namespace Safety_System
                 // 🟢 1. 無條件先存排序 (避免因為沒修改資料而略過)
                 SaveColumnOrder(); 
 
+                DataTable dtToSave = (DataTable)_dgv.DataSource;
+
                 // 🟢 2. 儲存資料
-                if (DataManager.ValidateAndSaveTable(DbName, TableName, (DataTable)_dgv.DataSource)) {
+                if (DataManager.ValidateAndSaveTable(DbName, TableName, dtToSave)) {
                     MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶最新欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
                 } else {
@@ -79,7 +116,7 @@ namespace Safety_System
                 }
             };
             
-            Button bExport = new Button { Text = "匯出", Size = new Size(120, 35) };
+            Button bExport = new Button { Text = "匯出", Size = new Size(100, 35) };
             bExport.Click += BtnExport_Click;
 
             Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) };
@@ -92,7 +129,14 @@ namespace Safety_System
                 _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
+            // 🟢 加入新式的下拉選單介面到 row1
+            row1.Controls.AddRange(new Control[] { 
+                lblRange, 
+                _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, _cboStartDay, lblStartDay, 
+                lblTilde, 
+                _cboEndYear, lblEndYear, _cboEndMonth, lblEndMonth, _cboEndDay, lblEndDay, 
+                bRead, bExport, bImport, _btnToggle, bSave 
+            });
             boxTop.Controls.Add(row1);
 
             _boxAdvanced = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
@@ -152,7 +196,10 @@ namespace Safety_System
                                 if (d > maxD) maxD = d; 
                             }
                         }
-                        if (minD <= maxD) { _dtpStart.Value = minD; _dtpEnd.Value = maxD; }
+                        if (minD <= maxD) { 
+                            SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, minD); 
+                            SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, maxD); 
+                        }
                     }
                 } else {
                     MessageBox.Show(Form.ActiveForm, "請輸入有效的正整數！", "輸入錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -184,11 +231,14 @@ namespace Safety_System
                 else {
                     DateTime minD = DateTime.MaxValue, maxD = DateTime.MinValue;
                     foreach(DataRow r in dt.Rows) if (DateTime.TryParse(r["日期"]?.ToString(), out DateTime d)) { if (d < minD) minD = d; if (d > maxD) maxD = d; }
-                    if (minD <= maxD) { _dtpStart.Value = minD; _dtpEnd.Value = maxD; }
+                    if (minD <= maxD) { 
+                        SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, minD); 
+                        SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, maxD); 
+                    }
                 }
                 _isFirstLoad = false;
             } else {
-                _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd"));
+                _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", GetStartDate().ToString("yyyy-MM-dd"), GetEndDate().ToString("yyyy-MM-dd"));
             }
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             
@@ -247,6 +297,30 @@ namespace Safety_System
                     }
                 }
             } catch { }
+        }
+
+        // ==========================================
+        // 🟢 日期下拉選單的讀寫輔助方法
+        // ==========================================
+        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
+            if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
+            m.SelectedItem = date.Month.ToString("D2");
+            d.SelectedItem = date.Day.ToString("D2");
+        }
+
+        private DateTime GetStartDate() {
+            return ParseComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+        }
+
+        private DateTime GetEndDate() {
+            return ParseComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
+        }
+
+        private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime defaultDate) {
+            if (y.SelectedItem != null && m.SelectedItem != null && d.SelectedItem != null) {
+                if (DateTime.TryParse($"{y.SelectedItem}-{m.SelectedItem}-{d.SelectedItem}", out DateTime date)) return date;
+            }
+            return defaultDate;
         }
 
         private bool VerifyPassword() {
