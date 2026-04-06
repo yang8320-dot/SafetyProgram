@@ -108,7 +108,7 @@ namespace Safety_System
                 Size = new Size(120, 35), 
                 BackColor = Color.ForestGreen, 
                 ForeColor = Color.White, 
-                Margin = new Padding(0, 8, 5, 0) 
+                Margin = new Padding(0, 3, 3, 3)  // 💡 上方邊距改回正常的 3 
             };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
