@@ -26,48 +26,69 @@ jobs:
         # 1. 絕對精準對齊你的大小寫
         TARGET_DIR = 'Safety_System'
         
-        # 2. 擴充到「所有常見程式碼」的副檔名，確保全抓
+        # 2. 擴充到「所有常見程式碼」的副檔名
         valid_extensions = (
             '.cs', '.csproj', '.json', '.xml', '.config', 
             '.cshtml', '.html', '.css', '.js', '.ts', 
             '.sql', '.md', '.txt', '.py', '.bat', '.sh'
         )
         
-        # 3. 排除編譯產生的垃圾檔案與套件包
+        # 3. 排除編譯產生的垃圾檔案
         exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults', 'node_modules'}
 
         if not os.path.exists(TARGET_DIR):
             print(f"錯誤：找不到 {TARGET_DIR} 資料夾！請檢查大小寫是否完全一致。")
             exit(1)
 
-        with open('project_context.txt', 'w', encoding='utf-8') as f:
-            f.write(f"# {TARGET_DIR} 專案完整代碼上下文\n\n")
+        # 同時開啟兩個檔案準備寫入
+        with open('project_context.txt', 'w', encoding='utf-8') as f_txt, \
+             open('project_context.md', 'w', encoding='utf-8') as f_md:
+            
+            f_txt.write(f"# {TARGET_DIR} 專案完整代碼上下文\n\n")
+            f_md.write(f"# {TARGET_DIR} 專案完整代碼上下文\n\n")
             
             for root, dirs, files in os.walk(TARGET_DIR):
                 dirs[:] = [d for d in dirs if d not in exclude_dirs]
                 for file in files:
-                    # 強制把檔名轉小寫後比對，避免 .CS 或 .JSON 被漏掉
                     if file.lower().endswith(valid_extensions):
                         file_path = os.path.join(root, file)
                         rel_path = os.path.relpath(file_path, '.')
                         
-                        f.write(f"\n{'='*50}\n")
-                        f.write(f"/// FILE: {rel_path} ///\n")
-                        f.write(f"{'='*50}\n\n")
-                        
+                        # 讀取檔案內容
                         try:
-                            # 加上 errors='ignore'，遇到舊版 Windows 編碼亂碼時會跳過亂碼強行讀取
                             with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
-                                f.write(code_f.read())
+                                content = code_f.read()
                         except Exception as e:
-                            f.write(f"// 無法讀取此檔案: {e}\n")
-                        f.write("\n")
+                            content = f"// 無法讀取此檔案: {e}\n"
+
+                        # --- 寫入 TXT 格式 ---
+                        f_txt.write(f"\n{'='*50}\n")
+                        f_txt.write(f"/// FILE: {rel_path} ///\n")
+                        f_txt.write(f"{'='*50}\n\n")
+                        f_txt.write(content + "\n")
+
+                        # --- 寫入 MD 格式 (加上 Markdown 代碼區塊) ---
+                        f_md.write(f"\n---\n")
+                        f_md.write(f"### FILE: `{rel_path}`\n\n")
+                        
+                        # 簡單判斷語言標籤，讓 AI 更好讀
+                        lang = ""
+                        if file.lower().endswith('.cs'): lang = "csharp"
+                        elif file.lower().endswith('.js'): lang = "javascript"
+                        elif file.lower().endswith('.json'): lang = "json"
+                        elif file.lower().endswith('.html') or file.lower().endswith('.cshtml'): lang = "html"
+                        elif file.lower().endswith('.sql'): lang = "sql"
+                        
+                        f_md.write(f"```{lang}\n{content}\n```\n\n")
         EOF
         python generate_context.py
 
-    - name: Upload Context Artifact
+    - name: Upload Context Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Safety-System-Context
-        path: project_context.txt
+        # 這裡設定將 txt 與 md 檔一起打包上傳
+        path: |
+          project_context.txt
+          project_context.md
         retention-days: 7
