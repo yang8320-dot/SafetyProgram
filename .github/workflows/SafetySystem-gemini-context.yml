@@ -23,7 +23,7 @@ jobs:
         cat << 'EOF' > generate_context.py
         import os
 
-        # 1. 絕對精準對齊你的大小寫
+        # 1. 目標資料夾
         TARGET_DIR = 'Safety_System'
         
         # 2. 擴充到「所有常見程式碼」的副檔名
@@ -40,46 +40,53 @@ jobs:
             print(f"錯誤：找不到 {TARGET_DIR} 資料夾！請檢查大小寫是否完全一致。")
             exit(1)
 
-        # 同時開啟兩個檔案準備寫入
-        with open('project_context.txt', 'w', encoding='utf-8') as f_txt, \
-             open('project_context.md', 'w', encoding='utf-8') as f_md:
-            
-            f_txt.write(f"# {TARGET_DIR} 專案完整代碼上下文\n\n")
-            f_md.write(f"# {TARGET_DIR} 專案完整代碼上下文\n\n")
-            
-            for root, dirs, files in os.walk(TARGET_DIR):
-                dirs[:] = [d for d in dirs if d not in exclude_dirs]
-                for file in files:
-                    if file.lower().endswith(valid_extensions):
-                        file_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(file_path, '.')
-                        
-                        # 讀取檔案內容
-                        try:
-                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
-                                content = code_f.read()
-                        except Exception as e:
-                            content = f"// 無法讀取此檔案: {e}\n"
+        # 暫存所有檔案內容與計算總長度
+        file_data_list = []
+        total_length = 0
 
-                        # --- 寫入 TXT 格式 ---
-                        f_txt.write(f"\n{'='*50}\n")
-                        f_txt.write(f"/// FILE: {rel_path} ///\n")
-                        f_txt.write(f"{'='*50}\n\n")
-                        f_txt.write(content + "\n")
+        for root, dirs, files in os.walk(TARGET_DIR):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            for file in files:
+                if file.lower().endswith(valid_extensions):
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, '.')
+                    
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
+                            content = code_f.read()
+                    except Exception as e:
+                        content = f"// 無法讀取此檔案: {e}\n"
+                    
+                    # 格式化單一檔案的內容
+                    formatted_content = f"\n{'='*50}\n/// FILE: {rel_path} ///\n{'='*50}\n\n{content}\n"
+                    file_data_list.append(formatted_content)
+                    total_length += len(formatted_content)
 
-                        # --- 寫入 MD 格式 (加上 Markdown 代碼區塊) ---
-                        f_md.write(f"\n---\n")
-                        f_md.write(f"### FILE: `{rel_path}`\n\n")
-                        
-                        # 簡單判斷語言標籤，讓 AI 更好讀
-                        lang = ""
-                        if file.lower().endswith('.cs'): lang = "csharp"
-                        elif file.lower().endswith('.js'): lang = "javascript"
-                        elif file.lower().endswith('.json'): lang = "json"
-                        elif file.lower().endswith('.html') or file.lower().endswith('.cshtml'): lang = "html"
-                        elif file.lower().endswith('.sql'): lang = "sql"
-                        
-                        f_md.write(f"```{lang}\n{content}\n```\n\n")
+        # 計算每個檔案的目標長度 (分成 5 份)
+        NUM_PARTS = 5
+        target_size_per_part = total_length / NUM_PARTS
+        
+        current_part = 1
+        current_size = 0
+        
+        # 開啟第一個檔案
+        f_out = open(f'project_context_part{current_part}.txt', 'w', encoding='utf-8')
+        f_out.write(f"# {TARGET_DIR} 專案完整代碼上下文 - Part {current_part} / {NUM_PARTS}\n\n")
+
+        for data in file_data_list:
+            # 如果加上這筆資料會超過目標大小，且還沒到第5個檔，且目前檔案已經有寫入東西，就換下一個新檔
+            if current_size + len(data) > target_size_per_part and current_part < NUM_PARTS and current_size > 0:
+                f_out.close()
+                current_part += 1
+                current_size = 0
+                f_out = open(f'project_context_part{current_part}.txt', 'w', encoding='utf-8')
+                f_out.write(f"# {TARGET_DIR} 專案完整代碼上下文 - Part {current_part} / {NUM_PARTS}\n\n")
+            
+            f_out.write(data)
+            current_size += len(data)
+
+        f_out.close()
+        print(f"成功將專案內容平均分配至 {current_part} 個 txt 檔案中。")
         EOF
         python generate_context.py
 
@@ -87,8 +94,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Safety-System-Context
-        # 這裡設定將 txt 與 md 檔一起打包上傳
-        path: |
-          project_context.txt
-          project_context.md
+        # 使用萬用字元一次上傳所有切分好的 txt 檔
+        path: project_context_part*.txt
         retention-days: 7
