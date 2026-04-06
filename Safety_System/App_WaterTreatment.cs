@@ -40,6 +40,7 @@ namespace Safety_System
                 [濃縮水至冷卻水池] TEXT,
                 [濃縮水至逆洗池] TEXT,
                 [污泥產出包數] TEXT,
+                [廠區自來水] TEXT,
                 [備註] TEXT);");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
