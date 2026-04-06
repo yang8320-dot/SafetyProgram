@@ -57,16 +57,16 @@ namespace Safety_System
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             
             // 🟢 初始化下拉選單
-            _cboStartYear = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cboEndYear = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboEndMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
 
-            // 🟢 產生當年度算前後各 6 年
+            // 🟢 產生當年度算前後各 25 年
             int currentYear = DateTime.Now.Year;
-            for (int i = currentYear - 6; i <= currentYear + 6; i++) {
+            for (int i = currentYear - 25; i <= currentYear + 25; i++) {
                 _cboStartYear.Items.Add(i);
                 _cboEndYear.Items.Add(i);
             }
