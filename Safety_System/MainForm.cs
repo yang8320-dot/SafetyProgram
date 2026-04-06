@@ -104,10 +104,10 @@ namespace Safety_System
 
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("納管排放數據", () => new App_DischargeData().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("廢水處理水量記錄", () => new App_WaterTreatment().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("廢水處理用藥記錄", () => new App_WaterChemicals().GetView()));
-            menuWater.DropDownItems.Add(CreateItem("自來水用量統計", () => new App_WaterVolume().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_WaterTreatment().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_WaterChemicals().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_DischargeData().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_WaterVolume().GetView()));
 
             var menuWaste = new ToolStripMenuItem("廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("廢棄物看板", () => new App_WasteDashboard().GetView()));
