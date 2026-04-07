@@ -1,7 +1,6 @@
 using System;
 using System.Data;
 using System.Drawing;
-using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 
@@ -18,7 +17,7 @@ namespace Safety_System
         {
             Panel mainPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true };
 
-            // 1. 頂部控制列
+            // 1. 頂部控制列 (篩選條件)
             Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Color.White };
             Label lblTitle = new Label { Text = "💧 水資源管理與分析儀表板", Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), AutoSize = true, Location = new Point(20, 20), ForeColor = Color.DarkSlateBlue };
             
@@ -53,7 +52,7 @@ namespace Safety_System
             pnlTop.Controls.Add(flpFilters);
             mainPanel.Controls.Add(pnlTop);
 
-            // 2. KPI 摘要區
+            // 2. KPI 摘要卡片區
             FlowLayoutPanel flpKpis = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(20, 15, 20, 10), BackColor = Color.WhiteSmoke };
             _lblKpi1 = CreateKpiCard(flpKpis, "本月累計", "0", Color.Teal);
             _lblKpi2 = CreateKpiCard(flpKpis, "去年同月累計", "0", Color.DimGray);
@@ -189,14 +188,19 @@ namespace Safety_System
             _chartYearly.Series.Add(s);
         }
 
+        // ==========================================
+        // 使用傳統 foreach 迭代，避免建置時 AsEnumerable() 解析失敗
+        // ==========================================
         private double GetValForDay(DataTable dt, int month, int day, string valCol)
         {
             if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
-            string target = $"-{month:D2}-{day:D2}";
-            var row = dt.AsEnumerable().FirstOrDefault(r => r["日期"]?.ToString().Contains(target) == true);
-            if (row != null) {
-                double.TryParse(row[valCol]?.ToString().Replace(",", "").Trim(), out double v);
-                return v;
+            string target = string.Format("-{0:D2}-{1:D2}", month, day);
+            
+            foreach (DataRow row in dt.Rows) {
+                if (row["日期"] != null && row["日期"].ToString().Contains(target)) {
+                    double v;
+                    if (double.TryParse(row[valCol].ToString().Replace(",", "").Trim(), out v)) return v;
+                }
             }
             return 0;
         }
@@ -204,19 +208,28 @@ namespace Safety_System
         private double GetSumForMonth(DataTable dt, int month, string valCol)
         {
             if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
-            string target = $"-{month:D2}-";
-            return dt.AsEnumerable()
-                     .Where(r => r["日期"]?.ToString().Contains(target) == true)
-                     .Select(r => { double.TryParse(r[valCol]?.ToString().Replace(",", "").Trim(), out double v); return v; })
-                     .Sum();
+            string target = string.Format("-{0:D2}-", month);
+            double sum = 0;
+
+            foreach (DataRow row in dt.Rows) {
+                if (row["日期"] != null && row["日期"].ToString().Contains(target)) {
+                    double v;
+                    if (double.TryParse(row[valCol].ToString().Replace(",", "").Trim(), out v)) sum += v;
+                }
+            }
+            return sum;
         }
 
         private double GetSumForYear(DataTable dt, string valCol)
         {
             if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
-            return dt.AsEnumerable()
-                     .Select(r => { double.TryParse(r[valCol]?.ToString().Replace(",", "").Trim(), out double v); return v; })
-                     .Sum();
+            double sum = 0;
+
+            foreach (DataRow row in dt.Rows) {
+                double v;
+                if (double.TryParse(row[valCol].ToString().Replace(",", "").Trim(), out v)) sum += v;
+            }
+            return sum;
         }
     }
 }
