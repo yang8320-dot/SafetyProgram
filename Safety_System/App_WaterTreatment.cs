@@ -25,7 +25,7 @@ namespace Safety_System
         private const string DbName = "Water"; 
         private const string TableName = "WaterMeterReadings"; 
 
-        // 🟢 加入自動運算共用 Helper，負責星期轉換、相減統計及防呆控制
+        // 🟢 自動運算共用 Helper，負責星期轉換、相減統計及防呆控制
         private DataGridViewAutoCalcHelper _calcHelper; 
 
         public Control GetView()
@@ -425,7 +425,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 替 CSV 匯入加入 Helper 的防當機開關
+        // 🟢 加入改良版的 CSV 匯入，完美處理雙引號與千分位逗號，並套用防止當機控制
         private void BtnImportCsv_Click(object sender, EventArgs e) {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog(Form.ActiveForm) == DialogResult.OK) {
@@ -433,26 +433,60 @@ namespace Safety_System
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
                         if (lines.Length < 2) return; 
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        string[] headers = lines[0].Split(',');
+                        
+                        string[] headers = ParseCsvLine(lines[0]);
 
-                        _calcHelper?.BeginBulkUpdate(); // 🟢 開始匯入，關閉即時計算防當機
+                        _calcHelper?.BeginBulkUpdate(); // 開始匯入，關閉即時計算防當機
 
                         for (int i = 1; i < lines.Length; i++) {
                             if (string.IsNullOrWhiteSpace(lines[i])) continue;
-                            DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { string cn = headers[h].Trim(); if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim(); }
+                            DataRow nr = dt.NewRow(); 
+                            string[] vs = ParseCsvLine(lines[i]); // 使用改良版解析器
+                            
+                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
+                                string cn = headers[h].Trim(); 
+                                if (dt.Columns.Contains(cn) && cn != "Id") {
+                                    // 確保雙引號被去除
+                                    nr[cn] = vs[h].Trim().Trim('"'); 
+                                }
+                            }
                             dt.Rows.Add(nr);
                         }
 
-                        _calcHelper?.EndBulkUpdate(); // 🟢 結束匯入，統一計算
+                        _calcHelper?.EndBulkUpdate(); // 結束匯入，統一計算
 
-                        MessageBox.Show(Form.ActiveForm, $"載入 {lines.Length - 1} 筆！請記得按儲存。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(Form.ActiveForm, $"載入 {lines.Length - 1} 筆！請記得確認無誤後點擊「儲存」。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { 
-                        _calcHelper?.EndBulkUpdate(); // 發生例外也要確保關閉
+                        _calcHelper?.EndBulkUpdate(); 
                         MessageBox.Show(Form.ActiveForm, "匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     }
                 }
             }
+        }
+
+        // 🟢 新增：標準的 CSV 逐行解析器 (能正確處理雙引號內的千分位逗號)
+        private string[] ParseCsvLine(string line)
+        {
+            var result = new System.Collections.Generic.List<string>();
+            bool inQuotes = false;
+            var currentField = new System.Text.StringBuilder();
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '\"') {
+                    inQuotes = !inQuotes; // 遇到引號，切換狀態 (引號內的逗號不會被切)
+                }
+                else if (c == ',' && !inQuotes) {
+                    result.Add(currentField.ToString());
+                    currentField.Clear();
+                }
+                else {
+                    currentField.Append(c);
+                }
+            }
+            result.Add(currentField.ToString());
+            return result.ToArray();
         }
 
         // 🟢 加入 Excel 複製貼上 (Ctrl+V) 防當機事件
@@ -465,7 +499,7 @@ namespace Safety_System
                     string text = Clipboard.GetText();
                     if (string.IsNullOrEmpty(text)) return;
                     
-                    _calcHelper?.BeginBulkUpdate(); // 🟢 開始貼上，關閉即時計算
+                    _calcHelper?.BeginBulkUpdate(); // 開始貼上，關閉即時計算
 
                     string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                     int r = _dgv.CurrentCell.RowIndex;
@@ -480,13 +514,14 @@ namespace Safety_System
                         {
                             if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
                             {
-                                _dgv[c + i, r].Value = cells[i].Trim();
+                                // 貼上時一併去掉潛在的雙引號
+                                _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
                             }
                         }
                         r++;
                     }
 
-                    _calcHelper?.EndBulkUpdate(); // 🟢 結束貼上，統一計算
+                    _calcHelper?.EndBulkUpdate(); // 結束貼上，統一計算
                 }
                 catch (Exception ex)
                 {
