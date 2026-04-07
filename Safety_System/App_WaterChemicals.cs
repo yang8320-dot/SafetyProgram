@@ -1,8 +1,9 @@
+/// FILE: Safety_System/App_WaterChemicals.cs ///
 using System;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq; // 🟢 支援排序操作
+using System.Linq; 
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -12,7 +13,6 @@ namespace Safety_System
     public class App_WaterChemicals
     {
         private DataGridView _dgv;
-        // 🟢 改為三個 ComboBox 以對應新版面
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
         
@@ -25,26 +25,42 @@ namespace Safety_System
         private const string DbName = "Water"; 
         private const string TableName = "WaterChemicals"; 
 
+        // 🟢 自動運算共用 Helper，負責星期轉換、相減統計及防呆控制
+        private DataGridViewAutoCalcHelper _calcHelper; 
+
         public Control GetView()
         {
+            // 🟢 1. 更新資料表建立語法，加入星期與各藥劑的日統計欄位
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterChemicals] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
+                [星期] TEXT,
                 [PAC] TEXT, 
+                [PAC日統計] TEXT,
                 [NAOH] TEXT, 
-                [高分子] TEXT);");
+                [NAOH日統計] TEXT,
+                [高分子] TEXT,
+                [高分子日統計] TEXT,
+                [備註] TEXT);");
+
+            // 🟢 2. 向下相容：如果舊資料庫的表已經存在，自動幫使用者把缺少的欄位補上去
+            var existingCols = DataManager.GetColumnNames(DbName, TableName);
+            if (!existingCols.Contains("星期")) DataManager.AddColumn(DbName, TableName, "星期");
+            if (!existingCols.Contains("PAC日統計")) DataManager.AddColumn(DbName, TableName, "PAC日統計");
+            if (!existingCols.Contains("NAOH日統計")) DataManager.AddColumn(DbName, TableName, "NAOH日統計");
+            if (!existingCols.Contains("高分子日統計")) DataManager.AddColumn(DbName, TableName, "高分子日統計");
+            if (!existingCols.Contains("備註")) DataManager.AddColumn(DbName, TableName, "備註");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            GroupBox boxTop = new GroupBox { Text = $"水處理用藥記錄 (庫：{DbName} 表：{TableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
+            GroupBox boxTop = new GroupBox { Text = $"【日】廢水處理用藥記錄 (庫：{DbName} 表：{TableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             
-            // 🟢 初始化下拉選單
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -52,24 +68,20 @@ namespace Safety_System
             _cboEndMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
 
-            // 🟢 產生當年度算前後各 25 年
             int currentYear = DateTime.Now.Year;
             for (int i = currentYear - 25; i <= currentYear + 25; i++) {
                 _cboStartYear.Items.Add(i);
                 _cboEndYear.Items.Add(i);
             }
-            // 月份 1~12
             for (int i = 1; i <= 12; i++) {
                 _cboStartMonth.Items.Add(i.ToString("D2"));
                 _cboEndMonth.Items.Add(i.ToString("D2"));
             }
-            // 日期 1~31
             for (int i = 1; i <= 31; i++) {
                 _cboStartDay.Items.Add(i.ToString("D2"));
                 _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            // 預設日期連動 (起：前30天，迄：今天)
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
@@ -100,18 +112,15 @@ namespace Safety_System
             };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
-                
-                // 🟢 1. 無條件先存排序 (避免因為沒修改資料而略過)
                 SaveColumnOrder(); 
 
                 DataTable dtToSave = (DataTable)_dgv.DataSource;
+                EnforceMonthFormat(dtToSave);
 
-                // 🟢 2. 儲存資料
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, dtToSave)) {
                     MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶最新欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
                 } else {
-                    // 若資料沒有異動，也要明確告訴使用者「版面有存起來」
                     MessageBox.Show(Form.ActiveForm, "欄位排序已儲存！(資料無異動)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
@@ -129,7 +138,6 @@ namespace Safety_System
                 _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            // 🟢 加入新式的下拉選單介面到 row1
             row1.Controls.AddRange(new Control[] { 
                 lblRange, 
                 _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, _cboStartDay, lblStartDay, 
@@ -178,13 +186,14 @@ namespace Safety_System
             bReadLatest.Click += (s, e) => {
                 if (int.TryParse(txtLatestCount.Text, out int limit) && limit > 0) {
                     DataTable dt = DataManager.GetLatestRecords(DbName, TableName, limit);
+                    EnforceMonthFormat(dt);
                     _dgv.DataSource = dt;
                     
                     if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
                     _cboColumns.Items.Clear();
                     foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
 
-                    RestoreColumnOrder(); // 讀取自訂筆數後，立刻套用排序
+                    RestoreColumnOrder(); 
 
                     MessageBox.Show(Form.ActiveForm, $"讀取完成！共載入最近 {dt.Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     
@@ -212,9 +221,14 @@ namespace Safety_System
             flpAdvMain.Controls.Add(row3);
             _boxAdvanced.Controls.Add(flpAdvMain);
 
-            // 🟢 開啟 AllowUserToOrderColumns 允許使用者拖曳移動欄位
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToOrderColumns = true };
             
+            // 🟢 3. 加入 Ctrl+V 貼上防當機攔截
+            _dgv.KeyDown += Dgv_KeyDown;
+
+            // 🟢 4. 實例化全域運算共用 Helper，負責處理「XXX日統計」與「星期」的自動更新與防呆
+            _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
+
             main.Controls.Add(boxTop, 0, 0);
             main.Controls.Add(_boxAdvanced, 0, 1);
             main.Controls.Add(_dgv, 0, 2);
@@ -226,7 +240,9 @@ namespace Safety_System
         private void RefreshGrid() {
             if (_isFirstLoad) {
                 DataTable dt = DataManager.GetLatestRecords(DbName, TableName, 30);
+                EnforceMonthFormat(dt);
                 _dgv.DataSource = dt;
+                
                 if (dt.Rows.Count == 0) MessageBox.Show(Form.ActiveForm, "【系統連線成功】目前資料表尚無任何紀錄。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 else {
                     DateTime minD = DateTime.MaxValue, maxD = DateTime.MinValue;
@@ -238,70 +254,43 @@ namespace Safety_System
                 }
                 _isFirstLoad = false;
             } else {
-                _dgv.DataSource = DataManager.GetTableData(DbName, TableName, "日期", GetStartDate().ToString("yyyy-MM-dd"), GetEndDate().ToString("yyyy-MM-dd"));
+                string sDate = GetStartDate().ToString("yyyy-MM-dd");
+                string eDate = GetEndDate().ToString("yyyy-MM-dd");
+                DataTable dt = DataManager.GetTableData(DbName, TableName, "日期", sDate, eDate);
+                EnforceMonthFormat(dt);
+                _dgv.DataSource = dt;
             }
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             
             _cboColumns.Items.Clear();
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
 
-            // 🟢 每次刷新表格後，自動套用記憶的欄位排序
             RestoreColumnOrder();
         }
 
-        // ==========================================
-        // 🟢 欄位排序記憶功能：儲存
-        // ==========================================
-        private void SaveColumnOrder() {
-            try {
-                var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
-                                      .OrderBy(c => c.DisplayIndex)
-                                      .Select(c => c.Name).ToArray();
-                
-                string fileName = $"ColOrder_{DbName}_{TableName}.txt";
-                File.WriteAllText(fileName, string.Join(",", orderedCols), Encoding.UTF8);
-
-                if (_dgv.DataSource is DataTable dt) {
-                    for (int i = 0; i < orderedCols.Length; i++) {
-                        if (dt.Columns.Contains(orderedCols[i])) {
-                            dt.Columns[orderedCols[i]].SetOrdinal(i);
-                        }
-                    }
-                }
-            } catch { }
-        }
-
-        // ==========================================
-        // 🟢 欄位排序記憶功能：讀取
-        // ==========================================
-        private void RestoreColumnOrder() {
-            try {
-                string fileName = $"ColOrder_{DbName}_{TableName}.txt";
-                if (File.Exists(fileName)) {
-                    string[] savedCols = File.ReadAllText(fileName, Encoding.UTF8).Split(',');
-                    for (int i = 0; i < savedCols.Length; i++) {
-                        if (_dgv.Columns.Contains(savedCols[i])) {
-                            _dgv.Columns[savedCols[i]].DisplayIndex = i;
-                        }
-                    }
-
-                    if (_dgv.DataSource is DataTable dt) {
-                        var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
-                                              .OrderBy(c => c.DisplayIndex)
-                                              .Select(c => c.Name).ToArray();
-                        for (int i = 0; i < orderedCols.Length; i++) {
-                            if (dt.Columns.Contains(orderedCols[i])) {
-                                dt.Columns[orderedCols[i]].SetOrdinal(i);
+        private void EnforceMonthFormat(DataTable dt) {
+            if (dt != null && dt.Columns.Contains("月份")) {
+                foreach (DataRow row in dt.Rows) {
+                    if (row.RowState == DataRowState.Deleted) continue;
+                    string val = row["月份"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(val)) {
+                        if (DateTime.TryParse(val, out DateTime parsedDate)) {
+                            row["月份"] = parsedDate.ToString("yyyy-MM");
+                        } else {
+                            string normalized = val.Replace("/", "-");
+                            var parts = normalized.Split('-');
+                            if (parts.Length >= 2) {
+                                if (int.TryParse(parts[0], out int y) && int.TryParse(parts[1], out int m)) {
+                                    if (y < 100) y += 2000; 
+                                    row["月份"] = $"{y:D4}-{m:D2}";
+                                }
                             }
                         }
                     }
                 }
-            } catch { }
+            }
         }
 
-        // ==========================================
-        // 🟢 日期下拉選單的讀寫輔助方法
-        // ==========================================
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
             m.SelectedItem = date.Month.ToString("D2");
@@ -317,10 +306,49 @@ namespace Safety_System
         }
 
         private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime defaultDate) {
-            if (y.SelectedItem != null && m.SelectedItem != null && d.SelectedItem != null) {
-                if (DateTime.TryParse($"{y.SelectedItem}-{m.SelectedItem}-{d.SelectedItem}", out DateTime date)) return date;
+            if (y.SelectedItem == null || m.SelectedItem == null || d.SelectedItem == null) return defaultDate;
+            if (int.TryParse(y.SelectedItem.ToString(), out int year) &&
+                int.TryParse(m.SelectedItem.ToString(), out int month) &&
+                int.TryParse(d.SelectedItem.ToString(), out int day)) {
+                try {
+                    int daysInMonth = DateTime.DaysInMonth(year, month);
+                    if (day > daysInMonth) day = daysInMonth;
+                    return new DateTime(year, month, day);
+                } catch { return defaultDate; }
             }
             return defaultDate;
+        }
+
+        private void SaveColumnOrder() {
+            try {
+                var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray();
+                string fileName = $"ColOrder_{DbName}_{TableName}.txt";
+                File.WriteAllText(fileName, string.Join(",", orderedCols), Encoding.UTF8);
+
+                if (_dgv.DataSource is DataTable dt) {
+                    for (int i = 0; i < orderedCols.Length; i++) {
+                        if (dt.Columns.Contains(orderedCols[i])) dt.Columns[orderedCols[i]].SetOrdinal(i);
+                    }
+                }
+            } catch { }
+        }
+
+        private void RestoreColumnOrder() {
+            try {
+                string fileName = $"ColOrder_{DbName}_{TableName}.txt";
+                if (File.Exists(fileName)) {
+                    string[] savedCols = File.ReadAllText(fileName, Encoding.UTF8).Split(',');
+                    for (int i = 0; i < savedCols.Length; i++) {
+                        if (_dgv.Columns.Contains(savedCols[i])) _dgv.Columns[savedCols[i]].DisplayIndex = i;
+                    }
+                    if (_dgv.DataSource is DataTable dt) {
+                        var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray();
+                        for (int i = 0; i < orderedCols.Length; i++) {
+                            if (dt.Columns.Contains(orderedCols[i])) dt.Columns[orderedCols[i]].SetOrdinal(i);
+                        }
+                    }
+                }
+            } catch { }
         }
 
         private bool VerifyPassword() {
@@ -330,7 +358,6 @@ namespace Safety_System
             Button b = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 150, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
             p.Controls.Add(lbl); p.Controls.Add(t); p.Controls.Add(b);
             p.AcceptButton = b;
-            
             return p.ShowDialog(Form.ActiveForm) == DialogResult.OK && t.Text == "tces";
         }
 
@@ -339,13 +366,10 @@ namespace Safety_System
             
             if (_dgv.DataSource is DataTable dTable) {
                 var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray();
-                for (int i = 0; i < orderedCols.Length; i++) {
-                    if (dTable.Columns.Contains(orderedCols[i])) dTable.Columns[orderedCols[i]].SetOrdinal(i);
-                }
+                for (int i = 0; i < orderedCols.Length; i++) if (dTable.Columns.Contains(orderedCols[i])) dTable.Columns[orderedCols[i]].SetOrdinal(i);
             }
 
-            // 🟢 更新匯出檔案名稱前綴
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx|CSV 檔案 (*.csv)|*.csv", FileName = "水處理用藥記錄_" + DateTime.Now.ToString("yyyyMMdd") }) {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx|CSV 檔案 (*.csv)|*.csv", FileName = "廢水處理用藥記錄_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog(Form.ActiveForm) == DialogResult.OK) {
                     try {
                         DataTable dt = (DataTable)_dgv.DataSource;
@@ -364,6 +388,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 5. 確保 CSV 匯入具備雙引號千分位解碼與防當機功能
         private void BtnImportCsv_Click(object sender, EventArgs e) {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog(Form.ActiveForm) == DialogResult.OK) {
@@ -371,15 +396,88 @@ namespace Safety_System
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
                         if (lines.Length < 2) return; 
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        string[] headers = lines[0].Split(',');
+                        
+                        string[] headers = ParseCsvLine(lines[0]);
+
+                        _calcHelper?.BeginBulkUpdate(); // 開始匯入，關閉即時計算防當機
+
                         for (int i = 1; i < lines.Length; i++) {
                             if (string.IsNullOrWhiteSpace(lines[i])) continue;
-                            DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { string cn = headers[h].Trim(); if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim(); }
+                            DataRow nr = dt.NewRow(); 
+                            string[] vs = ParseCsvLine(lines[i]); 
+                            
+                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
+                                string cn = headers[h].Trim(); 
+                                if (dt.Columns.Contains(cn) && cn != "Id") {
+                                    nr[cn] = vs[h].Trim().Trim('"'); 
+                                }
+                            }
                             dt.Rows.Add(nr);
                         }
-                        MessageBox.Show(Form.ActiveForm, $"載入 {lines.Length - 1} 筆！請記得按儲存。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) { MessageBox.Show(Form.ActiveForm, "匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+
+                        _calcHelper?.EndBulkUpdate(); // 結束匯入，統一計算
+                        MessageBox.Show(Form.ActiveForm, $"載入 {lines.Length - 1} 筆！請記得確認無誤後點擊「儲存」。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) { 
+                        _calcHelper?.EndBulkUpdate(); 
+                        MessageBox.Show(Form.ActiveForm, "匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    }
+                }
+            }
+        }
+
+        private string[] ParseCsvLine(string line)
+        {
+            var result = new System.Collections.Generic.List<string>();
+            bool inQuotes = false;
+            var currentField = new System.Text.StringBuilder();
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '\"') inQuotes = !inQuotes; 
+                else if (c == ',' && !inQuotes) { result.Add(currentField.ToString()); currentField.Clear(); }
+                else currentField.Append(c);
+            }
+            result.Add(currentField.ToString());
+            return result.ToArray();
+        }
+
+        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.V)
+            {
+                try
+                {
+                    string text = Clipboard.GetText();
+                    if (string.IsNullOrEmpty(text)) return;
+                    
+                    _calcHelper?.BeginBulkUpdate(); // 關閉事件，防止迴圈
+
+                    string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    int r = _dgv.CurrentCell.RowIndex;
+                    int c = _dgv.CurrentCell.ColumnIndex;
+                    DataTable dt = (DataTable)_dgv.DataSource;
+
+                    foreach (string line in lines)
+                    {
+                        if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
+                        string[] cells = line.Split('\t');
+                        for (int i = 0; i < cells.Length; i++)
+                        {
+                            if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
+                            {
+                                _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
+                            }
+                        }
+                        r++;
+                    }
+                    
+                    _calcHelper?.EndBulkUpdate(); // 統一重新計算
+                }
+                catch (Exception ex)
+                {
+                    _calcHelper?.EndBulkUpdate();
+                    MessageBox.Show(Form.ActiveForm, "貼上失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
