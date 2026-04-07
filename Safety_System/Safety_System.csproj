@@ -1,4 +1,3 @@
-/// FILE: Safety_System/Safety_System.csproj ///
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
@@ -15,7 +14,6 @@
     <PackageReference Include="EPPlus" Version="4.5.3.3" />
   </ItemGroup>
 
-  <!-- 🟢 強制一鍵載入 Windows 內建圖表庫，免除手動設定，確保可攜式與免安裝 -->
   <ItemGroup>
     <Reference Include="System.Windows.Forms.DataVisualization" />
   </ItemGroup>
