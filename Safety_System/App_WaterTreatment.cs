@@ -1,8 +1,9 @@
+/// FILE: Safety_System/App_WaterTreatment.cs ///
 using System;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq; // 🟢 新增 Linq 支援排序操作
+using System.Linq; 
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -12,7 +13,6 @@ namespace Safety_System
     public class App_WaterTreatment
     {
         private DataGridView _dgv;
-        // 🟢 將原本的 DateTimePicker 改為三個 ComboBox
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
         
@@ -25,11 +25,15 @@ namespace Safety_System
         private const string DbName = "Water"; 
         private const string TableName = "WaterMeterReadings"; 
 
+        // 🟢 加入自動運算共用 Helper，負責星期轉換、相減統計及防呆控制
+        private DataGridViewAutoCalcHelper _calcHelper; 
+
         public Control GetView()
         {
             DataManager.InitTable(DbName, TableName, @"CREATE TABLE IF NOT EXISTS [WaterMeterReadings] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
+                [星期] TEXT,
                 [用電量] TEXT, 
                 [用電量日統計] TEXT, 
                 [廢水進流量] TEXT, 
@@ -63,6 +67,12 @@ namespace Safety_System
                 [污泥產出包數] TEXT,
                 [備註] TEXT);");
 
+            // 系統啟動時若發現沒有星期欄位，自動補上
+            if (!DataManager.GetColumnNames(DbName, TableName).Contains("星期"))
+            {
+                DataManager.AddColumn(DbName, TableName, "星期");
+            }
+
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
@@ -73,7 +83,6 @@ namespace Safety_System
             
             Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             
-            // 🟢 初始化下拉選單
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -81,24 +90,20 @@ namespace Safety_System
             _cboEndMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
 
-            // 🟢 產生當年度算前後各 25 年
             int currentYear = DateTime.Now.Year;
             for (int i = currentYear - 25; i <= currentYear + 25; i++) {
                 _cboStartYear.Items.Add(i);
                 _cboEndYear.Items.Add(i);
             }
-            // 月份 1~12
             for (int i = 1; i <= 12; i++) {
                 _cboStartMonth.Items.Add(i.ToString("D2"));
                 _cboEndMonth.Items.Add(i.ToString("D2"));
             }
-            // 日期 1~31
             for (int i = 1; i <= 31; i++) {
                 _cboStartDay.Items.Add(i.ToString("D2"));
                 _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            // 預設日期連動 (起：前30天，迄：今天)
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
@@ -125,15 +130,13 @@ namespace Safety_System
                 Size = new Size(120, 35), 
                 BackColor = Color.ForestGreen, 
                 ForeColor = Color.White, 
-                Margin = new Padding(0, 3, 3, 3)  // 💡 上方邊距改回正常的 3 
+                Margin = new Padding(0, 3, 3, 3) 
             };
             bSave.Click += (s, e) => {
                 _dgv.EndEdit(); 
-                
                 SaveColumnOrder(); 
 
                 DataTable dtToSave = (DataTable)_dgv.DataSource;
-                // 🟢 2. 寫入時判斷是否有「月份」欄位，強制轉換成 yyyy-mm
                 EnforceMonthFormat(dtToSave);
 
                 if (DataManager.ValidateAndSaveTable(DbName, TableName, dtToSave)) {
@@ -157,7 +160,6 @@ namespace Safety_System
                 _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            // 🟢 加入新式的下拉選單介面到 row1
             row1.Controls.AddRange(new Control[] { 
                 lblRange, 
                 _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, _cboStartDay, lblStartDay, 
@@ -206,8 +208,6 @@ namespace Safety_System
             bReadLatest.Click += (s, e) => {
                 if (int.TryParse(txtLatestCount.Text, out int limit) && limit > 0) {
                     DataTable dt = DataManager.GetLatestRecords(DbName, TableName, limit);
-                    
-                    // 🟢 2. 讀取時判斷是否有「月份」欄位，強制轉換成 yyyy-mm
                     EnforceMonthFormat(dt);
                     _dgv.DataSource = dt;
                     
@@ -227,7 +227,6 @@ namespace Safety_System
                                 if (d > maxD) maxD = d; 
                             }
                         }
-                        // 🟢 回填日期區間邏輯
                         if (minD <= maxD) { 
                             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, minD); 
                             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, maxD); 
@@ -246,6 +245,12 @@ namespace Safety_System
 
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToOrderColumns = true };
             
+            // 🟢 加入 Ctrl+V 貼上事件攔截
+            _dgv.KeyDown += Dgv_KeyDown;
+
+            // 🟢 實例化全域運算共用 Helper 並綁定 DataGridView
+            _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
+
             main.Controls.Add(boxTop, 0, 0);
             main.Controls.Add(_boxAdvanced, 0, 1);
             main.Controls.Add(_dgv, 0, 2);
@@ -257,7 +262,6 @@ namespace Safety_System
         private void RefreshGrid() {
             if (_isFirstLoad) {
                 DataTable dt = DataManager.GetLatestRecords(DbName, TableName, 30);
-                // 🟢 2. 讀取時判斷是否有「月份」欄位，強制轉換
                 EnforceMonthFormat(dt);
                 _dgv.DataSource = dt;
                 
@@ -265,7 +269,6 @@ namespace Safety_System
                 else {
                     DateTime minD = DateTime.MaxValue, maxD = DateTime.MinValue;
                     foreach(DataRow r in dt.Rows) if (DateTime.TryParse(r["日期"]?.ToString(), out DateTime d)) { if (d < minD) minD = d; if (d > maxD) maxD = d; }
-                    // 🟢 回填日期區間邏輯
                     if (minD <= maxD) { 
                         SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, minD); 
                         SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, maxD); 
@@ -273,12 +276,9 @@ namespace Safety_System
                 }
                 _isFirstLoad = false;
             } else {
-                // 🟢 取出下拉選單組裝的日期
                 string sDate = GetStartDate().ToString("yyyy-MM-dd");
                 string eDate = GetEndDate().ToString("yyyy-MM-dd");
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "日期", sDate, eDate);
-                
-                // 🟢 2. 讀取時判斷是否有「月份」欄位，強制轉換
                 EnforceMonthFormat(dt);
                 _dgv.DataSource = dt;
             }
@@ -290,25 +290,20 @@ namespace Safety_System
             RestoreColumnOrder();
         }
 
-        // ==========================================
-        // 🟢 處理「月份」強制轉換成 yyyy-MM 格式方法
-        // ==========================================
         private void EnforceMonthFormat(DataTable dt) {
             if (dt != null && dt.Columns.Contains("月份")) {
                 foreach (DataRow row in dt.Rows) {
                     if (row.RowState == DataRowState.Deleted) continue;
                     string val = row["月份"]?.ToString();
                     if (!string.IsNullOrWhiteSpace(val)) {
-                        // 嘗試正規解析
                         if (DateTime.TryParse(val, out DateTime parsedDate)) {
                             row["月份"] = parsedDate.ToString("yyyy-MM");
                         } else {
-                            // 針對使用者可能輸入 2024/05 或 24/5 等特殊輸入進行容錯解析
                             string normalized = val.Replace("/", "-");
                             var parts = normalized.Split('-');
                             if (parts.Length >= 2) {
                                 if (int.TryParse(parts[0], out int y) && int.TryParse(parts[1], out int m)) {
-                                    if (y < 100) y += 2000; // 簡略處理世紀
+                                    if (y < 100) y += 2000; 
                                     row["月份"] = $"{y:D4}-{m:D2}";
                                 }
                             }
@@ -318,9 +313,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 日期下拉選單的讀寫輔助方法
-        // ==========================================
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
             m.SelectedItem = date.Month.ToString("D2");
@@ -341,7 +333,6 @@ namespace Safety_System
                 int.TryParse(m.SelectedItem.ToString(), out int month) &&
                 int.TryParse(d.SelectedItem.ToString(), out int day)) {
                 try {
-                    // 防呆：如果選擇的日期大於該月的最大天數 (例如 2/31)
                     int daysInMonth = DateTime.DaysInMonth(year, month);
                     if (day > daysInMonth) day = daysInMonth;
                     return new DateTime(year, month, day);
@@ -350,9 +341,6 @@ namespace Safety_System
             return defaultDate;
         }
 
-        // ==========================================
-        // 欄位排序記憶功能：儲存
-        // ==========================================
         private void SaveColumnOrder() {
             try {
                 var orderedCols = _dgv.Columns.Cast<DataGridViewColumn>()
@@ -372,9 +360,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // ==========================================
-        // 欄位排序記憶功能：讀取
-        // ==========================================
         private void RestoreColumnOrder() {
             try {
                 string fileName = $"ColOrder_{DbName}_{TableName}.txt";
@@ -440,6 +425,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 替 CSV 匯入加入 Helper 的防當機開關
         private void BtnImportCsv_Click(object sender, EventArgs e) {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog(Form.ActiveForm) == DialogResult.OK) {
@@ -448,14 +434,64 @@ namespace Safety_System
                         if (lines.Length < 2) return; 
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = lines[0].Split(',');
+
+                        _calcHelper?.BeginBulkUpdate(); // 🟢 開始匯入，關閉即時計算防當機
+
                         for (int i = 1; i < lines.Length; i++) {
                             if (string.IsNullOrWhiteSpace(lines[i])) continue;
                             DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
                             for (int h = 0; h < headers.Length && h < vs.Length; h++) { string cn = headers[h].Trim(); if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim(); }
                             dt.Rows.Add(nr);
                         }
+
+                        _calcHelper?.EndBulkUpdate(); // 🟢 結束匯入，統一計算
+
                         MessageBox.Show(Form.ActiveForm, $"載入 {lines.Length - 1} 筆！請記得按儲存。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) { MessageBox.Show(Form.ActiveForm, "匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                    } catch (Exception ex) { 
+                        _calcHelper?.EndBulkUpdate(); // 發生例外也要確保關閉
+                        MessageBox.Show(Form.ActiveForm, "匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    }
+                }
+            }
+        }
+
+        // 🟢 加入 Excel 複製貼上 (Ctrl+V) 防當機事件
+        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.V)
+            {
+                try
+                {
+                    string text = Clipboard.GetText();
+                    if (string.IsNullOrEmpty(text)) return;
+                    
+                    _calcHelper?.BeginBulkUpdate(); // 🟢 開始貼上，關閉即時計算
+
+                    string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    int r = _dgv.CurrentCell.RowIndex;
+                    int c = _dgv.CurrentCell.ColumnIndex;
+                    DataTable dt = (DataTable)_dgv.DataSource;
+
+                    foreach (string line in lines)
+                    {
+                        if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
+                        string[] cells = line.Split('\t');
+                        for (int i = 0; i < cells.Length; i++)
+                        {
+                            if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
+                            {
+                                _dgv[c + i, r].Value = cells[i].Trim();
+                            }
+                        }
+                        r++;
+                    }
+
+                    _calcHelper?.EndBulkUpdate(); // 🟢 結束貼上，統一計算
+                }
+                catch (Exception ex)
+                {
+                    _calcHelper?.EndBulkUpdate();
+                    MessageBox.Show(Form.ActiveForm, "貼上失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
