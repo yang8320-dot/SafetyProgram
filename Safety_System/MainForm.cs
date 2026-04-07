@@ -1,3 +1,4 @@
+/// FILE: Safety_System/MainForm.cs ///
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -106,6 +107,8 @@ namespace Safety_System
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_WaterTreatment().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_WaterChemicals().GetView()));
+            // 🟢 新增：【日】自來水使用量
+            menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_WaterUsageDaily().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_DischargeData().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_WaterVolume().GetView()));
 
@@ -119,9 +122,6 @@ namespace Safety_System
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_HazardStats().GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_FireEquip().GetView()));
 
-            // ==========================================
-            // 🟢 新增：檢測數據 主選單與對應的子模組
-            // ==========================================
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
             menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_EnvMonitor().GetView()));
@@ -150,7 +150,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 將 menuTest 插入到 menuFire 和 menuSettings 之間
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuSettings 
