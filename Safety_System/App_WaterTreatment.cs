@@ -37,8 +37,9 @@ namespace Safety_System
                 [用電量] TEXT, 
                 [用電量日統計] TEXT, 
                 [廢水進流量] TEXT, 
-                [廢水處理量日統計] TEXT, 
+                [廢水進流量日統計] TEXT, 
                 [廢水處理量] TEXT, 
+                [廢水處理量日統計] TEXT, 
                 [水站廢水排放量] TEXT, 
                 [水站廢水排放量日統計] TEXT, 
                 [納管排放量] TEXT,
@@ -49,7 +50,6 @@ namespace Safety_System
                 [雙介質A日統計] TEXT, 
                 [雙介質B] TEXT, 
                 [雙介質B日統計] TEXT, 
-                [雙介質AB日統計] TEXT, 
                 [軟水A] TEXT, 
                 [軟水A日統計] TEXT, 
                 [軟水B] TEXT, 
@@ -60,8 +60,6 @@ namespace Safety_System
                 [濃縮水至冷卻水池日統計] TEXT,
                 [濃縮水至逆洗池] TEXT,
                 [濃縮水至逆洗池日統計] TEXT,
-                [廠區自來水] TEXT,
-                [廠區自來水日統計] TEXT,
                 [污泥產出包數] TEXT,
                 [備註] TEXT);");
 
