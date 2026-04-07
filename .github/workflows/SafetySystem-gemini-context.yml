@@ -3,7 +3,7 @@ name: Generate Safety System Context
 on:
   push:
     branches: [ "main", "master" ]
-  workflow_dispatch: # 允許在 Actions 頁面手動點擊執行
+  workflow_dispatch:
 
 jobs:
   build:
@@ -23,25 +23,22 @@ jobs:
         cat << 'EOF' > generate_context.py
         import os
 
-        # 1. 目標資料夾
         TARGET_DIR = 'Safety_System'
         
-        # 2. 擴充到「所有常見程式碼」的副檔名
         valid_extensions = (
             '.cs', '.csproj', '.json', '.xml', '.config', 
             '.cshtml', '.html', '.css', '.js', '.ts', 
             '.sql', '.md', '.txt', '.py', '.bat', '.sh'
         )
         
-        # 3. 排除編譯產生的垃圾檔案
         exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults', 'node_modules'}
 
         if not os.path.exists(TARGET_DIR):
-            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！請檢查大小寫是否完全一致。")
+            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")
             exit(1)
 
-        # 暫存所有檔案內容與計算總長度
         file_data_list = []
+        file_paths = [] # 用來儲存目錄清單
         total_length = 0
 
         for root, dirs, files in os.walk(TARGET_DIR):
@@ -51,42 +48,46 @@ jobs:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, '.')
                     
+                    file_paths.append(rel_path) # 記錄檔案路徑
+                    
                     try:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
                             content = code_f.read()
                     except Exception as e:
                         content = f"// 無法讀取此檔案: {e}\n"
                     
-                    # 格式化單一檔案的內容
                     formatted_content = f"\n{'='*50}\n/// FILE: {rel_path} ///\n{'='*50}\n\n{content}\n"
                     file_data_list.append(formatted_content)
                     total_length += len(formatted_content)
 
-        # 計算每個檔案的目標長度 (分成 5 份)
+        # 1. 獨立產出一個「專案結構與目錄清單」檔案
+        with open('0_project_tree.txt', 'w', encoding='utf-8') as f_tree:
+            f_tree.write(f"# {TARGET_DIR} 專案檔案總覽 (總計 {len(file_paths)} 個檔案)\n\n")
+            for path in sorted(file_paths):
+                f_tree.write(f"- {path}\n")
+
+        # 2. 依照長度平均切割程式碼內容 (維持分成 5 份)
         NUM_PARTS = 5
         target_size_per_part = total_length / NUM_PARTS
         
         current_part = 1
         current_size = 0
         
-        # 開啟第一個檔案
         f_out = open(f'project_context_part{current_part}.txt', 'w', encoding='utf-8')
-        f_out.write(f"# {TARGET_DIR} 專案完整代碼上下文 - Part {current_part} / {NUM_PARTS}\n\n")
+        f_out.write(f"# {TARGET_DIR} 專案完整代碼 - Part {current_part} / {NUM_PARTS}\n\n")
 
         for data in file_data_list:
-            # 如果加上這筆資料會超過目標大小，且還沒到第5個檔，且目前檔案已經有寫入東西，就換下一個新檔
             if current_size + len(data) > target_size_per_part and current_part < NUM_PARTS and current_size > 0:
                 f_out.close()
                 current_part += 1
                 current_size = 0
                 f_out = open(f'project_context_part{current_part}.txt', 'w', encoding='utf-8')
-                f_out.write(f"# {TARGET_DIR} 專案完整代碼上下文 - Part {current_part} / {NUM_PARTS}\n\n")
+                f_out.write(f"# {TARGET_DIR} 專案完整代碼 - Part {current_part} / {NUM_PARTS}\n\n")
             
             f_out.write(data)
             current_size += len(data)
 
         f_out.close()
-        print(f"成功將專案內容平均分配至 {current_part} 個 txt 檔案中。")
         EOF
         python generate_context.py
 
@@ -94,6 +95,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Safety-System-Context
-        # 使用萬用字元一次上傳所有切分好的 txt 檔
-        path: project_context_part*.txt
+        # 將目錄檔與程式碼分割檔一起打包
+        path: |
+          0_project_tree.txt
+          project_context_part*.txt
         retention-days: 7
