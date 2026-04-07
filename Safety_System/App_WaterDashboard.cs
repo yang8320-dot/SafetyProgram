@@ -83,10 +83,10 @@ namespace Safety_System
             _chartMonthly = CreateChart("每月趨勢比較 (近三年)");
             _chartYearly = CreateChart("年度總量比較 (近三年)");
 
-            tlpCharts.Controls.Add(_chartDaily, 0, 0); // 左上 (跨兩列的話也可以，目前設為佔一格)
-            tlpCharts.SetRowSpan(_chartDaily, 2);      // 讓每日變化圖佔滿左半邊
-            tlpCharts.Controls.Add(_chartMonthly, 1, 0); // 右上
-            tlpCharts.Controls.Add(_chartYearly, 1, 1);  // 右下
+            tlpCharts.Controls.Add(_chartDaily, 0, 0); 
+            tlpCharts.SetRowSpan(_chartDaily, 2);      
+            tlpCharts.Controls.Add(_chartMonthly, 1, 0); 
+            tlpCharts.Controls.Add(_chartYearly, 1, 1);  
 
             mainPanel.Controls.Add(tlpCharts);
 
@@ -133,6 +133,19 @@ namespace Safety_System
             return chart;
         }
 
+        // 🟢 加入安全取資料防呆功能：若資料表不存在或錯誤，回傳空表不當機
+        private DataTable SafeGetTableData(string dbName, string tableName, string startDate, string endDate)
+        {
+            try
+            {
+                return DataManager.GetTableData(dbName, tableName, "日期", startDate, endDate);
+            }
+            catch
+            {
+                return new DataTable(); // 發生任何錯誤(如表不存在)，直接回傳空表
+            }
+        }
+
         private void LoadDashboardData()
         {
             if (_cboYear.SelectedItem == null || _cboMonth.SelectedItem == null || _cboMetric.SelectedItem == null) return;
@@ -141,7 +154,6 @@ namespace Safety_System
             int targetMonth = int.Parse(_cboMonth.SelectedItem.ToString());
             string metric = _cboMetric.SelectedItem.ToString();
 
-            // 判斷要撈取的 Table 與 Column
             string tableName = "";
             string valCol = "";
 
@@ -158,10 +170,10 @@ namespace Safety_System
 
             try
             {
-                // 讀取三年資料 (以減少資料庫請求次數)
-                DataTable dtY0 = DataManager.GetTableData(DbName, tableName, "日期", $"{targetYear}-01-01", $"{targetYear}-12-31");
-                DataTable dtY1 = DataManager.GetTableData(DbName, tableName, "日期", $"{targetYear - 1}-01-01", $"{targetYear - 1}-12-31");
-                DataTable dtY2 = DataManager.GetTableData(DbName, tableName, "日期", $"{targetYear - 2}-01-01", $"{targetYear - 2}-12-31");
+                // 🟢 使用安全取資料函數
+                DataTable dtY0 = SafeGetTableData(DbName, tableName, $"{targetYear}-01-01", $"{targetYear}-12-31");
+                DataTable dtY1 = SafeGetTableData(DbName, tableName, $"{targetYear - 1}-01-01", $"{targetYear - 1}-12-31");
+                DataTable dtY2 = SafeGetTableData(DbName, tableName, $"{targetYear - 2}-01-01", $"{targetYear - 2}-12-31");
 
                 DrawDailyChart(dtY0, dtY1, targetYear, targetMonth, valCol);
                 DrawMonthlyChart(dtY0, dtY1, dtY2, targetYear, valCol);
@@ -171,7 +183,8 @@ namespace Safety_System
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"圖表資料載入異常：{ex.Message}\n\n可能原因：資料表尚未建立或欄位名稱不符。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // 最高層級防護網
+                MessageBox.Show($"圖表資料繪製異常：{ex.Message}", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -183,12 +196,20 @@ namespace Safety_System
             _lblKpi1.Text = sumY0.ToString("N1");
             _lblKpi2.Text = sumY1.ToString("N1");
 
+            // 🟢 分母為零與空值防呆處理
             if (sumY1 > 0) {
                 double yoy = ((sumY0 - sumY1) / sumY1) * 100;
                 _lblKpi3.Text = (yoy > 0 ? "+" : "") + yoy.ToString("N1") + " %";
                 _lblKpi3.ForeColor = yoy > 0 ? Color.IndianRed : Color.Green;
-            } else {
-                _lblKpi3.Text = "N/A";
+            } 
+            else if (sumY0 > 0 && sumY1 == 0) 
+            {
+                _lblKpi3.Text = "新數據";
+                _lblKpi3.ForeColor = Color.SteelBlue;
+            } 
+            else 
+            {
+                _lblKpi3.Text = "無基期";
                 _lblKpi3.ForeColor = Color.DimGray;
             }
         }
@@ -261,34 +282,32 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 資料聚合輔助函數
+        // 🟢 資料聚合輔助函數 (加入安全字串與數值轉換防呆)
         // ==========================================
         private double GetValForDay(DataTable dt, int month, int day, string valCol)
         {
-            if (dt == null || !dt.Columns.Contains(valCol)) return 0;
+            if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
             string dateStrTarget = $"-{month:D2}-{day:D2}";
+            
             var rows = dt.AsEnumerable().Where(r => r["日期"]?.ToString().Contains(dateStrTarget) == true);
             foreach (var r in rows)
             {
-                if (double.TryParse(r[valCol]?.ToString(), out double v)) return v;
+                string valStr = r[valCol]?.ToString().Replace(",", "").Trim();
+                if (double.TryParse(valStr, out double v)) return v;
             }
             return 0;
         }
 
         private double GetSumForMonth(DataTable dt, int month, string valCol)
         {
-            if (dt == null || !dt.Columns.Contains(valCol)) return 0;
+            if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
             string dateStrTarget = $"-{month:D2}-";
+            
             return dt.AsEnumerable()
                      .Where(r => r["日期"]?.ToString().Contains(dateStrTarget) == true)
-                     .Sum(r => double.TryParse(r[valCol]?.ToString(), out double v) ? v : 0);
+                     .Sum(r => double.TryParse(r[valCol]?.ToString().Replace(",", "").Trim(), out double v) ? v : 0);
         }
 
         private double GetSumForYear(DataTable dt, string valCol)
         {
-            if (dt == null || !dt.Columns.Contains(valCol)) return 0;
-            return dt.AsEnumerable()
-                     .Sum(r => double.TryParse(r[valCol]?.ToString(), out double v) ? v : 0);
-        }
-    }
-}
+            if (dt == null || dt.Rows.C
