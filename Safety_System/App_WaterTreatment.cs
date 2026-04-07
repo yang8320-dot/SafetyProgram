@@ -50,8 +50,6 @@ namespace Safety_System
                 [雙介質B] TEXT, 
                 [雙介質B日統計] TEXT, 
                 [雙介質AB日統計] TEXT, 
-                [自來水至貯存池] TEXT, 
-                [自來水至貯存池日統計] TEXT, 
                 [軟水A] TEXT, 
                 [軟水A日統計] TEXT, 
                 [軟水B] TEXT, 
