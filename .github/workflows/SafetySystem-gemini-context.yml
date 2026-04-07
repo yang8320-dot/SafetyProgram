@@ -37,18 +37,17 @@ jobs:
             print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")
             exit(1)
 
-        file_data_list = []
-        file_paths = [] # 用來儲存目錄清單
-        total_length = 0
+        file_paths = []
+        full_content = []
 
+        # 遍歷資料夾並收集資料
         for root, dirs, files in os.walk(TARGET_DIR):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             for file in files:
                 if file.lower().endswith(valid_extensions):
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, '.')
-                    
-                    file_paths.append(rel_path) # 記錄檔案路徑
+                    file_paths.append(rel_path)
                     
                     try:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
@@ -56,38 +55,22 @@ jobs:
                     except Exception as e:
                         content = f"// 無法讀取此檔案: {e}\n"
                     
-                    formatted_content = f"\n{'='*50}\n/// FILE: {rel_path} ///\n{'='*50}\n\n{content}\n"
-                    file_data_list.append(formatted_content)
-                    total_length += len(formatted_content)
+                    # 格式化內容
+                    header = f"\n{'='*60}\n/// FILE: {rel_path} ///\n{'='*60}\n\n"
+                    full_content.append(header + content + "\n")
 
-        # 1. 獨立產出一個「專案結構與目錄清單」檔案
+        # 1. 寫入目錄結構檔
         with open('0_project_tree.txt', 'w', encoding='utf-8') as f_tree:
             f_tree.write(f"# {TARGET_DIR} 專案檔案總覽 (總計 {len(file_paths)} 個檔案)\n\n")
             for path in sorted(file_paths):
                 f_tree.write(f"- {path}\n")
 
-        # 2. 依照長度平均切割程式碼內容 (維持分成 5 份)
-        NUM_PARTS = 5
-        target_size_per_part = total_length / NUM_PARTS
-        
-        current_part = 1
-        current_size = 0
-        
-        f_out = open(f'project_context_part{current_part}.txt', 'w', encoding='utf-8')
-        f_out.write(f"# {TARGET_DIR} 專案完整代碼 - Part {current_part} / {NUM_PARTS}\n\n")
+        # 2. 寫入單一完整程式碼檔
+        with open('project_context_all.txt', 'w', encoding='utf-8') as f_all:
+            f_all.write(f"# {TARGET_DIR} 專案完整代碼總覽\n")
+            f_all.write("".join(full_content))
 
-        for data in file_data_list:
-            if current_size + len(data) > target_size_per_part and current_part < NUM_PARTS and current_size > 0:
-                f_out.close()
-                current_part += 1
-                current_size = 0
-                f_out = open(f'project_context_part{current_part}.txt', 'w', encoding='utf-8')
-                f_out.write(f"# {TARGET_DIR} 專案完整代碼 - Part {current_part} / {NUM_PARTS}\n\n")
-            
-            f_out.write(data)
-            current_size += len(data)
-
-        f_out.close()
+        print(f"成功生成目錄與完整內容，共計 {len(file_paths)} 個檔案。")
         EOF
         python generate_context.py
 
@@ -95,8 +78,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Safety-System-Context
-        # 將目錄檔與程式碼分割檔一起打包
         path: |
           0_project_tree.txt
-          project_context_part*.txt
+          project_context_all.txt
         retention-days: 7
