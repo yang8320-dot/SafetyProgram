@@ -56,9 +56,7 @@ namespace Safety_System
             // 如果正在大批匯入，或點擊的是標題列，則跳過即時運算 (防呆容錯)
             if (_isBulkUpdating || e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
-            string colName = _dgv.Columns[e.ColumnIndex].Name;
-
-            // 如果異動的是「日期」或是「被當作基底的數值欄位」，則觸發計算
+            // 觸發當前列計算
             CalculateRow(e.RowIndex);
 
             // 【關鍵邏輯】如果修改了第 N 列的基底數值，第 N+1 列的「統計」也會受影響，必須連鎖更新下一列
@@ -110,14 +108,17 @@ namespace Safety_System
 
                     if (_dgv.Columns.Contains(baseColName))
                     {
-                        string currentValStr = currentRow.Cells[baseColName].Value?.ToString();
+                        // 🟢 取出目前數值，並強制濾掉千分位逗號與空白
+                        string currentValStr = currentRow.Cells[baseColName].Value?.ToString().Replace(",", "").Trim();
 
                         // 判斷是否為有效數值 (非數值防呆容錯，非數值不運算)
                         if (double.TryParse(currentValStr, out double currentVal))
                         {
                             if (prevRow != null)
                             {
-                                string prevValStr = prevRow.Cells[baseColName].Value?.ToString();
+                                // 🟢 取出上一筆數值，同樣濾掉千分位逗號
+                                string prevValStr = prevRow.Cells[baseColName].Value?.ToString().Replace(",", "").Trim();
+                                
                                 if (double.TryParse(prevValStr, out double prevVal))
                                 {
                                     // 計算方法：目前值 減去 前一筆的值
@@ -162,7 +163,8 @@ namespace Safety_System
                 if (col.Name == "星期" || col.Name.EndsWith("日統計") || col.Name.EndsWith("月統計") || col.Name.EndsWith("年統計"))
                 {
                     col.ReadOnly = true;
-                    col.DefaultCellStyle.BackColor = System.Drawing.Color.WhiteSmoke; // 視覺上提示唯讀
+                    // 視覺上提示唯讀
+                    col.DefaultCellStyle.BackColor = System.Drawing.Color.WhiteSmoke; 
                     col.DefaultCellStyle.ForeColor = System.Drawing.Color.DimGray;
                 }
             }
