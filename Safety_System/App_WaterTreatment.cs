@@ -62,8 +62,6 @@ namespace Safety_System
                 [濃縮水至冷卻水池日統計] TEXT,
                 [濃縮水至逆洗池] TEXT,
                 [濃縮水至逆洗池日統計] TEXT,
-                [廠區自來水] TEXT,
-                [廠區自來水日統計] TEXT,
                 [污泥產出包數] TEXT,
                 [備註] TEXT);");
 
@@ -118,22 +116,22 @@ namespace Safety_System
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
             // 操作按鈕
-            Button bRead = new Button { Text = "🔍 讀取資料", Size = new Size(110, 35), BackColor = Color.WhiteSmoke };
+            Button bRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) MessageBox.Show("資料載入完成！"); };
 
             Button bSave = new Button { 
-                Name = "btnSave", Text = "💾 儲存數據", Size = new Size(110, 35), 
+                Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
             bSave.Click += BtnSave_Click; // 獨立出方法處理儲存邏輯
             
-            Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(110, 35) };
+            Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) };
             bExport.Click += BtnExport_Click;
 
-            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(110, 35) };
+            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(150, 35) };
             bImport.Click += BtnImportCsv_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(130, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
@@ -219,7 +217,7 @@ namespace Safety_System
                 DataTable dt = (DataTable)_dgv.DataSource;
                 EnforceMonthFormat(dt);
                 if (DataManager.BulkSaveTable(DbName, TableName, dt)) {
-                    MessageBox.Show("儲存完成！已啟用 Transaction 交易機制進行極速寫入。");
+                    MessageBox.Show("儲存完成！");
                     RefreshGrid();
                 }
             } finally {
@@ -360,7 +358,7 @@ namespace Safety_System
                         _calcHelper?.EndBulkUpdate();
                         _dgv.DataSource = dt; // 重新接回 UI
                         RestoreColumnOrder();
-                        MessageBox.Show("匯入成功！系統已完成數萬次運算，請檢查數據後點擊儲存。");
+                        MessageBox.Show("匯入成功!請檢查數據後點擊儲存。");
                     } catch (Exception ex) { RefreshGrid(); MessageBox.Show("匯入異常：" + ex.Message); }
                 }
             }
