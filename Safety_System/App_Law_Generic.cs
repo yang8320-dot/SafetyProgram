@@ -38,8 +38,14 @@ namespace Safety_System
                 [法規名稱] TEXT, 
                 [發布機關] TEXT, 
                 [施行日期] TEXT, 
+                [條] TEXT,
+                [項] TEXT,
+                [款] TEXT,
+                [目] TEXT,
+                [內容] TEXT,
                 [重點摘要] TEXT, 
                 [合規狀態] TEXT, 
+                [鑑別日期] TEXT,
                 [備註] TEXT);");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
