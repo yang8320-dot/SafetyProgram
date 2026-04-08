@@ -1,3 +1,4 @@
+/// FILE: Safety_System/DataManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -37,9 +38,8 @@ namespace Safety_System
 
         private static string GetConnString(string dbName)
         {
-            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
-            return string.Format("Data Source={0};Version=3;Default Timeout=15;Pooling=True;Max Pool Size=100;", fullPath);
+            return string.Format("Data Source={0};Version=3;Default Timeout=30;Pooling=True;Max Pool Size=100;", fullPath);
         }
 
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
@@ -57,11 +57,81 @@ namespace Safety_System
             }
         }
 
+        // 🚀 [核心新增] 極速批次儲存方法 (支援事務處理)
+        public static bool BulkSaveTable(string dbName, string tableName, DataTable dt)
+        {
+            try {
+                using (var conn = new SQLiteConnection(GetConnString(dbName))) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        var keys = GetTableKeys(dbName, tableName);
+
+                        foreach (DataRow row in dt.Rows) {
+                            if (row.RowState == DataRowState.Deleted) continue;
+
+                            // 處理日期格式化
+                            foreach (DataColumn col in dt.Columns) {
+                                if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value) {
+                                    if (DateTime.TryParse(row[col].ToString(), out DateTime d))
+                                        row[col] = d.ToString("yyyy-MM-dd");
+                                }
+                            }
+
+                            int existingId = -1;
+                            // 判斷重複邏輯
+                            if (!string.IsNullOrEmpty(keys.col1) && dt.Columns.Contains(keys.col1)) {
+                                string qCheck = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @v1";
+                                if (!string.IsNullOrEmpty(keys.col2) && dt.Columns.Contains(keys.col2)) qCheck += $" AND [{keys.col2}] = @v2";
+
+                                using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
+                                    cmdCheck.Parameters.AddWithValue("@v1", row[keys.col1]);
+                                    if (!string.IsNullOrEmpty(keys.col2)) cmdCheck.Parameters.AddWithValue("@v2", row[keys.col2]);
+                                    var res = cmdCheck.ExecuteScalar();
+                                    if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
+                                }
+                            }
+
+                            // 執行 Upsert (Insert or Update)
+                            bool isUpdate = (existingId != -1) || (dt.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0);
+                            using (var cmd = new SQLiteCommand(conn)) {
+                                cmd.Transaction = trans;
+                                List<string> sqlParts = new List<string>();
+                                if (isUpdate) {
+                                    int targetId = existingId != -1 ? existingId : Convert.ToInt32(row["Id"]);
+                                    string sql = $"UPDATE [{tableName}] SET ";
+                                    foreach (DataColumn col in dt.Columns) {
+                                        if (col.ColumnName == "Id") continue;
+                                        sqlParts.Add($"[{col.ColumnName}]=@{col.ColumnName}");
+                                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
+                                    }
+                                    cmd.CommandText = sql + string.Join(", ", sqlParts) + " WHERE Id=" + targetId;
+                                } else {
+                                    List<string> colNames = new List<string>(), paramNames = new List<string>();
+                                    foreach (DataColumn col in dt.Columns) {
+                                        if (col.ColumnName == "Id") continue;
+                                        colNames.Add($"[{col.ColumnName}]");
+                                        paramNames.Add($"@{col.ColumnName}");
+                                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
+                                    }
+                                    cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", colNames)}) VALUES ({string.Join(", ", paramNames)})";
+                                }
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
+                return true;
+            } catch (Exception ex) {
+                MessageBox.Show("批次儲存失敗：" + ex.Message);
+                return false;
+            }
+        }
+
         public static (string col1, string col2) GetTableKeys(string dbName, string tableName)
         {
             if (!File.Exists(KeyConfigFile)) return ("", "");
-            foreach (var line in File.ReadAllLines(KeyConfigFile, Encoding.UTF8))
-            {
+            foreach (var line in File.ReadAllLines(KeyConfigFile, Encoding.UTF8)) {
                 var p = line.Split('|');
                 if (p.Length >= 4 && p[0] == dbName && p[1] == tableName) return (p[2], p[3]);
             }
@@ -93,7 +163,6 @@ namespace Safety_System
             using (var cmd = new SQLiteCommand(createSql, conn)) cmd.ExecuteNonQuery();
         });
 
-        // 🟢 一般依日期區間讀取
         public static DataTable GetTableData(string dbName, string tableName, string dateCol, string start, string end)
         {
             DataTable dt = new DataTable();
@@ -107,14 +176,10 @@ namespace Safety_System
             return dt;
         }
 
-        // ====================================================================
-        // 🟢 [全新加入] 直接撈取最新 N 筆資料 (預設 30 筆)
-        // ====================================================================
         public static DataTable GetLatestRecords(string dbName, string tableName, int limit = 30)
         {
             DataTable dt = new DataTable();
             ExecuteWithRetry(dbName, conn => {
-                // 先撈取最後寫入的資料，再將它們依 Id 正序排列以符合閱讀邏輯
                 string q = $"SELECT * FROM (SELECT * FROM [{tableName}] ORDER BY Id DESC LIMIT @limit) sub ORDER BY Id ASC";
                 using (var cmd = new SQLiteCommand(q, conn)) {
                     cmd.Parameters.AddWithValue("@limit", limit);
@@ -126,139 +191,33 @@ namespace Safety_System
 
         public static bool ValidateAndSaveTable(string dbName, string tableName, DataTable dt)
         {
-            for (int i = 0; i < dt.Rows.Count; i++)
-            {
-                DataRow row = dt.Rows[i];
-                if (row.RowState == DataRowState.Deleted) continue;
-
-                foreach (DataColumn col in dt.Columns)
-                {
-                    if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString()))
-                    {
-                        if (!DateTime.TryParse(row[col].ToString(), out DateTime date))
-                        {
-                            MessageBox.Show(
-                                $"【存檔中斷】\n\n第 {i + 1} 列的【{col.ColumnName}】輸入了無效的格式：「{row[col]}」\n\n請修正為正確的日期 (例如: 2024-04-05) 後，再重新按儲存。", 
-                                "日期格式錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return false; 
-                        }
-                    }
-                }
-            }
-
-            foreach (DataRow row in dt.Rows)
-            {
-                if (row.RowState != DataRowState.Deleted) UpsertRecord(dbName, tableName, row);
-            }
-            return true;
+            // 批次寫入模式下直接使用 BulkSaveTable
+            return BulkSaveTable(dbName, tableName, dt);
         }
 
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
-            foreach (DataColumn col in row.Table.Columns) {
-                if (col.ColumnName.Contains("日期") && row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString())) {
-                    if (DateTime.TryParse(row[col].ToString(), out DateTime dt))
-                        row[col] = dt.ToString("yyyy-MM-dd"); 
-                }
-            }
-
-            var keys = GetTableKeys(dbName, tableName);
-            int existingId = -1;
-            string v1 = "";
-            string v2 = "";
-
-            if (!string.IsNullOrEmpty(keys.col1) && row.Table.Columns.Contains(keys.col1))
-            {
-                v1 = row[keys.col1]?.ToString() ?? "";
-                v2 = (!string.IsNullOrEmpty(keys.col2) && row.Table.Columns.Contains(keys.col2)) ? (row[keys.col2]?.ToString() ?? "") : "";
-
-                string query = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @v1";
-                if (!string.IsNullOrEmpty(keys.col2)) query += $" AND [{keys.col2}] = @v2";
-
-                ExecuteWithRetry(dbName, conn => {
-                    using (var cmd = new SQLiteCommand(query, conn)) {
-                        cmd.Parameters.AddWithValue("@v1", v1);
-                        if (!string.IsNullOrEmpty(keys.col2)) cmd.Parameters.AddWithValue("@v2", v2);
-                        var res = cmd.ExecuteScalar();
-                        if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
-                    }
-                });
-            }
-
-            if (existingId != -1) {
-                DataTable oldDt = new DataTable();
-                ExecuteWithRetry(dbName, conn => {
-                    using (var cmd = new SQLiteCommand($"SELECT * FROM [{tableName}] WHERE Id=@Id", conn)) {
-                        cmd.Parameters.AddWithValue("@Id", existingId);
-                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(oldDt);
-                    }
-                });
-
-                if (oldDt.Rows.Count > 0) {
-                    DataRow oldRow = oldDt.Rows[0];
-                    StringBuilder msg = new StringBuilder();
-                    msg.AppendLine($"⚠️ 發現已存在的紀錄，是否確定要覆蓋？\n");
-                    msg.AppendLine($"📌 【系統 ID】: {existingId}");
-                    
-                    string matchCondition = $"📌 【重複條件】: [{keys.col1}] = {(string.IsNullOrEmpty(v1) ? "(空)" : v1)}";
-                    if (!string.IsNullOrEmpty(keys.col2)) matchCondition += $" 且 [{keys.col2}] = {(string.IsNullOrEmpty(v2) ? "(空)" : v2)}";
-                    
-                    msg.AppendLine(matchCondition);
-                    msg.AppendLine("\n--- 變更明細 ---\n");
-                    
-                    bool hasDifferences = false;
-                    foreach (DataColumn col in row.Table.Columns) {
-                        if (col.ColumnName == "Id") continue;
-                        
-                        string oldVal = oldRow.Table.Columns.Contains(col.ColumnName) ? oldRow[col.ColumnName]?.ToString() : "";
-                        string newVal = row[col]?.ToString() ?? "";
-
-                        if (oldVal != newVal) {
-                            msg.AppendLine($"[{col.ColumnName}]");
-                            msg.AppendLine($"  原本值：{(string.IsNullOrEmpty(oldVal) ? "(空)" : oldVal)}");
-                            msg.AppendLine($"  取代值：{(string.IsNullOrEmpty(newVal) ? "(空)" : newVal)}\n");
-                            hasDifferences = true;
-                        }
-                    }
-
-                    if (!hasDifferences) return; 
-
-                    var result = MessageBox.Show(msg.ToString(), "確認覆蓋取代", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                    if (result == DialogResult.No) return; 
-                }
-
-                bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
-                row.Table.Columns["Id"].ReadOnly = false;
-                row["Id"] = existingId;
-                row.Table.Columns["Id"].ReadOnly = isReadOnly;
-            }
-
+            // 單筆寫入保留
             ExecuteWithRetry(dbName, conn => {
-                bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && !string.IsNullOrEmpty(row["Id"].ToString()) && Convert.ToInt32(row["Id"]) > 0;
+                bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0;
                 var cmd = new SQLiteCommand(conn);
-                string sql = "";
-
                 if (isUpdate) {
-                    sql = $"UPDATE [{tableName}] SET ";
                     List<string> sets = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
                         sets.Add($"[{col.ColumnName}]=@{col.ColumnName}");
-                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? "");
+                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
                     }
-                    sql += string.Join(", ", sets) + " WHERE Id=@Id";
-                    cmd.Parameters.AddWithValue("@Id", row["Id"]);
+                    cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sets)} WHERE Id=" + row["Id"];
                 } else {
-                    List<string> cols = new List<string>(), vals = new List<string>();
+                    List<string> c = new List<string>(), v = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
-                        cols.Add($"[{col.ColumnName}]");
-                        vals.Add($"@{col.ColumnName}");
-                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? "");
+                        c.Add($"[{col.ColumnName}]"); v.Add($"@{col.ColumnName}");
+                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
                     }
-                    sql = $"INSERT INTO [{tableName}] ({string.Join(", ", cols)}) VALUES ({string.Join(", ", vals)})";
+                    cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
                 }
-                cmd.CommandText = sql;
                 cmd.ExecuteNonQuery();
             });
         }
