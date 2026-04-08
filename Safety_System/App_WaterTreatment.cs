@@ -123,7 +123,7 @@ namespace Safety_System
                 Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
-            bSave.Click += BtnSave_Click; // 獨立出方法處理儲存邏輯
+            bSave.Click += BtnSave_Click; // 處理儲存邏輯
             
             Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) };
             bExport.Click += BtnExport_Click;
@@ -160,19 +160,25 @@ namespace Safety_System
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true };
             _txtNewColName = new TextBox { Width = 150 };
+            
+            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
-            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && VerifyPassword()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
+            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyPassword()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
+            
+            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
-            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && VerifyPassword()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
+            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyPassword()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
             
+            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null && VerifyPassword()) { DataManager.DropColumn(DbName, TableName, _cboColumns.SelectedItem.ToString()); RefreshGrid(); } };
+            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyPassword()) { DataManager.DropColumn(DbName, TableName, _cboColumns.SelectedItem.ToString()); RefreshGrid(); } };
             
+            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
-            bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
+            bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && AuthManager.VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
 
             rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
             
@@ -221,7 +227,7 @@ namespace Safety_System
                     RefreshGrid();
                 }
             } finally {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = CursDefault;
             }
         }
 
@@ -294,16 +300,6 @@ namespace Safety_System
                         if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i;
                 }
             } catch { }
-        }
-
-        private bool VerifyPassword()
-        {
-            Form p = new Form { Width = 400, Height = 250, Text = "授權驗證", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog };
-            TextBox t = new TextBox { PasswordChar = '*', Width = 300, Left = 40, Top = 80, Font = new Font("UI", 14F) };
-            Button b = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 220, Top = 140, Width = 120, Height = 40 };
-            p.Controls.Add(new Label { Text = "請輸入系統管理密碼：", Left = 40, Top = 30, AutoSize = true });
-            p.Controls.Add(t); p.Controls.Add(b);
-            return p.ShowDialog() == DialogResult.OK && t.Text == "tces";
         }
 
         private void BtnExport_Click(object sender, EventArgs e)
