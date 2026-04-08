@@ -32,7 +32,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 動態初始化資料表 (預設建立基本法規欄位，後續可從介面自由新增)
+            // 動態初始化資料表
             DataManager.InitTable(_dbName, _tableName, $@"CREATE TABLE IF NOT EXISTS [{_tableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
@@ -92,16 +92,16 @@ namespace Safety_System
 
             flpAdvMain.Controls.Add(row2); _boxAdvanced.Controls.Add(flpAdvMain);
 
-            // 🟢 DataGridView 初始化設定：加入自動換行(AutoSizeRowsMode)支援
+            // 🟢 DataGridView 初始化：開啟列高自動延展功能
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells // 讓列高自動適應折行的文字
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells // 讓高度適應文字行數
             };
             
-            // 🟢 攔截 DataError 事件防呆與控制編輯模式
+            // 🟢 攔截 DataError 與 編輯控制項事件 (這兩個是防呆與換行的關鍵)
             _dgv.DataError += Dgv_DataError;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
 
@@ -118,30 +118,30 @@ namespace Safety_System
                 _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd")); 
             }
             
-            // 🟢 呼叫轉換下拉選單的方法 (適用性、條、項、款、目)
+            // 🟢 呼叫轉換下拉選單的方法
             SetupComboBoxColumns();
             
-            // 🟢 呼叫設定長文字自動換行的方法
+            // 🟢 呼叫設定長文字自動換行與寬度限制的方法
             SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
             _cboColumns.Items.Clear();
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+            
+            // 強制重繪表格列高
+            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
-        // 🟢 將指定文字欄位替換為下拉選單
+        // 🟢 將指定欄位替換為下拉選單
         private void SetupComboBoxColumns()
         {
-            // 1. 設定 [適用性] 欄位
             ReplaceWithComboBox("適用性", new string[] { "適用", "不適用", "參考", "確認中", "" });
 
-            // 2. 設定 [條] 欄位 (1-500)
             string[] itemsTiao = new string[501];
             itemsTiao[0] = "";
             for (int i = 1; i <= 500; i++) itemsTiao[i] = i.ToString();
             ReplaceWithComboBox("條", itemsTiao);
 
-            // 3. 設定 [項]、[款]、[目] 欄位 (1-20)
             string[] itemsSmall = new string[21];
             itemsSmall[0] = "";
             for (int i = 1; i <= 20; i++) itemsSmall[i] = i.ToString();
@@ -151,7 +151,6 @@ namespace Safety_System
             ReplaceWithComboBox("目", itemsSmall);
         }
 
-        // 🟢 泛用的「把 TextBox 換成 ComboBox」輔助方法
         private void ReplaceWithComboBox(string colName, string[] items)
         {
             if (_dgv.Columns.Contains(colName) && !(_dgv.Columns[colName] is DataGridViewComboBoxColumn))
@@ -173,35 +172,39 @@ namespace Safety_System
             }
         }
 
-        // 🟢 指定長文字欄位固定寬度並開啟自動換行
+        // 🟢 鎖定長文字欄位的寬度並開啟自動換行
         private void SetupTextWrapping()
         {
-            // 定義哪些欄位需要限制寬度並換行
             string[] longTextColumns = { "法規名稱", "內容", "重點摘要", "備註" };
 
             foreach (string colName in longTextColumns)
             {
                 if (_dgv.Columns.Contains(colName))
                 {
-                    // 1. 取消該欄位的「自動無限撐寬」
+                    // 1. 強制關閉單一欄位的自動撐寬，否則 WinForm 預設會一直延伸為一行
                     _dgv.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                     
-                    // 2. 設定一個合理的固定寬度 (例如 300px)
-                    _dgv.Columns[colName].Width = 300; 
+                    // 2. 給予固定的顯示寬度 (若覺得不夠寬可自行把 350 改大)
+                    _dgv.Columns[colName].Width = 350; 
                     
-                    // 3. 開啟該欄位的自動換行功能
+                    // 3. 啟用文字換行屬性
                     _dgv.Columns[colName].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
         }
 
-        // 🟢 確保進入編輯模式時，下拉選單為 DropDownList (只能選，不能自己 Key In)
+        // 🟢 控制編輯狀態 (包含: 下拉選單防呆、文字框支援換行)
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
         {
             if (e.Control is ComboBox cbo)
             {
-                // 強制設定為 DropDownList，防呆避免手動輸入
+                // 【下拉選單防呆】設定為 DropDownList 模式，確保使用者只能從清單選取，不能打字
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+            }
+            else if (e.Control is TextBox txt)
+            {
+                // 【文字框防呆】解決填表時文字會無限向右延伸的問題，開啟多行模式讓游標自動折行
+                txt.Multiline = true;
             }
         }
 
