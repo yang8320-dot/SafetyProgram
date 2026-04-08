@@ -94,8 +94,9 @@ namespace Safety_System
 
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells };
             
-            // 🟢 攔截 DataError 事件，防止資料庫內的舊值不在選單內時引發系統崩潰
+            // 🟢 攔截 DataError 事件防呆與控制編輯模式
             _dgv.DataError += Dgv_DataError;
+            _dgv.EditingControlShowing += Dgv_EditingControlShowing;
 
             main.Controls.Add(boxTop, 0, 0); main.Controls.Add(_boxAdvanced, 0, 1); main.Controls.Add(_dgv, 0, 2);
             RefreshGrid(); return main;
@@ -110,7 +111,7 @@ namespace Safety_System
                 _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd")); 
             }
             
-            // 🟢 呼叫轉換下拉選單的方法
+            // 🟢 呼叫轉換下拉選單的方法 (適用性、條、項、款、目)
             SetupComboBoxColumns();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
@@ -118,40 +119,61 @@ namespace Safety_System
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
         }
 
-        // 🟢 將「適用性」文字欄位替換為下拉選單
+        // 🟢 將指定文字欄位替換為下拉選單
         private void SetupComboBoxColumns()
         {
-            string colName = "適用性";
+            // 1. 設定 [適用性] 欄位
+            ReplaceWithComboBox("適用性", new string[] { "適用", "不適用", "參考", "確認中", "" });
+
+            // 2. 設定 [條] 欄位 (1-500)
+            string[] itemsTiao = new string[501];
+            itemsTiao[0] = "";
+            for (int i = 1; i <= 500; i++) itemsTiao[i] = i.ToString();
+            ReplaceWithComboBox("條", itemsTiao);
+
+            // 3. 設定 [項]、[款]、[目] 欄位 (1-20)
+            string[] itemsSmall = new string[21];
+            itemsSmall[0] = "";
+            for (int i = 1; i <= 20; i++) itemsSmall[i] = i.ToString();
             
-            // 確認表格中有這個欄位，且它還不是 ComboBoxColumn
+            ReplaceWithComboBox("項", itemsSmall);
+            ReplaceWithComboBox("款", itemsSmall);
+            ReplaceWithComboBox("目", itemsSmall);
+        }
+
+        // 🟢 泛用的「把 TextBox 換成 ComboBox」輔助方法
+        private void ReplaceWithComboBox(string colName, string[] items)
+        {
             if (_dgv.Columns.Contains(colName) && !(_dgv.Columns[colName] is DataGridViewComboBoxColumn))
             {
-                // 1. 記住原本欄位的位置
                 int colIndex = _dgv.Columns[colName].Index;
-                
-                // 2. 移除自動生成的 TextBox 欄位
                 _dgv.Columns.Remove(colName);
 
-                // 3. 建立新的 ComboBox 欄位
                 DataGridViewComboBoxColumn cboCol = new DataGridViewComboBoxColumn();
                 cboCol.Name = colName;
                 cboCol.HeaderText = colName;
-                cboCol.DataPropertyName = colName; // 綁定底層 DataTable 的欄位名稱
+                cboCol.DataPropertyName = colName; 
+                cboCol.Items.AddRange(items);
                 
-                // 4. 設定下拉選單的選項
-                cboCol.Items.AddRange(new string[] { "適用", "不適用", "參考", "確認中", "" });
-                
-                // 5. 視覺設定
                 cboCol.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
                 cboCol.FlatStyle = FlatStyle.Flat;
-                cboCol.SortMode = DataGridViewColumnSortMode.Automatic; // 允許點擊標題排序
+                cboCol.SortMode = DataGridViewColumnSortMode.Automatic; 
 
-                // 6. 插入回原本的位置
                 _dgv.Columns.Insert(colIndex, cboCol);
             }
         }
 
-        // 🟢 忽略選單資料比對錯誤 (例如資料庫內的值是 "測試"，但下拉選單沒有 "測試")
+        // 🟢 確保進入編輯模式時，下拉選單為 DropDownList (只能選，不能自己 Key In)
+        private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            if (e.Control is ComboBox cbo)
+            {
+                // 強制設定為 DropDownList，防呆避免手動輸入
+                cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+            }
+        }
+
+        // 🟢 忽略選單資料比對錯誤 (舊資料不在選單內時不當機)
         private void Dgv_DataError(object sender, DataGridViewDataErrorEventArgs e)
         {
             e.ThrowException = false;
