@@ -1,12 +1,12 @@
 /// FILE: Safety_System/DataGridViewAutoCalcHelper.cs ///
 using System;
+using System.Data;
 using System.Windows.Forms;
 
 namespace Safety_System
 {
     public class DataGridViewAutoCalcHelper
     {
-        // 開關事件：用於防止大量匯入 (CSV / Ctrl+V) 時頻繁觸發 CellValueChanged 造成死機
         private bool _isBulkUpdating = false;
         private DataGridView _dgv;
 
@@ -18,142 +18,118 @@ namespace Safety_System
 
         private void AttachEvents()
         {
-            // 綁定事件前先解綁，防止重複觸發
             _dgv.DataBindingComplete -= Dgv_DataBindingComplete;
             _dgv.DataBindingComplete += Dgv_DataBindingComplete;
-
             _dgv.CellValueChanged -= Dgv_CellValueChanged;
             _dgv.CellValueChanged += Dgv_CellValueChanged;
         }
 
-        // ==========================================
-        // 匯入迴圈控制開關 (Begin / End)
-        // ==========================================
-        public void BeginBulkUpdate()
-        {
-            _isBulkUpdating = true;
-        }
+        public void BeginBulkUpdate() { _isBulkUpdating = true; }
+        public void EndBulkUpdate() { _isBulkUpdating = false; }
 
-        public void EndBulkUpdate()
-        {
-            _isBulkUpdating = false;
-            RecalculateAll(); // 匯入結束後，一次性重新計算全部
-        }
-
-        // 當資料表載入完成時，鎖定指定欄位並重新計算
         private void Dgv_DataBindingComplete(object sender, DataGridViewBindingCompleteEventArgs e)
         {
             LockTargetColumns();
-            if (!_isBulkUpdating)
-            {
-                RecalculateAll();
-            }
         }
 
-        // 當使用者在介面上 Key in 數值時觸發
         private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
-            // 如果正在大批匯入，或點擊的是標題列，則跳過即時運算 (防呆容錯)
             if (_isBulkUpdating || e.RowIndex < 0 || e.ColumnIndex < 0) return;
-
-            // 觸發當前列計算
-            CalculateRow(e.RowIndex);
-
-            // 【關鍵邏輯】如果修改了第 N 列的基底數值，第 N+1 列的「統計」也會受影響，必須連鎖更新下一列
-            if (e.RowIndex + 1 < _dgv.Rows.Count)
-            {
-                CalculateRow(e.RowIndex + 1);
+            CalculateRowUI(_dgv.Rows[e.RowIndex], e.RowIndex > 0 ? _dgv.Rows[e.RowIndex - 1] : null);
+            if (e.RowIndex + 1 < _dgv.Rows.Count) {
+                CalculateRowUI(_dgv.Rows[e.RowIndex + 1], _dgv.Rows[e.RowIndex]);
             }
         }
 
-        // ==========================================
-        // 核心計算邏輯
-        // ==========================================
-        private void CalculateRow(int rowIndex)
+        // 針對單一 UI 列的即時計算 (User 手動 Key in 時使用)
+        private void CalculateRowUI(DataGridViewRow currentRow, DataGridViewRow prevRow)
         {
-            if (rowIndex < 0 || rowIndex >= _dgv.Rows.Count) return;
-            if (_dgv.Rows[rowIndex].IsNewRow) return;
-
-            DataGridViewRow currentRow = _dgv.Rows[rowIndex];
-            DataGridViewRow prevRow = rowIndex > 0 ? _dgv.Rows[rowIndex - 1] : null;
+            if (currentRow.IsNewRow) return;
+            string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
 
             foreach (DataGridViewColumn col in _dgv.Columns)
             {
                 string colName = col.Name;
-
-                // ----------------------------------------
-                // 功能 1：自動帶入星期
-                // ----------------------------------------
                 if (colName == "星期" && _dgv.Columns.Contains("日期"))
                 {
-                    string dateStr = currentRow.Cells["日期"].Value?.ToString();
-                    if (DateTime.TryParse(dateStr, out DateTime dt))
-                    {
-                        string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
-                        currentRow.Cells["星期"].Value = weekDays[(int)dt.DayOfWeek];
-                    }
+                    if (DateTime.TryParse(currentRow.Cells["日期"].Value?.ToString(), out DateTime d))
+                        currentRow.Cells["星期"].Value = weekDays[(int)d.DayOfWeek];
                     else
-                    {
-                        currentRow.Cells["星期"].Value = ""; // 日期無效則清空
-                    }
+                        currentRow.Cells["星期"].Value = "";
                 }
-
-                // ----------------------------------------
-                // 功能 2：自動計算 (日統計、月統計、年統計)
-                // ----------------------------------------
-                if (colName.EndsWith("日統計") || colName.EndsWith("月統計") || colName.EndsWith("年統計"))
+                else if (colName.EndsWith("日統計") || colName.EndsWith("月統計") || colName.EndsWith("年統計"))
                 {
-                    // 取得對應的基底欄位名稱 (除去最後三個字)
-                    string baseColName = colName.Substring(0, colName.Length - 3);
-
-                    if (_dgv.Columns.Contains(baseColName))
+                    string baseCol = colName.Substring(0, colName.Length - 3);
+                    if (_dgv.Columns.Contains(baseCol))
                     {
-                        // 🟢 取出目前數值，並強制濾掉千分位逗號與空白
-                        string currentValStr = currentRow.Cells[baseColName].Value?.ToString().Replace(",", "").Trim();
-
-                        // 判斷是否為有效數值 (非數值防呆容錯，非數值不運算)
-                        if (double.TryParse(currentValStr, out double currentVal))
-                        {
-                            if (prevRow != null)
-                            {
-                                // 🟢 取出上一筆數值，同樣濾掉千分位逗號
-                                string prevValStr = prevRow.Cells[baseColName].Value?.ToString().Replace(",", "").Trim();
-                                
-                                if (double.TryParse(prevValStr, out double prevVal))
-                                {
-                                    // 計算方法：目前值 減去 前一筆的值
-                                    currentRow.Cells[colName].Value = (currentVal - prevVal).ToString("0.####");
-                                }
-                                else
-                                {
-                                    currentRow.Cells[colName].Value = ""; // 前一筆非數值無法相減
-                                }
+                        string curStr = currentRow.Cells[baseCol].Value?.ToString().Replace(",", "").Trim();
+                        string prevStr = prevRow?.Cells[baseCol].Value?.ToString().Replace(",", "").Trim();
+                        
+                        if (double.TryParse(curStr, out double curVal)) {
+                            if (prevRow != null && double.TryParse(prevStr, out double prevVal)) {
+                                currentRow.Cells[colName].Value = (curVal - prevVal).ToString("0.####");
+                            } else {
+                                currentRow.Cells[colName].Value = "";
                             }
-                            else
-                            {
-                                currentRow.Cells[colName].Value = ""; // 第一筆沒有前一筆可減，留空
-                            }
-                        }
-                        else
-                        {
-                            currentRow.Cells[colName].Value = ""; // 目前值非數值
+                        } else {
+                            currentRow.Cells[colName].Value = "";
                         }
                     }
                 }
             }
         }
 
-        // ==========================================
-        // 批次與初始化工具
-        // ==========================================
-        private void RecalculateAll()
+        // 🚀 高效能批次計算核心：直接在 DataTable 記憶體中運算 (CSV匯入 / 貼上時使用)
+        public void RecalculateTable(DataTable dt)
         {
-            _isBulkUpdating = true; // 暫時關閉觸發，防止迴圈
-            for (int i = 0; i < _dgv.Rows.Count; i++)
+            if (dt == null) return;
+            string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
+
+            for (int i = 0; i < dt.Rows.Count; i++)
             {
-                CalculateRow(i);
+                DataRow row = dt.Rows[i];
+                if (row.RowState == DataRowState.Deleted) continue;
+                
+                DataRow prevRow = null;
+                for (int j = i - 1; j >= 0; j--) {
+                    if (dt.Rows[j].RowState != DataRowState.Deleted) {
+                        prevRow = dt.Rows[j];
+                        break;
+                    }
+                }
+
+                foreach (DataColumn col in dt.Columns)
+                {
+                    string colName = col.ColumnName;
+
+                    if (colName == "星期" && dt.Columns.Contains("日期"))
+                    {
+                        if (DateTime.TryParse(row["日期"]?.ToString(), out DateTime d))
+                            row["星期"] = weekDays[(int)d.DayOfWeek];
+                        else
+                            row["星期"] = "";
+                    }
+                    else if (colName.EndsWith("日統計") || colName.EndsWith("月統計") || colName.EndsWith("年統計"))
+                    {
+                        string baseCol = colName.Substring(0, colName.Length - 3);
+                        if (dt.Columns.Contains(baseCol))
+                        {
+                            string curStr = row[baseCol]?.ToString().Replace(",", "").Trim();
+                            string prevStr = prevRow?[baseCol]?.ToString().Replace(",", "").Trim();
+                            
+                            if (double.TryParse(curStr, out double curVal)) {
+                                if (prevRow != null && double.TryParse(prevStr, out double prevVal)) {
+                                    row[colName] = (curVal - prevVal).ToString("0.####");
+                                } else {
+                                    row[colName] = "";
+                                }
+                            } else {
+                                row[colName] = "";
+                            }
+                        }
+                    }
+                }
             }
-            _isBulkUpdating = false;
         }
 
         private void LockTargetColumns()
@@ -163,8 +139,7 @@ namespace Safety_System
                 if (col.Name == "星期" || col.Name.EndsWith("日統計") || col.Name.EndsWith("月統計") || col.Name.EndsWith("年統計"))
                 {
                     col.ReadOnly = true;
-                    // 視覺上提示唯讀
-                    col.DefaultCellStyle.BackColor = System.Drawing.Color.WhiteSmoke; 
+                    col.DefaultCellStyle.BackColor = System.Drawing.Color.WhiteSmoke;
                     col.DefaultCellStyle.ForeColor = System.Drawing.Color.DimGray;
                 }
             }
