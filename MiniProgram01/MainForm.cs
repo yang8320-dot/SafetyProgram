@@ -139,7 +139,6 @@ public class MainForm : Form {
         };
     }
 
-    // 啟動 G-Task (路徑: \GTask\GTaskNexus.exe)
     private void LaunchGTask() {
         try {
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GTask", "GTaskNexus.exe");
@@ -153,10 +152,8 @@ public class MainForm : Form {
         }
     }
 
-    // 啟動 Safety System (修正後路徑: \SafetySystem\Safety_System.exe)
     private void LaunchSafetySystem() {
         try {
-            // 【路徑修正點】
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SafetySystem", "Safety_System.exe");
             if (File.Exists(path)) {
                 Process.Start(new ProcessStartInfo() { FileName = path, UseShellExecute = true });
@@ -188,16 +185,35 @@ public class MainForm : Form {
         }
     }
 
+    // 【核心修正 1】：喚醒視窗邏輯，加入尺寸防呆
     public void ShowAppWindow(int targetTabIndex = -1) {
-        if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
         if (!this.Visible) this.Show();
-        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) tabControl.SelectedIndex = targetTabIndex;
+        
+        if (this.WindowState == FormWindowState.Minimized) {
+            this.WindowState = FormWindowState.Normal;
+        }
+
+        // 雙重防呆：如果 Windows 還是把視窗縮小到極限，強制拉回正常寬高
+        if (this.Width < 450 || this.Height < 500) {
+            this.Width = 520;
+            this.Height = 560;
+        }
+
+        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabCount) {
+            tabControl.SelectedIndex = targetTabIndex;
+        }
+        
         this.Activate(); 
+        this.BringToFront(); // 確保跳到最上層
     }
 
+    // 【核心修正 2】：最小化時的邏輯處理
     protected override void OnResize(EventArgs e) {
         base.OnResize(e);
-        if (this.WindowState == FormWindowState.Minimized) { this.Hide(); this.WindowState = FormWindowState.Normal; }
+        if (this.WindowState == FormWindowState.Minimized) { 
+            this.Hide(); 
+            // 絕對不能在這裡把 WindowState 設回 Normal，會導致尺寸錯亂！
+        }
     }
 
     protected override void WndProc(ref Message m) {
@@ -211,7 +227,11 @@ public class MainForm : Form {
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e) { 
-        if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; this.Hide(); } 
+        if (e.CloseReason == CloseReason.UserClosing) { 
+            e.Cancel = true; 
+            // 這裡如果是按 X 關閉，也只是隱藏視窗
+            this.Hide(); 
+        } 
         base.OnFormClosing(e); 
     }
 
