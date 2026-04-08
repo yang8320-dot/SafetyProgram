@@ -44,7 +44,7 @@ namespace Safety_System
                 [目] TEXT,
                 [內容] TEXT,
                 [重點摘要] TEXT, 
-                [合規狀態] TEXT, 
+                [適用性] TEXT, 
                 [鑑別日期] TEXT,
                 [備註] TEXT);");
 
