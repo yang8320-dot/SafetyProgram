@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_Law_Generic.cs ///
 using System;
 using System.Data;
 using System.Drawing;
@@ -92,17 +93,68 @@ namespace Safety_System
             flpAdvMain.Controls.Add(row2); _boxAdvanced.Controls.Add(flpAdvMain);
 
             _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells };
+            
+            // 🟢 攔截 DataError 事件，防止資料庫內的舊值不在選單內時引發系統崩潰
+            _dgv.DataError += Dgv_DataError;
+
             main.Controls.Add(boxTop, 0, 0); main.Controls.Add(_boxAdvanced, 0, 1); main.Controls.Add(_dgv, 0, 2);
             RefreshGrid(); return main;
         }
 
         private void RefreshGrid() {
             if (_isFirstLoad) {
-                DataTable dt = DataManager.GetLatestRecords(_dbName, _tableName, 50); _dgv.DataSource = dt;
+                DataTable dt = DataManager.GetLatestRecords(_dbName, _tableName, 50); 
+                _dgv.DataSource = dt;
                 _isFirstLoad = false;
-            } else { _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd")); }
-            if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; _cboColumns.Items.Clear();
+            } else { 
+                _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd")); 
+            }
+            
+            // 🟢 呼叫轉換下拉選單的方法
+            SetupComboBoxColumns();
+
+            if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
+            _cboColumns.Items.Clear();
             foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+        }
+
+        // 🟢 將「適用性」文字欄位替換為下拉選單
+        private void SetupComboBoxColumns()
+        {
+            string colName = "適用性";
+            
+            // 確認表格中有這個欄位，且它還不是 ComboBoxColumn
+            if (_dgv.Columns.Contains(colName) && !(_dgv.Columns[colName] is DataGridViewComboBoxColumn))
+            {
+                // 1. 記住原本欄位的位置
+                int colIndex = _dgv.Columns[colName].Index;
+                
+                // 2. 移除自動生成的 TextBox 欄位
+                _dgv.Columns.Remove(colName);
+
+                // 3. 建立新的 ComboBox 欄位
+                DataGridViewComboBoxColumn cboCol = new DataGridViewComboBoxColumn();
+                cboCol.Name = colName;
+                cboCol.HeaderText = colName;
+                cboCol.DataPropertyName = colName; // 綁定底層 DataTable 的欄位名稱
+                
+                // 4. 設定下拉選單的選項
+                cboCol.Items.AddRange(new string[] { "適用", "不適用", "參考", "確認中", "" });
+                
+                // 5. 視覺設定
+                cboCol.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
+                cboCol.FlatStyle = FlatStyle.Flat;
+                cboCol.SortMode = DataGridViewColumnSortMode.Automatic; // 允許點擊標題排序
+
+                // 6. 插入回原本的位置
+                _dgv.Columns.Insert(colIndex, cboCol);
+            }
+        }
+
+        // 🟢 忽略選單資料比對錯誤 (例如資料庫內的值是 "測試"，但下拉選單沒有 "測試")
+        private void Dgv_DataError(object sender, DataGridViewDataErrorEventArgs e)
+        {
+            e.ThrowException = false;
         }
 
         private bool VerifyPassword() {
