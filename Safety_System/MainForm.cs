@@ -48,23 +48,17 @@ namespace Safety_System
         {
             if (keyData == (Keys.Control | Keys.S))
             {
-                // 在內容面板中尋找名稱為 "btnSave" 的按鈕
                 Button activeSaveButton = FindControlByName(_contentPanel, "btnSave") as Button;
-
                 if (activeSaveButton != null && activeSaveButton.Enabled)
                 {
-                    // 強制結束所有控制項的輸入狀態，確保 DataGridView 的最後一格資料被確認
                     this.Validate(); 
-                    
-                    // 模擬點擊儲存按鈕
                     activeSaveButton.PerformClick();
-                    return true; // 攔截按鍵，防止發出系統警告音
+                    return true; 
                 }
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        // 🟢 輔助方法：遞迴尋找控制項
         private Control FindControlByName(Control parent, string name)
         {
             foreach (Control c in parent.Controls)
@@ -75,7 +69,6 @@ namespace Safety_System
             }
             return null;
         }
-        // ==========================================
 
         private void BuildMenu()
         {
@@ -107,7 +100,6 @@ namespace Safety_System
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_WaterTreatment().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_WaterChemicals().GetView()));
-            // 🟢 新增：【日】自來水使用量
             menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_WaterUsageDaily().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_DischargeData().GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_WaterVolume().GetView()));
@@ -161,7 +153,7 @@ namespace Safety_System
             var item = new ToolStripMenuItem(text);
             item.Click += (s, e) => {
                 try { LoadModule(getViewFunc()); } 
-                catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}\n(您可能尚未建立此功能的 CS 檔案)", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
             return item;
         }
@@ -170,13 +162,9 @@ namespace Safety_System
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
-            try {
-                _contentPanel.Controls.Clear();
-                moduleControl.Dock = DockStyle.Fill;
-                _contentPanel.Controls.Add(moduleControl);
-            } catch (Exception ex) {
-                MessageBox.Show($"畫面切換時發生錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            _contentPanel.Controls.Clear();
+            moduleControl.Dock = DockStyle.Fill;
+            _contentPanel.Controls.Add(moduleControl);
         }
 
         private bool VerifyAdminPassword()
