@@ -1,118 +1,89 @@
+/// FILE: Safety_System/App_HomeDashboard.cs ///
 using System;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace Safety_System
 {
-    /// <summary>
-    /// 首頁綜合數據看板模組
-    /// 對應選單：頁首
-    /// 功能：提供快捷導覽按鈕，以及未來作為跨模組數據 (COUNT/SUM) 的聯集展示區
-    /// </summary>
     public class App_HomeDashboard
     {
         public Control GetView()
         {
-            // 主容器：採用 Panel 配合自動滾動，提供更大的排版自由度
-            Panel mainPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.WhiteSmoke,
-                AutoScroll = true
-            };
+            Panel main = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, AutoScroll = true };
 
-            // 大標題 
-            Label lblTitle = new Label
-            {
-                Text = "[ 綜合數據看板 - 系統首頁 ]",
-                Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold),
-                AutoSize = true,
-                Location = new Point(20, 20)
+            // 標題區
+            Label lblTitle = new Label {
+                Text = "Safety System 綜合數據看板系統",
+                Font = new Font("Microsoft JhengHei UI", 26F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(45, 62, 80),
+                Location = new Point(40, 40),
+                AutoSize = true
             };
-
-            // 頁面說明
-            Label lblDesc = new Label
-            {
-                Text = "歡迎使用工安系統看板！您可以從上方選單進入各模組，或使用下方快捷按鈕。",
+            
+            Label lblSubTitle = new Label {
+                Text = "歡迎使用！請由上方選單進行詳細操作，或點選下方快捷按鈕進入常用模組。",
                 Font = new Font("Microsoft JhengHei UI", 14F),
-                AutoSize = true,
-                Location = new Point(25, 70)
+                ForeColor = Color.Gray,
+                Location = new Point(45, 100),
+                AutoSize = true
             };
 
-            // ==========================================
-            // 🟢 新增區塊：快速導覽區 (擺放各大模組的捷徑按鈕)
-            // ==========================================
-            GroupBox boxQuickAccess = new GroupBox
-            {
-                Text = "快速導覽",
-                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                Location = new Point(20, 120),
-                Size = new Size(800, 150),
-                Padding = new Padding(15)
+            // 快捷按鈕容器
+            FlowLayoutPanel flp = new FlowLayoutPanel {
+                Location = new Point(40, 160),
+                Size = new Size(1250, 600),
+                BackColor = Color.Transparent
             };
 
-            // 使用 FlowLayoutPanel 讓裡面的大按鈕可以自動排列
-            FlowLayoutPanel flpButtons = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                AutoScroll = true,
-                WrapContents = true
-            };
+            // 建立導覽大按鈕 (與選單功能對應)
+            flp.Controls.Add(CreateShortcut("🛡️ 工安看板", "查看零災害天數與工安指標", Color.SteelBlue, () => new App_SafetyDashboard().GetView()));
+            flp.Controls.Add(CreateShortcut("💧 水資源分析", "水情摘要、用水量與YoY比較圖表", Color.Teal, () => new App_WaterDashboard().GetView()));
+            flp.Controls.Add(CreateShortcut("📋 廢水水量紀錄", "每日廢水處理水量與讀數填報", Color.SeaGreen, () => new App_WaterTreatment().GetView()));
+            flp.Controls.Add(CreateShortcut("🧪 檢測數據", "環境、飲用水、廢水檢測數據管理", Color.Chocolate, () => new App_TestDashboard().GetView()));
+            flp.Controls.Add(CreateShortcut("♻️ 廢棄物月報", "紀錄廢棄物產出代碼、名稱與重量", Color.DimGray, () => new App_WasteMonthly().GetView()));
+            flp.Controls.Add(CreateShortcut("⚙️ 操作說明", "系統操作導覽、快捷鍵與密碼提示", Color.MediumPurple, () => new App_Instruction().GetView()));
 
-            // 建立「檢測數據」大按鈕
-            Button btnTestDashboard = new Button 
-            { 
-                Text = "🔬 檢測數據", 
-                Size = new Size(180, 80), 
-                Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
-                BackColor = Color.SteelBlue, 
+            main.Controls.Add(lblTitle);
+            main.Controls.Add(lblSubTitle);
+            main.Controls.Add(flp);
+
+            return main;
+        }
+
+        private Control CreateShortcut(string title, string desc, Color themeColor, Func<Control> loadFunc)
+        {
+            Panel p = new Panel { Size = new Size(380, 180), Margin = new Padding(0, 0, 30, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand };
+            
+            // 繪製細邊框
+            p.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, p.ClientRectangle, Color.Gainsboro, ButtonBorderStyle.Solid);
+            
+            Label l1 = new Label { Text = title, Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = themeColor, Location = new Point(20, 25), AutoSize = true };
+            Label l2 = new Label { Text = desc, Font = new Font("Microsoft JhengHei UI", 11F), ForeColor = Color.DimGray, Location = new Point(22, 75), Size = new Size(340, 50) };
+            
+            Button btn = new Button {
+                Text = "進入模組 ➜",
+                Size = new Size(120, 35),
+                Location = new Point(230, 125),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = themeColor,
                 ForeColor = Color.White,
-                Cursor = Cursors.Hand,
-                Margin = new Padding(10)
+                Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand
             };
 
-            // 點擊事件：尋找上層的 MainForm 並呼叫 LoadModule 切換畫面
-            btnTestDashboard.Click += (s, e) => {
-                Form parentForm = btnTestDashboard.FindForm();
-                if (parentForm is MainForm mainForm) {
-                    mainForm.LoadModule(new App_TestDashboard().GetView());
-                }
+            // 點擊事件連動
+            Action onClick = () => {
+                Form f = p.FindForm();
+                if (f is MainForm mf) mf.LoadModule(loadFunc());
             };
 
-            // 將按鈕加入快速導覽區
-            flpButtons.Controls.Add(btnTestDashboard);
-            boxQuickAccess.Controls.Add(flpButtons);
+            p.Click += (s, e) => onClick();
+            l1.Click += (s, e) => onClick();
+            l2.Click += (s, e) => onClick();
+            btn.Click += (s, e) => onClick();
 
-
-            // ==========================================
-            // 原有的預留區塊：跨模組數據摘要 (將 Y 座標往下移到 290)
-            // ==========================================
-            GroupBox boxSummary = new GroupBox
-            {
-                Text = "系統數據總覽 (開發保留區)",
-                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                Location = new Point(20, 290), 
-                Size = new Size(800, 300),
-                Padding = new Padding(15) 
-            };
-
-            Label lblPlaceholder = new Label
-            {
-                Text = "載入中...\n\n(未來開發計畫：)\n1. 統計未結案的巡檢與異常事件\n2. 顯示本月各部門用水/空污申報進度\n3. 彙整近期需處理之消防設備巡檢任務",
-                Font = new Font("Microsoft JhengHei UI", 12F),
-                AutoSize = true,
-                Location = new Point(20, 40)
-            };
-
-            boxSummary.Controls.Add(lblPlaceholder);
-
-            // 將所有控制項加入主容器
-            mainPanel.Controls.Add(lblTitle);
-            mainPanel.Controls.Add(lblDesc);
-            mainPanel.Controls.Add(boxQuickAccess); // 🟢 加入快捷區塊
-            mainPanel.Controls.Add(boxSummary);
-
-            return mainPanel;
+            p.Controls.Add(l1); p.Controls.Add(l2); p.Controls.Add(btn);
+            return p;
         }
     }
 }
