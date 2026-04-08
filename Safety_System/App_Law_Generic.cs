@@ -92,7 +92,14 @@ namespace Safety_System
 
             flpAdvMain.Controls.Add(row2); _boxAdvanced.Controls.Add(flpAdvMain);
 
-            _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells };
+            // 🟢 DataGridView 初始化設定：加入自動換行(AutoSizeRowsMode)支援
+            _dgv = new DataGridView { 
+                Dock = DockStyle.Fill, 
+                BackgroundColor = Color.White, 
+                AllowUserToAddRows = true, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells // 讓列高自動適應折行的文字
+            };
             
             // 🟢 攔截 DataError 事件防呆與控制編輯模式
             _dgv.DataError += Dgv_DataError;
@@ -113,6 +120,9 @@ namespace Safety_System
             
             // 🟢 呼叫轉換下拉選單的方法 (適用性、條、項、款、目)
             SetupComboBoxColumns();
+            
+            // 🟢 呼叫設定長文字自動換行的方法
+            SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
             _cboColumns.Items.Clear();
@@ -160,6 +170,28 @@ namespace Safety_System
                 cboCol.SortMode = DataGridViewColumnSortMode.Automatic; 
 
                 _dgv.Columns.Insert(colIndex, cboCol);
+            }
+        }
+
+        // 🟢 指定長文字欄位固定寬度並開啟自動換行
+        private void SetupTextWrapping()
+        {
+            // 定義哪些欄位需要限制寬度並換行
+            string[] longTextColumns = { "法規名稱", "內容", "重點摘要", "備註" };
+
+            foreach (string colName in longTextColumns)
+            {
+                if (_dgv.Columns.Contains(colName))
+                {
+                    // 1. 取消該欄位的「自動無限撐寬」
+                    _dgv.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                    
+                    // 2. 設定一個合理的固定寬度 (例如 300px)
+                    _dgv.Columns[colName].Width = 300; 
+                    
+                    // 3. 開啟該欄位的自動換行功能
+                    _dgv.Columns[colName].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                }
             }
         }
 
