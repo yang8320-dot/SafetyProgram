@@ -40,6 +40,7 @@ namespace Safety_System
             DataManager.InitTable(_dbName, _tableName, $@"CREATE TABLE IF NOT EXISTS [{_tableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
+                [類別] TEXT,
                 [法規名稱] TEXT, 
                 [條] TEXT,
                 [項] TEXT,
@@ -69,7 +70,6 @@ namespace Safety_System
             Button bRead = new Button { Text = "區間讀取", Size = new Size(120, 35) };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) { int count = ((DataTable)_dgv.DataSource).Rows.Count; MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); } };
 
-            // 🟢 儲存按鈕
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
             _btnSave.Click += BtnSave_Click; 
             
@@ -82,7 +82,6 @@ namespace Safety_System
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, _btnSave });
             boxTop.Controls.Add(row1);
 
-            // ================= 進階管理面板 =================
             _boxAdvanced = new GroupBox { Text = "進階操作與條件查詢", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
             FlowLayoutPanel flpAdvMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
 
@@ -162,9 +161,6 @@ namespace Safety_System
             return main;
         }
 
-        // ==========================================
-        // 🟢 極速儲存與防重複邏輯 (加入 WaitCursor 防假當機)
-        // ==========================================
         private void BtnSave_Click(object sender, EventArgs e)
         {
             try {
@@ -173,10 +169,8 @@ namespace Safety_System
                 
                 DataTable dtToSave = (DataTable)_dgv.DataSource;
                 
-                // 執行重複解析：依據 (法規名稱、條、內容) 判斷是要新增還是覆寫
                 ResolveDuplicates(dtToSave);
 
-                // 呼叫 DataManager 極速批次寫入 Transaction
                 if (DataManager.BulkSaveTable(_dbName, _tableName, dtToSave)) {
                     MessageBox.Show(Form.ActiveForm, "儲存/更新 完成！(已啟用 Transaction 交易機制)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshGrid();
@@ -335,16 +329,25 @@ namespace Safety_System
             }
         }
 
+        // 🟢 修正：細分各個長文字欄位的寬度
         private void SetupTextWrapping()
         {
-            string[] longTextColumns = { "法規名稱", "內容", "重點摘要", "備註" };
-            foreach (string colName in longTextColumns)
+            // 將欲調整的欄位名稱對應到專屬的寬度
+            Dictionary<string, int> columnWidths = new Dictionary<string, int>
             {
-                if (_dgv.Columns.Contains(colName))
+                { "法規名稱", 250 },
+                { "內容", 400 },
+                { "重點摘要", 200 },
+                { "備註", 150 }
+            };
+
+            foreach (var kvp in columnWidths)
+            {
+                if (_dgv.Columns.Contains(kvp.Key))
                 {
-                    _dgv.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                    _dgv.Columns[colName].Width = 350; 
-                    _dgv.Columns[colName].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                    _dgv.Columns[kvp.Key].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                    _dgv.Columns[kvp.Key].Width = kvp.Value; 
+                    _dgv.Columns[kvp.Key].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
         }
@@ -367,7 +370,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 極速 CSV 匯入：斷開 UI，防假當機
         private void BtnImportCsv_Click(object sender, EventArgs e) {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
@@ -381,7 +383,6 @@ namespace Safety_System
                         DataTable dt = (DataTable)_dgv.DataSource; 
                         string[] headers = parsedRows[0];
 
-                        // 斷開 UI 加速
                         _dgv.DataSource = null; 
 
                         for (int i = 1; i < parsedRows.Count; i++) {
@@ -398,7 +399,6 @@ namespace Safety_System
                             dt.Rows.Add(nr);
                         }
 
-                        // 重新綁定 UI
                         _dgv.DataSource = dt; 
                         _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
 
@@ -481,14 +481,13 @@ namespace Safety_System
             }
         }
 
-        // 🟢 高效能版 Ctrl+V 貼上 (防假當機)
         private void Dgv_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Control && e.KeyCode == Keys.S)
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-                _btnSave?.PerformClick(); // 觸發儲存事件
+                _btnSave?.PerformClick(); 
             }
             else if (e.Control && e.KeyCode == Keys.V)
             {
@@ -496,7 +495,7 @@ namespace Safety_System
                     string text = Clipboard.GetText(); 
                     if (string.IsNullOrEmpty(text)) return;
                     
-                    _dgv.SuspendLayout(); // 暫停 UI 重繪
+                    _dgv.SuspendLayout(); 
 
                     string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                     int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
