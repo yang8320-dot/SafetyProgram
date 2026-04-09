@@ -76,7 +76,7 @@ namespace Safety_System
             Button bExport = new Button { Text = "匯出 Excel", Size = new Size(120, 35) }; bExport.Click += BtnExport_Click;
             Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) }; bImport.Click += BtnImportCsv_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理與查詢", Size = new Size(180, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理與查詢", Size = new Size(200, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏進階面板" : "[ + ] 進階管理與查詢"; _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray; };
 
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, _btnSave });
