@@ -69,6 +69,7 @@ namespace Safety_System
             Button bRead = new Button { Text = "區間讀取", Size = new Size(120, 35) };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) { int count = ((DataTable)_dgv.DataSource).Rows.Count; MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); } };
 
+            // 🟢 儲存按鈕
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
             _btnSave.Click += BtnSave_Click; 
             
@@ -81,6 +82,7 @@ namespace Safety_System
             row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, _btnSave });
             boxTop.Controls.Add(row1);
 
+            // ================= 進階管理面板 =================
             _boxAdvanced = new GroupBox { Text = "進階操作與條件查詢", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
             FlowLayoutPanel flpAdvMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
 
@@ -293,6 +295,11 @@ namespace Safety_System
             ReplaceWithComboBox("類別", new string[] { "法律", "命令", "行政規則", "解釋令函", "" });
             ReplaceWithComboBox("適用性", new string[] { "適用", "不適用", "參考", "確認中", "" });
 
+            // 🟢 新增：將「合法且有提升績效機會」與「合法但潛在不符合風險」改為下拉選單
+            string[] checkItems = new string[] { "", "v" };
+            ReplaceWithComboBox("合法且有提升績效機會", checkItems);
+            ReplaceWithComboBox("合法但潛在不符合風險", checkItems);
+
             string[] itemsTiao = new string[501];
             itemsTiao[0] = "";
             for (int i = 1; i <= 500; i++) itemsTiao[i] = i.ToString();
@@ -328,14 +335,12 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修正：細分各個長文字欄位的寬度
         private void SetupTextWrapping()
         {
-            // 將欲調整的欄位名稱對應到專屬的寬度
             Dictionary<string, int> columnWidths = new Dictionary<string, int>
             {
                 { "法規名稱", 250 },
-                { "內容", 500 },
+                { "內容", 400 },
                 { "重點摘要", 200 },
                 { "備註", 150 }
             };
