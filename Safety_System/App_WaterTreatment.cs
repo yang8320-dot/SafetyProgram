@@ -123,7 +123,7 @@ namespace Safety_System
                 Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
-            bSave.Click += BtnSave_Click; // 處理儲存邏輯
+            bSave.Click += BtnSave_Click; 
             
             Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) };
             bExport.Click += BtnExport_Click;
@@ -160,23 +160,17 @@ namespace Safety_System
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true };
             _txtNewColName = new TextBox { Width = 150 };
-            
-            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
             bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyPassword()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
-            
-            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
             bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyPassword()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
             
-            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
             bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyPassword()) { DataManager.DropColumn(DbName, TableName, _cboColumns.SelectedItem.ToString()); RefreshGrid(); } };
             
-            // 🟢 密碼管理修正：呼叫 AuthManager
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && AuthManager.VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
 
@@ -212,8 +206,6 @@ namespace Safety_System
             return main;
         }
 
-        // --- 功能方法集 ---
-
         private void BtnSave_Click(object sender, EventArgs e)
         {
             try {
@@ -227,7 +219,8 @@ namespace Safety_System
                     RefreshGrid();
                 }
             } finally {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = CursDefault;
+                // 🟢 修正：CursDefault -> Cursors.Default
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
 
@@ -336,7 +329,7 @@ namespace Safety_System
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = ParseCsvLine(lines[0]);
 
-                        _dgv.DataSource = null; // 🚀 斷開 UI，準備極速匯入
+                        _dgv.DataSource = null; 
                         _calcHelper?.BeginBulkUpdate();
 
                         foreach (string line in lines.Skip(1)) {
@@ -350,9 +343,9 @@ namespace Safety_System
                             dt.Rows.Add(nr);
                         }
 
-                        _calcHelper?.RecalculateTable(dt); // 🚀 極速記憶體運算
+                        _calcHelper?.RecalculateTable(dt); 
                         _calcHelper?.EndBulkUpdate();
-                        _dgv.DataSource = dt; // 重新接回 UI
+                        _dgv.DataSource = dt; 
                         RestoreColumnOrder();
                         MessageBox.Show("匯入成功!請檢查數據後點擊儲存。");
                     } catch (Exception ex) { RefreshGrid(); MessageBox.Show("匯入異常：" + ex.Message); }
