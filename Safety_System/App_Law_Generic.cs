@@ -24,6 +24,10 @@ namespace Safety_System
         private readonly string _dbName; 
         private readonly string _tableName; 
 
+        // 🟢 新增：用於獨立關鍵字查詢的控制項
+        private ComboBox _cboSearchColumn;
+        private TextBox _txtSearchKeyword;
+
         public App_Law_Generic(string dbName, string tableName)
         {
             _dbName = dbName;
@@ -100,18 +104,22 @@ namespace Safety_System
             
             row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
 
+            // 🟢 修改 row3：獨立的關鍵字查詢功能
             FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
-            Label lblLimit = new Label { Text = "顯示最新筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; TextBox txtLatestCount = new TextBox { Width = 60, Text = "50", TextAlign = HorizontalAlignment.Center }; 
-            Label lblKeyword = new Label { Text = "法規名稱(關鍵字):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; TextBox txtSearchLawName = new TextBox { Width = 180 }; 
-            Label lblApply = new Label { Text = "適用性:", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
-            ComboBox cboSearchApply = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
-            cboSearchApply.Items.AddRange(new string[] { "全部", "適用", "不適用", "參考", "確認中" });
-            cboSearchApply.SelectedIndex = 0; 
+            
+            Label lblLimit = new Label { Text = "顯示最新筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
+            TextBox txtLatestCount = new TextBox { Width = 60, Text = "50", TextAlign = HorizontalAlignment.Center }; 
+            
+            Label lblSearchCol = new Label { Text = "查詢欄位:", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
+            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+            
+            Label lblKeyword = new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
+            _txtSearchKeyword = new TextBox { Width = 180 }; 
 
             Button btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
-            btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, txtSearchLawName.Text, cboSearchApply.SelectedItem?.ToString());
+            btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, _cboSearchColumn.SelectedItem?.ToString(), _txtSearchKeyword.Text);
 
-            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblKeyword, txtSearchLawName, lblApply, cboSearchApply, btnAdvancedSearch });
+            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch });
 
             flpAdvMain.Controls.Add(row2); flpAdvMain.Controls.Add(row3); 
             _boxAdvanced.Controls.Add(flpAdvMain);
@@ -126,23 +134,35 @@ namespace Safety_System
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
 
             main.Controls.Add(boxTop, 0, 0); main.Controls.Add(_boxAdvanced, 0, 1); main.Controls.Add(_dgv, 0, 2);
-            RefreshGrid(); return main;
+            
+            RefreshGrid(); 
+            return main;
         }
 
-        private void ExecuteAdvancedSearch(string countText, string keyword, string applyState)
+        // 🟢 修改後的獨立條件查詢邏輯
+        private void ExecuteAdvancedSearch(string countText, string searchCol, string keyword)
         {
             int limit = 50;
             if (!int.TryParse(countText, out limit) || limit <= 0) limit = 50; 
             
+            // 先取得該資料表的所有資料
             DataTable allData = DataManager.GetTableData(_dbName, _tableName, "日期", "", "");
             DataView dv = allData.DefaultView;
-            List<string> filters = new List<string>();
 
-            if (!string.IsNullOrWhiteSpace(keyword)) filters.Add($"法規名稱 LIKE '%{keyword.Replace("'", "''")}%'");
-            if (applyState != "全部" && !string.IsNullOrEmpty(applyState)) filters.Add($"適用性 = '{applyState.Replace("'", "''")}'");
-            if (filters.Count > 0) dv.RowFilter = string.Join(" AND ", filters);
+            // 如果使用者有選擇查詢欄位，且輸入了關鍵字，則進行 LIKE 模糊查詢
+            if (!string.IsNullOrEmpty(searchCol) && !string.IsNullOrWhiteSpace(keyword)) 
+            {
+                // 使用中括號包覆欄位名稱，避免欄位名稱有特殊字元時報錯，並過濾單引號防止 SQL Injection
+                dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+            }
+            else
+            {
+                dv.RowFilter = ""; // 沒有輸入關鍵字時不進行過濾
+            }
             
+            // 依 Id 反向排序 (最新寫入的在前面)
             dv.Sort = "Id DESC"; 
+            
             DataTable resultDt = dv.ToTable().Clone(); 
             int count = 0;
             foreach (DataRowView drv in dv) {
@@ -156,11 +176,12 @@ namespace Safety_System
             SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
-            _cboColumns.Items.Clear();
-            foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+            
+            // 更新進階管理的下拉選單內容
+            UpdateCboColumns();
             
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
-            MessageBox.Show(Form.ActiveForm, $"進階查詢完成！\n共找到 {resultDt.Rows.Count} 筆符合條件的資料。", "查詢成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(Form.ActiveForm, $"查詢完成！\n共找到 {resultDt.Rows.Count} 筆符合條件的資料。", "查詢結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void RefreshGrid() {
@@ -176,17 +197,34 @@ namespace Safety_System
             SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
-            _cboColumns.Items.Clear();
-            foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+            
+            // 更新進階管理的下拉選單內容
+            UpdateCboColumns();
             
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
+        // 🟢 抽離更新下拉選單的邏輯，同時更新「標題更改」與「查詢欄位」的選單
+        private void UpdateCboColumns()
+        {
+            _cboColumns.Items.Clear();
+            _cboSearchColumn.Items.Clear();
+
+            foreach (DataGridViewColumn c in _dgv.Columns) 
+            {
+                if (c.Name != "Id") 
+                {
+                    if (c.Name != "日期") _cboColumns.Items.Add(c.Name);
+                    _cboSearchColumn.Items.Add(c.Name); // 查詢欄位包含日期
+                }
+            }
+
+            if (_cboSearchColumn.Items.Count > 0) _cboSearchColumn.SelectedIndex = 0;
+        }
+
         private void SetupComboBoxColumns()
         {
-            // 🟢 新增：設定 [類別] 欄位
             ReplaceWithComboBox("類別", new string[] { "法律", "命令", "行政規則", "解釋令函", "" });
-
             ReplaceWithComboBox("適用性", new string[] { "適用", "不適用", "參考", "確認中", "" });
 
             string[] itemsTiao = new string[501];
