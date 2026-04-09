@@ -335,7 +335,7 @@ namespace Safety_System
             Dictionary<string, int> columnWidths = new Dictionary<string, int>
             {
                 { "法規名稱", 250 },
-                { "內容", 400 },
+                { "內容", 500 },
                 { "重點摘要", 200 },
                 { "備註", 150 }
             };
