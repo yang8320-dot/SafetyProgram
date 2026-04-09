@@ -46,6 +46,8 @@ namespace Safety_System
                 [內容] TEXT,
                 [重點摘要] TEXT, 
                 [適用性] TEXT, 
+                [合法且有提升績效機會] TEXT,
+                [合法但潛在不符合風險] TEXT,
                 [鑑別日期] TEXT,
                 [備註] TEXT);");
 
