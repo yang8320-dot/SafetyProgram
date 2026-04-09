@@ -14,7 +14,10 @@ namespace Safety_System
     public class App_Law_Generic
     {
         private DataGridView _dgv;
-        private DateTimePicker _dtpStart, _dtpEnd;
+        // 🟢 將原本的 DateTimePicker 改為 年、月、日 下拉選單
+        private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
+        private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
+
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
@@ -37,6 +40,7 @@ namespace Safety_System
 
         public Control GetView()
         {
+            // 🟢 欄位名稱更新：有提升績效機會、有潛在不符合風險
             DataManager.InitTable(_dbName, _tableName, $@"CREATE TABLE IF NOT EXISTS [{_tableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
@@ -48,10 +52,15 @@ namespace Safety_System
                 [內容] TEXT,
                 [重點摘要] TEXT, 
                 [適用性] TEXT, 
-                [合法且有提升績效機會] TEXT,
-                [合法但潛在不符合風險] TEXT,
+                [有提升績效機會] TEXT,
+                [有潛在不符合風險] TEXT,
                 [鑑別日期] TEXT,
                 [備註] TEXT);");
+
+            // 向下相容處理 (防止舊庫沒有新欄位)
+            var existingCols = DataManager.GetColumnNames(_dbName, _tableName);
+            if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
+            if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
@@ -61,25 +70,62 @@ namespace Safety_System
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
-            Label lblRange = new Label { Text = "區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            _dtpStart = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddYears(-1) };
-            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
-            _dtpEnd = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Value = DateTime.Today };
+            // 🟢 文字修正：法規日期
+            Label lblRange = new Label { Text = "法規日期:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             
-            Button bRead = new Button { Text = "區間讀取", Size = new Size(120, 35) };
+            // 🟢 建立 年、月、日 下拉選單
+            _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            int currentYear = DateTime.Now.Year;
+            for (int i = currentYear - 25; i <= currentYear; i++) {
+                _cboStartYear.Items.Add(i);
+                _cboEndYear.Items.Add(i);
+            }
+            for (int i = 1; i <= 12; i++) {
+                _cboStartMonth.Items.Add(i.ToString("D2"));
+                _cboEndMonth.Items.Add(i.ToString("D2"));
+            }
+            for (int i = 1; i <= 31; i++) {
+                _cboStartDay.Items.Add(i.ToString("D2"));
+                _cboEndDay.Items.Add(i.ToString("D2"));
+            }
+
+            // 預設值：起為一年前的今天，迄為今天
+            SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddYears(-1));
+            SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
+
+            Label lblStartYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblStartMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblStartDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEndDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 15, 0) };
+            
+            Button bRead = new Button { Text = "區間讀取", Size = new Size(100, 35) };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) { int count = ((DataTable)_dgv.DataSource).Rows.Count; MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); } };
 
-            // 🟢 儲存按鈕
-            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(5, 0, 0, 0) };
             _btnSave.Click += BtnSave_Click; 
             
-            Button bExport = new Button { Text = "匯出 Excel", Size = new Size(120, 35) }; bExport.Click += BtnExport_Click;
-            Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) }; bImport.Click += BtnImportCsv_Click;
+            Button bExport = new Button { Text = "匯出 Excel", Size = new Size(100, 35) }; bExport.Click += BtnExport_Click;
+            Button bImport = new Button { Text = "匯入 CSV", Size = new Size(100, 35) }; bImport.Click += BtnImportCsv_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理與查詢", Size = new Size(200, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理與查詢", Size = new Size(180, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏進階面板" : "[ + ] 進階管理與查詢"; _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray; };
 
-            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, _btnSave });
+            row1.Controls.AddRange(new Control[] { 
+                lblRange, 
+                _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, _cboStartDay, lblStartDay,
+                lblTilde, 
+                _cboEndYear, lblEndYear, _cboEndMonth, lblEndMonth, _cboEndDay, lblEndDay,
+                bRead, bExport, bImport, _btnToggle, _btnSave 
+            });
             boxTop.Controls.Add(row1);
 
             // ================= 進階管理面板 =================
@@ -260,7 +306,9 @@ namespace Safety_System
                 _dgv.DataSource = dt;
                 _isFirstLoad = false;
             } else { 
-                _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", _dtpStart.Value.ToString("yyyy-MM-dd"), _dtpEnd.Value.ToString("yyyy-MM-dd")); 
+                string sDate = GetStartDate().ToString("yyyy-MM-dd");
+                string eDate = GetEndDate().ToString("yyyy-MM-dd");
+                _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", sDate, eDate); 
             }
             
             SetupComboBoxColumns();
@@ -271,6 +319,30 @@ namespace Safety_System
             UpdateCboColumns();
             
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+        }
+
+        // 🟢 將 ComboBox 中的選取值轉換回 DateTime
+        private DateTime GetStartDate() { return ParseComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddYears(-1)); }
+        private DateTime GetEndDate() { return ParseComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today); }
+        private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime defaultDate) {
+            if (y.SelectedItem == null || m.SelectedItem == null || d.SelectedItem == null) return defaultDate;
+            if (int.TryParse(y.SelectedItem.ToString(), out int year) &&
+                int.TryParse(m.SelectedItem.ToString(), out int month) &&
+                int.TryParse(d.SelectedItem.ToString(), out int day)) {
+                try {
+                    int daysInMonth = DateTime.DaysInMonth(year, month);
+                    if (day > daysInMonth) day = daysInMonth;
+                    return new DateTime(year, month, day);
+                } catch { return defaultDate; }
+            }
+            return defaultDate;
+        }
+
+        // 🟢 傳入指定日期，更新回 ComboBox
+        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
+            if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
+            m.SelectedItem = date.Month.ToString("D2");
+            d.SelectedItem = date.Day.ToString("D2");
         }
 
         private void UpdateCboColumns()
@@ -295,10 +367,10 @@ namespace Safety_System
             ReplaceWithComboBox("類別", new string[] { "法律", "命令", "行政規則", "解釋令函", "" });
             ReplaceWithComboBox("適用性", new string[] { "適用", "不適用", "參考", "確認中", "" });
 
-            // 🟢 新增：將「合法且有提升績效機會」與「合法但潛在不符合風險」改為下拉選單
+            // 🟢 新欄位名稱：有提升績效機會、有潛在不符合風險
             string[] checkItems = new string[] { "", "v" };
-            ReplaceWithComboBox("合法且有提升績效機會", checkItems);
-            ReplaceWithComboBox("合法但潛在不符合風險", checkItems);
+            ReplaceWithComboBox("有提升績效機會", checkItems);
+            ReplaceWithComboBox("有潛在不符合風險", checkItems);
 
             string[] itemsTiao = new string[501];
             itemsTiao[0] = "";
