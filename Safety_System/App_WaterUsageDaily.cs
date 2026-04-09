@@ -52,9 +52,9 @@ namespace Safety_System
 
             // 3. 主佈局容器
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 頂部篩選
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 進階管理
-            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 表格區
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             // --- A. 頂部控制區塊 ---
             GroupBox boxTop = new GroupBox { 
@@ -66,10 +66,8 @@ namespace Safety_System
             };
             
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
-            
             Label lblRange = new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             
-            // 初始化年月日選單
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -94,7 +92,6 @@ namespace Safety_System
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            // 操作按鈕
             Button bRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) MessageBox.Show("資料載入完成！"); };
 
@@ -116,7 +113,6 @@ namespace Safety_System
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
             };
 
-            // 將控制項加入 row1
             row1.Controls.Add(lblRange);
             row1.Controls.Add(_cboStartYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             row1.Controls.Add(_cboStartMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
@@ -130,7 +126,6 @@ namespace Safety_System
             row1.Controls.Add(bImport);
             row1.Controls.Add(_btnToggle);
             row1.Controls.Add(bSave);
-
             boxTop.Controls.Add(row1);
 
             // --- B. 進階欄位管理區 ---
@@ -164,7 +159,6 @@ namespace Safety_System
             flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2);
             _boxAdvanced.Controls.Add(flpAdv);
 
-            // --- C. 表格區 ---
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
@@ -173,8 +167,6 @@ namespace Safety_System
                 AllowUserToOrderColumns = true 
             };
             _dgv.KeyDown += Dgv_KeyDown;
-            
-            // 綁定運算 Helper
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
             main.Controls.Add(boxTop, 0, 0);
@@ -184,8 +176,6 @@ namespace Safety_System
             RefreshGrid();
             return main;
         }
-
-        // --- 功能方法集 ---
 
         private void BtnSave_Click(object sender, EventArgs e)
         {
@@ -200,6 +190,7 @@ namespace Safety_System
                     RefreshGrid();
                 }
             } finally {
+                // 🟢 修正：Cursors.Default
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
@@ -211,9 +202,7 @@ namespace Safety_System
                 dt = DataManager.GetLatestRecords(DbName, TableName, 30);
                 _isFirstLoad = false;
             } else {
-                string sDate = GetStartDate().ToString("yyyy-MM-dd");
-                string eDate = GetEndDate().ToString("yyyy-MM-dd");
-                dt = DataManager.GetTableData(DbName, TableName, "日期", sDate, eDate);
+                dt = DataManager.GetTableData(DbName, TableName, "日期", GetStartDate().ToString("yyyy-MM-dd"), GetEndDate().ToString("yyyy-MM-dd"));
             }
             EnforceMonthFormat(dt);
             _dgv.DataSource = dt;
@@ -225,8 +214,7 @@ namespace Safety_System
         private void UpdateCboColumns()
         {
             _cboColumns.Items.Clear();
-            foreach (DataGridViewColumn c in _dgv.Columns)
-                if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
+            foreach (DataGridViewColumn c in _dgv.Columns) if (c.Name != "Id" && c.Name != "日期") _cboColumns.Items.Add(c.Name);
         }
 
         private void EnforceMonthFormat(DataTable dt)
@@ -234,8 +222,7 @@ namespace Safety_System
             if (dt == null || !dt.Columns.Contains("月份")) return;
             foreach (DataRow row in dt.Rows) {
                 if (row.RowState == DataRowState.Deleted) continue;
-                if (DateTime.TryParse(row["月份"]?.ToString(), out DateTime d)) 
-                    row["月份"] = d.ToString("yyyy-MM");
+                if (DateTime.TryParse(row["月份"]?.ToString(), out DateTime d)) row["月份"] = d.ToString("yyyy-MM");
             }
         }
 
@@ -248,32 +235,10 @@ namespace Safety_System
 
         private DateTime GetStartDate() => ParseComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
         private DateTime GetEndDate() => ParseComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
-        
-        private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime def)
-        {
-            try { return new DateTime(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()), int.Parse(d.SelectedItem.ToString())); }
-            catch { return def; }
-        }
+        private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime def) { try { return new DateTime(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()), int.Parse(d.SelectedItem.ToString())); } catch { return def; } }
 
-        private void SaveColumnOrder()
-        {
-            try {
-                var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray();
-                File.WriteAllText($"ColOrder_{DbName}_{TableName}.txt", string.Join(",", ordered), Encoding.UTF8);
-            } catch { }
-        }
-
-        private void RestoreColumnOrder()
-        {
-            try {
-                string fn = $"ColOrder_{DbName}_{TableName}.txt";
-                if (File.Exists(fn)) {
-                    string[] saved = File.ReadAllText(fn, Encoding.UTF8).Split(',');
-                    for (int i = 0; i < saved.Length; i++)
-                        if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i;
-                }
-            } catch { }
-        }
+        private void SaveColumnOrder() { try { var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray(); File.WriteAllText($"ColOrder_{DbName}_{TableName}.txt", string.Join(",", ordered), Encoding.UTF8); } catch { } }
+        private void RestoreColumnOrder() { try { string fn = $"ColOrder_{DbName}_{TableName}.txt"; if (File.Exists(fn)) { string[] saved = File.ReadAllText(fn, Encoding.UTF8).Split(','); for (int i = 0; i < saved.Length; i++) if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i; } } catch { } }
 
         private void BtnExport_Click(object sender, EventArgs e)
         {
@@ -281,13 +246,8 @@ namespace Safety_System
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     try {
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        if (sfd.FilterIndex == 1) {
-                            using (ExcelPackage p = new ExcelPackage()) {
-                                var ws = p.Workbook.Worksheets.Add("Data");
-                                ws.Cells["A1"].LoadFromDataTable(dt, true);
-                                p.SaveAs(new FileInfo(sfd.FileName));
-                            }
-                        } else {
+                        if (sfd.FilterIndex == 1) { using (ExcelPackage p = new ExcelPackage()) { var ws = p.Workbook.Worksheets.Add("Data"); ws.Cells["A1"].LoadFromDataTable(dt, true); p.SaveAs(new FileInfo(sfd.FileName)); } }
+                        else {
                             StringBuilder sb = new StringBuilder();
                             sb.AppendLine(string.Join(",", dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName)));
                             foreach (DataRow r in dt.Rows) sb.AppendLine(string.Join(",", r.ItemArray.Select(i => i?.ToString().Replace(",", "，"))));
@@ -301,48 +261,33 @@ namespace Safety_System
 
         private void BtnImportCsv_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
                         if (lines.Length < 2) return;
                         DataTable dt = (DataTable)_dgv.DataSource;
                         string[] headers = ParseCsvLine(lines[0]);
-
-                        _dgv.DataSource = null; // 🚀 斷開 UI，準備極速匯入
+                        _dgv.DataSource = null; 
                         _calcHelper?.BeginBulkUpdate();
-
                         foreach (string line in lines.Skip(1)) {
                             if (string.IsNullOrWhiteSpace(line)) continue;
                             DataRow nr = dt.NewRow();
                             string[] vs = ParseCsvLine(line);
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) {
-                                string cn = headers[h].Trim();
-                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim().Trim('"');
-                            }
+                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { string cn = headers[h].Trim(); if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim().Trim('"'); }
                             dt.Rows.Add(nr);
                         }
-
-                        _calcHelper?.RecalculateTable(dt); // 🚀 極速記憶體運算
+                        _calcHelper?.RecalculateTable(dt); 
                         _calcHelper?.EndBulkUpdate();
-                        _dgv.DataSource = dt; // 重新接回 UI
+                        _dgv.DataSource = dt; 
                         RestoreColumnOrder();
-                        MessageBox.Show("匯入成功!請檢查數據後點擊儲存。");
+                        MessageBox.Show("匯入成功!");
                     } catch (Exception ex) { RefreshGrid(); MessageBox.Show("匯入異常：" + ex.Message); }
                 }
             }
         }
 
-        private string[] ParseCsvLine(string line)
-        {
-            var res = new System.Collections.Generic.List<string>(); bool q = false; var f = new StringBuilder();
-            foreach (char c in line) {
-                if (c == '\"') q = !q; 
-                else if (c == ',' && !q) { res.Add(f.ToString()); f.Clear(); }
-                else f.Append(c);
-            }
-            res.Add(f.ToString()); return res.ToArray();
-        }
+        private string[] ParseCsvLine(string line) { var res = new System.Collections.Generic.List<string>(); bool q = false; var f = new StringBuilder(); foreach (char c in line) { if (c == '\"') q = !q; else if (c == ',' && !q) { res.Add(f.ToString()); f.Clear(); } else f.Append(c); } res.Add(f.ToString()); return res.ToArray(); }
 
         private void Dgv_KeyDown(object sender, KeyEventArgs e)
         {
@@ -356,9 +301,7 @@ namespace Safety_System
                     foreach (string line in lines) {
                         if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
                         string[] cells = line.Split('\t');
-                        for (int i = 0; i < cells.Length; i++)
-                            if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
-                                _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
+                        for (int i = 0; i < cells.Length; i++) if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly) _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
                         r++;
                     }
                     _calcHelper?.RecalculateTable(dt);
