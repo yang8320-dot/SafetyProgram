@@ -19,6 +19,7 @@ namespace Safety_System
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
         private Button _btnToggle;     
+        private Button _btnSave; 
 
         private bool _isFirstLoad = true;
         
@@ -69,8 +70,9 @@ namespace Safety_System
             Button bRead = new Button { Text = "區間讀取", Size = new Size(120, 35) };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) { int count = ((DataTable)_dgv.DataSource).Rows.Count; MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); } };
 
-            Button bSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
-            bSave.Click += (s, e) => { _dgv.EndEdit(); if (DataManager.ValidateAndSaveTable(_dbName, _tableName, (DataTable)_dgv.DataSource)) { MessageBox.Show(Form.ActiveForm, "儲存完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); RefreshGrid(); } };
+            // 🟢 儲存按鈕
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(120, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(30, 0, 0, 0) };
+            _btnSave.Click += BtnSave_Click; 
             
             Button bExport = new Button { Text = "匯出 Excel", Size = new Size(120, 35) }; bExport.Click += BtnExport_Click;
             Button bImport = new Button { Text = "匯入 CSV", Size = new Size(120, 35) }; bImport.Click += BtnImportCsv_Click;
@@ -78,7 +80,7 @@ namespace Safety_System
             _btnToggle = new Button { Text = "[ + ] 進階管理與查詢", Size = new Size(180, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏進階面板" : "[ + ] 進階管理與查詢"; _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray; };
 
-            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, bSave });
+            row1.Controls.AddRange(new Control[] { lblRange, _dtpStart, lblTilde, _dtpEnd, bRead, bExport, bImport, _btnToggle, _btnSave });
             boxTop.Controls.Add(row1);
 
             // ================= 進階管理面板 =================
@@ -99,7 +101,6 @@ namespace Safety_System
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
             bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyPassword()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(); } } } };
             
-            // 🟢 修改：支援滑鼠複選刪除
             Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
             bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
@@ -138,7 +139,6 @@ namespace Safety_System
             Button btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, _cboSearchColumn.SelectedItem?.ToString(), _txtSearchKeyword.Text);
 
-            // 🟢 新增：RTF 轉 CSV 按鈕
             Button btnRtfToCsv = new Button { Text = "📄 全國法規 RTF 轉 CSV", Size = new Size(220, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
             btnRtfToCsv.Click += BtnRtfToCsv_Click;
 
@@ -155,11 +155,71 @@ namespace Safety_System
             
             _dgv.DataError += Dgv_DataError;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
+            _dgv.KeyDown += Dgv_KeyDown; 
 
             main.Controls.Add(boxTop, 0, 0); main.Controls.Add(_boxAdvanced, 0, 1); main.Controls.Add(_dgv, 0, 2);
             
             RefreshGrid(); 
             return main;
+        }
+
+        // ==========================================
+        // 🟢 極速儲存與防重複邏輯 (加入 WaitCursor 防假當機)
+        // ==========================================
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            try {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                _dgv.EndEdit(); 
+                
+                DataTable dtToSave = (DataTable)_dgv.DataSource;
+                
+                // 執行重複解析：依據 (法規名稱、條、內容) 判斷是要新增還是覆寫
+                ResolveDuplicates(dtToSave);
+
+                // 呼叫 DataManager 極速批次寫入 Transaction
+                if (DataManager.BulkSaveTable(_dbName, _tableName, dtToSave)) {
+                    MessageBox.Show(Form.ActiveForm, "儲存/更新 完成！(已啟用 Transaction 交易機制)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    RefreshGrid();
+                }
+            } finally {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            }
+        }
+
+        private void ResolveDuplicates(DataTable dt)
+        {
+            DataTable dbData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+            var existingDict = new Dictionary<string, int>();
+
+            foreach (DataRow dbRow in dbData.Rows)
+            {
+                string name = dbRow["法規名稱"]?.ToString().Trim() ?? "";
+                string article = dbRow["條"]?.ToString().Trim() ?? "";
+                string content = dbRow["內容"]?.ToString().Trim() ?? "";
+                string key = $"{name}_|{article}_|{content}";
+                existingDict[key] = Convert.ToInt32(dbRow["Id"]);
+            }
+
+            foreach (DataRow row in dt.Rows)
+            {
+                if (row.RowState == DataRowState.Deleted) continue;
+                if (row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0)
+                    continue;
+
+                string name = row["法規名稱"]?.ToString().Trim() ?? "";
+                string article = row["條"]?.ToString().Trim() ?? "";
+                string content = row["內容"]?.ToString().Trim() ?? "";
+                string key = $"{name}_|{article}_|{content}";
+
+                if (existingDict.ContainsKey(key))
+                {
+                    bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
+                    row.Table.Columns["Id"].ReadOnly = false;
+                    row["Id"] = existingDict[key];
+                    row.Table.Columns["Id"].ReadOnly = isReadOnly;
+                }
+            }
         }
 
         private void ExecuteAdvancedSearch(string countText, string searchCol, string keyword)
@@ -176,7 +236,7 @@ namespace Safety_System
             }
             else
             {
-                dv.RowFilter = "";
+                dv.RowFilter = ""; 
             }
             
             dv.Sort = "Id DESC"; 
@@ -195,6 +255,7 @@ namespace Safety_System
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
             UpdateCboColumns();
+            
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
             MessageBox.Show(Form.ActiveForm, $"查詢完成！\n共找到 {resultDt.Rows.Count} 筆符合條件的資料。", "查詢結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -212,7 +273,9 @@ namespace Safety_System
             SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
+            
             UpdateCboColumns();
+            
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
@@ -229,6 +292,7 @@ namespace Safety_System
                     _cboSearchColumn.Items.Add(c.Name); 
                 }
             }
+
             if (_cboSearchColumn.Items.Count > 0) _cboSearchColumn.SelectedIndex = 0;
         }
 
@@ -304,11 +368,13 @@ namespace Safety_System
             }
         }
 
-        // 🟢 替換為支援「雙引號內含換行/逗號」的高級 CSV 解析器，並斷開 UI 加速載入
+        // 🟢 極速 CSV 匯入：斷開 UI，防假當機
         private void BtnImportCsv_Click(object sender, EventArgs e) {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+
                         string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
                         List<string[]> parsedRows = ParseCsvText(fileContent);
                         if (parsedRows.Count < 2) return; 
@@ -316,7 +382,8 @@ namespace Safety_System
                         DataTable dt = (DataTable)_dgv.DataSource; 
                         string[] headers = parsedRows[0];
 
-                        _dgv.DataSource = null; // 斷開 UI 加速
+                        // 斷開 UI 加速
+                        _dgv.DataSource = null; 
 
                         for (int i = 1; i < parsedRows.Count; i++) {
                             string[] vs = parsedRows[i];
@@ -332,18 +399,21 @@ namespace Safety_System
                             dt.Rows.Add(nr);
                         }
 
-                        _dgv.DataSource = dt; // 重新綁定 UI
+                        // 重新綁定 UI
+                        _dgv.DataSource = dt; 
                         _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
-                        MessageBox.Show($"載入 {parsedRows.Count - 1} 筆資料成功！請確認無誤後點擊「儲存」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        MessageBox.Show($"載入 {parsedRows.Count - 1} 筆資料成功！\n系統已就緒，請點擊「儲存」以進行更新比對。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
-                        RefreshGrid(); // 發生錯誤時還原表格
+                        RefreshGrid(); 
                         MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
                     }
                 }
             }
         }
 
-        // 🟢 高階 CSV 解析：支援欄位內換行 (\n) 與逗號
         private List<string[]> ParseCsvText(string csvText)
         {
             var result = new List<string[]>();
@@ -357,7 +427,6 @@ namespace Safety_System
 
                 if (c == '\"')
                 {
-                    // 處理連續雙引號 (跳脫的雙引號)
                     if (inQuotes && i + 1 < csvText.Length && csvText[i + 1] == '\"') {
                         currentField.Append('\"');
                         i++; 
@@ -372,7 +441,6 @@ namespace Safety_System
                 }
                 else if ((c == '\r' || c == '\n') && !inQuotes)
                 {
-                    // 處理 Windows 的 \r\n 或 Unix 的 \n
                     if (c == '\r' && i + 1 < csvText.Length && csvText[i + 1] == '\n') {
                         i++; 
                     }
@@ -387,7 +455,6 @@ namespace Safety_System
                 }
             }
 
-            // 處理最後一行
             if (currentField.Length > 0 || currentRecord.Count > 0)
             {
                 currentRecord.Add(currentField.ToString());
@@ -397,7 +464,6 @@ namespace Safety_System
             return result;
         }
 
-        // 🟢 RTF 轉 CSV 按鈕事件
         private void BtnRtfToCsv_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "RTF 法規檔案 (*.rtf)|*.rtf", Title = "請選擇全國法規資料庫下載的 RTF 檔案" }) {
@@ -412,6 +478,46 @@ namespace Safety_System
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // 🟢 高效能版 Ctrl+V 貼上 (防假當機)
+        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.S)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                _btnSave?.PerformClick(); // 觸發儲存事件
+            }
+            else if (e.Control && e.KeyCode == Keys.V)
+            {
+                try {
+                    string text = Clipboard.GetText(); 
+                    if (string.IsNullOrEmpty(text)) return;
+                    
+                    _dgv.SuspendLayout(); // 暫停 UI 重繪
+
+                    string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
+                    DataTable dt = (DataTable)_dgv.DataSource;
+
+                    foreach (string line in lines) {
+                        if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
+                        string[] cells = line.Split('\t');
+                        for (int i = 0; i < cells.Length; i++) {
+                            if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly) {
+                                _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
+                            }
+                        }
+                        r++;
+                    }
+
+                    _dgv.ResumeLayout();
+                } catch (Exception ex) { 
+                    _dgv.ResumeLayout();
+                    MessageBox.Show("貼上失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
