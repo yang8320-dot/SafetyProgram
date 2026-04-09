@@ -29,22 +29,24 @@ namespace Safety_System
             string[] lines = plainText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             
             string lawName = "";
-            string lawDate = ""; // 🟢 儲存解析後的法規日期
+            string lawDate = ""; // 儲存解析後的法規日期
+            
+            // 層級狀態變數
             string currentArticle = "";
-            string currentItemLevel2 = ""; // 項
+            int currentXiangNumber = 0;    // 🟢 項的計數器 (數字)
             string currentItemLevel3 = ""; // 款
             string currentItemLevel4 = ""; // 目
             StringBuilder currentContent = new StringBuilder();
             
             List<string[]> records = new List<string[]>();
             
-            // 🟢 辨識「修正日期：民國 xxx 年 xx 月 xx 日」或「發布日期：...」
+            // 辨識「修正日期：民國 xxx 年 xx 月 xx 日」或「發布日期：...」
             Regex dateRegex = new Regex(@"(修正|發布)日期：?\s*民國\s*(?<year>\d+)\s*年\s*(?<month>\d+)\s*月\s*(?<day>\d+)\s*日");
             
             // 辨識「第 OOO 條」 (包含 第10-1條)
             Regex articleRegex = new Regex(@"^第\s*[一二三四五六七八九十百千\d]+\s*條(-\d+)?");
             
-            // 辨識 項、款、目 的正規表達式
+            // 辨識 款、目 的正規表達式
             // 款：「一、」「二、」... 等中文數字加頓號
             Regex kuanRegex = new Regex(@"^[一二三四五六七八九十百千]+、"); 
             // 目：「(一)」「(二)」... 或「1.」「2.」或全形「１、」
@@ -55,7 +57,7 @@ namespace Safety_System
                 string line = lines[i].Trim();
                 if (string.IsNullOrEmpty(line)) continue;
 
-                // 🟢 1. 抓取法規名稱與日期
+                // 1. 抓取法規名稱與日期
                 if (string.IsNullOrEmpty(lawName))
                 {
                     if (line.StartsWith("法規名稱：")) {
@@ -63,12 +65,12 @@ namespace Safety_System
                         continue;
                     } 
                     else if (!line.StartsWith("第") && !line.Contains("日期") && line.Length < 50) {
-                        lawName = line; // 容錯：若沒有「法規名稱：」但長度合理，視為標題
+                        lawName = line; 
                         continue;
                     }
                 }
 
-                // 🟢 抓取法規日期並格式化為 xxx-xx-xx
+                // 抓取法規日期並格式化為 xxx-xx-xx
                 if (string.IsNullOrEmpty(lawDate))
                 {
                     Match mDate = dateRegex.Match(line);
@@ -82,20 +84,20 @@ namespace Safety_System
                     }
                 }
 
-                // 🟢 2. 判斷是否為新的「條」
+                // 2. 判斷是否為新的「條」
                 Match mArticle = articleRegex.Match(line);
                 if (mArticle.Success)
                 {
                     // 遇到新的一條，先把上一條的內容存檔
                     if (!string.IsNullOrEmpty(currentArticle) && currentContent.Length > 0)
                     {
-                        records.Add(CreateRecord(lawDate, lawName, currentArticle, currentItemLevel2, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
+                        records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
                     }
                     
                     currentArticle = mArticle.Value.Trim();
                     
-                    // 換條時，重置所有項款目
-                    currentItemLevel2 = "";
+                    // 🟢 換條時，重置所有的 項、款、目 計數器
+                    currentXiangNumber = 1; // 預設新的一條至少有第 1 項
                     currentItemLevel3 = "";
                     currentItemLevel4 = "";
                     currentContent.Clear();
@@ -107,7 +109,7 @@ namespace Safety_System
                     continue;
                 }
 
-                // 🟢 3. 判斷是否為「款」或「目」，或者是單純的「項」換行
+                // 3. 判斷是否為「項」、「款」或「目」
                 if (!string.IsNullOrEmpty(currentArticle))
                 {
                     Match mKuan = kuanRegex.Match(line);
@@ -115,36 +117,49 @@ namespace Safety_System
 
                     if (mKuan.Success)
                     {
-                        // 遇到「款」，代表上一段內容結束，先存檔
+                        // 🟢 遇到「款」
                         if (currentContent.Length > 0) {
-                            records.Add(CreateRecord(lawDate, lawName, currentArticle, currentItemLevel2, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
+                            records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
                             currentContent.Clear();
                         }
-                        currentItemLevel3 = mKuan.Value.Trim('、'); // 紀錄款號 (例如: 一)
-                        currentItemLevel4 = ""; // 款更新了，目要清空
+                        currentItemLevel3 = mKuan.Value.Trim('、'); // 紀錄款號
+                        currentItemLevel4 = ""; // 目要清空
                         currentContent.AppendLine(line.Substring(mKuan.Length).Trim());
                     }
                     else if (mMu.Success)
                     {
-                        // 遇到「目」，代表上一段內容結束，先存檔
+                        // 🟢 遇到「目」
                         if (currentContent.Length > 0) {
-                            records.Add(CreateRecord(lawDate, lawName, currentArticle, currentItemLevel2, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
+                            records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
                             currentContent.Clear();
                         }
-                        currentItemLevel4 = mMu.Value.Trim(); // 紀錄目號 (例如: (一) 或 1.)
+                        currentItemLevel4 = mMu.Value.Trim(); // 紀錄目號
                         currentContent.AppendLine(line.Substring(mMu.Length).Trim());
                     }
                     else
                     {
-                        // 沒有特別符號，如果此時已經有款、目，則視為該款/目的換行延伸
-                        // 如果此時完全沒有款、目，則這一段文字就是「項」
-                        if (string.IsNullOrEmpty(currentItemLevel3) && string.IsNullOrEmpty(currentItemLevel4)) {
-                            // 若內容已經有值，且遇到換行，可能是第二「項」
-                            if (currentContent.Length > 0 && i > 0 && string.IsNullOrWhiteSpace(lines[i-1])) {
-                                records.Add(CreateRecord(lawDate, lawName, currentArticle, currentItemLevel2, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
-                                currentContent.Clear();
+                        // 🟢 遇到一般的法條文字 (判斷是否為新的「項」)
+                        
+                        // 如果目前沒有款、目，且上一段內容以「句號(。)」或「冒號(：)」結尾，則視為一個新「項」的開始
+                        if (string.IsNullOrEmpty(currentItemLevel3) && string.IsNullOrEmpty(currentItemLevel4)) 
+                        {
+                            string currentText = currentContent.ToString().Trim();
+                            
+                            // 判斷上一段落是否已經結束 (通常以。或：結尾)
+                            if (currentText.EndsWith("。") || currentText.EndsWith("：") || currentText.EndsWith(":") || currentText.EndsWith("."))
+                            {
+                                // 把上一「項」的內容存起來
+                                if (currentContent.Length > 0) {
+                                    records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentText));
+                                    currentContent.Clear();
+                                    
+                                    // 🟢 項計數器 + 1
+                                    currentXiangNumber++; 
+                                }
                             }
                         }
+                        
+                        // 將文字接續到當前的內容緩衝區
                         currentContent.AppendLine(line);
                     }
                 }
@@ -153,7 +168,7 @@ namespace Safety_System
             // 儲存檔案最後結尾的內容
             if (!string.IsNullOrEmpty(currentArticle) && currentContent.Length > 0)
             {
-                records.Add(CreateRecord(lawDate, lawName, currentArticle, currentItemLevel2, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
+                records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
             }
 
             // 寫出為標準 CSV
@@ -175,7 +190,7 @@ namespace Safety_System
             File.WriteAllText(csvPath, csv.ToString(), Encoding.UTF8);
         }
 
-        // 🟢 封裝單筆紀錄的建立 (加入日期參數)
+        // 封裝單筆紀錄的建立
         private static string[] CreateRecord(string date, string lawName, string article, string xiang, string kuan, string mu, string content)
         {
             string[] rec = new string[14];
@@ -184,7 +199,7 @@ namespace Safety_System
             rec[0] = date;    // 日期 (格式: xxx-xx-xx)
             rec[2] = lawName; // 法規名稱
             rec[3] = ExtractNumber(article); // 條
-            rec[4] = xiang;   // 項
+            rec[4] = xiang;   // 項 (數字 1, 2, 3...)
             rec[5] = kuan;    // 款
             rec[6] = mu;      // 目
             rec[7] = content; // 內容
