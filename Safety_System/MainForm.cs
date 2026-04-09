@@ -45,30 +45,21 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
-        // ==========================================
-        // 🟢 全域快捷鍵攔截邏輯 (Ctrl + S 存檔)
-        // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == (Keys.Control | Keys.S))
             {
-                // 在內容面板中尋找名稱為 "btnSave" 的按鈕
                 Button activeSaveButton = FindControlByName(_contentPanel, "btnSave") as Button;
-
                 if (activeSaveButton != null && activeSaveButton.Enabled)
                 {
-                    // 強制結束所有控制項的輸入狀態，確保 DataGridView 的最後一格資料被確認
                     this.Validate(); 
-                    
-                    // 模擬點擊儲存按鈕
                     activeSaveButton.PerformClick();
-                    return true; // 攔截按鍵，防止發出系統警告音
+                    return true; 
                 }
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        // 🟢 輔助方法：遞迴尋找控制項
         private Control FindControlByName(Control parent, string name)
         {
             foreach (Control c in parent.Controls)
@@ -79,7 +70,6 @@ namespace Safety_System
             }
             return null;
         }
-        // ==========================================
 
         private void BuildMenu()
         {
@@ -139,35 +129,20 @@ namespace Safety_System
             menuTest.DropDownItems.Add(CreateItem("水錶校正", () => new App_WaterMeterCalibration().GetView()));
             menuTest.DropDownItems.Add(CreateItem("其它檢測數據", () => new App_OtherTests().GetView()));
 
-            // ================= 新增：教育訓練 =================
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
             menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_EduHours().GetView()));
 
-            // ================= 新增：法規 (動態載入共用模組) =================
+            // ================= 🟢 修改：法規選單收斂為 3 個主項目 =================
             var menuLaw = new ToolStripMenuItem("法規");
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
+            
+            // 將 DbName 設為 "法規"，TableName 分別設為三大類
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
+            // ====================================================================
 
-            // 1. 環保法規 (20項)
-            var menuLawEnv = new ToolStripMenuItem("環保法規");
-            string[] envLaws = { "組織與處務", "環境綜合計畫", "環境影響評估", "空氣污染防制", "噪音污染管制", "水污染防治", "海洋污染防制", "廢棄物清理", "應回收廢棄物", "資源回收再利用", "土壤污染整治", "毒化物管理", "飲用水管理", "環境用藥管理", "公害糾紛處理", "環境污染檢驗", "環保人員訓練", "環境教育", "溫室氣體管理", "室內空氣管理" };
-            foreach (var law in envLaws) menuLawEnv.DropDownItems.Add(CreateLawItem("環保法規", law));
-
-            // 2. 職安衛法規 (17項)
-            var menuLawOsh = new ToolStripMenuItem("職安衛法規");
-            string[] oshLaws = { "一般安全衛生法規", "一般環境管理相關法規", "高壓氣體相關法規", "健康管理相關法規", "教育訓練相關法規", "化學物質相關法規", "機械安全相關法規", "特殊作業相關法規", "特別行業適用法規", "職業災害勞工保護法相關法規", "安衛其他法規", "勞資關係", "勞動條件", "勞工福利", "勞工保險", "職業訓練", "就業服務" };
-            foreach (var law in oshLaws) menuLawOsh.DropDownItems.Add(CreateLawItem("職安衛法規", law));
-
-            // 3. 其他法規 (25項)
-            var menuLawOther = new ToolStripMenuItem("其他法規");
-            string[] otherLaws = { "原子能相關法規", "衛生福利相關法規", "交通安全相關法規", "消防相關法規", "建築相關法規", "下水道相關法規", "科學園區相關法規", "一般工業區相關法規", "利害相關者要求", "國際環保公約", "水利相關法規", "能源管理", "文化相關法規", "族群相關法規", "消費相關法規", "財政金融相關法規", "法務相關法規", "社福警政相關法規", "經濟相關法規", "觀光旅遊相關法規", "生態相關法規", "礦業相關法規", "農林漁牧相關法規", "教育體育相關法規", "通訊傳播相關法規" };
-            foreach (var law in otherLaws) menuLawOther.DropDownItems.Add(CreateLawItem("其它法規", law));
-
-            menuLaw.DropDownItems.Add(menuLawEnv);
-            menuLaw.DropDownItems.Add(menuLawOsh);
-            menuLaw.DropDownItems.Add(menuLawOther);
-
-            // ================= 原有：設定 =================
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
             
@@ -182,7 +157,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 將教育訓練(menuEdu)與法規(menuLaw)加入主選單
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuSettings 
@@ -199,7 +173,6 @@ namespace Safety_System
             return item;
         }
 
-        // 🟢 新增：專門用來產生共用法規模組的 Helper
         private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
         {
             var item = new ToolStripMenuItem(tableName);
