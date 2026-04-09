@@ -31,76 +31,108 @@ namespace Safety_System
             try { LoadAndMergeData(); }
             catch (Exception ex) { _errorLogs.Add($"[資料讀取] {ex.Message}"); }
 
-            // 🟢 主排版引擎：強制劃分 5 個橫列 (Row)，確保版面絕對不跑位
+            // 🟢 主排版引擎：改為 3 個橫列 (Row)，對應您要求的三個大框
             TableLayoutPanel mainPanel = new TableLayoutPanel 
             { 
                 Dock = DockStyle.Fill, 
                 BackColor = Color.WhiteSmoke, 
                 AutoScroll = true, 
-                RowCount = 5, 
+                RowCount = 3, 
                 ColumnCount = 1,
                 Padding = new Padding(20) 
             };
 
-            // 設定 5 個框的高度屬性 (文字框固定高度，資料框自動延展)
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));  // 框1: 統計標題
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // 框2: 統計表格
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));  // 框3: 目錄標題
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // 框4: 目錄表格
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // 框5: 今年法規表格
+            // 設定三個大框的高度模式 (自動延展)
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框1: 今年修正法規
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框2: 統計摘要
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框3: 目錄清單
 
             // ==========================================
-            // 框 1 (純文字)：統計摘要標題 (原紅框標題)
+            // 大框 1：今年修正法規 (移至最上方)
             // ==========================================
-            GroupBox boxText1 = CreateTextBox("台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求內容一覽表");
-            mainPanel.Controls.Add(boxText1, 0, 0);
-
-            // ==========================================
-            // 框 2 (資料庫)：統計摘要表格
-            // ==========================================
-            GroupBox boxData1 = CreateDataBox("📊 統計摘要");
-            Panel pnlAction1 = CreateActionPanel("匯出統計 Excel", "匯出統計 PDF", () => ExportToExcel(_dgvStats, "統計摘要"), () => ExportToPdf(_dgvStats, "統計摘要"));
-            _dgvStats = CreateStatsGrid();
-            try { PopulateStatsData(_dgvStats); } catch (Exception ex) { _errorLogs.Add($"[統計摘要] {ex.Message}"); }
-            boxData1.Controls.Add(_dgvStats);
-            boxData1.Controls.Add(pnlAction1);
-            mainPanel.Controls.Add(boxData1, 0, 1);
-
-            // ==========================================
-            // 框 3 (純文字)：目錄清單標題 (原藍框標題)
-            // ==========================================
-            GroupBox boxText2 = CreateTextBox("台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求目錄一覽表");
-            mainPanel.Controls.Add(boxText2, 0, 2);
-
-            // ==========================================
-            // 框 4 (資料庫)：依類別檢視目錄
-            // ==========================================
-            GroupBox boxData2 = CreateDataBox("📋 依類別檢視法令名稱");
-            Panel pnlAction2 = CreateActionPanel("匯出目錄 Excel", "匯出目錄 PDF", () => ExportToExcel(_dgvCategoryLaws, "法令目錄"), () => ExportToPdf(_dgvCategoryLaws, "法令目錄"));
+            GroupBox box1 = CreateDataBox("📌 今年修正法規一覽 (排除重複名稱，依適用性權重顯示)");
             
-            // 下拉選單加入工具列
-            _cboCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 200, Location = new Point(10, 8) };
-            _cboCategory.Items.AddRange(_tableNames);
-            _cboCategory.SelectedIndexChanged += (s, e) => { try { PopulateCategoryLaws(); } catch { } };
-            pnlAction2.Controls.Add(new Label { Text = "選擇類別:", AutoSize = true, Location = new Point(220, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) });
-            pnlAction2.Controls.Add(_cboCategory);
-            _cboCategory.Left = 300;
-
-            _dgvCategoryLaws = CreateStandardGrid();
-            boxData2.Controls.Add(_dgvCategoryLaws);
-            boxData2.Controls.Add(pnlAction2);
-            mainPanel.Controls.Add(boxData2, 0, 3);
-
-            // ==========================================
-            // 框 5 (資料庫)：今年修正法規
-            // ==========================================
-            GroupBox boxData3 = CreateDataBox("📌 今年修正法規一覽 (排除重複名稱，依適用性權重顯示)");
-            Panel pnlAction3 = CreateActionPanel("匯出法規 Excel", "匯出法規 PDF", () => ExportToExcel(_dgvThisYear, "今年修正法規"), () => ExportToPdf(_dgvThisYear, "今年修正法規"));
+            Panel pnlAction1 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
+                () => ExportToExcel(_dgvThisYear, "今年修正法規"), 
+                () => ExportToPdf(_dgvThisYear, "今年修正法規"));
+            
             _dgvThisYear = CreateStandardGrid();
             try { PopulateThisYearData(_dgvThisYear); } catch (Exception ex) { _errorLogs.Add($"[今年修正] {ex.Message}"); }
-            boxData3.Controls.Add(_dgvThisYear);
-            boxData3.Controls.Add(pnlAction3);
-            mainPanel.Controls.Add(boxData3, 0, 4);
+            
+            box1.Controls.Add(_dgvThisYear);
+            box1.Controls.Add(pnlAction1);
+            _dgvThisYear.BringToFront(); // 確保表格填滿剩餘空間
+
+            mainPanel.Controls.Add(box1, 0, 0);
+
+            // ==========================================
+            // 大框 2：統計摘要 (包含兩行標題 + 表格)
+            // ==========================================
+            GroupBox box2 = CreateDataBox("📊 統計摘要");
+            
+            // 兩行標題整合在一個 Label 中
+            Label lblTitle2 = new Label { 
+                Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求內容一覽表", 
+                Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
+                TextAlign = ContentAlignment.MiddleCenter, 
+                ForeColor = Color.DarkSlateBlue,
+                Dock = DockStyle.Top, 
+                Height = 70 
+            };
+
+            Panel pnlAction2 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
+                () => ExportToExcel(_dgvStats, "統計摘要"), 
+                () => ExportToPdf(_dgvStats, "統計摘要"));
+            
+            _dgvStats = CreateStatsGrid();
+            try { PopulateStatsData(_dgvStats); } catch (Exception ex) { _errorLogs.Add($"[統計摘要] {ex.Message}"); }
+            
+            // 加入順序很重要：先加標題，再加按鈕，最後加表格
+            box2.Controls.Add(_dgvStats);
+            box2.Controls.Add(pnlAction2);
+            box2.Controls.Add(lblTitle2);
+            _dgvStats.BringToFront();
+
+            mainPanel.Controls.Add(box2, 0, 1);
+
+            // ==========================================
+            // 大框 3：目錄清單 (包含下拉選單 + 兩行標題 + 表格)
+            // ==========================================
+            GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
+
+            // 頂部控制面板 (放標題)
+            Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
+            Label lblTitle3 = new Label { 
+                Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求目錄一覽表", 
+                Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Color.DarkSlateBlue,
+                Dock = DockStyle.Fill 
+            };
+            pnlTop3.Controls.Add(lblTitle3);
+
+            // 動作面板 (放下拉選單與按鈕，解決擠壓問題)
+            Panel pnlAction3 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
+                () => ExportToExcel(_dgvCategoryLaws, "法令目錄"), 
+                () => ExportToPdf(_dgvCategoryLaws, "法令目錄"));
+            
+            Label lblCbo = new Label { Text = "選擇類別:", AutoSize = true, Location = new Point(350, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 180, Location = new Point(430, 6) };
+            _cboCategory.Items.AddRange(_tableNames);
+            _cboCategory.SelectedIndexChanged += (s, e) => { try { PopulateCategoryLaws(); } catch { } };
+            
+            pnlAction3.Controls.Add(lblCbo);
+            pnlAction3.Controls.Add(_cboCategory);
+
+            _dgvCategoryLaws = CreateStandardGrid();
+            
+            // 加入順序
+            box3.Controls.Add(_dgvCategoryLaws);
+            box3.Controls.Add(pnlAction3);
+            box3.Controls.Add(pnlTop3);
+            _dgvCategoryLaws.BringToFront();
+
+            mainPanel.Controls.Add(box3, 0, 2);
 
             // 初始化選項
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
@@ -114,37 +146,50 @@ namespace Safety_System
         // ==========================================
         // UI 元件工廠方法
         // ==========================================
-        private GroupBox CreateTextBox(string text)
-        {
-            GroupBox gb = new GroupBox { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), Padding = new Padding(5) };
-            Label lbl = new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
-            gb.Controls.Add(lbl);
-            return gb;
-        }
-
         private GroupBox CreateDataBox(string title)
         {
-            return new GroupBox { Text = title, Dock = DockStyle.Fill, MinimumSize = new Size(0, 350), Margin = new Padding(0, 0, 0, 20), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            // 🟢 設定統一的大框樣式，MinimumSize 確保表格不會被壓扁
+            return new GroupBox 
+            { 
+                Text = title, 
+                Dock = DockStyle.Fill, 
+                MinimumSize = new Size(0, 350), 
+                Margin = new Padding(0, 0, 0, 20), 
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                Padding = new Padding(15) 
+            };
         }
 
         private Panel CreateActionPanel(string exText, string pdfText, Action exClick, Action pdfClick)
         {
             Panel p = new Panel { Dock = DockStyle.Top, Height = 45 };
-            Button btnEx = new Button { Text = "📊 " + exText, Size = new Size(160, 32), Location = new Point(10, 5), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
-            Button btnPdf = new Button { Text = "📄 " + pdfText, Size = new Size(160, 32), Location = new Point(180, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
+            Button btnEx = new Button { Text = "📊 " + exText, Size = new Size(150, 32), Location = new Point(10, 5), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
+            Button btnPdf = new Button { Text = "📄 " + pdfText, Size = new Size(150, 32), Location = new Point(170, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
             
             btnEx.Click += (s, e) => exClick();
             btnPdf.Click += (s, e) => pdfClick();
             
             p.Controls.Add(btnEx);
             p.Controls.Add(btnPdf);
-            btnEx.BringToFront(); btnPdf.BringToFront();
             return p;
         }
 
         private DataGridView CreateStandardGrid()
         {
-            return new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = false, AllowUserToDeleteRows = false, ReadOnly = true, RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, Font = new Font("Microsoft JhengHei UI", 11F), BorderStyle = BorderStyle.Fixed3D, AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.True } };
+            return new DataGridView 
+            { 
+                Dock = DockStyle.Fill, 
+                BackgroundColor = Color.White, 
+                AllowUserToAddRows = false, 
+                AllowUserToDeleteRows = false, 
+                ReadOnly = true, 
+                RowHeadersVisible = false, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, 
+                Font = new Font("Microsoft JhengHei UI", 11F), 
+                BorderStyle = BorderStyle.Fixed3D, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
+                DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.True } 
+            };
         }
 
         private DataGridView CreateStatsGrid()
@@ -233,7 +278,7 @@ namespace Safety_System
                 int[] v = new int[9];
                 if (_dtAllLaws != null && _dtAllLaws.Rows.Count > 0) {
                     DataView dv = new DataView(_dtAllLaws); dv.RowFilter = $"主分類 = '{cat}'";
-                    v[1] = dv.Count; // 法條數
+                    v[1] = dv.Count; 
                     HashSet<string> uniqueNames = new HashSet<string>();
                     foreach (DataRowView row in dv) {
                         string name = GetSafeStr(row, "法規名稱"), aStatus = GetSafeStr(row, "適用性"), cStatus = GetSafeStr(row, "合規狀態");
@@ -241,7 +286,7 @@ namespace Safety_System
                         if (aStatus == "適用") v[2]++; else if (aStatus == "參考") v[3]++; else if (aStatus == "不適用") v[4]++; else if (aStatus == "確認中") v[5]++; else if (string.IsNullOrEmpty(aStatus)) v[8]++;
                         if (cStatus.Contains("提升")) v[6]++; if (cStatus.Contains("潛在不符合")) v[7]++;
                     }
-                    v[0] = uniqueNames.Count; // 法規數
+                    v[0] = uniqueNames.Count; 
                 }
                 dtStats.Rows.Add(cat, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
                 for (int i = 0; i < 9; i++) sums[i] += v[i];
@@ -283,19 +328,25 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 匯出功能 (Excel 與 PDF)
+        // 匯出功能 (Excel / PDF)
         // ==========================================
         private void ExportToExcel(DataGridView dgv, string title)
         {
             if (dgv.Rows.Count == 0) { MessageBox.Show("沒有資料可匯出！"); return; }
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel (*.xlsx)|*.xlsx", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     try {
+                        DataTable dt = new DataTable();
+                        foreach (DataGridViewColumn col in dgv.Columns) dt.Columns.Add(col.HeaderText);
+                        foreach (DataGridViewRow row in dgv.Rows) {
+                            DataRow dRow = dt.NewRow();
+                            for (int i = 0; i < dgv.Columns.Count; i++) dRow[i] = row.Cells[i].Value?.ToString();
+                            dt.Rows.Add(dRow);
+                        }
+
                         using (ExcelPackage p = new ExcelPackage()) {
                             var ws = p.Workbook.Worksheets.Add("Data");
-                            for (int i = 0; i < dgv.Columns.Count; i++) ws.Cells[1, i + 1].Value = dgv.Columns[i].HeaderText;
-                            for (int i = 0; i < dgv.Rows.Count; i++)
-                                for (int j = 0; j < dgv.Columns.Count; j++) ws.Cells[i + 2, j + 1].Value = dgv.Rows[i].Cells[j].Value?.ToString();
+                            ws.Cells["A1"].LoadFromDataTable(dt, true);
                             ws.Cells.AutoFitColumns(); p.SaveAs(new FileInfo(sfd.FileName));
                         }
                         MessageBox.Show("Excel 匯出成功！");
@@ -304,7 +355,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 原生 A4 PDF 繪圖匯出引擎
         private void ExportToPdf(DataGridView dgv, string title)
         {
             if (dgv.Rows.Count == 0) { MessageBox.Show("沒有資料可列印！"); return; }
@@ -314,7 +364,7 @@ namespace Safety_System
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
                     pd.PrinterSettings.PrintFileName = sfd.FileName;
-                    pd.DefaultPageSettings.Landscape = true; // 橫印較適合表格
+                    pd.DefaultPageSettings.Landscape = true; 
                     pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
 
                     int rowIndex = 0;
@@ -329,14 +379,12 @@ namespace Safety_System
                         float totalWidth = 0;
                         for (int i = 0; i < dgv.Columns.Count; i++) { widths[i] = dgv.Columns[i].Width; totalWidth += widths[i]; }
                         
-                        // 依照 A4 寬度等比例縮放表格
                         float scale = e.MarginBounds.Width / totalWidth;
-                        if (scale > 1f) scale = 1f; // 若表太小不放大，只縮小
+                        if (scale > 1f) scale = 1f; 
 
                         g.ScaleTransform(scale, scale);
                         float scaledHeight = e.MarginBounds.Height / scale;
 
-                        // 畫標題列
                         float x = e.MarginBounds.Left / scale;
                         float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
                         for (int i = 0; i < dgv.Columns.Count; i++) {
@@ -348,12 +396,10 @@ namespace Safety_System
                         }
                         y += headerH * scale;
 
-                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count) {
                             DataGridViewRow row = dgv.Rows[rowIndex];
                             float rowH = row.Height < 30 ? 30 : row.Height;
                             
-                            // 若超過頁面高度，換頁
                             if ((y / scale) + rowH > scaledHeight + (e.MarginBounds.Top / scale)) {
                                 e.HasMorePages = true; return;
                             }
@@ -363,20 +409,4 @@ namespace Safety_System
                                 RectangleF rect = new RectangleF(x, y / scale, widths[i], rowH);
                                 g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
                                 string val = row.Cells[i].Value?.ToString() ?? "";
-                                g.DrawString(val, font, Brushes.Black, rect, fmt);
-                                x += widths[i];
-                            }
-                            y += rowH * scale;
-                            rowIndex++;
-                        }
-                        e.HasMorePages = false;
-                        rowIndex = 0; // 重置
-                    };
-
-                    try { pd.Print(); MessageBox.Show("PDF 匯出成功！\n(已儲存至您選擇的路徑)"); }
-                    catch (Exception ex) { MessageBox.Show("PDF 匯出失敗 (請確認您的電腦有啟用 'Microsoft Print to PDF')：\n" + ex.Message); }
-                }
-            }
-        }
-    }
-}
+                                g.DrawString(val, font, Brushes.Black,
