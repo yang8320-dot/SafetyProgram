@@ -35,6 +35,7 @@ namespace Safety_System
             DataManager.InitTable(_dbName, _tableName, $@"CREATE TABLE IF NOT EXISTS [{_tableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
+                [類別] TEXT,
                 [法規名稱] TEXT, 
                 [發布機關] TEXT, 
                 [施行日期] TEXT, 
