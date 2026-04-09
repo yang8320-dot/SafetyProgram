@@ -29,11 +29,11 @@ namespace Safety_System
             string[] lines = plainText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             
             string lawName = "";
-            string lawDate = ""; // 儲存解析後的法規日期
+            string lawDate = ""; // 儲存解析後的法規日期 (西元格式)
             
             // 層級狀態變數
             string currentArticle = "";
-            int currentXiangNumber = 0;    // 🟢 項的計數器 (數字)
+            int currentXiangNumber = 0;    // 項的計數器 (數字)
             string currentItemLevel3 = ""; // 款
             string currentItemLevel4 = ""; // 目
             StringBuilder currentContent = new StringBuilder();
@@ -70,17 +70,20 @@ namespace Safety_System
                     }
                 }
 
-                // 抓取法規日期並格式化為 xxx-xx-xx
+                // 🟢 抓取法規日期並格式化為 yyyy-MM-dd (民國轉西元)
                 if (string.IsNullOrEmpty(lawDate))
                 {
                     Match mDate = dateRegex.Match(line);
                     if (mDate.Success)
                     {
-                        string year = mDate.Groups["year"].Value;
-                        string month = mDate.Groups["month"].Value.PadLeft(2, '0');
-                        string day = mDate.Groups["day"].Value.PadLeft(2, '0');
-                        lawDate = $"{year}-{month}-{day}";
-                        continue;
+                        if (int.TryParse(mDate.Groups["year"].Value, out int twYear))
+                        {
+                            int westernYear = twYear + 1911; // 民國年 + 1911 轉西元年
+                            string month = mDate.Groups["month"].Value.PadLeft(2, '0');
+                            string day = mDate.Groups["day"].Value.PadLeft(2, '0');
+                            lawDate = $"{westernYear}-{month}-{day}";
+                            continue;
+                        }
                     }
                 }
 
@@ -96,7 +99,7 @@ namespace Safety_System
                     
                     currentArticle = mArticle.Value.Trim();
                     
-                    // 🟢 換條時，重置所有的 項、款、目 計數器
+                    // 換條時，重置所有的 項、款、目 計數器
                     currentXiangNumber = 1; // 預設新的一條至少有第 1 項
                     currentItemLevel3 = "";
                     currentItemLevel4 = "";
@@ -117,7 +120,7 @@ namespace Safety_System
 
                     if (mKuan.Success)
                     {
-                        // 🟢 遇到「款」
+                        // 遇到「款」
                         if (currentContent.Length > 0) {
                             records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
                             currentContent.Clear();
@@ -128,7 +131,7 @@ namespace Safety_System
                     }
                     else if (mMu.Success)
                     {
-                        // 🟢 遇到「目」
+                        // 遇到「目」
                         if (currentContent.Length > 0) {
                             records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
                             currentContent.Clear();
@@ -138,14 +141,14 @@ namespace Safety_System
                     }
                     else
                     {
-                        // 🟢 遇到一般的法條文字 (判斷是否為新的「項」)
+                        // 遇到一般的法條文字 (判斷是否為新的「項」)
                         
                         // 如果目前沒有款、目，且上一段內容以「句號(。)」或「冒號(：)」結尾，則視為一個新「項」的開始
                         if (string.IsNullOrEmpty(currentItemLevel3) && string.IsNullOrEmpty(currentItemLevel4)) 
                         {
                             string currentText = currentContent.ToString().Trim();
                             
-                            // 判斷上一段落是否已經結束 (通常以。或：結尾)
+                            // 判斷上一段落是否已經結束
                             if (currentText.EndsWith("。") || currentText.EndsWith("：") || currentText.EndsWith(":") || currentText.EndsWith("."))
                             {
                                 // 把上一「項」的內容存起來
@@ -153,7 +156,7 @@ namespace Safety_System
                                     records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber.ToString(), currentItemLevel3, currentItemLevel4, currentText));
                                     currentContent.Clear();
                                     
-                                    // 🟢 項計數器 + 1
+                                    // 項計數器 + 1
                                     currentXiangNumber++; 
                                 }
                             }
@@ -196,7 +199,7 @@ namespace Safety_System
             string[] rec = new string[14];
             for (int i = 0; i < 14; i++) rec[i] = "";
             
-            rec[0] = date;    // 日期 (格式: xxx-xx-xx)
+            rec[0] = date;    // 🟢 日期 (西元格式: yyyy-MM-dd)
             rec[2] = lawName; // 法規名稱
             rec[3] = ExtractNumber(article); // 條
             rec[4] = xiang;   // 項 (數字 1, 2, 3...)
