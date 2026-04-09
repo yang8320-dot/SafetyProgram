@@ -37,8 +37,6 @@ namespace Safety_System
                 [日期] TEXT, 
                 [類別] TEXT,
                 [法規名稱] TEXT, 
-                [發布機關] TEXT, 
-                [施行日期] TEXT, 
                 [條] TEXT,
                 [項] TEXT,
                 [款] TEXT,
