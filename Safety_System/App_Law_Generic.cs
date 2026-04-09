@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -24,7 +25,6 @@ namespace Safety_System
         private readonly string _dbName; 
         private readonly string _tableName; 
 
-        // 🟢 新增：用於獨立關鍵字查詢的控制項
         private ComboBox _cboSearchColumn;
         private TextBox _txtSearchKeyword;
 
@@ -99,12 +99,31 @@ namespace Safety_System
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
             bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyPassword()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(); } } } };
             
-            Button bDelRow = new Button { Text = "刪除整列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
-            bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && AuthManager.VerifyPassword()) { DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
+            // 🟢 修改：支援滑鼠複選刪除
+            Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
+            bDelRow.Click += (s, e) => {
+                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
+                                       .Select(c => c.OwningRow)
+                                       .Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value)
+                                       .Distinct().ToList();
+
+                if (selectedRows.Count > 0) {
+                    if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後將立即生效)", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        if (AuthManager.VerifyPassword()) {
+                            foreach (var r in selectedRows) {
+                                DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                            }
+                            RefreshGrid();
+                            MessageBox.Show("刪除成功！");
+                        }
+                    }
+                } else {
+                    MessageBox.Show("請先用滑鼠選取要刪除的資料列！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            };
             
             row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
 
-            // 🟢 修改 row3：獨立的關鍵字查詢功能
             FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
             
             Label lblLimit = new Label { Text = "顯示最新筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
@@ -119,7 +138,11 @@ namespace Safety_System
             Button btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, _cboSearchColumn.SelectedItem?.ToString(), _txtSearchKeyword.Text);
 
-            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch });
+            // 🟢 新增：RTF 轉 CSV 按鈕
+            Button btnRtfToCsv = new Button { Text = "📄 全國法規 RTF 轉 CSV", Size = new Size(220, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
+            btnRtfToCsv.Click += BtnRtfToCsv_Click;
+
+            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch, btnRtfToCsv });
 
             flpAdvMain.Controls.Add(row2); flpAdvMain.Controls.Add(row3); 
             _boxAdvanced.Controls.Add(flpAdvMain);
@@ -139,28 +162,23 @@ namespace Safety_System
             return main;
         }
 
-        // 🟢 修改後的獨立條件查詢邏輯
         private void ExecuteAdvancedSearch(string countText, string searchCol, string keyword)
         {
             int limit = 50;
             if (!int.TryParse(countText, out limit) || limit <= 0) limit = 50; 
             
-            // 先取得該資料表的所有資料
             DataTable allData = DataManager.GetTableData(_dbName, _tableName, "日期", "", "");
             DataView dv = allData.DefaultView;
 
-            // 如果使用者有選擇查詢欄位，且輸入了關鍵字，則進行 LIKE 模糊查詢
             if (!string.IsNullOrEmpty(searchCol) && !string.IsNullOrWhiteSpace(keyword)) 
             {
-                // 使用中括號包覆欄位名稱，避免欄位名稱有特殊字元時報錯，並過濾單引號防止 SQL Injection
                 dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
             }
             else
             {
-                dv.RowFilter = ""; // 沒有輸入關鍵字時不進行過濾
+                dv.RowFilter = "";
             }
             
-            // 依 Id 反向排序 (最新寫入的在前面)
             dv.Sort = "Id DESC"; 
             
             DataTable resultDt = dv.ToTable().Clone(); 
@@ -176,10 +194,7 @@ namespace Safety_System
             SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
-            
-            // 更新進階管理的下拉選單內容
             UpdateCboColumns();
-            
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
             MessageBox.Show(Form.ActiveForm, $"查詢完成！\n共找到 {resultDt.Rows.Count} 筆符合條件的資料。", "查詢結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -197,14 +212,10 @@ namespace Safety_System
             SetupTextWrapping();
 
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true; 
-            
-            // 更新進階管理的下拉選單內容
             UpdateCboColumns();
-            
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
-        // 🟢 抽離更新下拉選單的邏輯，同時更新「標題更改」與「查詢欄位」的選單
         private void UpdateCboColumns()
         {
             _cboColumns.Items.Clear();
@@ -215,10 +226,9 @@ namespace Safety_System
                 if (c.Name != "Id") 
                 {
                     if (c.Name != "日期") _cboColumns.Items.Add(c.Name);
-                    _cboSearchColumn.Items.Add(c.Name); // 查詢欄位包含日期
+                    _cboSearchColumn.Items.Add(c.Name); 
                 }
             }
-
             if (_cboSearchColumn.Items.Count > 0) _cboSearchColumn.SelectedIndex = 0;
         }
 
@@ -294,17 +304,114 @@ namespace Safety_System
             }
         }
 
+        // 🟢 替換為支援「雙引號內含換行/逗號」的高級 CSV 解析器，並斷開 UI 加速載入
         private void BtnImportCsv_Click(object sender, EventArgs e) {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
-                    string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default); if (lines.Length < 2) return; 
-                    DataTable dt = (DataTable)_dgv.DataSource; string[] headers = lines[0].Split(',');
-                    for (int i = 1; i < lines.Length; i++) {
-                        if (string.IsNullOrWhiteSpace(lines[i])) continue; DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
-                        for (int h = 0; h < headers.Length && h < vs.Length; h++) { string cn = headers[h].Trim(); if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim(); }
-                        dt.Rows.Add(nr);
+                    try {
+                        string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
+                        List<string[]> parsedRows = ParseCsvText(fileContent);
+                        if (parsedRows.Count < 2) return; 
+
+                        DataTable dt = (DataTable)_dgv.DataSource; 
+                        string[] headers = parsedRows[0];
+
+                        _dgv.DataSource = null; // 斷開 UI 加速
+
+                        for (int i = 1; i < parsedRows.Count; i++) {
+                            string[] vs = parsedRows[i];
+                            if (vs.Length == 1 && string.IsNullOrWhiteSpace(vs[0])) continue;
+
+                            DataRow nr = dt.NewRow(); 
+                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
+                                string cn = headers[h].Trim(); 
+                                if (dt.Columns.Contains(cn) && cn != "Id") {
+                                    nr[cn] = vs[h].Trim(); 
+                                }
+                            }
+                            dt.Rows.Add(nr);
+                        }
+
+                        _dgv.DataSource = dt; // 重新綁定 UI
+                        _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+                        MessageBox.Show($"載入 {parsedRows.Count - 1} 筆資料成功！請確認無誤後點擊「儲存」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        RefreshGrid(); // 發生錯誤時還原表格
+                        MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
-                    MessageBox.Show($"載入 {lines.Length - 1} 筆！請記得按儲存。");
+                }
+            }
+        }
+
+        // 🟢 高階 CSV 解析：支援欄位內換行 (\n) 與逗號
+        private List<string[]> ParseCsvText(string csvText)
+        {
+            var result = new List<string[]>();
+            var currentRecord = new List<string>();
+            var currentField = new StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < csvText.Length; i++)
+            {
+                char c = csvText[i];
+
+                if (c == '\"')
+                {
+                    // 處理連續雙引號 (跳脫的雙引號)
+                    if (inQuotes && i + 1 < csvText.Length && csvText[i + 1] == '\"') {
+                        currentField.Append('\"');
+                        i++; 
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    currentRecord.Add(currentField.ToString());
+                    currentField.Clear();
+                }
+                else if ((c == '\r' || c == '\n') && !inQuotes)
+                {
+                    // 處理 Windows 的 \r\n 或 Unix 的 \n
+                    if (c == '\r' && i + 1 < csvText.Length && csvText[i + 1] == '\n') {
+                        i++; 
+                    }
+                    currentRecord.Add(currentField.ToString());
+                    currentField.Clear();
+                    result.Add(currentRecord.ToArray());
+                    currentRecord.Clear();
+                }
+                else
+                {
+                    currentField.Append(c);
+                }
+            }
+
+            // 處理最後一行
+            if (currentField.Length > 0 || currentRecord.Count > 0)
+            {
+                currentRecord.Add(currentField.ToString());
+                result.Add(currentRecord.ToArray());
+            }
+
+            return result;
+        }
+
+        // 🟢 RTF 轉 CSV 按鈕事件
+        private void BtnRtfToCsv_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "RTF 法規檔案 (*.rtf)|*.rtf", Title = "請選擇全國法規資料庫下載的 RTF 檔案" }) {
+                if (ofd.ShowDialog() == DialogResult.OK) {
+                    using (SaveFileDialog sfd = new SaveFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv", FileName = Path.GetFileNameWithoutExtension(ofd.FileName) + "_轉換.csv" }) {
+                        if (sfd.ShowDialog() == DialogResult.OK) {
+                            try {
+                                LawRtfToCsvConverter.Convert(ofd.FileName, sfd.FileName);
+                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入 CSV」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            } catch (Exception ex) {
+                                MessageBox.Show("轉換失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            }
+                        }
+                    }
                 }
             }
         }
