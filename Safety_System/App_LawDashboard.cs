@@ -12,39 +12,53 @@ namespace Safety_System
         private const string DbName = "法規";
         private readonly string[] _tableNames = { "環保法規", "職安衛法規", "其它法規" };
         
-        // 記憶體快取資料表
+        // 記憶體中的快取資料 
         private DataTable _dtAllLaws;
         
         // 錯誤訊息收集器
         private List<string> _errorLogs = new List<string>();
         
-        // 介面控制項
+        // 第三框的 UI 控制項
         private ComboBox _cboCategory;
         private DataGridView _dgvCategoryLaws;
 
         public Control GetView()
         {
             _errorLogs.Clear();
-            Panel mainPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
 
             // 1. 安全載入資料庫
             try { LoadAndMergeData(); }
             catch (Exception ex) { _errorLogs.Add($"[資料讀取階段] {ex.Message}"); }
 
+            // 🟢 改用 TableLayoutPanel 徹底鎖定 1, 2, 3 區塊的上下順序
+            TableLayoutPanel mainPanel = new TableLayoutPanel 
+            { 
+                Dock = DockStyle.Fill, 
+                BackColor = Color.WhiteSmoke, 
+                AutoScroll = true, 
+                RowCount = 3, 
+                ColumnCount = 1,
+                Padding = new Padding(20) 
+            };
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
             // ==========================================
-            // 第一區塊：今年修正法規
+            // 第一區塊：今年修正法規 (最上方)
             // ==========================================
-            GroupBox box1 = CreateGroupBox("📌 今年修正法規一覽 (排除重複名稱，依適用性權重顯示)");
+            GroupBox box1 = CreateGroupBox("📌 今年修正法規一覽 (排除重複名稱，依適用性權重顯示)", 300);
             DataGridView dgvThisYear = CreateStandardGrid();
             try { PopulateThisYearData(dgvThisYear); }
             catch (Exception ex) { _errorLogs.Add($"[第一框-今年修正法規] 發生異常：{ex.Message}"); }
             box1.Controls.Add(dgvThisYear);
-            mainPanel.Controls.Add(box1);
+            
+            mainPanel.Controls.Add(box1, 0, 0); // 強制放在第 0 列
 
             // ==========================================
-            // 第二區塊：統計摘要 (紅框)
+            // 第二區塊：統計摘要 (中間)
             // ==========================================
-            GroupBox box2 = CreateGroupBox("📊 環安衛法令及其他要求內容一覽表 (統計摘要)");
+            GroupBox box2 = CreateGroupBox("📊 環安衛法令及其他要求內容一覽表 (統計摘要)", 350);
             box2.Padding = new Padding(15, 30, 15, 15);
             
             Label lblTitle2 = new Label { 
@@ -59,20 +73,23 @@ namespace Safety_System
             try { PopulateStatsData(dgvStats); }
             catch (Exception ex) { _errorLogs.Add($"[第二框-統計摘要] 發生異常：{ex.Message}"); }
             
-            box2.Controls.Add(dgvStats);
+            // 🟢 修正遮擋問題：先加 Label，再加 Grid，並把 Grid 移到最上層以填滿剩餘空間
             box2.Controls.Add(lblTitle2);
-            mainPanel.Controls.Add(box2);
+            box2.Controls.Add(dgvStats);
+            dgvStats.BringToFront(); 
+
+            mainPanel.Controls.Add(box2, 0, 1); // 強制放在第 1 列
 
             // ==========================================
-            // 第三區塊：依類別清單 (藍框)
+            // 第三區塊：依類別清單 (最下方)
             // ==========================================
-            GroupBox box3 = CreateGroupBox("📋 依類別檢視法令名稱一覽");
+            GroupBox box3 = CreateGroupBox("📋 依類別檢視法令名稱一覽", 400);
             box3.Padding = new Padding(15, 30, 15, 15);
 
-            Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 100 };
+            Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 60 };
             
-            Label lblCboTitle = new Label { Text = "下拉選單 (環保法規、職安衛法規、其它法規)：", ForeColor = Color.Red, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(10, 10) };
-            _cboCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 200, Location = new Point(10, 40) };
+            // 🟢 移除紅字，調整下拉選單位置
+            _cboCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 200, Location = new Point(10, 15) };
             _cboCategory.Items.AddRange(_tableNames);
             
             _cboCategory.SelectedIndexChanged += (s, e) => {
@@ -80,28 +97,25 @@ namespace Safety_System
                 catch (Exception ex) { MessageBox.Show($"查詢目錄時發生錯誤：{ex.Message}", "查詢異常", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
             };
 
-            // 標題更新：目錄一覽表
             Label lblTitle3 = new Label { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求目錄一覽表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter,
-                AutoSize = true,
-                Location = new Point(400, 30)
+                Dock = DockStyle.Fill // 🟢 自動置中填滿
             };
 
-            pnlTop3.Controls.Add(lblCboTitle);
             pnlTop3.Controls.Add(_cboCategory);
             pnlTop3.Controls.Add(lblTitle3);
+            _cboCategory.BringToFront(); // 確保選單在標題上方可被點擊
 
             _dgvCategoryLaws = CreateStandardGrid();
-            box3.Controls.Add(_dgvCategoryLaws);
+            
+            // 🟢 修正遮擋問題
             box3.Controls.Add(pnlTop3);
-            mainPanel.Controls.Add(box3);
+            box3.Controls.Add(_dgvCategoryLaws);
+            _dgvCategoryLaws.BringToFront();
 
-            // 確保順序由上而下
-            box3.BringToFront();
-            box2.BringToFront();
-            box1.BringToFront();
+            mainPanel.Controls.Add(box3, 0, 2); // 強制放在第 2 列
 
             // 初始載入第三框資料
             try { if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0; }
@@ -118,16 +132,16 @@ namespace Safety_System
             return mainPanel;
         }
 
+        // ==========================================
+        // 資料讀取與合併 (防呆)
+        // ==========================================
         private void LoadAndMergeData()
         {
             _dtAllLaws = new DataTable();
             _dtAllLaws.Columns.Add("主分類", typeof(string));
             
             string[] expectedCols = { "Id", "日期", "法規名稱", "發布機關", "施行日期", "合規狀態", "適用性", "鑑別日期" };
-            foreach (var col in expectedCols) 
-            {
-                _dtAllLaws.Columns.Add(col, typeof(string));
-            }
+            foreach (var col in expectedCols) _dtAllLaws.Columns.Add(col, typeof(string));
 
             foreach (string tbl in _tableNames)
             {
@@ -164,6 +178,9 @@ namespace Safety_System
             return "";
         }
 
+        // ==========================================
+        // 第一區塊：今年修正法規
+        // ==========================================
         private void PopulateThisYearData(DataGridView dgv)
         {
             try 
@@ -188,9 +205,8 @@ namespace Safety_System
                         if (string.IsNullOrEmpty(lawName)) continue;
                         
                         if (!groupedData.ContainsKey(lawName))
-                        {
                             groupedData[lawName] = new List<DataRowView>();
-                        }
+                        
                         groupedData[lawName].Add(drv);
                     }
 
@@ -222,11 +238,14 @@ namespace Safety_System
                 }
 
                 dgv.DataSource = dtShow;
-                dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                if (dgv.Columns.Count >= 4) dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             }
             catch { /* 安全略過 */ }
         }
 
+        // ==========================================
+        // 第二區塊：統計摘要
+        // ==========================================
         private void PopulateStatsData(DataGridView dgv)
         {
             try
@@ -299,6 +318,9 @@ namespace Safety_System
             catch { /* 安全略過 */ }
         }
 
+        // ==========================================
+        // 第三區塊：依類別檢視
+        // ==========================================
         private void PopulateCategoryLaws()
         {
             try
@@ -324,9 +346,8 @@ namespace Safety_System
                         if (string.IsNullOrEmpty(lawName)) continue;
                         
                         if (!groupedData.ContainsKey(lawName))
-                        {
                             groupedData[lawName] = new List<DataRowView>();
-                        }
+                        
                         groupedData[lawName].Add(drv);
                     }
 
@@ -367,13 +388,16 @@ namespace Safety_System
             catch { /* 安全略過 */ }
         }
 
-        private GroupBox CreateGroupBox(string title)
+        // ==========================================
+        // UI 建立輔助方法
+        // ==========================================
+        private GroupBox CreateGroupBox(string title, int minHeight)
         {
             return new GroupBox 
             { 
                 Text = title, 
-                Dock = DockStyle.Top, 
-                Height = 300, 
+                Dock = DockStyle.Fill, 
+                MinimumSize = new Size(0, minHeight), 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                 Padding = new Padding(15),
                 Margin = new Padding(0, 0, 0, 20)
