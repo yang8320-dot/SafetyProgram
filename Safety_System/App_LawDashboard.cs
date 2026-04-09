@@ -59,7 +59,7 @@ namespace Safety_System
             // 第二區塊：統計摘要 (中間)
             // ==========================================
             GroupBox box2 = CreateGroupBox("📊 環安衛法令及其他要求內容一覽表 (統計摘要)", 350);
-            box2.Padding = new Padding(15, 40, 15, 15);
+            box2.Padding = new Padding(15, 30, 15, 15);
             
             Label lblTitle2 = new Label { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求內容一覽表", 
@@ -84,7 +84,7 @@ namespace Safety_System
             // 第三區塊：依類別清單 (最下方)
             // ==========================================
             GroupBox box3 = CreateGroupBox("📋 依類別檢視法令名稱一覽", 400);
-            box3.Padding = new Padding(15, 40, 15, 15);
+            box3.Padding = new Padding(15, 30, 15, 15);
 
             Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 60 };
             
