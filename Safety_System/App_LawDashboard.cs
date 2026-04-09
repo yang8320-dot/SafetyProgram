@@ -13,7 +13,7 @@ namespace Safety_System
         private const string DbName = "法規";
         private readonly string[] _tableNames = { "環保法規", "職安衛法規", "其它法規" };
         
-        // 記憶體中的快取資料 (將三個表合併成一個大表方便運算)
+        // 記憶體中的快取資料 (將三個表合併成一個大表)
         private DataTable _dtAllLaws;
         
         // 第三框的 UI 控制項
@@ -22,10 +22,9 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 1. 載入並合併所有法規資料
             LoadAndMergeData();
 
-            // 2. 主版面配置 (可滾動的 Panel)
+            // 主版面配置
             Panel mainPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
 
             // ==========================================
@@ -38,12 +37,11 @@ namespace Safety_System
             mainPanel.Controls.Add(box1);
 
             // ==========================================
-            // 第二區塊：環安衛法令及其他要求內容一覽表 (紅框)
+            // 第二區塊：統計摘要 (紅框)
             // ==========================================
             GroupBox box2 = CreateGroupBox("📊 環安衛法令及其他要求內容一覽表 (統計摘要)");
             box2.Padding = new Padding(15, 30, 15, 15);
             
-            // 標題 Label
             Label lblTitle2 = new Label { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求內容一覽表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
@@ -60,7 +58,7 @@ namespace Safety_System
             mainPanel.Controls.Add(box2);
 
             // ==========================================
-            // 第三區塊：法令名稱一覽表 (藍框)
+            // 第三區塊：依類別清單 (藍框)
             // ==========================================
             GroupBox box3 = CreateGroupBox("📋 依類別檢視法令名稱一覽");
             box3.Padding = new Padding(15, 30, 15, 15);
@@ -78,7 +76,7 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter,
                 AutoSize = true,
-                Location = new Point(400, 30) // 粗略置中
+                Location = new Point(400, 30)
             };
 
             pnlTop3.Controls.Add(lblCboTitle);
@@ -92,7 +90,6 @@ namespace Safety_System
             box3.Controls.Add(pnlTop3);
             mainPanel.Controls.Add(box3);
 
-            // 確保順序是由上到下
             box3.BringToFront();
             box2.BringToFront();
             box1.BringToFront();
@@ -108,15 +105,13 @@ namespace Safety_System
             _dtAllLaws = new DataTable();
             _dtAllLaws.Columns.Add("主分類", typeof(string));
             
-            // 定義預期欄位，確保 DataTable 結構一致
-            string[] expectedCols = { "Id", "日期", "法規名稱", "發布機關", "施行日期", "適用性", "合規狀態", "鑑別日期" };
+            string[] expectedCols = { "Id", "日期", "法規名稱", "發布機關", "施行日期", "合規狀態", "適用性", "鑑別日期" };
             foreach (var col in expectedCols) _dtAllLaws.Columns.Add(col, typeof(string));
 
             foreach (string tbl in _tableNames)
             {
                 try
                 {
-                    // 讀取該表所有資料
                     DataTable dt = DataManager.GetTableData(DbName, tbl, "", "", "");
                     if (dt == null) continue;
 
@@ -132,43 +127,68 @@ namespace Safety_System
                         _dtAllLaws.Rows.Add(newRow);
                     }
                 }
-                catch { /* 忽略尚未建立的資料表 */ }
+                catch { /* 忽略尚未建立的表 */ }
             }
         }
 
         // ==========================================
-        // 第一區塊邏輯：今年修正法規
+        // 修正版：第一區塊 (避免使用 AsEnumerable)
         // ==========================================
         private void PopulateThisYearData(DataGridView dgv)
         {
             string currentYear = DateTime.Now.Year.ToString();
+            
+            // 使用 DataView 篩選今年度資料
+            DataView dv = new DataView(_dtAllLaws);
+            dv.RowFilter = $"日期 LIKE '%{currentYear}%'";
 
-            // 1. 篩選出今年度的資料
-            var thisYearRows = _dtAllLaws.AsEnumerable()
-                .Where(r => r.Field<string>("日期").Contains(currentYear));
+            // 手動分群 (法規名稱 -> 存放多筆資料的清單)
+            Dictionary<string, List<DataRowView>> groupedData = new Dictionary<string, List<DataRowView>>();
+            
+            foreach (DataRowView drv in dv)
+            {
+                string lawName = drv["法規名稱"].ToString().Trim();
+                if (string.IsNullOrEmpty(lawName)) continue;
+                
+                if (!groupedData.ContainsKey(lawName))
+                    groupedData[lawName] = new List<DataRowView>();
+                
+                groupedData[lawName].Add(drv);
+            }
 
-            // 2. 依照「法規名稱」群組，排除重複
-            var groupedData = thisYearRows.GroupBy(r => r.Field<string>("法規名稱").Trim())
-                .Where(g => !string.IsNullOrEmpty(g.Key))
-                .Select(g => new
-                {
-                    法規名稱 = g.Key,
-                    日期 = g.OrderByDescending(r => r.Field<string>("日期")).First().Field<string>("日期"),
-                    鑑別日期 = g.OrderByDescending(r => r.Field<string>("鑑別日期")).First().Field<string>("鑑別日期"),
-                    // 權重判斷：只要有一筆是「適用」，結果就是「適用」
-                    適用性 = g.Any(r => r.Field<string>("適用性") == "適用") ? "適用" : g.First().Field<string>("適用性")
-                }).ToList();
-
-            // 3. 綁定到 Grid
             DataTable dtShow = new DataTable();
             dtShow.Columns.Add("日期");
             dtShow.Columns.Add("鑑別日期");
             dtShow.Columns.Add("法規名稱");
             dtShow.Columns.Add("適用性");
 
-            foreach (var item in groupedData)
+            // 分析每一組法規並排序取得最新資料
+            foreach (var kvp in groupedData)
             {
-                dtShow.Rows.Add(item.日期, item.鑑別日期, item.法規名稱, item.適用性);
+                string lawName = kvp.Key;
+                var list = kvp.Value;
+                
+                // 找出該群組中最新的日期與鑑別日期 (字串降冪排序)
+                string latestDate = "";
+                string latestIdenDate = "";
+                bool hasApplicable = false;
+                string firstApply = list[0]["適用性"].ToString();
+
+                foreach (var row in list)
+                {
+                    string d = row["日期"].ToString();
+                    string iden = row["鑑別日期"].ToString();
+                    string apply = row["適用性"].ToString();
+
+                    if (string.Compare(d, latestDate) > 0) latestDate = d;
+                    if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
+                    if (apply == "適用") hasApplicable = true;
+                }
+
+                // 若群組中任一筆為「適用」，即為「適用」，否則顯示第一筆的狀態
+                string finalApply = hasApplicable ? "適用" : firstApply;
+
+                dtShow.Rows.Add(latestDate, latestIdenDate, lawName, finalApply);
             }
 
             dgv.DataSource = dtShow;
@@ -176,7 +196,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 第二區塊邏輯：統計摘要 (紅框)
+        // 修正版：第二區塊 (統計摘要)
         // ==========================================
         private void PopulateStatsData(DataGridView dgv)
         {
@@ -196,18 +216,32 @@ namespace Safety_System
 
             foreach (string cat in _tableNames)
             {
-                var rows = _dtAllLaws.AsEnumerable().Where(r => r.Field<string>("主分類") == cat).ToList();
-                
-                int uniqueLaws = rows.Select(r => r.Field<string>("法規名稱").Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().Count();
-                int items = rows.Count;
-                int apply = rows.Count(r => r.Field<string>("適用性") == "適用");
-                int refer = rows.Count(r => r.Field<string>("適用性") == "參考");
-                int notApply = rows.Count(r => r.Field<string>("適用性") == "不適用");
-                int checking = rows.Count(r => r.Field<string>("適用性") == "確認中");
-                int good = rows.Count(r => r.Field<string>("合規狀態").Contains("提升"));
-                int risk = rows.Count(r => r.Field<string>("合規狀態").Contains("潛在不符合"));
-                int unk = rows.Count(r => string.IsNullOrEmpty(r.Field<string>("適用性")));
+                DataView dv = new DataView(_dtAllLaws);
+                dv.RowFilter = $"主分類 = '{cat}'";
 
+                int items = dv.Count;
+                HashSet<string> uniqueNames = new HashSet<string>();
+                int apply = 0, refer = 0, notApply = 0, checking = 0, good = 0, risk = 0, unk = 0;
+
+                foreach (DataRowView row in dv)
+                {
+                    string name = row["法規名稱"].ToString().Trim();
+                    if (!string.IsNullOrEmpty(name)) uniqueNames.Add(name);
+
+                    string aStatus = row["適用性"].ToString();
+                    string cStatus = row["合規狀態"].ToString();
+
+                    if (aStatus == "適用") apply++;
+                    else if (aStatus == "參考") refer++;
+                    else if (aStatus == "不適用") notApply++;
+                    else if (aStatus == "確認中") checking++;
+                    else if (string.IsNullOrEmpty(aStatus)) unk++;
+
+                    if (cStatus.Contains("提升")) good++;
+                    if (cStatus.Contains("潛在不符合")) risk++;
+                }
+
+                int uniqueLaws = uniqueNames.Count;
                 dtStats.Rows.Add(cat, uniqueLaws, items, apply, refer, notApply, checking, good, risk, unk);
 
                 // 加總
@@ -219,11 +253,8 @@ namespace Safety_System
             dtStats.Rows.Add("合計", sumLaws, sumItems, sumApply, sumRef, sumNotApply, sumCheck, sumGood, sumRisk, sumUnk);
 
             dgv.DataSource = dtStats;
-            
-            // 替換第一欄的標題以符合圖片
             dgv.Columns[0].HeaderText = "環保法規\n(類別)";
 
-            // 針對合計列進行粗體顯示
             dgv.DataBindingComplete += (s, e) => {
                 if (dgv.Rows.Count > 0) {
                     dgv.Rows[dgv.Rows.Count - 1].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
@@ -232,25 +263,28 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 第三區塊邏輯：依類別清單 (藍框)
+        // 修正版：第三區塊 (依類別檢視)
         // ==========================================
         private void PopulateCategoryLaws()
         {
             if (_cboCategory.SelectedItem == null) return;
             string selectedCat = _cboCategory.SelectedItem.ToString();
 
-            var rows = _dtAllLaws.AsEnumerable()
-                .Where(r => r.Field<string>("主分類") == selectedCat);
+            DataView dv = new DataView(_dtAllLaws);
+            dv.RowFilter = $"主分類 = '{selectedCat}'";
 
-            // 群組去重複
-            var groupedData = rows.GroupBy(r => r.Field<string>("法規名稱").Trim())
-                .Where(g => !string.IsNullOrEmpty(g.Key))
-                .Select(g => new
-                {
-                    法令名稱 = g.Key,
-                    公告日 = g.OrderByDescending(r => r.Field<string>("日期")).First().Field<string>("日期"),
-                    鑑別日期 = g.OrderByDescending(r => r.Field<string>("鑑別日期")).First().Field<string>("鑑別日期")
-                }).ToList();
+            Dictionary<string, List<DataRowView>> groupedData = new Dictionary<string, List<DataRowView>>();
+            
+            foreach (DataRowView drv in dv)
+            {
+                string lawName = drv["法規名稱"].ToString().Trim();
+                if (string.IsNullOrEmpty(lawName)) continue;
+                
+                if (!groupedData.ContainsKey(lawName))
+                    groupedData[lawName] = new List<DataRowView>();
+                
+                groupedData[lawName].Add(drv);
+            }
 
             DataTable dtShow = new DataTable();
             dtShow.Columns.Add("流水號");
@@ -259,19 +293,33 @@ namespace Safety_System
             dtShow.Columns.Add("鑑別日期");
 
             int index = 1;
-            foreach (var item in groupedData)
+            foreach (var kvp in groupedData)
             {
-                dtShow.Rows.Add(index.ToString(), item.法令名稱, item.公告日, item.鑑別日期);
+                string lawName = kvp.Key;
+                var list = kvp.Value;
+                
+                string latestDate = "";
+                string latestIdenDate = "";
+
+                foreach (var row in list)
+                {
+                    string d = row["日期"].ToString();
+                    string iden = row["鑑別日期"].ToString();
+
+                    if (string.Compare(d, latestDate) > 0) latestDate = d;
+                    if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
+                }
+
+                dtShow.Rows.Add(index.ToString(), lawName, latestDate, latestIdenDate);
                 index++;
             }
 
             _dgvCategoryLaws.DataSource = dtShow;
             
-            // 寬度設定
             if (_dgvCategoryLaws.Columns.Count > 0)
             {
                 _dgvCategoryLaws.Columns[0].Width = 80;
-                _dgvCategoryLaws.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; // 名稱最長
+                _dgvCategoryLaws.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
                 _dgvCategoryLaws.Columns[2].Width = 150;
                 _dgvCategoryLaws.Columns[3].Width = 150;
             }
@@ -309,7 +357,6 @@ namespace Safety_System
             };
         }
 
-        // 建立符合圖片紅框配色的統計表格
         private DataGridView CreateStatsGrid()
         {
             DataGridView dgv = CreateStandardGrid();
@@ -317,7 +364,6 @@ namespace Safety_System
             dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
 
-            // 設定配色 (標題黃綠底，內容亮黃底)
             dgv.EnableHeadersVisualStyles = false;
             dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.YellowGreen;
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
@@ -331,7 +377,6 @@ namespace Safety_System
             dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgv.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
 
-            // 網格線顏色
             dgv.GridColor = Color.Black;
             dgv.CellBorderStyle = DataGridViewCellBorderStyle.Single;
 
