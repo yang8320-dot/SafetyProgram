@@ -11,7 +11,7 @@ namespace Safety_System
         private TextBox _txtPath;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
-        // 🟢 完整涵蓋原有模組，並加上教育訓練與 61 個法規資料表
+        // 🟢 完整涵蓋原有模組，並將「法規」收斂為三個主要資料表
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury" } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
@@ -20,12 +20,8 @@ namespace Safety_System
             { "Waste", new[] { "WasteMonthly" } },
             { "Fire", new[] { "FireResponsible", "HazardStats", "FireEquip" } },
             { "TestData", new[] { "CoolingWaterSelf", "CoolingWaterVendor", "DrinkingWater", "EnvMonitor", "IndustrialZoneTest", "OtherTests", "SoilGasTest", "TCLP", "WastewaterPeriodic", "WastewaterSelfTest", "WaterMeterCalibration" } },
-            
-            // =========== 新增 ===========
             { "教育訓練", new[] { "訓練時數" } },
-            { "環保法規", new[] { "組織與處務", "環境綜合計畫", "環境影響評估", "空氣污染防制", "噪音污染管制", "水污染防治", "海洋污染防制", "廢棄物清理", "應回收廢棄物", "資源回收再利用", "土壤污染整治", "毒化物管理", "飲用水管理", "環境用藥管理", "公害糾紛處理", "環境污染檢驗", "環保人員訓練", "環境教育", "溫室氣體管理", "室內空氣管理" } },
-            { "職安衛法規", new[] { "一般安全衛生法規", "一般環境管理相關法規", "高壓氣體相關法規", "健康管理相關法規", "教育訓練相關法規", "化學物質相關法規", "機械安全相關法規", "特殊作業相關法規", "特別行業適用法規", "職業災害勞工保護法相關法規", "安衛其他法規", "勞資關係", "勞動條件", "勞工福利", "勞工保險", "職業訓練", "就業服務" } },
-            { "其它法規", new[] { "原子能相關法規", "衛生福利相關法規", "交通安全相關法規", "消防相關法規", "建築相關法規", "下水道相關法規", "科學園區相關法規", "一般工業區相關法規", "利害相關者要求", "國際環保公約", "水利相關法規", "能源管理", "文化相關法規", "族群相關法規", "消費相關法規", "財政金融相關法規", "法務相關法規", "社福警政相關法規", "經濟相關法規", "觀光旅遊相關法規", "生態相關法規", "礦業相關法規", "農林漁牧相關法規", "教育體育相關法規", "通訊傳播相關法規" } }
+            { "法規", new[] { "環保法規", "職安衛法規", "其它法規" } }
         };
 
         public Control GetView()
@@ -92,6 +88,9 @@ namespace Safety_System
 
         private void BtnSavePath_Click(object sender, EventArgs e)
         {
+            // 🟢 在這裡也加上密碼驗證
+            if (!AuthManager.VerifyPassword()) return;
+
             if (System.IO.Directory.Exists(_txtPath.Text)) {
                 DataManager.SetBasePath(_txtPath.Text);
                 MessageBox.Show("路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -146,6 +145,9 @@ namespace Safety_System
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
+            // 🟢 在這裡加上密碼驗證
+            if (!AuthManager.VerifyPassword()) return;
+
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) {
                 MessageBox.Show("請先選擇資料庫與資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
