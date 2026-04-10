@@ -154,7 +154,7 @@ namespace Safety_System
             _cboCategory.SelectedIndexChanged += (s, e) => { FilterCategoryLaws(); };
             pnlAction3.Controls.Add(_cboCategory);
 
-            Button btnSaveDir = new Button { Text = "💾 儲存確認日期", Size = new Size(160, 32), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(20, 2, 0, 0) };
+            Button btnSaveDir = new Button { Text = "💾 儲存確認日期", Size = new Size(200, 32), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(20, 2, 0, 0) };
             btnSaveDir.Click += BtnSaveDir_Click;
             pnlAction3.Controls.Add(btnSaveDir);
 
