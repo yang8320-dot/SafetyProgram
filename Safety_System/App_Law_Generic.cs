@@ -6,7 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks; // 🟢 引入非同步支援
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using OfficeOpenXml; 
 
@@ -20,7 +20,6 @@ namespace Safety_System
 
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
-        private GroupBox _boxAdvanced; 
         private Button _btnToggle;     
         private Button _btnSave; 
 
@@ -32,7 +31,6 @@ namespace Safety_System
         private ComboBox _cboSearchColumn;
         private TextBox _txtSearchKeyword;
 
-        // 目錄一覽表名稱
         private const string DirectoryTableName = "法規目錄一覽";
 
         public App_Law_Generic(string dbName, string tableName)
@@ -43,7 +41,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 初始化當前類別主資料表
             DataManager.InitTable(_dbName, _tableName, $@"CREATE TABLE IF NOT EXISTS [{_tableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
@@ -60,7 +57,6 @@ namespace Safety_System
                 [鑑別日期] TEXT,
                 [備註] TEXT);");
 
-            // 🟢 初始化「法規目錄一覽」資料表
             DataManager.InitTable(_dbName, DirectoryTableName, $@"CREATE TABLE IF NOT EXISTS [{DirectoryTableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [選項類別] TEXT, 
@@ -71,14 +67,14 @@ namespace Safety_System
                 [鑑別日期] TEXT,
                 [再次確認日期] TEXT);");
 
-            // 向下相容處理 (防止舊庫沒有新欄位)
             var existingCols = DataManager.GetColumnNames(_dbName, _tableName);
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
-            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 永遠顯示的搜尋排
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 可隱藏的欄位操作排
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
@@ -118,44 +114,67 @@ namespace Safety_System
             Label lblEndMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblEndDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 15, 0) };
             
-            Button bRead = new Button { Text = "區間讀取", Size = new Size(100, 35) };
-            bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) { int count = ((DataTable)_dgv.DataSource).Rows.Count; MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); } };
+            // 🟢 需求4：區間讀取按鍵顏色改為藍色
+            Button bRead = new Button { Text = "區間讀取", Size = new Size(100, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            bRead.Click += (s, e) => { RefreshGrid(false); MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {((DataTable)_dgv.DataSource).Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); };
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(5, 0, 0, 0) };
             _btnSave.Click += BtnSave_Click; 
             
             Button bExport = new Button { Text = "匯出 Excel", Size = new Size(100, 35) }; bExport.Click += BtnExport_Click;
-            Button bImport = new Button { Text = "匯入 CSV", Size = new Size(100, 35) }; bImport.Click += BtnImportCsv_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理與查詢", Size = new Size(180, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
-            _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏進階面板" : "[ + ] 進階管理與查詢"; _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray; };
+            // 🟢 需求5：按鈕分離，只控制 row2 的隱藏/顯示
+            _btnToggle = new Button { Text = "[ + ] 欄位管理", Size = new Size(130, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
 
             row1.Controls.AddRange(new Control[] { 
                 lblRange, 
                 _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, _cboStartDay, lblStartDay,
                 lblTilde, 
                 _cboEndYear, lblEndYear, _cboEndMonth, lblEndMonth, _cboEndDay, lblEndDay,
-                bRead, bExport, bImport, _btnToggle, _btnSave 
+                bRead, bExport, _btnToggle, _btnSave 
             });
             boxTop.Controls.Add(row1);
 
-            // ================= 進階管理面板 =================
-            _boxAdvanced = new GroupBox { Text = "進階操作與條件查詢", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
-            FlowLayoutPanel flpAdvMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
+            // ================= 永遠顯示的查詢與工具排 (row3) =================
+            FlowLayoutPanel row3 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(10, 5, 10, 5), Font = new Font("Microsoft JhengHei UI", 11F) };
+            
+            // 🟢 需求2：預設顯示筆數改為 500
+            Label lblLimit = new Label { Text = "顯示最新筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
+            TextBox txtLatestCount = new TextBox { Width = 60, Text = "500", TextAlign = HorizontalAlignment.Center }; 
+            
+            Label lblSearchCol = new Label { Text = "查詢欄位:", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
+            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+            
+            Label lblKeyword = new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
+            _txtSearchKeyword = new TextBox { Width = 180 }; 
 
-            FlowLayoutPanel row2 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+            Button btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, _cboSearchColumn.SelectedItem?.ToString(), _txtSearchKeyword.Text);
+
+            Button btnRtfToCsv = new Button { Text = "📄 全國法規 RTF 轉 CSV", Size = new Size(220, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
+            btnRtfToCsv.Click += BtnRtfToCsv_Click;
+
+            // 🟢 需求5：匯入 CSV 按鍵移到這一排的最後面
+            Button bImport = new Button { Text = "📥 匯入 CSV", Size = new Size(120, 35), BackColor = Color.WhiteSmoke, Margin = new Padding(15, 0, 0, 0) }; 
+            bImport.Click += BtnImportCsv_Click;
+
+            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch, btnRtfToCsv, bImport });
+
+            // ================= 可隱藏的欄位操作排 (row2) =================
+            GroupBox boxOps = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
+            FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; _txtNewColName = new TextBox { Width = 120 };
             
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) }; 
-            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyPassword()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
+            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyPassword()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(false); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
             
             Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35) }; 
-            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyPassword()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
+            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyPassword()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(false); _txtRenameCol.Clear(); } };
             
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyPassword()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(); } } } };
+            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyPassword()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(false); } } } };
             
             Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
             bDelRow.Click += (s, e) => {
@@ -170,7 +189,7 @@ namespace Safety_System
                             foreach (var r in selectedRows) {
                                 DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
                             }
-                            RefreshGrid();
+                            RefreshGrid(false);
                             MessageBox.Show("刪除成功！");
                         }
                     }
@@ -180,28 +199,13 @@ namespace Safety_System
             };
             
             row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
+            boxOps.Controls.Add(row2);
 
-            FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
-            
-            Label lblLimit = new Label { Text = "顯示最新筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
-            TextBox txtLatestCount = new TextBox { Width = 60, Text = "50", TextAlign = HorizontalAlignment.Center }; 
-            
-            Label lblSearchCol = new Label { Text = "查詢欄位:", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
-            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-            
-            Label lblKeyword = new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
-            _txtSearchKeyword = new TextBox { Width = 180 }; 
-
-            Button btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
-            btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, _cboSearchColumn.SelectedItem?.ToString(), _txtSearchKeyword.Text);
-
-            Button btnRtfToCsv = new Button { Text = "📄 全國法規 RTF 轉 CSV", Size = new Size(220, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
-            btnRtfToCsv.Click += BtnRtfToCsv_Click;
-
-            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch, btnRtfToCsv });
-
-            flpAdvMain.Controls.Add(row2); flpAdvMain.Controls.Add(row3); 
-            _boxAdvanced.Controls.Add(flpAdvMain);
+            _btnToggle.Click += (s, e) => { 
+                boxOps.Visible = !boxOps.Visible; 
+                _btnToggle.Text = boxOps.Visible ? "[ - ] 隱藏管理" : "[ + ] 欄位管理"; 
+                _btnToggle.BackColor = boxOps.Visible ? Color.LightCoral : Color.LightGray; 
+            };
 
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
@@ -213,32 +217,28 @@ namespace Safety_System
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
             _dgv.KeyDown += Dgv_KeyDown; 
 
-            main.Controls.Add(boxTop, 0, 0); main.Controls.Add(_boxAdvanced, 0, 1); main.Controls.Add(_dgv, 0, 2);
+            main.Controls.Add(boxTop, 0, 0); 
+            main.Controls.Add(row3, 0, 1); 
+            main.Controls.Add(boxOps, 0, 2); 
+            main.Controls.Add(_dgv, 0, 3);
             
-            RefreshGrid(); 
+            // 🟢 需求1：初次進入畫面時，僅載入標題，不抓取資料
+            RefreshGrid(true); 
             return main;
         }
 
-        // 🟢 修改為 Async 方法，支援背景任務
         private async void BtnSave_Click(object sender, EventArgs e)
         {
             try {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
                 _dgv.EndEdit(); 
                 
-                // 使用 Copy() 斷開與 UI 的綁定，以便安全地傳遞給背景 Thread
                 DataTable dtToSave = ((DataTable)_dgv.DataSource).Copy();
-                
-                // 執行主資料表去重覆處理
                 ResolveDuplicates(dtToSave);
 
-                // 🟢 使用 Task.Run 進入背景執行緒
                 bool success = await Task.Run(() =>
                 {
-                    // 1. 儲存主表
                     bool mainSave = DataManager.BulkSaveTable(_dbName, _tableName, dtToSave);
-                    
-                    // 2. 主表儲存成功後，執行背景目錄提煉
                     if (mainSave) {
                         GenerateAndSaveDirectory();
                     }
@@ -247,32 +247,26 @@ namespace Safety_System
 
                 if (success) {
                     MessageBox.Show(Form.ActiveForm, "儲存/更新 完成！(已啟用 Transaction 交易機制)\n\n✅ 背景執行寫入目錄一覽表完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    RefreshGrid(); // 刷新 UI 資料
+                    RefreshGrid(false); // 存檔後自動刷新，此時不是 FirstLoad，會顯示真實資料
                 }
             } finally {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
 
-        // 🟢 自動提煉並產生「法規目錄一覽」的方法 (在背景執行緒中呼叫)
         private void GenerateAndSaveDirectory()
         {
-            // 1. 取得主表當前類別所有最新資料
             DataTable dtMain = DataManager.GetTableData(_dbName, _tableName, "", "", "");
-
-            // 2. 取得目錄表當前資料 (為了保留 Id 與 再次確認日期，並找出需要被刪除的廢棄法規)
             DataTable dtDirExist = DataManager.GetTableData(_dbName, DirectoryTableName, "", "", "");
             var existingDirDict = new Dictionary<string, DataRow>();
             
             foreach (DataRow r in dtDirExist.Rows) {
-                // 僅比對目前的「選項類別」(如: 環保法規)
                 if (r["選項類別"]?.ToString() == _tableName) {
                     string name = r["法規名稱"]?.ToString().Trim();
                     if (!string.IsNullOrEmpty(name)) existingDirDict[name] = r;
                 }
             }
 
-            // 3. 將主表資料依「法規名稱」分群 (Group By)
             var grouped = new Dictionary<string, List<DataRow>>();
             foreach(DataRow r in dtMain.Rows) {
                 string name = r["法規名稱"]?.ToString().Trim();
@@ -282,9 +276,8 @@ namespace Safety_System
                 grouped[name].Add(r);
             }
 
-            // 4. 準備寫入目錄表的新 DataTable 架構
             DataTable dtDir = new DataTable();
-            dtDir.Columns.Add("Id", typeof(int)); // Id 用於更新 (Upsert)
+            dtDir.Columns.Add("Id", typeof(int)); 
             dtDir.Columns.Add("選項類別", typeof(string));
             dtDir.Columns.Add("流水號", typeof(string));
             dtDir.Columns.Add("法規名稱", typeof(string));
@@ -296,7 +289,6 @@ namespace Safety_System
             int index = 1;
             HashSet<string> processedNames = new HashSet<string>();
 
-            // 5. 巡迴整理每一條法規名稱
             foreach(var kvp in grouped) {
                 string lawName = kvp.Key;
                 processedNames.Add(lawName);
@@ -306,7 +298,6 @@ namespace Safety_System
                 string applyStatus = "";
                 bool hasApplicable = false;
 
-                // 找出同名法規中的最新日期、最高層級適用性
                 foreach(var row in kvp.Value) {
                     string d = row["日期"]?.ToString() ?? "";
                     string iden = row["鑑別日期"]?.ToString() ?? "";
@@ -320,26 +311,24 @@ namespace Safety_System
                 }
 
                 DataRow newRow = dtDir.NewRow();
-                newRow["選項類別"] = _tableName; // 寫入對應類別 (如:職安衛法規)
-                newRow["流水號"] = index.ToString(); // 編流水號
+                newRow["選項類別"] = _tableName; 
+                newRow["流水號"] = index.ToString(); 
                 newRow["法規名稱"] = lawName;
                 newRow["日期"] = latestDate;
-                newRow["適用性"] = hasApplicable ? "適用" : applyStatus; // 任一條款適用即算適用
+                newRow["適用性"] = hasApplicable ? "適用" : applyStatus; 
                 newRow["鑑別日期"] = latestIdenDate;
 
-                // 🟢 核心：若舊目錄已有此法規，則帶入原有的 Id 與 手動填寫的 再次確認日期
                 if (existingDirDict.ContainsKey(lawName)) {
                     newRow["Id"] = existingDirDict[lawName]["Id"];
                     newRow["再次確認日期"] = existingDirDict[lawName]["再次確認日期"]?.ToString();
                 } else {
-                    newRow["再次確認日期"] = ""; // 新法規則留空讓使用者填
+                    newRow["再次確認日期"] = ""; 
                 }
 
                 dtDir.Rows.Add(newRow);
                 index++;
             }
 
-            // 6. 處理已經不存在於主表的舊目錄資料 (執行刪除)
             foreach (var kvp in existingDirDict) {
                 if (!processedNames.Contains(kvp.Key)) {
                     int idToDelete = Convert.ToInt32(kvp.Value["Id"]);
@@ -347,7 +336,6 @@ namespace Safety_System
                 }
             }
 
-            // 7. 批次儲存目錄資料 (因為帶有 Id，存在的會被 Update，不存在的會 Insert)
             DataManager.BulkSaveTable(_dbName, DirectoryTableName, dtDir);
         }
 
@@ -388,8 +376,8 @@ namespace Safety_System
 
         private void ExecuteAdvancedSearch(string countText, string searchCol, string keyword)
         {
-            int limit = 50;
-            if (!int.TryParse(countText, out limit) || limit <= 0) limit = 50; 
+            int limit = 500;
+            if (!int.TryParse(countText, out limit) || limit <= 0) limit = 500; 
             
             DataTable allData = DataManager.GetTableData(_dbName, _tableName, "日期", "", "");
             DataView dv = allData.DefaultView;
@@ -421,18 +409,25 @@ namespace Safety_System
             UpdateCboColumns();
             
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
-            MessageBox.Show(Form.ActiveForm, $"查詢完成！\n共找到 {resultDt.Rows.Count} 筆符合條件的資料。", "查詢結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            
+            if (!_isFirstLoad) 
+            {
+                MessageBox.Show(Form.ActiveForm, $"查詢完成！\n共找到 {resultDt.Rows.Count} 筆符合條件的資料。", "查詢結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            _isFirstLoad = false; // 查詢後解除 FirstLoad 狀態
         }
 
-        private void RefreshGrid() {
-            if (_isFirstLoad) {
-                DataTable dt = DataManager.GetLatestRecords(_dbName, _tableName, 50); 
+        // 🟢 需求1：透過參數決定是否要撈真實資料
+        private void RefreshGrid(bool isInitialLoad = false) {
+            if (isInitialLoad) {
+                // 進入畫面時，利用 LIMIT 0 僅撈取「資料表欄位架構」，不抓資料
+                DataTable dt = DataManager.GetLatestRecords(_dbName, _tableName, 0); 
                 _dgv.DataSource = dt;
-                _isFirstLoad = false;
             } else { 
                 string sDate = GetStartDate().ToString("yyyy-MM-dd");
                 string eDate = GetEndDate().ToString("yyyy-MM-dd");
                 _dgv.DataSource = DataManager.GetTableData(_dbName, _tableName, "日期", sDate, eDate); 
+                _isFirstLoad = false; // 解除 FirstLoad
             }
             
             SetupComboBoxColumns();
@@ -481,7 +476,12 @@ namespace Safety_System
                 }
             }
 
-            if (_cboSearchColumn.Items.Count > 0) _cboSearchColumn.SelectedIndex = 0;
+            // 🟢 需求3：預設把查詢欄位選在「法規名稱」
+            if (_cboSearchColumn.Items.Contains("法規名稱")) {
+                _cboSearchColumn.SelectedItem = "法規名稱";
+            } else if (_cboSearchColumn.Items.Count > 0) {
+                _cboSearchColumn.SelectedIndex = 0;
+            }
         }
 
         private void SetupComboBoxColumns()
@@ -601,7 +601,7 @@ namespace Safety_System
 
                         MessageBox.Show($"載入 {parsedRows.Count - 1} 筆資料成功！\n系統已就緒，請點擊「儲存」以進行更新比對。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
-                        RefreshGrid(); 
+                        RefreshGrid(false); 
                         MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
