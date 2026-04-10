@@ -78,6 +78,9 @@ namespace Safety_System
                 () => ExportToPdf(_dgvStats, "統計摘要", "法令鑑別統計表"));
             
             _dgvStats = CreateStatsGrid();
+            // 🟢 強制增加高度，讓下方多出一行的空間，避免擠壓
+            _dgvStats.MinimumSize = new Size(0, 230); 
+            
             box2.Controls.Add(_dgvStats);
             box2.Controls.Add(pnlAction2);
             box2.Controls.Add(lblTitle2);
@@ -90,9 +93,10 @@ namespace Safety_System
             GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
 
             Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
+            // 🟢 標題修正為「法令目錄一覽表」
             Label lblTitle3 = new Label 
             { 
-                Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令及其他要求目錄一覽表", 
+                Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令目錄一覽表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.DarkSlateBlue,
@@ -102,7 +106,7 @@ namespace Safety_System
 
             Panel pnlAction3 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
                 () => ExportToExcel(_dgvCategoryLaws, "法令目錄"), 
-                () => ExportToPdf(_dgvCategoryLaws, "法令目錄", "法令及其他要求目錄一覽表"));
+                () => ExportToPdf(_dgvCategoryLaws, "法令目錄", "法令目錄一覽表"));
             
             Label lblCbo = new Label 
             { 
@@ -145,14 +149,14 @@ namespace Safety_System
             mainPanel.Controls.Add(_lblLoading);
             _lblLoading.BringToFront();
 
-            // 🟢 觸發非同步載入，避免 UI 卡頓
+            // 觸發非同步載入
             LoadDashboardDataAsync();
 
             return mainPanel;
         }
 
         // ==========================================
-        // 🟢 效能優化核心：非同步背景載入與運算
+        // 效能優化核心：非同步背景載入與運算
         // ==========================================
         private async void LoadDashboardDataAsync()
         {
@@ -181,6 +185,7 @@ namespace Safety_System
             if (dtThisYear != null) 
             {
                 _dgvThisYear.DataSource = dtThisYear;
+                _dgvThisYear.ClearSelection();
             }
             if (dtStats != null) 
             {
@@ -262,7 +267,7 @@ namespace Safety_System
                 BorderStyle = BorderStyle.Fixed3D, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None
             };
-            dgv.RowTemplate.Height = 35; // 嚴格寫法，避免編譯器誤判
+            dgv.RowTemplate.Height = 35;
             dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
             
             EnableDoubleBuffered(dgv); 
@@ -276,15 +281,18 @@ namespace Safety_System
             dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.YellowGreen;
             dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
             dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            dgv.DefaultCellStyle.BackColor = Color.LightGoldenrodYellow;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.Khaki;
+            
+            // 🟢 修改為白色底，解決「第一格黃底」錯覺問題
+            dgv.DefaultCellStyle.BackColor = Color.White; 
+            dgv.DefaultCellStyle.SelectionBackColor = Color.AliceBlue;
+            dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgv.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgv.GridColor = Color.Black;
             dgv.CellBorderStyle = DataGridViewCellBorderStyle.Single;
             
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; 
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing;
-            dgv.ColumnHeadersHeight = 65; 
+            dgv.ColumnHeadersHeight = 50; 
             dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
             return dgv;
@@ -398,10 +406,11 @@ namespace Safety_System
         private DataTable BuildStatsData()
         {
             DataTable dtStats = new DataTable();
+            // 🟢 標題名稱全面更改，取消雙行換行使其變成簡潔單行
             string[] cols = { 
-                "類別", "收集\n【法規】數", "收集\n【法條】數", "【適用】\n法條數", 
-                "【參考】\n數", "【不適用】\n法條數", "【確認中】\n數", 
-                "有提升績效\n機會法條", "有潛在不符\n風險法條數", "【未鑑別】\n法條數" 
+                "法規類別", "法規", "法條", "適用", 
+                "參考", "不適用", "確認中", 
+                "有提升績效機會", "有潛在不符合風險", "未鑑別" 
             };
             foreach (string c in cols) 
             {
@@ -450,15 +459,14 @@ namespace Safety_System
 
         private void FormatStatsGrid()
         {
-            if (_dgvStats.Columns.Count > 0) 
-            {
-                _dgvStats.Columns[0].HeaderText = "環保法規\n(類別)";
-            }
             if (_dgvStats.Rows.Count > 0) 
             {
+                // 設定「合計」列底色
                 _dgvStats.Rows[_dgvStats.Rows.Count - 1].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold); 
                 _dgvStats.Rows[_dgvStats.Rows.Count - 1].DefaultCellStyle.BackColor = Color.Moccasin;
             }
+            // 🟢 取消預設選取，解決載入時第一格黃底問題
+            _dgvStats.ClearSelection();
         }
 
         private void FilterCategoryLaws()
@@ -470,34 +478,42 @@ namespace Safety_System
             dv.RowFilter = $"選項類別 = '{category}'";
             _dgvCategoryLaws.DataSource = dv.ToTable();
             
+            // 隱藏 Id, 選項類別
             if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
 
+            // 🟢 依需求：法規名稱縮減(靠 Fill 自動填滿)，其餘加寬約 1.3 倍
             if (_dgvCategoryLaws.Columns.Contains("流水號")) 
             {
                 _dgvCategoryLaws.Columns["流水號"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["流水號"].Width = 70;
             }
+            if (_dgvCategoryLaws.Columns.Contains("法規名稱"))
+            {
+                _dgvCategoryLaws.Columns["法規名稱"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            }
             if (_dgvCategoryLaws.Columns.Contains("日期")) 
             {
                 _dgvCategoryLaws.Columns["日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["日期"].Width = 110;
+                _dgvCategoryLaws.Columns["日期"].Width = 140; // 加寬
             }
             if (_dgvCategoryLaws.Columns.Contains("適用性")) 
             {
                 _dgvCategoryLaws.Columns["適用性"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["適用性"].Width = 80;
+                _dgvCategoryLaws.Columns["適用性"].Width = 100; // 加寬
             }
             if (_dgvCategoryLaws.Columns.Contains("鑑別日期")) 
             {
                 _dgvCategoryLaws.Columns["鑑別日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["鑑別日期"].Width = 110;
+                _dgvCategoryLaws.Columns["鑑別日期"].Width = 140; // 加寬
             }
             if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) 
             {
                 _dgvCategoryLaws.Columns["再次確認日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["再次確認日期"].Width = 130;
+                _dgvCategoryLaws.Columns["再次確認日期"].Width = 170; // 加寬
             }
+            
+            _dgvCategoryLaws.ClearSelection();
         }
 
         // ==========================================
