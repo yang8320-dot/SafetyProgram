@@ -26,6 +26,7 @@ namespace Safety_System
         private ComboBox _cboCategory;
         private ComboBox _cboYearlyCategory; 
         private ComboBox _cboYearlyYear;     
+        private ComboBox _cboYearlyApplicability; // 🟢 新增：年度鑑別表-適用性
         
         private DataGridView _dgvStats;
         private DataGridView _dgvCategoryLaws;
@@ -68,27 +69,35 @@ namespace Safety_System
                 () => ExportToExcel(_dgvThisYear, "年度法令總鑑別表"), 
                 () => ExportToPdf(_dgvThisYear, "年度法令總鑑別表", "年度法令總鑑別表"));
             
-            // 🟢 調整間距，讓標題與下拉選單有充足的空間不互相遮擋
+            // 🟢 排版調整：加入三個下拉選單 (類別、年度、適用性)
             Label lblCboCat1 = new Label { Text = "選擇類別:", AutoSize = true, Location = new Point(340, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            _cboYearlyCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 150, Location = new Point(440, 6) };
+            _cboYearlyCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 140, Location = new Point(425, 6) };
             _cboYearlyCategory.Items.AddRange(_tableNames);
 
-            Label lblCboYear1 = new Label { Text = "查詢年度:", AutoSize = true, Location = new Point(610, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            _cboYearlyYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 100, Location = new Point(710, 6) };
+            Label lblCboYear1 = new Label { Text = "查詢年度:", AutoSize = true, Location = new Point(585, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboYearlyYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 100, Location = new Point(670, 6) };
             
             int currentYear = DateTime.Now.Year;
             for (int i = 0; i <= 5; i++) {
                 _cboYearlyYear.Items.Add((currentYear - i).ToString());
             }
 
-            Button btnSearchYearly = new Button { Text = "🔍 查詢", Size = new Size(100, 32), Location = new Point(830, 5), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            btnSearchYearly.Click += (s, e) => { FilterYearlyLaws(); };
+            // 🟢 新增：適用性下拉選單
+            Label lblCboApp = new Label { Text = "適用性:", AutoSize = true, Location = new Point(790, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboYearlyApplicability = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 120, Location = new Point(860, 6) };
+            _cboYearlyApplicability.Items.AddRange(new string[] { "全部", "適用", "不適用", "參考", "確認中", "" });
+
+            // 🟢 綁定事件 (全部採用連動查詢，移除獨立的查詢按鈕)
+            _cboYearlyCategory.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
+            _cboYearlyYear.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
+            _cboYearlyApplicability.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
 
             pnlAction1.Controls.Add(lblCboCat1);
             pnlAction1.Controls.Add(_cboYearlyCategory);
             pnlAction1.Controls.Add(lblCboYear1);
             pnlAction1.Controls.Add(_cboYearlyYear);
-            pnlAction1.Controls.Add(btnSearchYearly); 
+            pnlAction1.Controls.Add(lblCboApp);
+            pnlAction1.Controls.Add(_cboYearlyApplicability);
 
             _dgvThisYear = CreateStandardGrid();
             box1.Controls.Add(_dgvThisYear);
@@ -128,7 +137,6 @@ namespace Safety_System
             // 大框 3：目錄清單
             // ==========================================
             GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
-            // 🟢 強制增加第三個框的高度至近 3 倍 (預設為 350 -> 改為 900)
             box3.MinimumSize = new Size(0, 900);
 
             Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
@@ -146,7 +154,6 @@ namespace Safety_System
                 () => ExportToExcel(_dgvCategoryLaws, "法令目錄"), 
                 () => ExportToPdf(_dgvCategoryLaws, "法令目錄", "法令目錄一覽表"));
             
-            // 🟢 調整選擇類別與下拉選單的間距
             Label lblCbo = new Label 
             { 
                 Text = "選擇類別:", 
@@ -228,6 +235,7 @@ namespace Safety_System
             // 觸發預設選項
             if (_cboYearlyCategory.Items.Count > 0) _cboYearlyCategory.SelectedIndex = 0;
             if (_cboYearlyYear.Items.Count > 0) _cboYearlyYear.SelectedIndex = 0;
+            if (_cboYearlyApplicability.Items.Count > 0) _cboYearlyApplicability.SelectedIndex = 0; // 預設選取 "全部"
             
             FilterYearlyLaws(); 
 
@@ -374,12 +382,17 @@ namespace Safety_System
             return ""; 
         }
 
+        // 🟢 根據下拉選單過濾年度法規，新增「適用性」過濾邏輯
         private void FilterYearlyLaws()
         {
-            if (_cboYearlyCategory.SelectedItem == null || _cboYearlyYear.SelectedItem == null || _dtAllLaws == null) return;
+            if (_cboYearlyCategory.SelectedItem == null || 
+                _cboYearlyYear.SelectedItem == null || 
+                _cboYearlyApplicability.SelectedItem == null || 
+                _dtAllLaws == null) return;
             
             string category = _cboYearlyCategory.SelectedItem.ToString();
             string year = _cboYearlyYear.SelectedItem.ToString();
+            string applicability = _cboYearlyApplicability.SelectedItem.ToString();
 
             DataTable dtShow = new DataTable();
             dtShow.Columns.Add("流水"); 
@@ -418,8 +431,16 @@ namespace Safety_System
                     if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
                     if (apply == "適用") hasApplicable = true;
                 }
+
+                // 決定該法規的最終適用性
+                string finalApply = hasApplicable ? "適用" : firstApply;
+
+                // 🟢 如果使用者選的不是「全部」，則進行精準過濾
+                if (applicability != "全部" && finalApply != applicability) {
+                    continue; // 不符合選取的適用性，略過此筆
+                }
                 
-                dtShow.Rows.Add(index.ToString(), kvp.Key, latestDate, hasApplicable ? "適用" : firstApply, latestIdenDate);
+                dtShow.Rows.Add(index.ToString(), kvp.Key, latestDate, finalApply, latestIdenDate);
                 index++;
             }
 
