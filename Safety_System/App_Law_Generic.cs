@@ -72,15 +72,14 @@ namespace Safety_System
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
-            // 🟢 需求2: 主版面列數減少為3 (原本的搜尋排移入BoxTop中)
-            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 可隱藏的欄位操作排
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             
-            // 🟢 建立垂直排列的容器，把日期排(row1)跟搜尋排(row3)包在 boxTop 裡面
             FlowLayoutPanel flpTopContainer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
 
             FlowLayoutPanel row1 = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
@@ -127,7 +126,6 @@ namespace Safety_System
             
             Button bExport = new Button { Text = "匯出 Excel", Size = new Size(100, 35) }; bExport.Click += BtnExport_Click;
 
-            // 🟢 需求5：按鍵寬度加20 (130 -> 150)
             _btnToggle = new Button { Text = "[ + ] 欄位管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
 
             row1.Controls.AddRange(new Control[] { 
@@ -138,11 +136,9 @@ namespace Safety_System
                 bRead, bExport, _btnToggle, _btnSave 
             });
 
-            // ================= 永遠顯示的查詢與工具排 (row3) =================
             FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 5), Font = new Font("Microsoft JhengHei UI", 11F) };
             
             Label lblLimit = new Label { Text = "顯示最新筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
-            // 🟢 需求2: 預設改為500筆
             TextBox txtLatestCount = new TextBox { Width = 60, Text = "500", TextAlign = HorizontalAlignment.Center }; 
             
             Label lblSearchCol = new Label { Text = "查詢欄位:", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
@@ -151,7 +147,6 @@ namespace Safety_System
             Label lblKeyword = new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }; 
             _txtSearchKeyword = new TextBox { Width = 180 }; 
 
-            // 🟢 需求6: 查詢欄位連動關鍵字
             _cboSearchColumn.SelectedIndexChanged += (s, e) => {
                 string sel = _cboSearchColumn.SelectedItem?.ToString();
                 if (sel == "重點摘要" || sel == "備註") {
@@ -172,7 +167,6 @@ namespace Safety_System
 
             row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch, btnRtfToCsv, bImport });
 
-            // 將 row1 與 row3 加入 boxTop 中
             flpTopContainer.Controls.Add(row1);
             flpTopContainer.Controls.Add(row3);
             boxTop.Controls.Add(flpTopContainer);
@@ -182,17 +176,38 @@ namespace Safety_System
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; _txtNewColName = new TextBox { Width = 120 };
             
+            // 🟢 【最高權限】新增欄位
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) }; 
-            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyPassword()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(false); _txtNewColName.Clear(); } };
+            bAdd.Click += (s, e) => { 
+                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { 
+                    DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(false); _txtNewColName.Clear(); 
+                } 
+            };
             
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
             
+            // 🟢 【最高權限】標題更改
             Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35) }; 
-            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyPassword()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(false); _txtRenameCol.Clear(); } };
+            bRen.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { 
+                    DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(false); _txtRenameCol.Clear(); 
+                } 
+            };
             
+            // 🟢 【最高權限】刪除整欄
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyPassword()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(false); } } } };
+            bDelCol.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null) { 
+                    string colToDrop = _cboColumns.SelectedItem.ToString(); 
+                    if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { 
+                        if (AuthManager.VerifyAdmin()) { 
+                            DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(false); 
+                        } 
+                    } 
+                } 
+            };
             
+            // 🟢 【一般權限】刪除選取列
             Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
             bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
@@ -202,7 +217,7 @@ namespace Safety_System
 
                 if (selectedRows.Count > 0) {
                     if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後將立即生效)", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        if (AuthManager.VerifyPassword()) {
+                        if (AuthManager.VerifyUser()) { // 🟢 呼叫一般權限驗證
                             foreach (var r in selectedRows) {
                                 DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
                             }
@@ -389,7 +404,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 需求6：支援交叉搜尋與「有鍵入資料者」邏輯
         private void ExecuteAdvancedSearch(string countText, string searchCol, string keyword)
         {
             int limit = 500;
@@ -401,19 +415,18 @@ namespace Safety_System
             if (!string.IsNullOrEmpty(searchCol)) 
             {
                 if (keyword == "有鍵入資料者") {
-                    // 過濾出不是空字串且不為 NULL 的資料
                     dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
                 }
                 else if (!string.IsNullOrWhiteSpace(keyword)) {
                     dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
                 }
                 else {
-                    dv.RowFilter = ""; // 沒有關鍵字就無條件顯示
+                    dv.RowFilter = ""; 
                 }
             }
             else
             {
-                dv.RowFilter = ""; // 未選欄位也無條件顯示
+                dv.RowFilter = ""; 
             }
             
             dv.Sort = "Id DESC"; 
@@ -430,7 +443,6 @@ namespace Safety_System
             SetupComboBoxColumns();
             SetupTextWrapping();
 
-            // 🟢 需求4：隱藏 Id 欄位
             if (_dgv.Columns.Contains("Id")) {
                 _dgv.Columns["Id"].ReadOnly = true;
                 _dgv.Columns["Id"].Visible = false;
@@ -460,7 +472,6 @@ namespace Safety_System
             SetupComboBoxColumns();
             SetupTextWrapping();
 
-            // 🟢 需求4：隱藏 Id 欄位
             if (_dgv.Columns.Contains("Id")) {
                 _dgv.Columns["Id"].ReadOnly = true; 
                 _dgv.Columns["Id"].Visible = false;
@@ -495,13 +506,11 @@ namespace Safety_System
 
         private void UpdateCboColumns()
         {
-            // 保存當前的選擇
             string currentSelection = _cboSearchColumn.SelectedItem?.ToString();
 
             _cboColumns.Items.Clear();
             _cboSearchColumn.Items.Clear();
 
-            // 🟢 需求1：下拉選單新增空白選項
             _cboSearchColumn.Items.Add(""); 
 
             foreach (DataGridViewColumn c in _dgv.Columns) 
@@ -513,11 +522,10 @@ namespace Safety_System
                 }
             }
 
-            // 恢復先前的選擇，或者預設選空白
             if (!string.IsNullOrEmpty(currentSelection) && _cboSearchColumn.Items.Contains(currentSelection)) {
                 _cboSearchColumn.SelectedItem = currentSelection;
             } else {
-                _cboSearchColumn.SelectedIndex = 0; // 預設為空白
+                _cboSearchColumn.SelectedIndex = 0; 
             }
         }
 
@@ -629,13 +637,11 @@ namespace Safety_System
                                 if (dt.Columns.Contains(cn) && cn != "Id") {
                                     string val = vs[h].Trim();
                                     
-                                    // 🟢 需求3：防呆處理 CSV 中的日期格式 (統一轉換為 yyyy-MM-dd)
                                     if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
                                         if (!string.IsNullOrWhiteSpace(val)) {
                                             if (DateTime.TryParse(val, out DateTime parsedDate)) {
                                                 val = parsedDate.ToString("yyyy-MM-dd");
                                             } else {
-                                                // 針對某些不標準含有 / 的字串，嘗試暴力替換
                                                 string temp = val.Replace("/", "-");
                                                 if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
                                                     val = parsedDate2.ToString("yyyy-MM-dd");
