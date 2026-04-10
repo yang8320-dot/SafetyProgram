@@ -37,7 +37,7 @@ namespace Safety_System
                 _errorLogs.Add($"[資料讀取] {ex.Message}"); 
             }
 
-            // 主排版引擎：改為 3 個橫列 (Row)，對應三個大框
+            // 主排版引擎
             TableLayoutPanel mainPanel = new TableLayoutPanel 
             { 
                 Dock = DockStyle.Fill, 
@@ -59,7 +59,7 @@ namespace Safety_System
             
             Panel pnlAction1 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
                 () => ExportToExcel(_dgvThisYear, "今年修正法規"), 
-                () => ExportToPdf(_dgvThisYear, "今年修正法規"));
+                () => ExportToPdf(_dgvThisYear, "今年修正法規", "今年修正法規一覽表"));
             
             _dgvThisYear = CreateStandardGrid();
             try 
@@ -82,9 +82,10 @@ namespace Safety_System
             // ==========================================
             GroupBox box2 = CreateDataBox("📊 統計摘要");
             
+            // 🟢 需求3：修正文字為 法令鑑別統計表
             Label lblTitle2 = new Label 
             { 
-                Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求內容一覽表", 
+                Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令鑑別統計表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter, 
                 ForeColor = Color.DarkSlateBlue,
@@ -94,7 +95,7 @@ namespace Safety_System
 
             Panel pnlAction2 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
                 () => ExportToExcel(_dgvStats, "統計摘要"), 
-                () => ExportToPdf(_dgvStats, "統計摘要"));
+                () => ExportToPdf(_dgvStats, "統計摘要", "法令鑑別統計表"));
             
             _dgvStats = CreateStatsGrid();
             try 
@@ -114,14 +115,14 @@ namespace Safety_System
             mainPanel.Controls.Add(box2, 0, 1);
 
             // ==========================================
-            // 大框 3：目錄清單 (包含下拉選單 + 兩行標題 + 表格)
+            // 大框 3：目錄清單
             // ==========================================
             GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
 
             Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
             Label lblTitle3 = new Label 
             { 
-                Text = "台灣玻璃工業股份有限公司-彰濱廠\n環安衛法令及其他要求目錄一覽表", 
+                Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令及其他要求目錄一覽表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.DarkSlateBlue,
@@ -131,7 +132,7 @@ namespace Safety_System
 
             Panel pnlAction3 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
                 () => ExportToExcel(_dgvCategoryLaws, "法令目錄"), 
-                () => ExportToPdf(_dgvCategoryLaws, "法令目錄"));
+                () => ExportToPdf(_dgvCategoryLaws, "法令目錄", "法令及其他要求目錄一覽表"));
             
             Label lblCbo = new Label 
             { 
@@ -141,12 +142,13 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
             
+            // 🟢 需求5：調整間距，避免互相遮擋 (X軸由430改為450)
             _cboCategory = new ComboBox 
             { 
                 DropDownStyle = ComboBoxStyle.DropDownList, 
                 Font = new Font("Microsoft JhengHei UI", 12F), 
                 Width = 180, 
-                Location = new Point(430, 6) 
+                Location = new Point(450, 6) 
             };
             
             _cboCategory.Items.AddRange(_tableNames);
@@ -435,59 +437,46 @@ namespace Safety_System
             };
         }
 
+        // 🟢 需求4：直接從「法規目錄一覽」抓取資料，過濾選項類別
         private void PopulateCategoryLaws()
         {
-            DataTable dtShow = new DataTable();
-            dtShow.Columns.Add("流水號"); 
-            dtShow.Columns.Add("法令名稱"); 
-            dtShow.Columns.Add("公告日"); 
-            dtShow.Columns.Add("鑑別日期");
-
-            if (_cboCategory.SelectedItem != null && _dtAllLaws != null && _dtAllLaws.Rows.Count > 0) 
-            {
-                DataView dv = new DataView(_dtAllLaws); 
-                dv.RowFilter = $"主分類 = '{_cboCategory.SelectedItem}'";
-                
-                Dictionary<string, List<DataRowView>> groupedData = new Dictionary<string, List<DataRowView>>();
-                foreach (DataRowView drv in dv) 
-                {
-                    string lawName = GetSafeStr(drv, "法規名稱");
-                    if (string.IsNullOrEmpty(lawName)) continue;
-                    
-                    if (!groupedData.ContainsKey(lawName)) 
-                    {
-                        groupedData[lawName] = new List<DataRowView>();
-                    }
-                    groupedData[lawName].Add(drv);
-                }
-
-                int index = 1;
-                foreach (var kvp in groupedData) 
-                {
-                    string latestDate = "";
-                    string latestIdenDate = "";
-                    
-                    foreach (var row in kvp.Value) 
-                    {
-                        string d = GetSafeStr(row, "日期");
-                        string iden = GetSafeStr(row, "鑑別日期");
-                        
-                        if (string.Compare(d, latestDate) > 0) latestDate = d;
-                        if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
-                    }
-                    
-                    dtShow.Rows.Add(index++, kvp.Key, latestDate, latestIdenDate);
-                }
-            }
+            if (_cboCategory.SelectedItem == null) return;
+            string category = _cboCategory.SelectedItem.ToString();
             
-            _dgvCategoryLaws.DataSource = dtShow;
-            if (_dgvCategoryLaws.Columns.Count >= 4) 
-            { 
-                _dgvCategoryLaws.Columns[0].Width = 80; 
-                _dgvCategoryLaws.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; 
-                _dgvCategoryLaws.Columns[2].Width = 150; 
-                _dgvCategoryLaws.Columns[3].Width = 150; 
+            DataTable dtShow = new DataTable();
+            try 
+            {
+                DataTable dtDir = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
+                if (dtDir != null && dtDir.Columns.Count > 0)
+                {
+                    dtShow = dtDir.Clone(); 
+                    foreach (DataRow row in dtDir.Rows) 
+                    {
+                        if (row["選項類別"]?.ToString() == category) 
+                        {
+                            dtShow.ImportRow(row);
+                        }
+                    }
+                }
             }
+            catch 
+            {
+                // 若法規目錄一覽尚未建立會觸發 Exception，給予空表避免當機
+            }
+
+            _dgvCategoryLaws.DataSource = dtShow;
+            
+            // 隱藏 Id, 選項類別
+            if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
+            if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
+
+            // 調整顯示欄位寬度
+            if (_dgvCategoryLaws.Columns.Contains("流水號")) _dgvCategoryLaws.Columns["流水號"].Width = 80;
+            if (_dgvCategoryLaws.Columns.Contains("法規名稱")) _dgvCategoryLaws.Columns["法規名稱"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            if (_dgvCategoryLaws.Columns.Contains("日期")) _dgvCategoryLaws.Columns["日期"].Width = 120;
+            if (_dgvCategoryLaws.Columns.Contains("適用性")) _dgvCategoryLaws.Columns["適用性"].Width = 100;
+            if (_dgvCategoryLaws.Columns.Contains("鑑別日期")) _dgvCategoryLaws.Columns["鑑別日期"].Width = 120;
+            if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) _dgvCategoryLaws.Columns["再次確認日期"].Width = 150;
         }
 
         // ==========================================
@@ -508,20 +497,22 @@ namespace Safety_System
                     try 
                     {
                         DataTable dt = new DataTable();
-                        foreach (DataGridViewColumn col in dgv.Columns) 
-                        {
-                            dt.Columns.Add(col.HeaderText);
+                        List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
+
+                        // 只匯出可見欄位 (避開 Id, 選項類別)
+                        foreach (DataGridViewColumn col in dgv.Columns) {
+                            if (col.Visible) {
+                                visCols.Add(col);
+                                dt.Columns.Add(col.HeaderText);
+                            }
                         }
                         
-                        foreach (DataGridViewRow row in dgv.Rows) 
-                        {
+                        foreach (DataGridViewRow row in dgv.Rows) {
+                            if (row.IsNewRow) continue;
                             DataRow dRow = dt.NewRow();
-                            for (int i = 0; i < dgv.Columns.Count; i++) 
-                            {
-                                if (row.Cells[i].Value != null)
-                                {
-                                    dRow[i] = row.Cells[i].Value.ToString();
-                                }
+                            for (int i = 0; i < visCols.Count; i++) {
+                                var cellVal = row.Cells[visCols[i].Index].Value;
+                                dRow[i] = cellVal != null ? cellVal.ToString() : "";
                             }
                             dt.Rows.Add(dRow);
                         }
@@ -543,7 +534,8 @@ namespace Safety_System
             }
         }
 
-        private void ExportToPdf(DataGridView dgv, string title)
+        // 🟢 需求 1 & 2：匯出 PDF (新增 reportTitle 參數以支援表頭與導出日期標示)
+        private void ExportToPdf(DataGridView dgv, string fileName, string reportTitle)
         {
             if (dgv.Rows.Count == 0) 
             { 
@@ -551,7 +543,7 @@ namespace Safety_System
                 return; 
             }
             
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = fileName + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
@@ -568,39 +560,63 @@ namespace Safety_System
                         Graphics g = e.Graphics;
                         Font font = new Font("Microsoft JhengHei UI", 9F);
                         Font headerFont = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
-                        StringFormat fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+                        Font titleFont = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
+                        Font dateFont = new Font("Microsoft JhengHei UI", 11F);
+                        
+                        StringFormat fmtCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+                        StringFormat fmtLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
 
                         float y = e.MarginBounds.Top;
-                        float[] widths = new float[dgv.Columns.Count];
                         float totalWidth = 0;
                         
-                        for (int i = 0; i < dgv.Columns.Count; i++) 
-                        { 
-                            widths[i] = dgv.Columns[i].Width; 
-                            totalWidth += widths[i]; 
+                        // 計算可見欄位寬度
+                        List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
+                        foreach (DataGridViewColumn col in dgv.Columns) {
+                            if (col.Visible) {
+                                visCols.Add(col);
+                                totalWidth += col.Width;
+                            }
                         }
-                        
+
                         float scale = e.MarginBounds.Width / totalWidth;
                         if (scale > 1f) scale = 1f; 
 
                         g.ScaleTransform(scale, scale);
                         float scaledHeight = e.MarginBounds.Height / scale;
-
+                        float scaledWidth = e.MarginBounds.Width / scale;
                         float x = e.MarginBounds.Left / scale;
+
+                        // === 繪製 PDF 表頭 (公司與標題、導出日期) ===
+                        string companyTitle = "台灣玻璃工業股份有限公司-彰濱廠\n" + reportTitle;
+                        string exportDate = "導出日期: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+
+                        // 畫大標題
+                        SizeF titleSize = g.MeasureString(companyTitle, titleFont, (int)scaledWidth, fmtCenter);
+                        RectangleF titleRect = new RectangleF(x, y / scale, scaledWidth, titleSize.Height + 10);
+                        g.DrawString(companyTitle, titleFont, Brushes.DarkSlateBlue, titleRect, fmtCenter);
+                        y += (titleSize.Height + 10) * scale;
+
+                        // 畫副標題 (導出日期)
+                        SizeF dateSize = g.MeasureString(exportDate, dateFont, (int)scaledWidth, fmtLeft);
+                        RectangleF dateRect = new RectangleF(x, y / scale, scaledWidth, dateSize.Height + 10);
+                        g.DrawString(exportDate, dateFont, Brushes.Black, dateRect, fmtLeft);
+                        y += (dateSize.Height + 15) * scale;
+                        // ===========================================
+
                         float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
                         
-                        // 繪製標題
-                        for (int i = 0; i < dgv.Columns.Count; i++) 
+                        // 繪製表格 Header
+                        for (int i = 0; i < visCols.Count; i++) 
                         {
-                            RectangleF rectF = new RectangleF(x, y / scale, widths[i], headerH);
-                            Rectangle rect = Rectangle.Round(rectF); // 強制轉換確保相容性
+                            RectangleF rectF = new RectangleF(x, y / scale, visCols[i].Width, headerH);
+                            Rectangle rect = Rectangle.Round(rectF); 
                             
                             g.FillRectangle(Brushes.LightGray, rect);
                             g.DrawRectangle(Pens.Black, rect);
                             
-                            string headerText = dgv.Columns[i].HeaderText.Replace("\n", "");
-                            g.DrawString(headerText, headerFont, Brushes.Black, rect, fmt);
-                            x += widths[i];
+                            string headerText = visCols[i].HeaderText.Replace("\n", "");
+                            g.DrawString(headerText, headerFont, Brushes.Black, rect, fmtCenter);
+                            x += visCols[i].Width;
                         }
                         y += headerH * scale;
 
@@ -610,6 +626,7 @@ namespace Safety_System
                             DataGridViewRow row = dgv.Rows[rowIndex];
                             float rowH = row.Height < 30 ? 30 : row.Height;
                             
+                            // 若超出版面高度，換頁
                             if ((y / scale) + rowH > scaledHeight + (e.MarginBounds.Top / scale)) 
                             {
                                 e.HasMorePages = true; 
@@ -617,18 +634,16 @@ namespace Safety_System
                             }
 
                             x = e.MarginBounds.Left / scale;
-                            for (int i = 0; i < dgv.Columns.Count; i++) 
+                            for (int i = 0; i < visCols.Count; i++) 
                             {
-                                RectangleF rectF = new RectangleF(x, y / scale, widths[i], rowH);
+                                RectangleF rectF = new RectangleF(x, y / scale, visCols[i].Width, rowH);
                                 Rectangle rect = Rectangle.Round(rectF);
                                 
                                 g.DrawRectangle(Pens.Black, rect);
                                 
-                                string val = "";
-                                if (row.Cells[i].Value != null) val = row.Cells[i].Value.ToString();
-                                
-                                g.DrawString(val, font, Brushes.Black, rect, fmt);
-                                x += widths[i];
+                                string val = row.Cells[visCols[i].Index].Value?.ToString() ?? "";
+                                g.DrawString(val, font, Brushes.Black, rect, fmtCenter);
+                                x += visCols[i].Width;
                             }
                             y += rowH * scale;
                             rowIndex++;
