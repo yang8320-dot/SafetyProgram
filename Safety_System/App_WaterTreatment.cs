@@ -123,7 +123,7 @@ namespace Safety_System
                 Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), 
                 BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold)
             };
-            bSave.Click += BtnSave_Click; 
+            bSave.Click += BtnSave_Click; // 獨立出方法處理儲存邏輯
             
             Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) };
             bExport.Click += BtnExport_Click;
@@ -160,19 +160,53 @@ namespace Safety_System
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true };
             _txtNewColName = new TextBox { Width = 150 };
+            
+            // 🟢 1. 新增欄位 (最高權限)
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
-            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyPassword()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
+            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtRenameCol = new TextBox { Width = 120 };
+            
+            // 🟢 1. 標題更改 (最高權限)
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
-            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyPassword()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
+            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
             
+            // 🟢 1. 刪除整欄 (最高權限)
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyPassword()) { DataManager.DropColumn(DbName, TableName, _cboColumns.SelectedItem.ToString()); RefreshGrid(); } };
+            bDelCol.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null) {
+                    if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{_cboColumns.SelectedItem}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        if (AuthManager.VerifyAdmin()) { 
+                            DataManager.DropColumn(DbName, TableName, _cboColumns.SelectedItem.ToString()); 
+                            RefreshGrid(); 
+                        }
+                    }
+                } 
+            };
             
-            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
-            bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && AuthManager.VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
+            // 🟢 2. 刪除選取列 (一般權限 + 滑鼠複選支援)
+            Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            bDelRow.Click += (s, e) => { 
+                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
+                                       .Select(c => c.OwningRow)
+                                       .Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value)
+                                       .Distinct().ToList();
+
+                if (selectedRows.Count > 0) {
+                    if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後將立即生效)", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        if (AuthManager.VerifyUser()) {
+                            foreach (var r in selectedRows) {
+                                DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(r.Cells["Id"].Value));
+                            }
+                            RefreshGrid();
+                            MessageBox.Show("刪除成功！");
+                        }
+                    }
+                } else {
+                    MessageBox.Show("請先用滑鼠選取要刪除的資料列！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            };
 
             rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
             
@@ -206,6 +240,8 @@ namespace Safety_System
             return main;
         }
 
+        // --- 功能方法集 ---
+
         private void BtnSave_Click(object sender, EventArgs e)
         {
             try {
@@ -219,7 +255,6 @@ namespace Safety_System
                     RefreshGrid();
                 }
             } finally {
-                // 🟢 修正：CursDefault -> Cursors.Default
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
