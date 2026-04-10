@@ -520,21 +520,21 @@ namespace Safety_System
             ReplaceWithComboBox("有提升績效機會", checkItems);
             ReplaceWithComboBox("有潛在不符合風險", checkItems);
 
-            string[] itemsTiao = new string[501];
-            itemsTiao[0] = "";
-            for (int i = 1; i <= 500; i++) itemsTiao[i] = i.ToString();
-            ReplaceWithComboBox("條", itemsTiao);
+            // 🟢 修正1：條改為 3 碼 (001~500)
+            List<string> itemsTiao = new List<string> { "" };
+            for (int i = 1; i <= 500; i++) itemsTiao.Add(i.ToString("D3"));
+            ReplaceWithComboBox("條", itemsTiao.ToArray());
 
-            string[] itemsSmall = new string[21];
-            itemsSmall[0] = "";
-            for (int i = 1; i <= 20; i++) itemsSmall[i] = i.ToString();
+            // 🟢 修正2：項、款、目改為 2 碼 (01~20)
+            List<string> itemsSmall = new List<string> { "" };
+            for (int i = 1; i <= 20; i++) itemsSmall.Add(i.ToString("D2"));
             
-            ReplaceWithComboBox("項", itemsSmall);
-            ReplaceWithComboBox("款", itemsSmall);
-            ReplaceWithComboBox("目", itemsSmall);
+            ReplaceWithComboBox("項", itemsSmall.ToArray());
+            ReplaceWithComboBox("款", itemsSmall.ToArray());
+            ReplaceWithComboBox("目", itemsSmall.ToArray());
         }
 
-        private void ReplaceWithComboBox(string colName, string[] items)
+        private void ReplaceWithComboBox(string colName, string[] defaultItems)
         {
             if (_dgv.Columns.Contains(colName) && !(_dgv.Columns[colName] is DataGridViewComboBoxColumn))
             {
@@ -545,7 +545,22 @@ namespace Safety_System
                 cboCol.Name = colName;
                 cboCol.HeaderText = colName;
                 cboCol.DataPropertyName = colName; 
-                cboCol.Items.AddRange(items);
+                
+                // 🟢 修正3：動態補齊 CSV 中存在，但不在預設 1~500 清單內的特例 (例如 "010-1")
+                List<string> finalItems = new List<string>(defaultItems);
+                if (_dgv.DataSource is DataTable dt)
+                {
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        string val = row[colName]?.ToString().Trim();
+                        if (!string.IsNullOrEmpty(val) && !finalItems.Contains(val))
+                        {
+                            finalItems.Add(val);
+                        }
+                    }
+                }
+
+                cboCol.Items.AddRange(finalItems.ToArray());
                 
                 cboCol.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
                 cboCol.FlatStyle = FlatStyle.Flat;
@@ -638,6 +653,15 @@ namespace Safety_System
                         }
 
                         _dgv.DataSource = dt; 
+
+                        // 🟢 修正4：匯入資料後，必須立刻重新套用下拉選單與換行設定
+                        SetupComboBoxColumns();
+                        SetupTextWrapping();
+                        if (_dgv.Columns.Contains("Id")) {
+                            _dgv.Columns["Id"].ReadOnly = true;
+                            _dgv.Columns["Id"].Visible = false;
+                        }
+
                         _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
 
                         MessageBox.Show($"載入 {parsedRows.Count - 1} 筆資料成功！\n系統已就緒，請點擊「儲存」以進行更新比對。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
