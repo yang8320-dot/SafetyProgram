@@ -31,7 +31,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 主排版引擎
             TableLayoutPanel mainPanel = new TableLayoutPanel 
             { 
                 Dock = DockStyle.Fill, 
@@ -121,7 +120,7 @@ namespace Safety_System
                 Location = new Point(450, 6) 
             };
             _cboCategory.Items.AddRange(_tableNames);
-            _cboCategory.SelectedIndexChanged += (s, e) => FilterCategoryLaws();
+            _cboCategory.SelectedIndexChanged += (s, e) => { FilterCategoryLaws(); };
             
             pnlAction3.Controls.Add(lblCbo);
             pnlAction3.Controls.Add(_cboCategory);
@@ -133,14 +132,15 @@ namespace Safety_System
             _dgvCategoryLaws.BringToFront();
             mainPanel.Controls.Add(box3, 0, 2);
 
-            // 加入 Loading 提示標籤
-            _lblLoading = new Label {
+            // 提示標籤
+            _lblLoading = new Label 
+            {
                 Text = "資料大量運算中，請稍候...",
                 Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(200, 0, 0, 0),
                 Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
+                TextAlign = ContentAlignment.MiddleCenter
             };
             mainPanel.Controls.Add(_lblLoading);
             _lblLoading.BringToFront();
@@ -161,21 +161,16 @@ namespace Safety_System
 
             await Task.Run(() =>
             {
-                try {
+                try 
+                {
                     _errorLogs.Clear();
-                    // 1. 讀取主法規庫 (合併三表)
                     LoadAndMergeData();
-                    
-                    // 2. 讀取目錄庫 (快取到記憶體)
                     _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
-
-                    // 3. 背景計算今年修正表
                     dtThisYear = BuildThisYearData();
-
-                    // 4. 背景計算統計摘要表
                     dtStats = BuildStatsData();
                 } 
-                catch (Exception ex) {
+                catch (Exception ex) 
+                {
                     _errorLogs.Add($"[背景運算異常] {ex.Message}");
                 }
             });
@@ -183,15 +178,23 @@ namespace Safety_System
             // 回到 UI 執行緒更新畫面
             _lblLoading.Visible = false;
 
-            if (dtThisYear != null) _dgvThisYear.DataSource = dtThisYear;
-            if (dtStats != null) {
+            if (dtThisYear != null) 
+            {
+                _dgvThisYear.DataSource = dtThisYear;
+            }
+            if (dtStats != null) 
+            {
                 _dgvStats.DataSource = dtStats;
                 FormatStatsGrid();
             }
 
-            if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
+            if (_cboCategory.Items.Count > 0) 
+            {
+                _cboCategory.SelectedIndex = 0;
+            }
 
-            if (_errorLogs.Count > 0) {
+            if (_errorLogs.Count > 0) 
+            {
                 MessageBox.Show("部分資料讀取異常。\n" + string.Join("\n", _errorLogs), "通知", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
@@ -201,32 +204,68 @@ namespace Safety_System
         // ==========================================
         private GroupBox CreateDataBox(string title)
         {
-            return new GroupBox { Text = title, Dock = DockStyle.Fill, MinimumSize = new Size(0, 350), Margin = new Padding(0, 0, 0, 20), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            return new GroupBox 
+            { 
+                Text = title, 
+                Dock = DockStyle.Fill, 
+                MinimumSize = new Size(0, 350), 
+                Margin = new Padding(0, 0, 0, 20), 
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                Padding = new Padding(15) 
+            };
         }
 
         private Panel CreateActionPanel(string exText, string pdfText, Action exClick, Action pdfClick)
         {
             Panel p = new Panel { Dock = DockStyle.Top, Height = 45 };
-            Button btnEx = new Button { Text = "📊 " + exText, Size = new Size(150, 32), Location = new Point(10, 5), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
-            Button btnPdf = new Button { Text = "📄 " + pdfText, Size = new Size(150, 32), Location = new Point(170, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
-            btnEx.Click += (s, e) => exClick(); btnPdf.Click += (s, e) => pdfClick();
-            p.Controls.Add(btnEx); p.Controls.Add(btnPdf);
+            
+            Button btnEx = new Button 
+            { 
+                Text = "📊 " + exText, 
+                Size = new Size(150, 32), 
+                Location = new Point(10, 5), 
+                BackColor = Color.MediumSeaGreen, 
+                ForeColor = Color.White, 
+                Cursor = Cursors.Hand 
+            };
+            
+            Button btnPdf = new Button 
+            { 
+                Text = "📄 " + pdfText, 
+                Size = new Size(150, 32), 
+                Location = new Point(170, 5), 
+                BackColor = Color.IndianRed, 
+                ForeColor = Color.White, 
+                Cursor = Cursors.Hand 
+            };
+            
+            btnEx.Click += (s, e) => { exClick(); }; 
+            btnPdf.Click += (s, e) => { pdfClick(); };
+            
+            p.Controls.Add(btnEx); 
+            p.Controls.Add(btnPdf);
             return p;
         }
 
         private DataGridView CreateStandardGrid()
         {
-            var dgv = new DataGridView 
+            DataGridView dgv = new DataGridView 
             { 
-                Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = false, AllowUserToDeleteRows = false, 
-                ReadOnly = true, RowHeadersVisible = false, 
-                // 🟢 取消 DisplayedCells 避免行數多時算太久，改用 Fill 或自訂寬度
+                Dock = DockStyle.Fill, 
+                BackgroundColor = Color.White, 
+                AllowUserToAddRows = false, 
+                AllowUserToDeleteRows = false, 
+                ReadOnly = true, 
+                RowHeadersVisible = false, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
-                Font = new Font("Microsoft JhengHei UI", 11F), BorderStyle = BorderStyle.Fixed3D, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, RowTemplate = { Height = 35 },
-                DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.False } 
+                Font = new Font("Microsoft JhengHei UI", 11F), 
+                BorderStyle = BorderStyle.Fixed3D, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None
             };
-            EnableDoubleBuffered(dgv); // 開啟雙緩衝防閃爍
+            dgv.RowTemplate.Height = 35; // 嚴格寫法，避免編譯器誤判
+            dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
+            
+            EnableDoubleBuffered(dgv); 
             return dgv;
         }
 
@@ -243,16 +282,14 @@ namespace Safety_System
             dgv.GridColor = Color.Black;
             dgv.CellBorderStyle = DataGridViewCellBorderStyle.Single;
             
-            // 🟢 需求 1：標題文字換行與等距寬度
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; 
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing;
-            dgv.ColumnHeadersHeight = 65; // 增高以容納雙行
+            dgv.ColumnHeadersHeight = 65; 
             dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
             return dgv;
         }
 
-        // 開啟 DGV 雙緩衝，解決卡頓閃爍
         private void EnableDoubleBuffered(DataGridView dgv)
         {
             typeof(DataGridView).InvokeMember("DoubleBuffered", 
@@ -268,33 +305,47 @@ namespace Safety_System
             _dtAllLaws = new DataTable();
             _dtAllLaws.Columns.Add("主分類", typeof(string));
             
-            // 🟢 需求 2：對應讀取新欄位
             string[] expectedCols = { "Id", "日期", "法規名稱", "發布機關", "適用性", "鑑別日期", "有提升績效機會", "有潛在不符合風險" };
-            foreach (var col in expectedCols) _dtAllLaws.Columns.Add(col, typeof(string));
+            foreach (var col in expectedCols) 
+            {
+                _dtAllLaws.Columns.Add(col, typeof(string));
+            }
 
             foreach (string tbl in _tableNames) 
             {
-                try {
+                try 
+                {
                     DataTable dt = DataManager.GetTableData(DbName, tbl, "", "", "");
                     if (dt == null || dt.Rows.Count == 0) continue; 
                     
-                    foreach (DataRow row in dt.Rows) {
+                    foreach (DataRow row in dt.Rows) 
+                    {
                         DataRow newRow = _dtAllLaws.NewRow();
                         newRow["主分類"] = tbl;
-                        foreach (string col in expectedCols) {
-                            if (dt.Columns.Contains(col) && row[col] != DBNull.Value) newRow[col] = row[col].ToString();
-                            else newRow[col] = "";
+                        foreach (string col in expectedCols) 
+                        {
+                            if (dt.Columns.Contains(col) && row[col] != DBNull.Value) 
+                            {
+                                newRow[col] = row[col].ToString();
+                            }
+                            else 
+                            {
+                                newRow[col] = "";
+                            }
                         }
                         _dtAllLaws.Rows.Add(newRow);
                     }
-                } catch { }
+                } 
+                catch { }
             }
         }
 
         private string GetSafeStr(DataRowView row, string colName) 
         { 
             if (row.Row.Table.Columns.Contains(colName) && row[colName] != DBNull.Value)
+            {
                 return row[colName].ToString().Trim();
+            }
             return ""; 
         }
 
@@ -313,20 +364,23 @@ namespace Safety_System
                 dv.RowFilter = $"日期 LIKE '%{currentYear}%'";
 
                 var groupedData = new Dictionary<string, List<DataRowView>>();
-                foreach (DataRowView drv in dv) {
+                foreach (DataRowView drv in dv) 
+                {
                     string lawName = GetSafeStr(drv, "法規名稱");
                     if (string.IsNullOrEmpty(lawName)) continue;
                     if (!groupedData.ContainsKey(lawName)) groupedData[lawName] = new List<DataRowView>();
                     groupedData[lawName].Add(drv);
                 }
 
-                foreach (var kvp in groupedData) {
+                foreach (var kvp in groupedData) 
+                {
                     string latestDate = "";
                     string latestIdenDate = "";
                     string firstApply = GetSafeStr(kvp.Value[0], "適用性");
                     bool hasApplicable = false;
                     
-                    foreach (var row in kvp.Value) {
+                    foreach (var row in kvp.Value) 
+                    {
                         string d = GetSafeStr(row, "日期");
                         string iden = GetSafeStr(row, "鑑別日期");
                         string apply = GetSafeStr(row, "適用性");
@@ -344,13 +398,15 @@ namespace Safety_System
         private DataTable BuildStatsData()
         {
             DataTable dtStats = new DataTable();
-            // 🟢 需求 1 & 2：加入換行符號 \n，並修改欄位名稱
             string[] cols = { 
                 "類別", "收集\n【法規】數", "收集\n【法條】數", "【適用】\n法條數", 
                 "【參考】\n數", "【不適用】\n法條數", "【確認中】\n數", 
                 "有提升績效\n機會法條", "有潛在不符\n風險法條數", "【未鑑別】\n法條數" 
             };
-            foreach (string c in cols) dtStats.Columns.Add(c);
+            foreach (string c in cols) 
+            {
+                dtStats.Columns.Add(c);
+            }
 
             int[] sums = new int[9];
             foreach (string cat in _tableNames) 
@@ -364,11 +420,10 @@ namespace Safety_System
                     v[1] = dv.Count; 
                     HashSet<string> uniqueNames = new HashSet<string>();
                     
-                    foreach (DataRowView row in dv) {
+                    foreach (DataRowView row in dv) 
+                    {
                         string name = GetSafeStr(row, "法規名稱");
                         string aStatus = GetSafeStr(row, "適用性");
-                        
-                        // 🟢 需求 2：對應新欄位判斷 (打 v 代表有)
                         string perfInc = GetSafeStr(row, "有提升績效機會");
                         string risk = GetSafeStr(row, "有潛在不符合風險");
                         
@@ -395,16 +450,17 @@ namespace Safety_System
 
         private void FormatStatsGrid()
         {
-            if (_dgvStats.Columns.Count > 0) {
+            if (_dgvStats.Columns.Count > 0) 
+            {
                 _dgvStats.Columns[0].HeaderText = "環保法規\n(類別)";
             }
-            if (_dgvStats.Rows.Count > 0) {
+            if (_dgvStats.Rows.Count > 0) 
+            {
                 _dgvStats.Rows[_dgvStats.Rows.Count - 1].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold); 
                 _dgvStats.Rows[_dgvStats.Rows.Count - 1].DefaultCellStyle.BackColor = Color.Moccasin;
             }
         }
 
-        // 🟢 需求 4：讀取記憶體快取中的「法規目錄一覽」，速度秒切
         private void FilterCategoryLaws()
         {
             if (_cboCategory.SelectedItem == null || _dtDirectoryLaws == null) return;
@@ -414,28 +470,31 @@ namespace Safety_System
             dv.RowFilter = $"選項類別 = '{category}'";
             _dgvCategoryLaws.DataSource = dv.ToTable();
             
-            // 隱藏 Id, 選項類別
             if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
 
-            // 調整顯示寬度
-            if (_dgvCategoryLaws.Columns.Contains("流水號")) {
+            if (_dgvCategoryLaws.Columns.Contains("流水號")) 
+            {
                 _dgvCategoryLaws.Columns["流水號"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["流水號"].Width = 70;
             }
-            if (_dgvCategoryLaws.Columns.Contains("日期")) {
+            if (_dgvCategoryLaws.Columns.Contains("日期")) 
+            {
                 _dgvCategoryLaws.Columns["日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["日期"].Width = 110;
             }
-            if (_dgvCategoryLaws.Columns.Contains("適用性")) {
+            if (_dgvCategoryLaws.Columns.Contains("適用性")) 
+            {
                 _dgvCategoryLaws.Columns["適用性"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["適用性"].Width = 80;
             }
-            if (_dgvCategoryLaws.Columns.Contains("鑑別日期")) {
+            if (_dgvCategoryLaws.Columns.Contains("鑑別日期")) 
+            {
                 _dgvCategoryLaws.Columns["鑑別日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["鑑別日期"].Width = 110;
             }
-            if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) {
+            if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) 
+            {
                 _dgvCategoryLaws.Columns["再次確認日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["再次確認日期"].Width = 130;
             }
@@ -446,48 +505,66 @@ namespace Safety_System
         // ==========================================
         private void ExportToExcel(DataGridView dgv, string title)
         {
-            if (dgv.Rows.Count == 0) { MessageBox.Show("沒有資料可匯出！"); return; }
+            if (dgv.Rows.Count == 0) 
+            { 
+                MessageBox.Show("沒有資料可匯出！"); 
+                return; 
+            }
             
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
-                    try {
+                    try 
+                    {
                         DataTable dt = new DataTable();
                         List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
 
-                        foreach (DataGridViewColumn col in dgv.Columns) {
-                            if (col.Visible) {
+                        foreach (DataGridViewColumn col in dgv.Columns) 
+                        {
+                            if (col.Visible) 
+                            {
                                 visCols.Add(col);
                                 dt.Columns.Add(col.HeaderText.Replace("\n", ""));
                             }
                         }
                         
-                        foreach (DataGridViewRow row in dgv.Rows) {
+                        foreach (DataGridViewRow row in dgv.Rows) 
+                        {
                             if (row.IsNewRow) continue;
                             DataRow dRow = dt.NewRow();
-                            for (int i = 0; i < visCols.Count; i++) {
+                            for (int i = 0; i < visCols.Count; i++) 
+                            {
                                 var cellVal = row.Cells[visCols[i].Index].Value;
                                 dRow[i] = cellVal != null ? cellVal.ToString() : "";
                             }
                             dt.Rows.Add(dRow);
                         }
 
-                        using (ExcelPackage p = new ExcelPackage()) {
+                        using (ExcelPackage p = new ExcelPackage()) 
+                        {
                             var ws = p.Workbook.Worksheets.Add("Data");
                             ws.Cells["A1"].LoadFromDataTable(dt, true);
                             ws.Cells.AutoFitColumns(); 
                             p.SaveAs(new FileInfo(sfd.FileName));
                         }
                         MessageBox.Show("Excel 匯出成功！");
-                    } catch (Exception ex) { MessageBox.Show("Excel 匯出失敗：" + ex.Message); }
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        MessageBox.Show("Excel 匯出失敗：" + ex.Message); 
+                    }
                 }
             }
         }
 
         private void ExportToPdf(DataGridView dgv, string fileName, string reportTitle)
         {
-            if (dgv.Rows.Count == 0) { MessageBox.Show("沒有資料可列印！"); return; }
+            if (dgv.Rows.Count == 0) 
+            { 
+                MessageBox.Show("沒有資料可列印！"); 
+                return; 
+            }
             
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = fileName + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
@@ -516,8 +593,10 @@ namespace Safety_System
                         float totalWidth = 0;
                         
                         List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
-                        foreach (DataGridViewColumn col in dgv.Columns) {
-                            if (col.Visible) {
+                        foreach (DataGridViewColumn col in dgv.Columns) 
+                        {
+                            if (col.Visible) 
+                            {
                                 visCols.Add(col);
                                 totalWidth += col.Width;
                             }
@@ -547,7 +626,8 @@ namespace Safety_System
 
                         float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
                         
-                        for (int i = 0; i < visCols.Count; i++) {
+                        for (int i = 0; i < visCols.Count; i++) 
+                        {
                             RectangleF rectF = new RectangleF(x, y / scale, visCols[i].Width, headerH);
                             Rectangle rect = Rectangle.Round(rectF); 
                             g.FillRectangle(Brushes.LightGray, rect);
@@ -559,13 +639,46 @@ namespace Safety_System
                         }
                         y += headerH * scale;
 
-                        while (rowIndex < dgv.Rows.Count) {
+                        while (rowIndex < dgv.Rows.Count) 
+                        {
                             DataGridViewRow row = dgv.Rows[rowIndex];
                             float rowH = row.Height < 30 ? 30 : row.Height;
                             
-                            if ((y / scale) + rowH > scaledHeight + (e.MarginBounds.Top / scale)) {
+                            if ((y / scale) + rowH > scaledHeight + (e.MarginBounds.Top / scale)) 
+                            {
                                 e.HasMorePages = true; 
                                 return;
                             }
 
                             x = e.MarginBounds.Left / scale;
+                            for (int i = 0; i < visCols.Count; i++) 
+                            {
+                                RectangleF rectF = new RectangleF(x, y / scale, visCols[i].Width, rowH);
+                                Rectangle rect = Rectangle.Round(rectF);
+                                g.DrawRectangle(Pens.Black, rect);
+                                
+                                string val = row.Cells[visCols[i].Index].Value?.ToString() ?? "";
+                                g.DrawString(val, font, Brushes.Black, rect, fmtCenter);
+                                x += visCols[i].Width;
+                            }
+                            y += rowH * scale;
+                            rowIndex++;
+                        }
+                        e.HasMorePages = false;
+                        rowIndex = 0; 
+                    };
+
+                    try 
+                    { 
+                        pd.Print(); 
+                        MessageBox.Show("PDF 匯出成功！"); 
+                    }
+                    catch (Exception ex) 
+                    { 
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message); 
+                    }
+                }
+            }
+        }
+    }
+}
