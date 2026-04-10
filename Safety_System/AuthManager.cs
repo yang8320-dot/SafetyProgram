@@ -41,8 +41,8 @@ namespace Safety_System
         {
             using (Form p = new Form())
             {
-                p.Width = 450; 
-                p.Height = 270;
+                p.Width = 500; 
+                p.Height = 300;
                 p.Text = "權限驗證";
                 p.StartPosition = FormStartPosition.CenterParent;
                 p.FormBorderStyle = FormBorderStyle.FixedDialog;
