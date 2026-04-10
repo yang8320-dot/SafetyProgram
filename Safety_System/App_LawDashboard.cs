@@ -24,6 +24,9 @@ namespace Safety_System
         
         // UI 控制項
         private ComboBox _cboCategory;
+        private ComboBox _cboYearlyCategory; // 🟢 新增：年度鑑別表-選擇類別
+        private ComboBox _cboYearlyYear;     // 🟢 新增：年度鑑別表-查詢年度
+        
         private DataGridView _dgvStats;
         private DataGridView _dgvCategoryLaws;
         private DataGridView _dgvThisYear;
@@ -41,21 +44,58 @@ namespace Safety_System
                 Padding = new Padding(20) 
             };
 
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框1: 今年修正法規
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框1: 年度法令總鑑別表
             mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框2: 統計摘要
             mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框3: 目錄清單
 
             // ==========================================
-            // 大框 1：今年修正法規
+            // 大框 1：年度法令總鑑別表 (原今年修正法規)
             // ==========================================
-            GroupBox box1 = CreateDataBox("📌 今年修正法規一覽 (排除重複名稱，依適用性權重顯示)");
-            Panel pnlAction1 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
-                () => ExportToExcel(_dgvThisYear, "今年修正法規"), 
-                () => ExportToPdf(_dgvThisYear, "今年修正法規", "今年修正法規一覽表"));
+            GroupBox box1 = CreateDataBox("📌 年度法令總鑑別表查詢");
             
+            // 🟢 1. 雙行標題
+            Panel pnlTop1 = new Panel { Dock = DockStyle.Top, Height = 70 };
+            Label lblTitle1 = new Label 
+            { 
+                Text = "台灣玻璃工業股份有限公司-彰濱廠\n年度法令總鑑別表", 
+                Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Color.DarkSlateBlue,
+                Dock = DockStyle.Fill 
+            };
+            pnlTop1.Controls.Add(lblTitle1);
+
+            // 🟢 2. 控制項面板 (匯出按鈕 + 兩個下拉選單)
+            Panel pnlAction1 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
+                () => ExportToExcel(_dgvThisYear, "年度法令總鑑別表"), 
+                () => ExportToPdf(_dgvThisYear, "年度法令總鑑別表", "年度法令總鑑別表"));
+            
+            Label lblCboCat1 = new Label { Text = "選擇類別:", AutoSize = true, Location = new Point(350, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboYearlyCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 150, Location = new Point(430, 6) };
+            _cboYearlyCategory.Items.AddRange(_tableNames);
+
+            Label lblCboYear1 = new Label { Text = "查詢年度:", AutoSize = true, Location = new Point(600, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboYearlyYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 100, Location = new Point(680, 6) };
+            
+            // 載入近 6 年 (當年度往回加 5 年)
+            int currentYear = DateTime.Now.Year;
+            for (int i = 0; i <= 5; i++) {
+                _cboYearlyYear.Items.Add((currentYear - i).ToString());
+            }
+
+            // 綁定事件
+            _cboYearlyCategory.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
+            _cboYearlyYear.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
+
+            pnlAction1.Controls.Add(lblCboCat1);
+            pnlAction1.Controls.Add(_cboYearlyCategory);
+            pnlAction1.Controls.Add(lblCboYear1);
+            pnlAction1.Controls.Add(_cboYearlyYear);
+
             _dgvThisYear = CreateStandardGrid();
             box1.Controls.Add(_dgvThisYear);
             box1.Controls.Add(pnlAction1);
+            box1.Controls.Add(pnlTop1);
             _dgvThisYear.BringToFront(); 
             mainPanel.Controls.Add(box1, 0, 0);
 
@@ -78,7 +118,6 @@ namespace Safety_System
                 () => ExportToPdf(_dgvStats, "統計摘要", "法令鑑別統計表"));
             
             _dgvStats = CreateStatsGrid();
-            // 🟢 強制增加高度，讓下方多出一行的空間，避免擠壓
             _dgvStats.MinimumSize = new Size(0, 230); 
             
             box2.Controls.Add(_dgvStats);
@@ -93,7 +132,6 @@ namespace Safety_System
             GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
 
             Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
-            // 🟢 標題修正為「法令目錄一覽表」
             Label lblTitle3 = new Label 
             { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令目錄一覽表", 
@@ -161,7 +199,6 @@ namespace Safety_System
         private async void LoadDashboardDataAsync()
         {
             DataTable dtStats = null;
-            DataTable dtThisYear = null;
 
             await Task.Run(() =>
             {
@@ -170,7 +207,6 @@ namespace Safety_System
                     _errorLogs.Clear();
                     LoadAndMergeData();
                     _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
-                    dtThisYear = BuildThisYearData();
                     dtStats = BuildStatsData();
                 } 
                 catch (Exception ex) 
@@ -182,21 +218,16 @@ namespace Safety_System
             // 回到 UI 執行緒更新畫面
             _lblLoading.Visible = false;
 
-            if (dtThisYear != null) 
-            {
-                _dgvThisYear.DataSource = dtThisYear;
-                _dgvThisYear.ClearSelection();
-            }
             if (dtStats != null) 
             {
                 _dgvStats.DataSource = dtStats;
                 FormatStatsGrid();
             }
 
-            if (_cboCategory.Items.Count > 0) 
-            {
-                _cboCategory.SelectedIndex = 0;
-            }
+            // 觸發預設選項的聯動查詢
+            if (_cboYearlyCategory.Items.Count > 0) _cboYearlyCategory.SelectedIndex = 0;
+            if (_cboYearlyYear.Items.Count > 0) _cboYearlyYear.SelectedIndex = 0;
+            if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
             if (_errorLogs.Count > 0) 
             {
@@ -224,25 +255,8 @@ namespace Safety_System
         {
             Panel p = new Panel { Dock = DockStyle.Top, Height = 45 };
             
-            Button btnEx = new Button 
-            { 
-                Text = "📊 " + exText, 
-                Size = new Size(150, 32), 
-                Location = new Point(10, 5), 
-                BackColor = Color.MediumSeaGreen, 
-                ForeColor = Color.White, 
-                Cursor = Cursors.Hand 
-            };
-            
-            Button btnPdf = new Button 
-            { 
-                Text = "📄 " + pdfText, 
-                Size = new Size(150, 32), 
-                Location = new Point(170, 5), 
-                BackColor = Color.IndianRed, 
-                ForeColor = Color.White, 
-                Cursor = Cursors.Hand 
-            };
+            Button btnEx = new Button { Text = "📊 " + exText, Size = new Size(150, 32), Location = new Point(10, 5), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
+            Button btnPdf = new Button { Text = "📄 " + pdfText, Size = new Size(150, 32), Location = new Point(170, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
             
             btnEx.Click += (s, e) => { exClick(); }; 
             btnPdf.Click += (s, e) => { pdfClick(); };
@@ -282,7 +296,6 @@ namespace Safety_System
             dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
             dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             
-            // 🟢 修改為白色底，解決「第一格黃底」錯覺問題
             dgv.DefaultCellStyle.BackColor = Color.White; 
             dgv.DefaultCellStyle.SelectionBackColor = Color.AliceBlue;
             dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
@@ -357,56 +370,87 @@ namespace Safety_System
             return ""; 
         }
 
-        private DataTable BuildThisYearData()
+        // 🟢 年度鑑別查詢邏輯 (對應需求 3)
+        private void FilterYearlyLaws()
         {
+            if (_cboYearlyCategory.SelectedItem == null || _cboYearlyYear.SelectedItem == null || _dtAllLaws == null) return;
+            
+            string category = _cboYearlyCategory.SelectedItem.ToString();
+            string year = _cboYearlyYear.SelectedItem.ToString();
+
             DataTable dtShow = new DataTable();
-            dtShow.Columns.Add("最新修訂日期"); 
+            dtShow.Columns.Add("流水"); 
             dtShow.Columns.Add("法規名稱"); 
+            dtShow.Columns.Add("日期");
             dtShow.Columns.Add("適用性");
-            dtShow.Columns.Add("最新鑑別日期"); 
+            dtShow.Columns.Add("鑑別日期"); 
 
-            if (_dtAllLaws != null && _dtAllLaws.Rows.Count > 0) 
+            DataView dv = new DataView(_dtAllLaws); 
+            // 依據類別與年份過濾
+            dv.RowFilter = $"主分類 = '{category}' AND 日期 LIKE '%{year}%'";
+
+            var groupedData = new Dictionary<string, List<DataRowView>>();
+            foreach (DataRowView drv in dv) 
             {
-                string currentYear = DateTime.Now.Year.ToString();
-                DataView dv = new DataView(_dtAllLaws); 
-                dv.RowFilter = $"日期 LIKE '%{currentYear}%'";
-
-                var groupedData = new Dictionary<string, List<DataRowView>>();
-                foreach (DataRowView drv in dv) 
-                {
-                    string lawName = GetSafeStr(drv, "法規名稱");
-                    if (string.IsNullOrEmpty(lawName)) continue;
-                    if (!groupedData.ContainsKey(lawName)) groupedData[lawName] = new List<DataRowView>();
-                    groupedData[lawName].Add(drv);
-                }
-
-                foreach (var kvp in groupedData) 
-                {
-                    string latestDate = "";
-                    string latestIdenDate = "";
-                    string firstApply = GetSafeStr(kvp.Value[0], "適用性");
-                    bool hasApplicable = false;
-                    
-                    foreach (var row in kvp.Value) 
-                    {
-                        string d = GetSafeStr(row, "日期");
-                        string iden = GetSafeStr(row, "鑑別日期");
-                        string apply = GetSafeStr(row, "適用性");
-                        
-                        if (string.Compare(d, latestDate) > 0) latestDate = d;
-                        if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
-                        if (apply == "適用") hasApplicable = true;
-                    }
-                    dtShow.Rows.Add(latestDate, kvp.Key, hasApplicable ? "適用" : firstApply, latestIdenDate);
-                }
+                string lawName = GetSafeStr(drv, "法規名稱");
+                if (string.IsNullOrEmpty(lawName)) continue;
+                if (!groupedData.ContainsKey(lawName)) groupedData[lawName] = new List<DataRowView>();
+                groupedData[lawName].Add(drv);
             }
-            return dtShow;
+
+            int index = 1;
+            foreach (var kvp in groupedData) 
+            {
+                string latestDate = "";
+                string latestIdenDate = "";
+                string firstApply = GetSafeStr(kvp.Value[0], "適用性");
+                bool hasApplicable = false;
+                
+                foreach (var row in kvp.Value) 
+                {
+                    string d = GetSafeStr(row, "日期");
+                    string iden = GetSafeStr(row, "鑑別日期");
+                    string apply = GetSafeStr(row, "適用性");
+                    
+                    if (string.Compare(d, latestDate) > 0) latestDate = d;
+                    if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
+                    if (apply == "適用") hasApplicable = true;
+                }
+                
+                // 寫入資料：流水、法規名稱、日期、適用性、鑑別日期
+                dtShow.Rows.Add(index.ToString(), kvp.Key, latestDate, hasApplicable ? "適用" : firstApply, latestIdenDate);
+                index++;
+            }
+
+            _dgvThisYear.DataSource = dtShow;
+            
+            // 調整欄位寬度
+            if (_dgvThisYear.Columns.Contains("流水")) {
+                _dgvThisYear.Columns["流水"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                _dgvThisYear.Columns["流水"].Width = 70;
+            }
+            if (_dgvThisYear.Columns.Contains("法規名稱")) {
+                _dgvThisYear.Columns["法規名稱"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            }
+            if (_dgvThisYear.Columns.Contains("日期")) {
+                _dgvThisYear.Columns["日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                _dgvThisYear.Columns["日期"].Width = 140;
+            }
+            if (_dgvThisYear.Columns.Contains("適用性")) {
+                _dgvThisYear.Columns["適用性"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                _dgvThisYear.Columns["適用性"].Width = 100;
+            }
+            if (_dgvThisYear.Columns.Contains("鑑別日期")) {
+                _dgvThisYear.Columns["鑑別日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                _dgvThisYear.Columns["鑑別日期"].Width = 140;
+            }
+            
+            _dgvThisYear.ClearSelection();
         }
 
         private DataTable BuildStatsData()
         {
             DataTable dtStats = new DataTable();
-            // 🟢 標題名稱全面更改，取消雙行換行使其變成簡潔單行
             string[] cols = { 
                 "法規類別", "法規", "法條", "適用", 
                 "參考", "不適用", "確認中", 
@@ -461,11 +505,9 @@ namespace Safety_System
         {
             if (_dgvStats.Rows.Count > 0) 
             {
-                // 設定「合計」列底色
                 _dgvStats.Rows[_dgvStats.Rows.Count - 1].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold); 
                 _dgvStats.Rows[_dgvStats.Rows.Count - 1].DefaultCellStyle.BackColor = Color.Moccasin;
             }
-            // 🟢 取消預設選取，解決載入時第一格黃底問題
             _dgvStats.ClearSelection();
         }
 
@@ -478,11 +520,9 @@ namespace Safety_System
             dv.RowFilter = $"選項類別 = '{category}'";
             _dgvCategoryLaws.DataSource = dv.ToTable();
             
-            // 隱藏 Id, 選項類別
             if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
 
-            // 🟢 依需求：法規名稱縮減(靠 Fill 自動填滿)，其餘加寬約 1.3 倍
             if (_dgvCategoryLaws.Columns.Contains("流水號")) 
             {
                 _dgvCategoryLaws.Columns["流水號"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
@@ -495,22 +535,22 @@ namespace Safety_System
             if (_dgvCategoryLaws.Columns.Contains("日期")) 
             {
                 _dgvCategoryLaws.Columns["日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["日期"].Width = 140; // 加寬
+                _dgvCategoryLaws.Columns["日期"].Width = 140;
             }
             if (_dgvCategoryLaws.Columns.Contains("適用性")) 
             {
                 _dgvCategoryLaws.Columns["適用性"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["適用性"].Width = 100; // 加寬
+                _dgvCategoryLaws.Columns["適用性"].Width = 100;
             }
             if (_dgvCategoryLaws.Columns.Contains("鑑別日期")) 
             {
                 _dgvCategoryLaws.Columns["鑑別日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["鑑別日期"].Width = 140; // 加寬
+                _dgvCategoryLaws.Columns["鑑別日期"].Width = 140;
             }
             if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) 
             {
                 _dgvCategoryLaws.Columns["再次確認日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["再次確認日期"].Width = 170; // 加寬
+                _dgvCategoryLaws.Columns["再次確認日期"].Width = 170;
             }
             
             _dgvCategoryLaws.ClearSelection();
@@ -626,7 +666,6 @@ namespace Safety_System
                         float scaledWidth = e.MarginBounds.Width / scale;
                         float x = e.MarginBounds.Left / scale;
 
-                        // 繪製 PDF 表頭
                         string companyTitle = "台灣玻璃工業股份有限公司-彰濱廠\n" + reportTitle;
                         string exportDate = "導出日期: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm");
 
@@ -679,22 +718,3 @@ namespace Safety_System
                             }
                             y += rowH * scale;
                             rowIndex++;
-                        }
-                        e.HasMorePages = false;
-                        rowIndex = 0; 
-                    };
-
-                    try 
-                    { 
-                        pd.Print(); 
-                        MessageBox.Show("PDF 匯出成功！"); 
-                    }
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message); 
-                    }
-                }
-            }
-        }
-    }
-}
