@@ -1,8 +1,9 @@
+/// FILE: Safety_System/App_WaterVolume.cs ///
 using System;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq; // 支援排序操作
+using System.Linq; 
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -12,7 +13,7 @@ namespace Safety_System
     public class App_WaterVolume
     {
         private DataGridView _dgv;
-        // 僅保留 年、月 下拉選單 (移除日功能，對應月報表需求)
+        // 僅保留 年、月 下拉選單 (月報表專用)
         private ComboBox _cboStartYear, _cboStartMonth;
         private ComboBox _cboEndYear, _cboEndMonth;
         
@@ -24,6 +25,9 @@ namespace Safety_System
         private bool _isFirstLoad = true;
         private const string DbName = "Water"; 
         private const string TableName = "WaterVolume"; 
+
+        // 🟢 導入自動運算 Helper (處理未來可能的月統計，並加速大批次貼上)
+        private DataGridViewAutoCalcHelper _calcHelper; 
 
         public Control GetView()
         {
@@ -40,10 +44,10 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            GroupBox boxTop = new GroupBox { Text = $"自來水用水量統計 (庫：{DbName} 表：{TableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
-            FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            GroupBox boxTop = new GroupBox { Text = $"【月】自來水用水量統計 (庫：{DbName} 表：{TableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
+            FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             
-            Label lblRange = new Label { Text = "統計區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
+            Label lblRange = new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
             
             // 初始化下拉選單 (年、月)
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -67,95 +71,93 @@ namespace Safety_System
             _cboEndYear.SelectedItem = currentYear;
             _cboEndMonth.SelectedItem = DateTime.Now.Month.ToString("D2");
 
-            Label lblStartYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-            Label lblStartMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
-            Label lblEndYear = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-            Label lblEndMonth = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-
-            Button bRead = new Button { Text = "讀取資料", Size = new Size(110, 35) };
-            bRead.Click += (s, e) => { 
-                RefreshGrid(); 
-                if (!_isFirstLoad) { 
-                    int count = ((DataTable)_dgv.DataSource).Rows.Count; 
-                    MessageBox.Show(Form.ActiveForm, $"讀取完成！共找到 {count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
-                } 
-            };
+            // 🟢 UI 按鈕樣式統一升級
+            Button bRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
+            bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) MessageBox.Show("資料載入完成！"); };
 
             Button bSave = new Button { 
-                Name = "btnSave", 
-                Text = "💾 儲存", 
-                Size = new Size(110, 35), 
-                BackColor = Color.ForestGreen, 
-                ForeColor = Color.White, 
-                Margin = new Padding(10, 3, 3, 3) 
+                Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), 
+                BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) 
             };
-            bSave.Click += (s, e) => {
-                _dgv.EndEdit(); 
-                SaveColumnOrder(); // 儲存自定義欄位順序
-                DataTable dtToSave = (DataTable)_dgv.DataSource;
-                EnforceMonthFormat(dtToSave); // 強制 yyyy-MM 格式防呆
-
-                if (DataManager.ValidateAndSaveTable(DbName, TableName, dtToSave)) {
-                    MessageBox.Show(Form.ActiveForm, "儲存完成！(已記憶最新欄位排序)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    RefreshGrid();
-                }
-            };
+            bSave.Click += BtnSave_Click;
             
-            Button bExport = new Button { Text = "匯出", Size = new Size(90, 35) };
+            Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) };
             bExport.Click += BtnExport_Click;
 
-            Button bImport = new Button { Text = "匯入 CSV", Size = new Size(110, 35) };
+            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(150, 35) };
             bImport.Click += BtnImportCsv_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(130, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
-                _btnToggle.BackColor = _boxAdvanced.Visible ? Color.LightCoral : Color.LightGray;
             };
 
-            row1.Controls.AddRange(new Control[] { 
-                lblRange, _cboStartYear, lblStartYear, _cboStartMonth, lblStartMonth, 
-                lblTilde, _cboEndYear, lblEndYear, _cboEndMonth, lblEndMonth, 
-                bRead, bExport, bImport, _btnToggle, bSave 
-            });
+            row1.Controls.Add(lblRange);
+            row1.Controls.Add(_cboStartYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
+            row1.Controls.Add(_cboStartMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
+            row1.Controls.Add(new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) });
+            row1.Controls.Add(_cboEndYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
+            row1.Controls.Add(_cboEndMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
+            row1.Controls.Add(bRead); row1.Controls.Add(bExport); row1.Controls.Add(bImport); row1.Controls.Add(_btnToggle); row1.Controls.Add(bSave);
             boxTop.Controls.Add(row1);
 
             // ==========================================
-            // 進階管理區塊
+            // 進階欄位與權限操作區
             // ==========================================
-            _boxAdvanced = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
-            FlowLayoutPanel flpAdvMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
+            _boxAdvanced = new GroupBox { Text = "進階欄位與權限操作", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
+            FlowLayoutPanel flpAdv = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
 
-            FlowLayoutPanel row2 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-            Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; 
-            _txtNewColName = new TextBox { Width = 120 };
-            Button bAdd = new Button { Text = "新增欄位", Size = new Size(110, 35) };
-            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && VerifyPassword()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
+            FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true };
+            _txtNewColName = new TextBox { Width = 150 };
+            
+            // 🟢 管理員權限 (AuthManager)
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
+            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(DbName, TableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
 
-            _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
-            _txtRenameCol = new TextBox { Width = 120 };
-            Button bRen = new Button { Text = "標題更改", Size = new Size(110, 35) };
-            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && VerifyPassword()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
+            _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
+            
+            // 🟢 管理員權限
+            Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
+            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(DbName, TableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
 
-            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(110, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
+            // 🟢 管理員權限
+            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
             bDelCol.Click += (s, e) => { 
-                if (_cboColumns.SelectedItem != null) {
-                    string colToDrop = _cboColumns.SelectedItem.ToString();
-                    if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        if (VerifyPassword()) { DataManager.DropColumn(DbName, TableName, colToDrop); RefreshGrid(); } 
-                    }
+                if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) {
+                    DataManager.DropColumn(DbName, TableName, _cboColumns.SelectedItem.ToString()); RefreshGrid(); 
                 } 
             };
-            Button bDelRow = new Button { Text = "刪除整列", Size = new Size(110, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
-            bDelRow.Click += (s, e) => { if (_dgv.CurrentRow != null && _dgv.CurrentRow.Cells["Id"].Value != DBNull.Value && VerifyPassword()) { DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(_dgv.CurrentRow.Cells["Id"].Value)); RefreshGrid(); } };
-            row2.Controls.AddRange(new Control[] { lblOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
+            
+            // 🟢 一般權限 + 複選刪除邏輯
+            Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            bDelRow.Click += (s, e) => { 
+                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
+                                       .Select(c => c.OwningRow)
+                                       .Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value)
+                                       .Distinct().ToList();
 
-            FlowLayoutPanel row3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
+                if (selectedRows.Count > 0) {
+                    if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後將立即生效)", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        if (AuthManager.VerifyUser()) {
+                            foreach (var r in selectedRows) {
+                                DataManager.DeleteRecord(DbName, TableName, Convert.ToInt32(r.Cells["Id"].Value));
+                            }
+                            RefreshGrid();
+                            MessageBox.Show("刪除成功！");
+                        }
+                    }
+                } else {
+                    MessageBox.Show("請先用滑鼠選取要刪除的資料列！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            };
+            
+            rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
+
+            FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
             Label lblLatest = new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            TextBox txtLatestCount = new TextBox { Width = 100, Text = "30" }; 
-            Button bReadLatest = new Button { Text = "讀取筆數", Size = new Size(110, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            TextBox txtLatestCount = new TextBox { Width = 100, Text = "100" }; 
+            Button bReadLatest = new Button { Text = "讀取指定筆數", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             bReadLatest.Click += (s, e) => {
                 if (int.TryParse(txtLatestCount.Text, out int limit) && limit > 0) {
                     DataTable dt = DataManager.GetLatestRecords(DbName, TableName, limit);
@@ -164,15 +166,24 @@ namespace Safety_System
                     if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
                     UpdateCboColumns();
                     RestoreColumnOrder();
-                    MessageBox.Show(Form.ActiveForm, $"讀取完成！共載入最近 {dt.Rows.Count} 筆資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
-            row3.Controls.AddRange(new Control[] { lblLatest, txtLatestCount, bReadLatest });
+            rowAdv2.Controls.AddRange(new Control[] { lblLatest, txtLatestCount, bReadLatest });
 
-            flpAdvMain.Controls.Add(row2); flpAdvMain.Controls.Add(row3);
-            _boxAdvanced.Controls.Add(flpAdvMain);
+            flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2);
+            _boxAdvanced.Controls.Add(flpAdv);
 
-            _dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToOrderColumns = true };
+            // ==========================================
+            // 表格區
+            // ==========================================
+            _dgv = new DataGridView { 
+                Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, AllowUserToOrderColumns = true 
+            };
+            
+            // 🟢 綁定 Ctrl+V 事件與 Helper
+            _dgv.KeyDown += Dgv_KeyDown;
+            _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
             
             main.Controls.Add(boxTop, 0, 0);
             main.Controls.Add(_boxAdvanced, 0, 1);
@@ -182,19 +193,36 @@ namespace Safety_System
             return main;
         }
 
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            try {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                _dgv.EndEdit(); 
+                SaveColumnOrder(); 
+                DataTable dtToSave = (DataTable)_dgv.DataSource;
+                EnforceMonthFormat(dtToSave); // 強制 yyyy-MM 格式防呆
+
+                if (DataManager.BulkSaveTable(DbName, TableName, dtToSave)) {
+                    MessageBox.Show("儲存完成！");
+                    RefreshGrid();
+                }
+            } finally {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            }
+        }
+
         private void RefreshGrid() {
+            DataTable dt;
             if (_isFirstLoad) {
-                DataTable dt = DataManager.GetLatestRecords(DbName, TableName, 30);
-                EnforceMonthFormat(dt);
-                _dgv.DataSource = dt;
+                dt = DataManager.GetLatestRecords(DbName, TableName, 30);
                 _isFirstLoad = false;
             } else {
                 string sDate = $"{_cboStartYear.SelectedItem}-{_cboStartMonth.SelectedItem}";
                 string eDate = $"{_cboEndYear.SelectedItem}-{_cboEndMonth.SelectedItem}";
-                DataTable dt = DataManager.GetTableData(DbName, TableName, "月份", sDate, eDate);
-                EnforceMonthFormat(dt);
-                _dgv.DataSource = dt;
+                dt = DataManager.GetTableData(DbName, TableName, "月份", sDate, eDate);
             }
+            EnforceMonthFormat(dt);
+            _dgv.DataSource = dt;
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             UpdateCboColumns();
             RestoreColumnOrder();
@@ -235,15 +263,6 @@ namespace Safety_System
             } catch { }
         }
 
-        private bool VerifyPassword() {
-            Form p = new Form { Width = 450, Height = 270, Text = "授權驗證", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog };
-            TextBox t = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 80, Font = new Font("UI", 14F) };
-            Button b = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 150, Width = 120, Height = 40 };
-            p.Controls.AddRange(new Control[] { new Label { Text = "請輸入管理員密碼：", Left = 30, Top = 30, AutoSize = true }, t, b });
-            p.AcceptButton = b;
-            return p.ShowDialog(Form.ActiveForm) == DialogResult.OK && t.Text == "tces";
-        }
-
         private void BtnExport_Click(object sender, EventArgs e) {
             if (_dgv.Rows.Count <= 1 && _dgv.Rows[0].IsNewRow) return;
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv", FileName = "自來水用水量統計_" + DateTime.Now.ToString("yyyyMMdd") }) {
@@ -268,20 +287,57 @@ namespace Safety_System
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
                         string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
+                        if (lines.Length < 2) return;
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        string[] headers = lines[0].Split(',');
+                        string[] headers = ParseCsvLine(lines[0]);
+                        
+                        _dgv.DataSource = null;
+                        _calcHelper?.BeginBulkUpdate(); // 🟢 開啟 Bulk 模式
+
                         for (int i = 1; i < lines.Length; i++) {
                             if (string.IsNullOrWhiteSpace(lines[i])) continue;
-                            DataRow nr = dt.NewRow(); string[] vs = lines[i].Split(',');
+                            DataRow nr = dt.NewRow(); string[] vs = ParseCsvLine(lines[i]);
                             for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
                                 string cn = headers[h].Trim(); 
-                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim(); 
+                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim().Trim('"'); 
                             }
                             dt.Rows.Add(nr);
                         }
+                        
+                        _calcHelper?.RecalculateTable(dt); // 🟢 記憶體內計算
+                        _calcHelper?.EndBulkUpdate();
+                        _dgv.DataSource = dt;
+                        RestoreColumnOrder();
+                        
                         MessageBox.Show($"已載入 {lines.Length - 1} 筆，請按儲存。");
-                    } catch (Exception ex) { MessageBox.Show("匯入失敗: " + ex.Message); }
+                    } catch (Exception ex) { RefreshGrid(); MessageBox.Show("匯入失敗: " + ex.Message); }
                 }
+            }
+        }
+        
+        private string[] ParseCsvLine(string line) { var res = new System.Collections.Generic.List<string>(); bool q = false; var f = new StringBuilder(); foreach (char c in line) { if (c == '\"') q = !q; else if (c == ',' && !q) { res.Add(f.ToString()); f.Clear(); } else f.Append(c); } res.Add(f.ToString()); return res.ToArray(); }
+
+        // 🟢 支援 Ctrl+V 大量貼上
+        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.V) {
+                try {
+                    string text = Clipboard.GetText(); if (string.IsNullOrEmpty(text)) return;
+                    _calcHelper?.BeginBulkUpdate();
+                    string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    foreach (string line in lines) {
+                        if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
+                        string[] cells = line.Split('\t');
+                        for (int i = 0; i < cells.Length; i++)
+                            if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
+                                _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
+                        r++;
+                    }
+                    _calcHelper?.RecalculateTable(dt);
+                    _calcHelper?.EndBulkUpdate();
+                } catch { _calcHelper?.EndBulkUpdate(); }
             }
         }
     }
