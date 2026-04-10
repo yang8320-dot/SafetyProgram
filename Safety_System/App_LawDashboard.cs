@@ -106,7 +106,7 @@ namespace Safety_System
             // ==========================================
             // 大框 2：統計摘要 (法令鑑別統計表)
             // ==========================================
-            GroupBox box2 = CreateDataBox("📊 統計摘要", 350);
+            GroupBox box2 = CreateDataBox("📊 統計摘要", 400);
             Label lblTitle2 = new Label 
             { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令鑑別統計表", 
