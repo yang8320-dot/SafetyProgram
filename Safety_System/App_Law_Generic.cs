@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks; // 🟢 引入非同步支援
 using System.Windows.Forms;
 using OfficeOpenXml; 
 
@@ -14,7 +15,6 @@ namespace Safety_System
     public class App_Law_Generic
     {
         private DataGridView _dgv;
-        // 🟢 將原本的 DateTimePicker 改為 年、月、日 下拉選單
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
@@ -32,6 +32,9 @@ namespace Safety_System
         private ComboBox _cboSearchColumn;
         private TextBox _txtSearchKeyword;
 
+        // 目錄一覽表名稱
+        private const string DirectoryTableName = "法規目錄一覽";
+
         public App_Law_Generic(string dbName, string tableName)
         {
             _dbName = dbName;
@@ -40,7 +43,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 🟢 欄位名稱更新：有提升績效機會、有潛在不符合風險
+            // 初始化當前類別主資料表
             DataManager.InitTable(_dbName, _tableName, $@"CREATE TABLE IF NOT EXISTS [{_tableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 [日期] TEXT, 
@@ -57,6 +60,17 @@ namespace Safety_System
                 [鑑別日期] TEXT,
                 [備註] TEXT);");
 
+            // 🟢 初始化「法規目錄一覽」資料表
+            DataManager.InitTable(_dbName, DirectoryTableName, $@"CREATE TABLE IF NOT EXISTS [{DirectoryTableName}] (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                [選項類別] TEXT, 
+                [流水號] TEXT, 
+                [法規名稱] TEXT,
+                [日期] TEXT,
+                [適用性] TEXT,
+                [鑑別日期] TEXT,
+                [再次確認日期] TEXT);");
+
             // 向下相容處理 (防止舊庫沒有新欄位)
             var existingCols = DataManager.GetColumnNames(_dbName, _tableName);
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
@@ -70,10 +84,8 @@ namespace Safety_System
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             
-            // 🟢 文字修正：法規日期
             Label lblRange = new Label { Text = "法規日期:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             
-            // 🟢 建立 年、月、日 下拉選單
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -95,7 +107,6 @@ namespace Safety_System
                 _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            // 預設值：起為一年前的今天，迄為今天
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddYears(-1));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
@@ -208,23 +219,136 @@ namespace Safety_System
             return main;
         }
 
-        private void BtnSave_Click(object sender, EventArgs e)
+        // 🟢 修改為 Async 方法，支援背景任務
+        private async void BtnSave_Click(object sender, EventArgs e)
         {
             try {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
                 _dgv.EndEdit(); 
                 
-                DataTable dtToSave = (DataTable)_dgv.DataSource;
+                // 使用 Copy() 斷開與 UI 的綁定，以便安全地傳遞給背景 Thread
+                DataTable dtToSave = ((DataTable)_dgv.DataSource).Copy();
                 
+                // 執行主資料表去重覆處理
                 ResolveDuplicates(dtToSave);
 
-                if (DataManager.BulkSaveTable(_dbName, _tableName, dtToSave)) {
-                    MessageBox.Show(Form.ActiveForm, "儲存/更新 完成！(已啟用 Transaction 交易機制)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    RefreshGrid();
+                // 🟢 使用 Task.Run 進入背景執行緒
+                bool success = await Task.Run(() =>
+                {
+                    // 1. 儲存主表
+                    bool mainSave = DataManager.BulkSaveTable(_dbName, _tableName, dtToSave);
+                    
+                    // 2. 主表儲存成功後，執行背景目錄提煉
+                    if (mainSave) {
+                        GenerateAndSaveDirectory();
+                    }
+                    return mainSave;
+                });
+
+                if (success) {
+                    MessageBox.Show(Form.ActiveForm, "儲存/更新 完成！(已啟用 Transaction 交易機制)\n\n✅ 背景執行寫入目錄一覽表完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    RefreshGrid(); // 刷新 UI 資料
                 }
             } finally {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
+        }
+
+        // 🟢 自動提煉並產生「法規目錄一覽」的方法 (在背景執行緒中呼叫)
+        private void GenerateAndSaveDirectory()
+        {
+            // 1. 取得主表當前類別所有最新資料
+            DataTable dtMain = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+
+            // 2. 取得目錄表當前資料 (為了保留 Id 與 再次確認日期，並找出需要被刪除的廢棄法規)
+            DataTable dtDirExist = DataManager.GetTableData(_dbName, DirectoryTableName, "", "", "");
+            var existingDirDict = new Dictionary<string, DataRow>();
+            
+            foreach (DataRow r in dtDirExist.Rows) {
+                // 僅比對目前的「選項類別」(如: 環保法規)
+                if (r["選項類別"]?.ToString() == _tableName) {
+                    string name = r["法規名稱"]?.ToString().Trim();
+                    if (!string.IsNullOrEmpty(name)) existingDirDict[name] = r;
+                }
+            }
+
+            // 3. 將主表資料依「法規名稱」分群 (Group By)
+            var grouped = new Dictionary<string, List<DataRow>>();
+            foreach(DataRow r in dtMain.Rows) {
+                string name = r["法規名稱"]?.ToString().Trim();
+                if (string.IsNullOrEmpty(name)) continue;
+                
+                if (!grouped.ContainsKey(name)) grouped[name] = new List<DataRow>();
+                grouped[name].Add(r);
+            }
+
+            // 4. 準備寫入目錄表的新 DataTable 架構
+            DataTable dtDir = new DataTable();
+            dtDir.Columns.Add("Id", typeof(int)); // Id 用於更新 (Upsert)
+            dtDir.Columns.Add("選項類別", typeof(string));
+            dtDir.Columns.Add("流水號", typeof(string));
+            dtDir.Columns.Add("法規名稱", typeof(string));
+            dtDir.Columns.Add("日期", typeof(string));
+            dtDir.Columns.Add("適用性", typeof(string));
+            dtDir.Columns.Add("鑑別日期", typeof(string));
+            dtDir.Columns.Add("再次確認日期", typeof(string));
+
+            int index = 1;
+            HashSet<string> processedNames = new HashSet<string>();
+
+            // 5. 巡迴整理每一條法規名稱
+            foreach(var kvp in grouped) {
+                string lawName = kvp.Key;
+                processedNames.Add(lawName);
+
+                string latestDate = "";
+                string latestIdenDate = "";
+                string applyStatus = "";
+                bool hasApplicable = false;
+
+                // 找出同名法規中的最新日期、最高層級適用性
+                foreach(var row in kvp.Value) {
+                    string d = row["日期"]?.ToString() ?? "";
+                    string iden = row["鑑別日期"]?.ToString() ?? "";
+                    string apply = row["適用性"]?.ToString() ?? "";
+
+                    if (string.Compare(d, latestDate) > 0) latestDate = d;
+                    if (string.Compare(iden, latestIdenDate) > 0) latestIdenDate = iden;
+
+                    if (apply == "適用") hasApplicable = true;
+                    if (string.IsNullOrEmpty(applyStatus)) applyStatus = apply; 
+                }
+
+                DataRow newRow = dtDir.NewRow();
+                newRow["選項類別"] = _tableName; // 寫入對應類別 (如:職安衛法規)
+                newRow["流水號"] = index.ToString(); // 編流水號
+                newRow["法規名稱"] = lawName;
+                newRow["日期"] = latestDate;
+                newRow["適用性"] = hasApplicable ? "適用" : applyStatus; // 任一條款適用即算適用
+                newRow["鑑別日期"] = latestIdenDate;
+
+                // 🟢 核心：若舊目錄已有此法規，則帶入原有的 Id 與 手動填寫的 再次確認日期
+                if (existingDirDict.ContainsKey(lawName)) {
+                    newRow["Id"] = existingDirDict[lawName]["Id"];
+                    newRow["再次確認日期"] = existingDirDict[lawName]["再次確認日期"]?.ToString();
+                } else {
+                    newRow["再次確認日期"] = ""; // 新法規則留空讓使用者填
+                }
+
+                dtDir.Rows.Add(newRow);
+                index++;
+            }
+
+            // 6. 處理已經不存在於主表的舊目錄資料 (執行刪除)
+            foreach (var kvp in existingDirDict) {
+                if (!processedNames.Contains(kvp.Key)) {
+                    int idToDelete = Convert.ToInt32(kvp.Value["Id"]);
+                    DataManager.DeleteRecord(_dbName, DirectoryTableName, idToDelete);
+                }
+            }
+
+            // 7. 批次儲存目錄資料 (因為帶有 Id，存在的會被 Update，不存在的會 Insert)
+            DataManager.BulkSaveTable(_dbName, DirectoryTableName, dtDir);
         }
 
         private void ResolveDuplicates(DataTable dt)
@@ -321,7 +445,6 @@ namespace Safety_System
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
-        // 🟢 將 ComboBox 中的選取值轉換回 DateTime
         private DateTime GetStartDate() { return ParseComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddYears(-1)); }
         private DateTime GetEndDate() { return ParseComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today); }
         private DateTime ParseComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime defaultDate) {
@@ -338,7 +461,6 @@ namespace Safety_System
             return defaultDate;
         }
 
-        // 🟢 傳入指定日期，更新回 ComboBox
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
             m.SelectedItem = date.Month.ToString("D2");
@@ -367,7 +489,6 @@ namespace Safety_System
             ReplaceWithComboBox("類別", new string[] { "法律", "命令", "行政規則", "解釋令函", "" });
             ReplaceWithComboBox("適用性", new string[] { "適用", "不適用", "參考", "確認中", "" });
 
-            // 🟢 新欄位名稱：有提升績效機會、有潛在不符合風險
             string[] checkItems = new string[] { "", "v" };
             ReplaceWithComboBox("有提升績效機會", checkItems);
             ReplaceWithComboBox("有潛在不符合風險", checkItems);
