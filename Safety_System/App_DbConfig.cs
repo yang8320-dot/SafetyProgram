@@ -11,7 +11,6 @@ namespace Safety_System
         private TextBox _txtPath;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
-        // 🟢 完整涵蓋原有模組，並將「法規」收斂為三個主要資料表
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury" } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
@@ -28,7 +27,6 @@ namespace Safety_System
         {
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
 
-            // 第一區塊：資料庫存放路徑設定
             GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
@@ -42,7 +40,6 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            // 第二區塊：防重寫欄位設定
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 320, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 30, 0, 0);
 
@@ -80,16 +77,15 @@ namespace Safety_System
 
         private void BtnBrowse_Click(object sender, EventArgs e)
         {
-            using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇數據資料存放的資料夾" })
-            {
+            using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇數據資料存放的資料夾" }) {
                 if (fbd.ShowDialog() == DialogResult.OK) _txtPath.Text = fbd.SelectedPath;
             }
         }
 
         private void BtnSavePath_Click(object sender, EventArgs e)
         {
-            // 🟢 在這裡也加上密碼驗證
-            if (!AuthManager.VerifyPassword()) return;
+            // 🟢 管理員防護
+            if (!AuthManager.VerifyAdmin()) return; 
 
             if (System.IO.Directory.Exists(_txtPath.Text)) {
                 DataManager.SetBasePath(_txtPath.Text);
@@ -103,9 +99,7 @@ namespace Safety_System
         {
             try {
                 if (_cboTable == null || _cboCol1 == null || _cboCol2 == null) return;
-
-                _cboTable.Items.Clear();
-                _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
+                _cboTable.Items.Clear(); _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
                 if (_cboDb.SelectedItem == null) return;
                 
                 string db = _cboDb.SelectedItem.ToString();
@@ -113,40 +107,33 @@ namespace Safety_System
                     _cboTable.Items.AddRange(_dbMap[db]);
                     if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
                 }
-            } catch { /* 攔截聯動錯誤 */ }
+            } catch { }
         }
 
         private void CboTable_SelectedIndexChanged(object sender, EventArgs e)
         {
             try {
                 if (_cboCol1 == null || _cboCol2 == null) return;
-
                 _cboCol1.Items.Clear(); _cboCol2.Items.Clear();
                 _cboCol1.Items.Add(""); _cboCol2.Items.Add(""); 
-
                 if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) return;
                 
                 string dbName = _cboDb.SelectedItem.ToString();
                 string tableName = _cboTable.SelectedItem.ToString();
 
                 List<string> cols = DataManager.GetColumnNames(dbName, tableName);
-                foreach(var c in cols) {
-                    if (c != "Id") { _cboCol1.Items.Add(c); _cboCol2.Items.Add(c); }
-                }
+                foreach(var c in cols) if (c != "Id") { _cboCol1.Items.Add(c); _cboCol2.Items.Add(c); }
 
                 var keys = DataManager.GetTableKeys(dbName, tableName);
-                if (!string.IsNullOrEmpty(keys.col1) && _cboCol1.Items.Contains(keys.col1)) _cboCol1.SelectedItem = keys.col1;
-                else _cboCol1.SelectedIndex = 0;
-
-                if (!string.IsNullOrEmpty(keys.col2) && _cboCol2.Items.Contains(keys.col2)) _cboCol2.SelectedItem = keys.col2;
-                else _cboCol2.SelectedIndex = 0;
-            } catch { /* 攔截聯動錯誤 */ }
+                if (!string.IsNullOrEmpty(keys.col1) && _cboCol1.Items.Contains(keys.col1)) _cboCol1.SelectedItem = keys.col1; else _cboCol1.SelectedIndex = 0;
+                if (!string.IsNullOrEmpty(keys.col2) && _cboCol2.Items.Contains(keys.col2)) _cboCol2.SelectedItem = keys.col2; else _cboCol2.SelectedIndex = 0;
+            } catch { }
         }
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
-            // 🟢 在這裡加上密碼驗證
-            if (!AuthManager.VerifyPassword()) return;
+            // 🟢 管理員防護
+            if (!AuthManager.VerifyAdmin()) return; 
 
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) {
                 MessageBox.Show("請先選擇資料庫與資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
@@ -157,7 +144,7 @@ namespace Safety_System
             string c2 = _cboCol2.SelectedItem?.ToString() ?? "";
 
             DataManager.SaveTableKeys(dbName, tableName, c1, c2);
-            MessageBox.Show($"【{tableName}】 防重寫規則儲存成功！\n\n判定欄位1：{(c1==""?"無":c1)}\n判定欄位2：{(c2==""?"無":c2)}", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"【{tableName}】 防重寫規則儲存成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }
