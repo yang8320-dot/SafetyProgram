@@ -131,7 +131,7 @@ namespace Safety_System
             // ==========================================
             GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
 
-            Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
+            Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 300 };
             Label lblTitle3 = new Label 
             { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令目錄一覽表", 
