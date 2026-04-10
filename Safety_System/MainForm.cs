@@ -133,15 +133,11 @@ namespace Safety_System
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
             menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_EduHours().GetView()));
 
-            // ================= 🟢 修改：法規選單收斂為 3 個主項目 =================
             var menuLaw = new ToolStripMenuItem("法規");
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
-            
-            // 將 DbName 設為 "法規"，TableName 分別設為三大類
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
-            // ====================================================================
 
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
@@ -149,8 +145,9 @@ namespace Safety_System
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
-                    if (VerifyAdminPassword()) { LoadModule(new App_DbConfig().GetView()); } 
-                    else { MessageBox.Show("密碼錯誤，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                    // 🟢 呼叫全域的 AuthManager，要求管理者權限 (11914002)
+                    if (AuthManager.VerifyAdmin()) { LoadModule(new App_DbConfig().GetView()); } 
+                    else { MessageBox.Show("密碼錯誤或權限不足，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -194,17 +191,6 @@ namespace Safety_System
             } catch (Exception ex) {
                 MessageBox.Show($"畫面切換時發生錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private bool VerifyAdminPassword()
-        {
-            Form p = new Form { Width = 400, Height = 230, Text = "管理員驗證", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false };
-            Label l = new Label { Text = "請輸入系統管理員密碼：", Left = 20, Top = 20, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            TextBox t = new TextBox { PasswordChar = '*', Left = 20, Top = 60, Width = 340, Font = new Font("Microsoft JhengHei UI", 14F) };
-            Button b = new Button { Text = "確認", Left = 260, Top = 120, Width = 100, Height = 35, DialogResult = DialogResult.OK, Font = new Font("Microsoft JhengHei UI", 12F) };
-            p.Controls.Add(l); p.Controls.Add(t); p.Controls.Add(b);
-            p.AcceptButton = b;
-            return p.ShowDialog() == DialogResult.OK && t.Text == "tces";
         }
 
         private void LoadWelcomeScreen()
