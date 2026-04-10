@@ -72,11 +72,11 @@ namespace Safety_System
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
-            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
+            // 🟢 關鍵修正：將 RowCount 改為 3 列，並讓第 3 列 (索引2) 佔用 100% 空間
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第 1 列：BoxTop (包含日期與搜尋排)
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第 2 列：BoxOps (包含欄位管理)
+            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 第 3 列：DataGridView 表格 (填滿剩餘高度)
 
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             
@@ -171,43 +171,22 @@ namespace Safety_System
             flpTopContainer.Controls.Add(row3);
             boxTop.Controls.Add(flpTopContainer);
 
-            // ================= 可隱藏的欄位操作排 (row2) =================
+            // ================= 可隱藏的欄位操作排 =================
             GroupBox boxOps = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             Label lblOps = new Label { Text = "欄位操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }; _txtNewColName = new TextBox { Width = 120 };
             
-            // 🟢 【最高權限】新增欄位
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) }; 
-            bAdd.Click += (s, e) => { 
-                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { 
-                    DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(false); _txtNewColName.Clear(); 
-                } 
-            };
+            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(false); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
             
-            // 🟢 【最高權限】標題更改
             Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35) }; 
-            bRen.Click += (s, e) => { 
-                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { 
-                    DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(false); _txtRenameCol.Clear(); 
-                } 
-            };
+            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(false); _txtRenameCol.Clear(); } };
             
-            // 🟢 【最高權限】刪除整欄
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += (s, e) => { 
-                if (_cboColumns.SelectedItem != null) { 
-                    string colToDrop = _cboColumns.SelectedItem.ToString(); 
-                    if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { 
-                        if (AuthManager.VerifyAdmin()) { 
-                            DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(false); 
-                        } 
-                    } 
-                } 
-            };
+            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyAdmin()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); RefreshGrid(false); } } } };
             
-            // 🟢 【一般權限】刪除選取列
             Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
             bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
@@ -217,7 +196,7 @@ namespace Safety_System
 
                 if (selectedRows.Count > 0) {
                     if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後將立即生效)", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        if (AuthManager.VerifyUser()) { // 🟢 呼叫一般權限驗證
+                        if (AuthManager.VerifyUser()) {
                             foreach (var r in selectedRows) {
                                 DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
                             }
@@ -249,6 +228,7 @@ namespace Safety_System
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
             _dgv.KeyDown += Dgv_KeyDown; 
 
+            // 🟢 加入主版面 (0=BoxTop, 1=BoxOps, 2=DataGridView)
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(boxOps, 0, 1); 
             main.Controls.Add(_dgv, 0, 2);
@@ -443,6 +423,7 @@ namespace Safety_System
             SetupComboBoxColumns();
             SetupTextWrapping();
 
+            // 🟢 強制隱藏 Id
             if (_dgv.Columns.Contains("Id")) {
                 _dgv.Columns["Id"].ReadOnly = true;
                 _dgv.Columns["Id"].Visible = false;
@@ -472,6 +453,7 @@ namespace Safety_System
             SetupComboBoxColumns();
             SetupTextWrapping();
 
+            // 🟢 強制隱藏 Id
             if (_dgv.Columns.Contains("Id")) {
                 _dgv.Columns["Id"].ReadOnly = true; 
                 _dgv.Columns["Id"].Visible = false;
