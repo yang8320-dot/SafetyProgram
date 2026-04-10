@@ -24,8 +24,8 @@ namespace Safety_System
         
         // UI 控制項
         private ComboBox _cboCategory;
-        private ComboBox _cboYearlyCategory; // 🟢 新增：年度鑑別表-選擇類別
-        private ComboBox _cboYearlyYear;     // 🟢 新增：年度鑑別表-查詢年度
+        private ComboBox _cboYearlyCategory; 
+        private ComboBox _cboYearlyYear;     
         
         private DataGridView _dgvStats;
         private DataGridView _dgvCategoryLaws;
@@ -49,11 +49,10 @@ namespace Safety_System
             mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框3: 目錄清單
 
             // ==========================================
-            // 大框 1：年度法令總鑑別表 (原今年修正法規)
+            // 大框 1：年度法令總鑑別表
             // ==========================================
             GroupBox box1 = CreateDataBox("📌 年度法令總鑑別表查詢");
             
-            // 🟢 1. 雙行標題
             Panel pnlTop1 = new Panel { Dock = DockStyle.Top, Height = 70 };
             Label lblTitle1 = new Label 
             { 
@@ -65,32 +64,31 @@ namespace Safety_System
             };
             pnlTop1.Controls.Add(lblTitle1);
 
-            // 🟢 2. 控制項面板 (匯出按鈕 + 兩個下拉選單)
             Panel pnlAction1 = CreateActionPanel("匯出 Excel", "匯出 PDF", 
                 () => ExportToExcel(_dgvThisYear, "年度法令總鑑別表"), 
                 () => ExportToPdf(_dgvThisYear, "年度法令總鑑別表", "年度法令總鑑別表"));
             
-            Label lblCboCat1 = new Label { Text = "選擇類別:", AutoSize = true, Location = new Point(350, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            _cboYearlyCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 150, Location = new Point(430, 6) };
+            // 🟢 調整間距，讓標題與下拉選單有充足的空間不互相遮擋
+            Label lblCboCat1 = new Label { Text = "選擇類別:", AutoSize = true, Location = new Point(340, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboYearlyCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 150, Location = new Point(440, 6) };
             _cboYearlyCategory.Items.AddRange(_tableNames);
 
-            Label lblCboYear1 = new Label { Text = "查詢年度:", AutoSize = true, Location = new Point(600, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            _cboYearlyYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 100, Location = new Point(680, 6) };
+            Label lblCboYear1 = new Label { Text = "查詢年度:", AutoSize = true, Location = new Point(610, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _cboYearlyYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 100, Location = new Point(710, 6) };
             
-            // 載入近 6 年 (當年度往回加 5 年)
             int currentYear = DateTime.Now.Year;
             for (int i = 0; i <= 5; i++) {
                 _cboYearlyYear.Items.Add((currentYear - i).ToString());
             }
 
-            // 綁定事件
-            _cboYearlyCategory.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
-            _cboYearlyYear.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
+            Button btnSearchYearly = new Button { Text = "🔍 查詢", Size = new Size(100, 32), Location = new Point(830, 5), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            btnSearchYearly.Click += (s, e) => { FilterYearlyLaws(); };
 
             pnlAction1.Controls.Add(lblCboCat1);
             pnlAction1.Controls.Add(_cboYearlyCategory);
             pnlAction1.Controls.Add(lblCboYear1);
             pnlAction1.Controls.Add(_cboYearlyYear);
+            pnlAction1.Controls.Add(btnSearchYearly); 
 
             _dgvThisYear = CreateStandardGrid();
             box1.Controls.Add(_dgvThisYear);
@@ -130,6 +128,8 @@ namespace Safety_System
             // 大框 3：目錄清單
             // ==========================================
             GroupBox box3 = CreateDataBox("📋 依類別檢視法令名稱");
+            // 🟢 強制增加第三個框的高度至近 3 倍 (預設為 350 -> 改為 900)
+            box3.MinimumSize = new Size(0, 900);
 
             Panel pnlTop3 = new Panel { Dock = DockStyle.Top, Height = 70 };
             Label lblTitle3 = new Label 
@@ -146,11 +146,12 @@ namespace Safety_System
                 () => ExportToExcel(_dgvCategoryLaws, "法令目錄"), 
                 () => ExportToPdf(_dgvCategoryLaws, "法令目錄", "法令目錄一覽表"));
             
+            // 🟢 調整選擇類別與下拉選單的間距
             Label lblCbo = new Label 
             { 
                 Text = "選擇類別:", 
                 AutoSize = true, 
-                Location = new Point(350, 10), 
+                Location = new Point(340, 10), 
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
             
@@ -159,7 +160,7 @@ namespace Safety_System
                 DropDownStyle = ComboBoxStyle.DropDownList, 
                 Font = new Font("Microsoft JhengHei UI", 12F), 
                 Width = 180, 
-                Location = new Point(450, 6) 
+                Location = new Point(440, 6) 
             };
             _cboCategory.Items.AddRange(_tableNames);
             _cboCategory.SelectedIndexChanged += (s, e) => { FilterCategoryLaws(); };
@@ -224,9 +225,12 @@ namespace Safety_System
                 FormatStatsGrid();
             }
 
-            // 觸發預設選項的聯動查詢
+            // 觸發預設選項
             if (_cboYearlyCategory.Items.Count > 0) _cboYearlyCategory.SelectedIndex = 0;
             if (_cboYearlyYear.Items.Count > 0) _cboYearlyYear.SelectedIndex = 0;
+            
+            FilterYearlyLaws(); 
+
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
             if (_errorLogs.Count > 0) 
@@ -370,7 +374,6 @@ namespace Safety_System
             return ""; 
         }
 
-        // 🟢 年度鑑別查詢邏輯 (對應需求 3)
         private void FilterYearlyLaws()
         {
             if (_cboYearlyCategory.SelectedItem == null || _cboYearlyYear.SelectedItem == null || _dtAllLaws == null) return;
@@ -386,7 +389,6 @@ namespace Safety_System
             dtShow.Columns.Add("鑑別日期"); 
 
             DataView dv = new DataView(_dtAllLaws); 
-            // 依據類別與年份過濾
             dv.RowFilter = $"主分類 = '{category}' AND 日期 LIKE '%{year}%'";
 
             var groupedData = new Dictionary<string, List<DataRowView>>();
@@ -417,14 +419,12 @@ namespace Safety_System
                     if (apply == "適用") hasApplicable = true;
                 }
                 
-                // 寫入資料：流水、法規名稱、日期、適用性、鑑別日期
                 dtShow.Rows.Add(index.ToString(), kvp.Key, latestDate, hasApplicable ? "適用" : firstApply, latestIdenDate);
                 index++;
             }
 
             _dgvThisYear.DataSource = dtShow;
             
-            // 調整欄位寬度
             if (_dgvThisYear.Columns.Contains("流水")) {
                 _dgvThisYear.Columns["流水"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvThisYear.Columns["流水"].Width = 70;
