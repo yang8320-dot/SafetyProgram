@@ -718,3 +718,22 @@ namespace Safety_System
                             }
                             y += rowH * scale;
                             rowIndex++;
+                        }
+                        e.HasMorePages = false;
+                        rowIndex = 0; 
+                    };
+
+                    try 
+                    { 
+                        pd.Print(); 
+                        MessageBox.Show("PDF 匯出成功！"); 
+                    }
+                    catch (Exception ex) 
+                    { 
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message); 
+                    }
+                }
+            }
+        }
+    }
+}
