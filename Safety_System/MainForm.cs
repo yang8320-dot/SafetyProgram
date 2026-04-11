@@ -26,7 +26,11 @@ namespace Safety_System
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1280, 720);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
+            
             DataManager.LoadConfig();
+            
+            // 🟢 啟動時自動檢查是否需要執行備份
+            BackupManager.RunAutoBackup();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
             BuildMenu();
@@ -165,7 +169,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 將 menuChemical 安插在 menuSafety 旁邊
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuSettings 
