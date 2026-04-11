@@ -51,9 +51,9 @@ namespace Safety_System
             { "HazardStats", "[日期] TEXT, [場所名稱] TEXT, [物品名稱] TEXT, [儲存數量] TEXT, [管制倍數] TEXT, [是否合格] TEXT" },
             { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [備註] TEXT" },
             // 教育訓練
-            { "訓練時數", "[日期] TEXT, [員工編號] TEXT, [員工姓名] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [講師] TEXT, [備註] TEXT" },
+            { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [備註] TEXT" },
             // 檢測數據
-            { "EnvMonitor", "[日期] TEXT, [測點名稱] TEXT, [溫度] TEXT, [濕度] TEXT, [噪音(dB)] TEXT, [照度(Lux)] TEXT, [備註] TEXT" },
+            { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [備註] TEXT" },
             { "WastewaterPeriodic", "[日期] TEXT, [申報季別] TEXT, [排放水量] TEXT, [COD] TEXT, [SS] TEXT, [BOD] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
             { "DrinkingWater", "[日期] TEXT, [採樣點位置] TEXT, [大腸桿菌群] TEXT, [總菌落數] TEXT, [鉛] TEXT, [濁度] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
             { "IndustrialZoneTest", "[日期] TEXT, [採樣點位置] TEXT, [水溫] TEXT, [pH值] TEXT, [COD] TEXT, [SS] TEXT, [重金屬] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
@@ -71,8 +71,8 @@ namespace Safety_System
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT" },
             { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT" },
             // 護理
-            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [滿意度] TEXT, [執行單位] TEXT, [成果摘要] TEXT" },
-            { "WorkInjuryReport", "[日期] TEXT, [申報案號] TEXT, [受傷人員] TEXT, [職災類型] TEXT, [勞保申請狀態] TEXT, [備註] TEXT" }
+            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [備註] TEXT" },
+            { "WorkInjuryReport", "[月份] TEXT, [男性工時] TEXT, [女性工時] TEXT, [承攬人工時] TEXT, [勞保申請狀態] TEXT, [備註] TEXT" }
         };
 
         public App_GenericTable(string dbName, string tableName, string chineseTitle)
