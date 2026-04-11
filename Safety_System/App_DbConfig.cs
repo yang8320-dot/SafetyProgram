@@ -9,11 +9,12 @@ namespace Safety_System
     public class App_DbConfig
     {
         private TextBox _txtPath;
+        private TextBox _txtBackupPath;
+        private NumericUpDown _numKeepCount;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury" } },
-            // 🟢 新增：化學品資料庫與資料表
             { "Chemical", new[] { "ChemRegulations", "SDS_Inventory" } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
             { "Air", new[] { "AirPollution" } },
@@ -29,19 +30,74 @@ namespace Safety_System
         {
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
 
+            // ==========================================
+            // 1. 資料庫存放路徑設定
+            // ==========================================
             GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
             _txtPath = new TextBox { Location = new Point(30, 50), Width = 600, ReadOnly = true, Text = currentPath, Font = new Font("Microsoft JhengHei UI", 12F) };
             
             Button btnBrowse = new Button { Text = "選擇資料夾", Location = new Point(650, 48), Size = new Size(150, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
-            btnBrowse.Click += BtnBrowse_Click;
+            btnBrowse.Click += (s, e) => {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇數據資料存放的資料夾" }) {
+                    if (fbd.ShowDialog() == DialogResult.OK) _txtPath.Text = fbd.SelectedPath;
+                }
+            };
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
-            btnSavePath.Click += BtnSavePath_Click;
+            btnSavePath.Click += (s, e) => {
+                if (!AuthManager.VerifyAdmin()) return; 
+                if (System.IO.Directory.Exists(_txtPath.Text)) {
+                    DataManager.SetBasePath(_txtPath.Text);
+                    MessageBox.Show("路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } else {
+                    MessageBox.Show("請選擇有效的資料夾路徑。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
+            // ==========================================
+            // 2. 資料備份設定 (全新加入)
+            // ==========================================
+            GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (自動每週備份)", Dock = DockStyle.Top, Height = 220, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            boxBackup.Margin = new Padding(0, 30, 0, 0);
+
+            BackupManager.LoadConfig();
+
+            Label lblB1 = new Label { Text = "備份存放路徑:", Location = new Point(30, 50), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtBackupPath = new TextBox { Location = new Point(160, 47), Width = 470, ReadOnly = true, Text = BackupManager.BackupPath, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
+            Button btnBrowseBackup = new Button { Text = "選擇資料夾", Location = new Point(650, 45), Size = new Size(150, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnBrowseBackup.Click += (s, e) => {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇備份資料存放的資料夾" }) {
+                    if (fbd.ShowDialog() == DialogResult.OK) _txtBackupPath.Text = fbd.SelectedPath;
+                }
+            };
+
+            Label lblB2 = new Label { Text = "保留舊備份份數:", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _numKeepCount = new NumericUpDown { Location = new Point(160, 98), Width = 80, Minimum = 1, Maximum = 100, Value = BackupManager.KeepCount, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblB3 = new Label { Text = "份 (建議保留 4 份，約一個月)", Location = new Point(250, 100), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+            Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 150), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnSaveBackup.Click += (s, e) => {
+                if (!AuthManager.VerifyAdmin()) return;
+                BackupManager.SaveConfig(_txtBackupPath.Text, (int)_numKeepCount.Value);
+                MessageBox.Show("備份設定已儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+
+            Button btnManualBackup = new Button { Text = "立即執行手動備份", Location = new Point(300, 150), Size = new Size(200, 45), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnManualBackup.Click += (s, e) => {
+                BackupManager.ExecuteBackup();
+                MessageBox.Show("手動備份執行完成！", "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+
+            boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
+
+            // ==========================================
+            // 3. 資料表防重寫欄位設定
+            // ==========================================
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 320, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 30, 0, 0);
 
@@ -62,10 +118,14 @@ namespace Safety_System
 
             boxKeys.Controls.AddRange(new Control[] { lblDb, _cboDb, lblTable, _cboTable, lblCol1, _cboCol1, lblCol2, _cboCol2, btnSaveKeys });
 
-            Panel spacer = new Panel { Dock = DockStyle.Top, Height = 30 };
+            Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 30 };
+            Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
+            // 依序反著加進去 (Dock.Top 特性)
             main.Controls.Add(boxKeys);
-            main.Controls.Add(spacer);
+            main.Controls.Add(spacer1);
+            main.Controls.Add(boxBackup);
+            main.Controls.Add(spacer2);
             main.Controls.Add(boxPath);
 
             foreach (var key in _dbMap.Keys) _cboDb.Items.Add(key);
@@ -75,26 +135,6 @@ namespace Safety_System
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
 
             return main;
-        }
-
-        private void BtnBrowse_Click(object sender, EventArgs e)
-        {
-            using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇數據資料存放的資料夾" }) {
-                if (fbd.ShowDialog() == DialogResult.OK) _txtPath.Text = fbd.SelectedPath;
-            }
-        }
-
-        private void BtnSavePath_Click(object sender, EventArgs e)
-        {
-            // 🟢 管理員防護
-            if (!AuthManager.VerifyAdmin()) return; 
-
-            if (System.IO.Directory.Exists(_txtPath.Text)) {
-                DataManager.SetBasePath(_txtPath.Text);
-                MessageBox.Show("路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            } else {
-                MessageBox.Show("請選擇有效的資料夾路徑。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
 
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
@@ -134,7 +174,6 @@ namespace Safety_System
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
-            // 🟢 管理員防護
             if (!AuthManager.VerifyAdmin()) return; 
 
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) {
