@@ -90,6 +90,13 @@ namespace Safety_System
             menuSafety.DropDownItems.Add(CreateItem("交通意外紀錄", () => new App_GenericTable("Safety", "TrafficInjury", "交通意外紀錄").GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件管理", () => new App_GenericTable("Safety", "WorkInjury", "工傷事件管理").GetView()));
 
+            // 🟢 新增：化學品選單 (排序在工安旁邊)
+            var menuChemical = new ToolStripMenuItem("化學品");
+            menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
+            menuChemical.DropDownItems.Add(CreateItem("化學品快查", () => new App_ChemQuickSearch().GetView()));
+            menuChemical.DropDownItems.Add(CreateItem("化學品要求及規範", () => new App_GenericTable("Chemical", "ChemRegulations", "化學品要求及規範").GetView()));
+            menuChemical.DropDownItems.Add(CreateItem("SDS清冊", () => new App_GenericTable("Chemical", "SDS_Inventory", "SDS清冊").GetView()));
+
             var menuNursing = new ToolStripMenuItem("護理");
             menuNursing.DropDownItems.Add(CreateItem("護理看板", () => new App_NursingDashboard().GetView()));
             menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_GenericTable("Nursing", "HealthPromotion", "健康促進活動").GetView()));
@@ -158,8 +165,9 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
+            // 🟢 將 menuChemical 安插在 menuSafety 旁邊
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
-                menuHome, menuReports, menuSafety, menuNursing, menuAir, 
+                menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuSettings 
             });
         }
