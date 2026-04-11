@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Linq; // 🟢 補上 LINQ 引用，解決 Cast 和 Select 報錯
 using System.Text;
 using System.Windows.Forms;
 using OfficeOpenXml; 
@@ -21,12 +22,12 @@ namespace Safety_System
 
         private bool _isFirstLoad = true;
         
-        // 🟢 動態傳入的參數
+        // 動態傳入的參數
         private readonly string _dbName; 
         private readonly string _tableName; 
         private readonly string _chineseTitle;
 
-        // 🟢 集中管理各個檢測表的初始欄位架構 (Schema)
+        // 集中管理各個檢測表的初始欄位架構 (Schema)
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
             { "EnvMonitor", "[日期] TEXT, [測點名稱] TEXT, [溫度] TEXT, [濕度] TEXT, [噪音(dB)] TEXT, [照度(Lux)] TEXT, [備註] TEXT" },
@@ -42,7 +43,6 @@ namespace Safety_System
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [備註] TEXT" }
         };
 
-        // 建構子，接收選單傳來的參數
         public App_Test_Generic(string dbName, string tableName, string chineseTitle)
         {
             _dbName = dbName;
@@ -52,7 +52,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 取得對應的 Schema，若沒找到則建立基本的 日期+備註 欄位
             string schema = _schemaMap.ContainsKey(_tableName) ? _schemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
