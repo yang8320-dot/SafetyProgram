@@ -117,17 +117,19 @@ namespace Safety_System
 
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_EnvMonitor().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_WastewaterPeriodic().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_DrinkingWater().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("工業區檢驗", () => new App_IndustrialZoneTest().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("土壤氣體檢測", () => new App_SoilGasTest().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("廢水自主檢驗", () => new App_WastewaterSelfTest().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("循環水檢測(廠商)", () => new App_CoolingWaterVendor().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("循環水檢測(自評)", () => new App_CoolingWaterSelf().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("TCLP", () => new App_TCLP().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("水錶校正", () => new App_WaterMeterCalibration().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("其它檢測數據", () => new App_OtherTests().GetView()));
+            
+            // 🟢 全面改用 Generic 共用模組，傳入: 資料庫名, 表名, 中文標題
+            menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_Test_Generic("TestData", "EnvMonitor", "環境監測").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_Test_Generic("TestData", "WastewaterPeriodic", "廢水定申檢").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_Test_Generic("TestData", "DrinkingWater", "飲用水檢測").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("工業區檢驗", () => new App_Test_Generic("TestData", "IndustrialZoneTest", "工業區檢驗").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("土壤氣體檢測", () => new App_Test_Generic("TestData", "SoilGasTest", "土壤氣體檢測").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("廢水自主檢驗", () => new App_Test_Generic("TestData", "WastewaterSelfTest", "廢水自主檢驗").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("循環水檢測(廠商)", () => new App_Test_Generic("TestData", "CoolingWaterVendor", "循環水檢測(廠商)").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("循環水檢測(自評)", () => new App_Test_Generic("TestData", "CoolingWaterSelf", "循環水檢測(自評)").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("TCLP", () => new App_Test_Generic("TestData", "TCLP", "TCLP毒性特性溶出").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("水錶校正", () => new App_Test_Generic("TestData", "WaterMeterCalibration", "水錶校正").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("其它檢測數據", () => new App_Test_Generic("TestData", "OtherTests", "其它檢測數據").GetView()));
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
