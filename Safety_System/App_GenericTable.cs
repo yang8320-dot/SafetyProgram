@@ -135,16 +135,16 @@ namespace Safety_System
             }
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            Button bRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
+            Button bRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
             bRead.Click += (s, e) => { RefreshGrid(); if (!_isFirstLoad) MessageBox.Show("資料載入完成！"); };
 
-            Button bSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            Button bSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             bSave.Click += BtnSave_Click; 
             
-            Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(130, 35) }; bExport.Click += BtnExport_Click;
-            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(130, 35) }; bImport.Click += BtnImportCsv_Click;
+            Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) }; bExport.Click += BtnExport_Click;
+            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(150, 35) }; bImport.Click += BtnImportCsv_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(130, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
@@ -179,18 +179,18 @@ namespace Safety_System
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true };
             _txtNewColName = new TextBox { Width = 150 };
             
-            Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(130, 35) };
             bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); RefreshGrid(); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
             
-            Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
+            Button bRen = new Button { Text = "修改名稱", Size = new Size(130, 35) };
             bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); RefreshGrid(); _txtRenameCol.Clear(); } };
             
-            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
+            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(130, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
             bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo)==DialogResult.Yes){ DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); RefreshGrid(); } } };
             
-            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(150, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
                 if (selectedRows.Count > 0) {
