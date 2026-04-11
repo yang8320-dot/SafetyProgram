@@ -609,71 +609,77 @@ namespace Safety_System
             }
         }
 
-        private void BtnImportCsv_Click(object sender, EventArgs e) {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
-                if (ofd.ShowDialog() == DialogResult.OK) {
-                    try {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+        private async void BtnImportCsv_Click(object sender, EventArgs e) {
+    using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
+        if (ofd.ShowDialog() == DialogResult.OK) {
+            try {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                        string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
-                        List<string[]> parsedRows = ParseCsvText(fileContent);
-                        if (parsedRows.Count < 2) return; 
+                // 1. 讀取檔案
+                string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
+                
+                // 2. 斷開 UI
+                DataTable dt = (DataTable)_dgv.DataSource;
+                _dgv.DataSource = null; 
 
-                        DataTable dt = (DataTable)_dgv.DataSource; 
-                        string[] headers = parsedRows[0];
+                // 🟢 3. 將龐大的文字解析與 DataTable 構建丟到背景執行緒 (不卡死視窗)
+                await Task.Run(() => {
+                    List<string[]> parsedRows = ParseCsvText(fileContent);
+                    if (parsedRows.Count < 2) return; 
 
-                        _dgv.DataSource = null; 
+                    string[] headers = parsedRows[0];
 
-                        for (int i = 1; i < parsedRows.Count; i++) {
-                            string[] vs = parsedRows[i];
-                            if (vs.Length == 1 && string.IsNullOrWhiteSpace(vs[0])) continue;
+                    for (int i = 1; i < parsedRows.Count; i++) {
+                        string[] vs = parsedRows[i];
+                        if (vs.Length == 1 && string.IsNullOrWhiteSpace(vs[0])) continue;
 
-                            DataRow nr = dt.NewRow(); 
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
-                                string cn = headers[h].Trim(); 
-                                if (dt.Columns.Contains(cn) && cn != "Id") {
-                                    string val = vs[h].Trim();
-                                    
-                                    if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
-                                        if (!string.IsNullOrWhiteSpace(val)) {
-                                            if (DateTime.TryParse(val, out DateTime parsedDate)) {
-                                                val = parsedDate.ToString("yyyy-MM-dd");
-                                            } else {
-                                                string temp = val.Replace("/", "-");
-                                                if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
-                                                    val = parsedDate2.ToString("yyyy-MM-dd");
-                                                }
+                        DataRow nr = dt.NewRow(); 
+                        for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
+                            string cn = headers[h].Trim(); 
+                            if (dt.Columns.Contains(cn) && cn != "Id") {
+                                string val = vs[h].Trim();
+                                
+                                if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
+                                    if (!string.IsNullOrWhiteSpace(val)) {
+                                        if (DateTime.TryParse(val, out DateTime parsedDate)) {
+                                            val = parsedDate.ToString("yyyy-MM-dd");
+                                        } else {
+                                            string temp = val.Replace("/", "-");
+                                            if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
+                                                val = parsedDate2.ToString("yyyy-MM-dd");
                                             }
                                         }
                                     }
-                                    nr[cn] = val; 
                                 }
+                                nr[cn] = val; 
                             }
-                            dt.Rows.Add(nr);
                         }
-
-                        _dgv.DataSource = dt; 
-
-                        // 🟢 修正4：匯入資料後，必須立刻重新套用下拉選單與換行設定
-                        SetupComboBoxColumns();
-                        SetupTextWrapping();
-                        if (_dgv.Columns.Contains("Id")) {
-                            _dgv.Columns["Id"].ReadOnly = true;
-                            _dgv.Columns["Id"].Visible = false;
-                        }
-
-                        _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
-
-                        MessageBox.Show($"載入 {parsedRows.Count - 1} 筆資料成功！\n系統已就緒，請點擊「儲存」以進行更新比對。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) {
-                        RefreshGrid(false); 
-                        MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    } finally {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                        dt.Rows.Add(nr);
                     }
+                });
+
+                // 4. 背景運算完成，一次性接回 UI (瞬間呈現)
+                _dgv.DataSource = dt; 
+
+                SetupComboBoxColumns();
+                SetupTextWrapping();
+                if (_dgv.Columns.Contains("Id")) {
+                    _dgv.Columns["Id"].ReadOnly = true;
+                    _dgv.Columns["Id"].Visible = false;
                 }
+
+                _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+
+                MessageBox.Show($"載入資料成功！\n系統已就緒，請點擊「儲存」以進行更新比對。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } catch (Exception ex) {
+                RefreshGrid(false); 
+                MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            } finally {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
+    }
+}
 
         private List<string[]> ParseCsvText(string csvText)
         {
