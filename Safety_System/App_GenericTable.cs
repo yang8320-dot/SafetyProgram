@@ -53,6 +53,7 @@ namespace Safety_System
             // 教育訓練
             { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [備註] TEXT" },
             // 檢測數據
+            // 檢測數據 環測
             { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [備註] TEXT" },
             { "WastewaterPeriodic", "[日期] TEXT, [申報季別] TEXT, [排放水量] TEXT, [COD] TEXT, [SS] TEXT, [BOD] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
             { "DrinkingWater", "[日期] TEXT, [採樣點位置] TEXT, [大腸桿菌群] TEXT, [總菌落數] TEXT, [鉛] TEXT, [濁度] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
@@ -71,7 +72,9 @@ namespace Safety_System
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT" },
             { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT" },
             // 護理
+            // 護理 健康促進
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [備註] TEXT" },
+            // 護理 職災申報
             { "WorkInjuryReport", "[月份] TEXT, [男性工時] TEXT, [女性工時] TEXT, [承攬人工時] TEXT, [勞保申請狀態] TEXT, [備註] TEXT" }
         };
 
