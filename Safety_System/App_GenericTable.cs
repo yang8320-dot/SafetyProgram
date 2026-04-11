@@ -37,9 +37,13 @@ namespace Safety_System
         // 導入自動運算 Helper (處理差值統計與星期推算，並加速大批次貼上)
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 🟢 終極集中管理：所有標準資料表的初始 Schema
+        /// 🟢 終極集中管理：所有標準資料表的初始 Schema
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
+            // ===== 新增：化學品 =====
+            { "ChemRegulations", "[日期] TEXT, [法規來源] TEXT, [公告日期] TEXT, [項目] TEXT, [容許曝露量min] TEXT, [容許曝露量max] TEXT, [管制量min] TEXT, [管制量max] TEXT, [應辦理項目] TEXT, [備註] TEXT" },
+            { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [備註] TEXT" },
+            
             // 空污
             //空污申報記錄
             { "AirPollution", "[月份] TEXT, [甲醇] TEXT, [乙醇] TEXT, [油墨] TEXT, [網板清洗劑] TEXT , [備註] TEXT" },
