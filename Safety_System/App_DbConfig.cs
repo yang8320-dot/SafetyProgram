@@ -13,6 +13,8 @@ namespace Safety_System
 
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury" } },
+            // 🟢 新增：化學品資料庫與資料表
+            { "Chemical", new[] { "ChemRegulations", "SDS_Inventory" } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
             { "Air", new[] { "AirPollution" } },
             { "Water", new[] { "DischargeData", "WaterMeterReadings", "WaterChemicals", "WaterVolume", "WaterUsageDaily" } },
