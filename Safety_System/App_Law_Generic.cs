@@ -72,7 +72,6 @@ namespace Safety_System
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
-            // 🟢 關鍵修正：將 RowCount 改為 3 列，並讓第 3 列 (索引2) 佔用 100% 空間
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第 1 列：BoxTop (包含日期與搜尋排)
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第 2 列：BoxOps (包含欄位管理)
@@ -227,14 +226,32 @@ namespace Safety_System
             _dgv.DataError += Dgv_DataError;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
             _dgv.KeyDown += Dgv_KeyDown; 
+            
+            // 🟢 加入儲存格點擊事件 (負責鑑別日期自動帶入)
+            _dgv.CellClick += Dgv_CellClick;
 
-            // 🟢 加入主版面 (0=BoxTop, 1=BoxOps, 2=DataGridView)
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(boxOps, 0, 1); 
             main.Controls.Add(_dgv, 0, 2);
             
             RefreshGrid(true); 
             return main;
+        }
+
+        // 🟢 鑑別日期空白時，點擊自動帶入今天日期功能
+        private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+            {
+                if (_dgv.Columns[e.ColumnIndex].Name == "鑑別日期")
+                {
+                    var cell = _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                    if (cell.Value == DBNull.Value || string.IsNullOrWhiteSpace(cell.Value?.ToString()))
+                    {
+                        cell.Value = DateTime.Today.ToString("yyyy-MM-dd");
+                    }
+                }
+            }
         }
 
         private async void BtnSave_Click(object sender, EventArgs e)
@@ -423,7 +440,6 @@ namespace Safety_System
             SetupComboBoxColumns();
             SetupTextWrapping();
 
-            // 🟢 強制隱藏 Id
             if (_dgv.Columns.Contains("Id")) {
                 _dgv.Columns["Id"].ReadOnly = true;
                 _dgv.Columns["Id"].Visible = false;
@@ -453,7 +469,6 @@ namespace Safety_System
             SetupComboBoxColumns();
             SetupTextWrapping();
 
-            // 🟢 強制隱藏 Id
             if (_dgv.Columns.Contains("Id")) {
                 _dgv.Columns["Id"].ReadOnly = true; 
                 _dgv.Columns["Id"].Visible = false;
@@ -520,12 +535,10 @@ namespace Safety_System
             ReplaceWithComboBox("有提升績效機會", checkItems);
             ReplaceWithComboBox("有潛在不符合風險", checkItems);
 
-            // 🟢 修正1：條改為 3 碼 (001~500)
             List<string> itemsTiao = new List<string> { "" };
             for (int i = 1; i <= 500; i++) itemsTiao.Add(i.ToString("D3"));
             ReplaceWithComboBox("條", itemsTiao.ToArray());
 
-            // 🟢 修正2：項、款、目改為 2 碼 (01~20)
             List<string> itemsSmall = new List<string> { "" };
             for (int i = 1; i <= 20; i++) itemsSmall.Add(i.ToString("D2"));
             
@@ -546,7 +559,6 @@ namespace Safety_System
                 cboCol.HeaderText = colName;
                 cboCol.DataPropertyName = colName; 
                 
-                // 🟢 修正3：動態補齊 CSV 中存在，但不在預設 1~500 清單內的特例 (例如 "010-1")
                 List<string> finalItems = new List<string>(defaultItems);
                 if (_dgv.DataSource is DataTable dt)
                 {
@@ -609,77 +621,81 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底防假當機：非同步背景匯入與安全資料合併
         private async void BtnImportCsv_Click(object sender, EventArgs e) {
-    using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
-        if (ofd.ShowDialog() == DialogResult.OK) {
-            try {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
+                if (ofd.ShowDialog() == DialogResult.OK) {
+                    try {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                // 1. 讀取檔案
-                string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
-                
-                // 2. 斷開 UI
-                DataTable dt = (DataTable)_dgv.DataSource;
-                _dgv.DataSource = null; 
+                        string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
+                        DataTable originalDt = (DataTable)_dgv.DataSource;
+                        
+                        // 斷開 UI，防閃爍
+                        _dgv.DataSource = null; 
 
-                // 🟢 3. 將龐大的文字解析與 DataTable 構建丟到背景執行緒 (不卡死視窗)
-                await Task.Run(() => {
-                    List<string[]> parsedRows = ParseCsvText(fileContent);
-                    if (parsedRows.Count < 2) return; 
+                        // 複製表格結構，準備在背景安全寫入
+                        DataTable tempDt = originalDt.Clone();
 
-                    string[] headers = parsedRows[0];
+                        // 將龐大的解析與建立資料列工作丟入背景，釋放 UI 執行緒
+                        await Task.Run(() => {
+                            List<string[]> parsedRows = ParseCsvText(fileContent);
+                            if (parsedRows.Count < 2) return; 
 
-                    for (int i = 1; i < parsedRows.Count; i++) {
-                        string[] vs = parsedRows[i];
-                        if (vs.Length == 1 && string.IsNullOrWhiteSpace(vs[0])) continue;
+                            string[] headers = parsedRows[0];
 
-                        DataRow nr = dt.NewRow(); 
-                        for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
-                            string cn = headers[h].Trim(); 
-                            if (dt.Columns.Contains(cn) && cn != "Id") {
-                                string val = vs[h].Trim();
-                                
-                                if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
-                                    if (!string.IsNullOrWhiteSpace(val)) {
-                                        if (DateTime.TryParse(val, out DateTime parsedDate)) {
-                                            val = parsedDate.ToString("yyyy-MM-dd");
-                                        } else {
-                                            string temp = val.Replace("/", "-");
-                                            if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
-                                                val = parsedDate2.ToString("yyyy-MM-dd");
+                            for (int i = 1; i < parsedRows.Count; i++) {
+                                string[] vs = parsedRows[i];
+                                if (vs.Length == 1 && string.IsNullOrWhiteSpace(vs[0])) continue;
+
+                                DataRow nr = tempDt.NewRow(); 
+                                for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
+                                    string cn = headers[h].Trim(); 
+                                    if (tempDt.Columns.Contains(cn) && cn != "Id") {
+                                        string val = vs[h].Trim();
+                                        
+                                        if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
+                                            if (!string.IsNullOrWhiteSpace(val)) {
+                                                if (DateTime.TryParse(val, out DateTime parsedDate)) {
+                                                    val = parsedDate.ToString("yyyy-MM-dd");
+                                                } else {
+                                                    string temp = val.Replace("/", "-");
+                                                    if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
+                                                        val = parsedDate2.ToString("yyyy-MM-dd");
+                                                    }
+                                                }
                                             }
                                         }
+                                        nr[cn] = val; 
                                     }
                                 }
-                                nr[cn] = val; 
+                                tempDt.Rows.Add(nr);
                             }
+                        });
+
+                        // 回到 UI 執行緒，將背景處理好的幾千筆資料瞬間合併回去
+                        originalDt.Merge(tempDt);
+                        _dgv.DataSource = originalDt; 
+
+                        SetupComboBoxColumns();
+                        SetupTextWrapping();
+                        if (_dgv.Columns.Contains("Id")) {
+                            _dgv.Columns["Id"].ReadOnly = true;
+                            _dgv.Columns["Id"].Visible = false;
                         }
-                        dt.Rows.Add(nr);
+
+                        _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+
+                        MessageBox.Show($"載入 {tempDt.Rows.Count} 筆資料成功！\n系統已就緒，請點擊「儲存」以寫入資料庫。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        RefreshGrid(false); 
+                        MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
                     }
-                });
-
-                // 4. 背景運算完成，一次性接回 UI (瞬間呈現)
-                _dgv.DataSource = dt; 
-
-                SetupComboBoxColumns();
-                SetupTextWrapping();
-                if (_dgv.Columns.Contains("Id")) {
-                    _dgv.Columns["Id"].ReadOnly = true;
-                    _dgv.Columns["Id"].Visible = false;
                 }
-
-                _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
-
-                MessageBox.Show($"載入資料成功！\n系統已就緒，請點擊「儲存」以進行更新比對。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            } catch (Exception ex) {
-                RefreshGrid(false); 
-                MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            } finally {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
-    }
-}
 
         private List<string[]> ParseCsvText(string csvText)
         {
