@@ -44,7 +44,8 @@ namespace Safety_System
             //空污申報記錄
             { "AirPollution", "[月份] TEXT, [甲醇] TEXT, [乙醇] TEXT, [油墨] TEXT, [網板清洗劑] TEXT , [備註] TEXT" },
             // 廢棄物
-            { "WasteMonthly", "[日期] TEXT, [代碼] TEXT, [名稱] TEXT, [重量_kg] TEXT, [清理商] TEXT" },
+            //廢棄物申報表 生產日月報
+            { "WasteMonthly", "[月份] TEXT, [切_廢玻璃] TEXT, [名稱] TEXT, [重量_kg] TEXT, [清理商] TEXT" },
             // 消防
             { "FireResponsible", "[日期] TEXT, [管轄區域] TEXT, [正負責人] TEXT, [副負責人] TEXT, [聯絡分機] TEXT, [備註] TEXT" },
             { "HazardStats", "[日期] TEXT, [場所名稱] TEXT, [物品名稱] TEXT, [儲存數量] TEXT, [管制倍數] TEXT, [是否合格] TEXT" },
