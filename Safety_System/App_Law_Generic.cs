@@ -20,7 +20,6 @@ namespace Safety_System
 
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
-        private GroupBox _boxAdvanced; 
         private Button _btnToggle;     
         private Button _btnSave; 
 
