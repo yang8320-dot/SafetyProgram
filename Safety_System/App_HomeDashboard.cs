@@ -11,7 +11,6 @@ namespace Safety_System
         {
             Panel main = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, AutoScroll = true };
 
-            // 標題區
             Label lblTitle = new Label {
                 Text = "Safety System 綜合數據看板系統",
                 Font = new Font("Microsoft JhengHei UI", 26F, FontStyle.Bold),
@@ -28,20 +27,16 @@ namespace Safety_System
                 AutoSize = true
             };
 
-            // 快捷按鈕容器
             FlowLayoutPanel flp = new FlowLayoutPanel {
                 Location = new Point(40, 160),
                 Size = new Size(1250, 600),
                 BackColor = Color.Transparent
             };
 
-            // 建立導覽大按鈕
+            // 快捷按鈕清單
             flp.Controls.Add(CreateShortcut("🛡️ 工安看板", "查看零災害天數與工安指標", Color.SteelBlue, () => new App_SafetyDashboard().GetView()));
             flp.Controls.Add(CreateShortcut("💧 水資源分析", "水情摘要、用水量與YoY比較圖表", Color.Teal, () => new App_WaterDashboard().GetView()));
-            
-            // 🟢 修正點：將 App_WaterTreatment 改為呼叫專屬水資源共用模組 App_Water_Generic
             flp.Controls.Add(CreateShortcut("📋 廢水水量紀錄", "每日廢水處理水量與讀數填報", Color.SeaGreen, () => new App_Water_Generic("Water", "WaterMeterReadings", "【日】廢水處理水量記錄").GetView()));
-            
             flp.Controls.Add(CreateShortcut("🧪 檢測數據", "環境、飲用水、廢水檢測數據管理", Color.Chocolate, () => new App_TestDashboard().GetView()));
             flp.Controls.Add(CreateShortcut("♻️ 廢棄物月報", "紀錄廢棄物產出代碼、名稱與重量", Color.DimGray, () => new App_GenericTable("Waste", "WasteMonthly", "廢棄物統計表").GetView()));
             flp.Controls.Add(CreateShortcut("⚙️ 操作說明", "系統操作導覽、快捷鍵與密碼提示", Color.MediumPurple, () => new App_Instruction().GetView()));
@@ -56,9 +51,37 @@ namespace Safety_System
         private Control CreateShortcut(string title, string desc, Color themeColor, Func<Control> loadFunc)
         {
             Panel p = new Panel { Size = new Size(380, 180), Margin = new Padding(0, 0, 30, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand };
-            
-            // 繪製細邊框
             p.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, p.ClientRectangle, Color.Gainsboro, ButtonBorderStyle.Solid);
             
             Label l1 = new Label { Text = title, Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = themeColor, Location = new Point(20, 25), AutoSize = true };
-            Label l2 = new Label
+            Label l2 = new Label { Text = desc, Font = new Font("Microsoft JhengHei UI", 11F), ForeColor = Color.DimGray, Location = new Point(22, 75), Size = new Size(340, 50) };
+            
+            Button btn = new Button {
+                Text = "進入模組 ➜",
+                Size = new Size(120, 35),
+                Location = new Point(230, 125),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = themeColor,
+                ForeColor = Color.White,
+                Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+
+            // 統一事件
+            Action onClick = () => {
+                Form f = p.FindForm();
+                if (f is MainForm mf) mf.LoadModule(loadFunc());
+            };
+
+            p.Click += (s, e) => onClick();
+            l1.Click += (s, e) => onClick();
+            l2.Click += (s, e) => onClick();
+            btn.Click += (s, e) => onClick();
+
+            p.Controls.Add(l1); 
+            p.Controls.Add(l2); 
+            p.Controls.Add(btn);
+            return p;
+        }
+    }
+}
