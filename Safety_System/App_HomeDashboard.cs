@@ -35,12 +35,15 @@ namespace Safety_System
                 BackColor = Color.Transparent
             };
 
-            // 建立導覽大按鈕 (與選單功能對應)
+            // 建立導覽大按鈕 (已修復指向 GenericTable)
             flp.Controls.Add(CreateShortcut("🛡️ 工安看板", "查看零災害天數與工安指標", Color.SteelBlue, () => new App_SafetyDashboard().GetView()));
             flp.Controls.Add(CreateShortcut("💧 水資源分析", "水情摘要、用水量與YoY比較圖表", Color.Teal, () => new App_WaterDashboard().GetView()));
             flp.Controls.Add(CreateShortcut("📋 廢水水量紀錄", "每日廢水處理水量與讀數填報", Color.SeaGreen, () => new App_WaterTreatment().GetView()));
             flp.Controls.Add(CreateShortcut("🧪 檢測數據", "環境、飲用水、廢水檢測數據管理", Color.Chocolate, () => new App_TestDashboard().GetView()));
-            flp.Controls.Add(CreateShortcut("♻️ 廢棄物月報", "紀錄廢棄物產出代碼、名稱與重量", Color.DimGray, () => new App_WasteMonthly().GetView()));
+            
+            // 🟢 修正點：將 App_WasteMonthly 改為呼叫 App_GenericTable
+            flp.Controls.Add(CreateShortcut("♻️ 廢棄物月報", "紀錄廢棄物產出代碼、名稱與重量", Color.DimGray, () => new App_GenericTable("Waste", "WasteMonthly", "廢棄物統計表").GetView()));
+            
             flp.Controls.Add(CreateShortcut("⚙️ 操作說明", "系統操作導覽、快捷鍵與密碼提示", Color.MediumPurple, () => new App_Instruction().GetView()));
 
             main.Controls.Add(lblTitle);
