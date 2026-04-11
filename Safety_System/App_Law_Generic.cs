@@ -409,10 +409,15 @@ namespace Safety_System
             DataTable allData = DataManager.GetTableData(_dbName, _tableName, "日期", "", "");
             DataView dv = allData.DefaultView;
 
+            // 🟢 搜尋邏輯升級：加入「適用性」與「鑑別日期」未填寫的篩選判斷
             if (!string.IsNullOrEmpty(searchCol)) 
             {
                 if (keyword == "有鍵入資料者") {
                     dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
+                }
+                else if ((searchCol == "適用性" || searchCol == "鑑別日期") && string.IsNullOrWhiteSpace(keyword)) {
+                    // 若搜尋適用性或鑑別日期且關鍵字為空白，則撈出「尚未評估/未填寫」的項目
+                    dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
                 }
                 else if (!string.IsNullOrWhiteSpace(keyword)) {
                     dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
