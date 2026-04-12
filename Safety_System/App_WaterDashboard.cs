@@ -1,235 +1,346 @@
+/// FILE: Safety_System/App_WaterDashboard.cs ///
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Printing;
+using System.Linq;
+using System.Text;
 using System.Windows.Forms;
-using System.Windows.Forms.DataVisualization.Charting;
 
 namespace Safety_System
 {
     public class App_WaterDashboard
     {
-        private ComboBox _cboYear, _cboMonth, _cboMetric;
-        private Label _lblKpi1, _lblKpi2, _lblKpi3;
-        private Chart _chartDaily, _chartMonthly, _chartYearly;
+        private DateTimePicker _dtpStart, _dtpEnd;
+        private Panel _pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4;
+        private Panel _pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4;
+        private Panel _pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4;
+        private Panel _mainScrollPanel;
+
         private const string DbName = "Water";
 
         public Control GetView()
         {
-            Panel mainPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true };
+            _mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
 
-            // 1. 頂部控制列 (篩選條件)
-            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Color.White };
-            Label lblTitle = new Label { Text = "💧 水資源管理與分析儀表板", Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), AutoSize = true, Location = new Point(20, 20), ForeColor = Color.DarkSlateBlue };
-            
-            FlowLayoutPanel flpFilters = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, Padding = new Padding(10, 25, 20, 0) };
-            
-            _cboYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboMonth = new ComboBox { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboMetric = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            
-            int currYear = DateTime.Now.Year;
-            for (int i = currYear - 10; i <= currYear; i++) _cboYear.Items.Add(i);
-            for (int i = 1; i <= 12; i++) _cboMonth.Items.Add(i.ToString("D2"));
-            
-            _cboYear.SelectedItem = currYear;
-            _cboMonth.SelectedItem = DateTime.Now.Month.ToString("D2");
+            TableLayoutPanel mainLayout = new TableLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                ColumnCount = 1, 
+                RowCount = 4 
+            };
 
-            _cboMetric.Items.Add("廠區自來水量 (用水)");
-            _cboMetric.Items.Add("廢水處理量 (水站)");
-            _cboMetric.Items.Add("PAC用藥量 (水站)");
-            _cboMetric.SelectedIndex = 0;
+            // ==========================================
+            // 大框 1：功能選單與日期查詢
+            // ==========================================
+            Panel box1 = new Panel { Dock = DockStyle.Fill, Height = 80, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+            box1.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, box1.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+            
+            Label lblTitle = new Label { Text = "💧 水資源綜合數據看板", Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Location = new Point(20, 22) };
+            
+            FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 22, 20, 0) };
+            
+            _dtpStart = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 130, Font = new Font("Microsoft JhengHei UI", 12F), Value = DateTime.Today.AddMonths(-1) };
+            _dtpEnd = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 130, Font = new Font("Microsoft JhengHei UI", 12F), Value = DateTime.Today };
+            
+            Button btnSearch = new Button { Text = "🔍 查詢統計", Size = new Size(120, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnSearch.Click += (s, e) => LoadAllData();
+            
+            Button btnPdf = new Button { Text = "📄 轉存 PDF", Size = new Size(120, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            btnPdf.Click += BtnPdf_Click;
 
-            Button btnRefresh = new Button { Text = "📊 產生報表", Size = new Size(120, 32), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
-            btnRefresh.Click += (s, e) => LoadDashboardData();
-
-            flpFilters.Controls.AddRange(new Control[] { 
-                new Label { Text = "分析標的:", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) }, _cboMetric,
-                new Label { Text = "基準年月:", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) }, _cboYear, new Label { Text = "年", AutoSize=true, Margin=new Padding(0,5,5,0) }, _cboMonth, new Label { Text = "月", AutoSize=true, Margin=new Padding(0,5,15,0) },
-                btnRefresh 
+            flpControls.Controls.AddRange(new Control[] { 
+                new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) },
+                _dtpStart, new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) }, _dtpEnd,
+                new Panel { Width = 10, Height = 1 }, btnSearch, btnPdf
             });
 
-            pnlTop.Controls.Add(lblTitle);
-            pnlTop.Controls.Add(flpFilters);
-            mainPanel.Controls.Add(pnlTop);
+            box1.Controls.Add(lblTitle);
+            box1.Controls.Add(flpControls);
+            mainLayout.Controls.Add(box1, 0, 0);
 
-            // 2. KPI 摘要卡片區
-            FlowLayoutPanel flpKpis = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(20, 15, 20, 10), BackColor = Color.WhiteSmoke };
-            _lblKpi1 = CreateKpiCard(flpKpis, "本月累計", "0", Color.Teal);
-            _lblKpi2 = CreateKpiCard(flpKpis, "去年同月累計", "0", Color.DimGray);
-            _lblKpi3 = CreateKpiCard(flpKpis, "YoY 成長率", "0%", Color.DarkOrange);
-            mainPanel.Controls.Add(flpKpis);
+            // ==========================================
+            // 建立 3 個主要數據區塊 (大框 2, 3, 4)
+            // ==========================================
+            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 水資源數據統計", Color.Teal, out _pnlBox2Data1, out _pnlBox2Data2, out _pnlBox2Data3, out _pnlBox2Data4), 0, 1);
+            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 回收水統計", Color.ForestGreen, out _pnlBox3Data1, out _pnlBox3Data2, out _pnlBox3Data3, out _pnlBox3Data4), 0, 2);
+            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 藥劑數據統計", Color.Sienna, out _pnlBox4Data1, out _pnlBox4Data2, out _pnlBox4Data3, out _pnlBox4Data4), 0, 3);
 
-            // 3. 圖表區
-            TableLayoutPanel tlpCharts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(15) };
-            tlpCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
-            tlpCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
-            tlpCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tlpCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-
-            _chartDaily = CreateChart("每日變化比較 (本月 vs 去年同月)");
-            _chartMonthly = CreateChart("每月趨勢比較 (近三年)");
-            _chartYearly = CreateChart("年度總量比較 (近三年)");
-
-            tlpCharts.Controls.Add(_chartDaily, 0, 0); 
-            tlpCharts.SetRowSpan(_chartDaily, 2);      
-            tlpCharts.Controls.Add(_chartMonthly, 1, 0); 
-            tlpCharts.Controls.Add(_chartYearly, 1, 1);  
-            mainPanel.Controls.Add(tlpCharts);
-
-            LoadDashboardData();
-            return mainPanel;
-        }
-
-        private Label CreateKpiCard(FlowLayoutPanel parent, string title, string defaultVal, Color color)
-        {
-            Panel card = new Panel { Size = new Size(250, 70), BackColor = Color.White, Margin = new Padding(0, 0, 20, 0) };
-            card.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, card.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-            Label lblT = new Label { Text = title, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Gray, Location = new Point(15, 10), AutoSize = true };
-            Label lblV = new Label { Text = defaultVal, Font = new Font("Arial", 20F, FontStyle.Bold), ForeColor = color, Location = new Point(15, 30), AutoSize = true };
-            card.Controls.Add(lblT); card.Controls.Add(lblV);
-            parent.Controls.Add(card);
-            return lblV;
-        }
-
-        private Chart CreateChart(string title)
-        {
-            Chart chart = new Chart { Dock = DockStyle.Fill, BackColor = Color.White };
-            ChartArea ca = new ChartArea { Name = "MainArea", BackColor = Color.WhiteSmoke };
-            ca.AxisX.MajorGrid.LineColor = Color.Gainsboro; ca.AxisY.MajorGrid.LineColor = Color.Gainsboro;
-            chart.ChartAreas.Add(ca);
-            chart.Titles.Add(new Title(title, Docking.Top, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Color.DarkSlateGray));
-            chart.Legends.Add(new Legend { Docking = Docking.Bottom, Alignment = StringAlignment.Center });
-            return chart;
-        }
-
-        private DataTable SafeGetTableData(string dbName, string tableName, string startDate, string endDate)
-        {
-            try { return DataManager.GetTableData(dbName, tableName, "日期", startDate, endDate); }
-            catch { return new DataTable(); }
-        }
-
-        private void LoadDashboardData()
-        {
-            if (_cboYear.SelectedItem == null || _cboMonth.SelectedItem == null || _cboMetric.SelectedItem == null) return;
-            int targetYear = (int)_cboYear.SelectedItem;
-            int targetMonth = int.Parse(_cboMonth.SelectedItem.ToString());
-            string metric = _cboMetric.SelectedItem.ToString();
-            string tableName = ""; string valCol = "";
-
-            if (metric.Contains("廠區自來水量")) { tableName = "WaterUsageDaily"; valCol = "廠區自來水量日統計"; }
-            else if (metric.Contains("廢水處理量")) { tableName = "WaterMeterReadings"; valCol = "廢水處理量日統計"; }
-            else if (metric.Contains("PAC")) { tableName = "WaterChemicals"; valCol = "PAC日統計"; }
-
-            DataTable dtY0 = SafeGetTableData(DbName, tableName, $"{targetYear}-01-01", $"{targetYear}-12-31");
-            DataTable dtY1 = SafeGetTableData(DbName, tableName, $"{targetYear - 1}-01-01", $"{targetYear - 1}-12-31");
-            DataTable dtY2 = SafeGetTableData(DbName, tableName, $"{targetYear - 2}-01-01", $"{targetYear - 2}-12-31");
-
-            DrawDailyChart(dtY0, dtY1, targetYear, targetMonth, valCol);
-            DrawMonthlyChart(dtY0, dtY1, dtY2, targetYear, valCol);
-            DrawYearlyChart(dtY0, dtY1, dtY2, targetYear, valCol);
-            UpdateKpis(dtY0, dtY1, targetMonth, valCol);
-        }
-
-        private void UpdateKpis(DataTable dtY0, DataTable dtY1, int month, string valCol)
-        {
-            double sumY0 = GetSumForMonth(dtY0, month, valCol);
-            double sumY1 = GetSumForMonth(dtY1, month, valCol);
-            _lblKpi1.Text = sumY0.ToString("N1");
-            _lblKpi2.Text = sumY1.ToString("N1");
-
-            if (sumY1 > 0) {
-                double yoy = ((sumY0 - sumY1) / sumY1) * 100;
-                _lblKpi3.Text = (yoy > 0 ? "+" : "") + yoy.ToString("N1") + " %";
-                _lblKpi3.ForeColor = yoy > 0 ? Color.IndianRed : Color.Green;
-            } else if (sumY0 > 0) {
-                _lblKpi3.Text = "新數據"; _lblKpi3.ForeColor = Color.SteelBlue;
-            } else {
-                _lblKpi3.Text = "無基期"; _lblKpi3.ForeColor = Color.DimGray;
-            }
-        }
-
-        private void DrawDailyChart(DataTable dtY0, DataTable dtY1, int year, int month, string valCol)
-        {
-            _chartDaily.Series.Clear();
-            int days = DateTime.DaysInMonth(year, month);
-            Series s0 = new Series($"{year}年{month}月") { ChartType = SeriesChartType.Line, BorderWidth = 3, Color = Color.SteelBlue };
-            Series s1 = new Series($"{year - 1}年{month}月") { ChartType = SeriesChartType.Line, BorderWidth = 2, Color = Color.Silver, BorderDashStyle = ChartDashStyle.Dash };
-
-            for (int day = 1; day <= days; day++) {
-                s0.Points.AddXY(day, GetValForDay(dtY0, month, day, valCol));
-                s1.Points.AddXY(day, GetValForDay(dtY1, month, day, valCol));
-            }
-            _chartDaily.Series.Add(s0); _chartDaily.Series.Add(s1);
-            _chartDaily.ChartAreas[0].AxisX.Interval = 2;
-        }
-
-        private void DrawMonthlyChart(DataTable dtY0, DataTable dtY1, DataTable dtY2, int year, string valCol)
-        {
-            _chartMonthly.Series.Clear();
-            Series s0 = new Series($"{year}年") { ChartType = SeriesChartType.Column, Color = Color.SteelBlue };
-            Series s1 = new Series($"{year - 1}年") { ChartType = SeriesChartType.Column, Color = Color.Teal };
-            Series s2 = new Series($"{year - 2}年") { ChartType = SeriesChartType.Column, Color = Color.LightGray };
-
-            for (int m = 1; m <= 12; m++) {
-                s0.Points.AddXY($"{m}月", GetSumForMonth(dtY0, m, valCol));
-                s1.Points.AddXY($"{m}月", GetSumForMonth(dtY1, m, valCol));
-                s2.Points.AddXY($"{m}月", GetSumForMonth(dtY2, m, valCol));
-            }
-            _chartMonthly.Series.Add(s2); _chartMonthly.Series.Add(s1); _chartMonthly.Series.Add(s0);
-        }
-
-        private void DrawYearlyChart(DataTable dtY0, DataTable dtY1, DataTable dtY2, int year, string valCol)
-        {
-            _chartYearly.Series.Clear();
-            Series s = new Series("年度總量") { ChartType = SeriesChartType.Bar, IsValueShownAsLabel = true, LabelFormat = "N1" };
-            s.Points.AddXY($"{year - 2}年", GetSumForYear(dtY2, valCol));
-            s.Points.AddXY($"{year - 1}年", GetSumForYear(dtY1, valCol));
-            s.Points.AddXY($"{year}年", GetSumForYear(dtY0, valCol));
-            _chartYearly.Series.Add(s);
+            _mainScrollPanel.Controls.Add(mainLayout);
+            LoadAllData(); // 初始化載入
+            return _mainScrollPanel;
         }
 
         // ==========================================
-        // 使用傳統 foreach 迭代，避免建置時 AsEnumerable() 解析失敗
+        // UI 產生器：建立九宮格等距大框
         // ==========================================
-        private double GetValForDay(DataTable dt, int month, int day, string valCol)
+        private Panel BuildNineGridBox(string mainTitle, Color headerColor, out Panel d1, out Panel d2, out Panel d3, out Panel d4)
         {
-            if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
-            string target = string.Format("-{0:D2}-{1:D2}", month, day);
+            Panel outer = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+            outer.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, outer.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+
+            TableLayoutPanel grid = new TableLayoutPanel { 
+                Dock = DockStyle.Top, AutoSize = true, 
+                ColumnCount = 4, RowCount = 3, 
+                Padding = new Padding(10) 
+            };
             
-            foreach (DataRow row in dt.Rows) {
-                if (row["日期"] != null && row["日期"].ToString().Contains(target)) {
-                    double v;
-                    if (double.TryParse(row[valCol].ToString().Replace(",", "").Trim(), out v)) return v;
-                }
+            // 四個欄位等距 25%
+            for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 第一排 標題
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F)); // 第二排 副標題
+            grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第三排 數據區
+
+            // 第一排：全版面標題
+            Label lblMainTitle = new Label { Text = mainTitle, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
+            grid.Controls.Add(lblMainTitle, 0, 0);
+            grid.SetColumnSpan(lblMainTitle, 4);
+
+            // 第二排：四個小標題
+            string[] subTitles;
+            if (mainTitle.Contains("回收水")) {
+                subTitles = new[] { "區間回收水量統計", "區間去年同期回收水量數據", "區間前年同期回收水量數據", "區間差異分析" };
+            } else {
+                subTitles = new[] { "區間用量統計", "區間去年同期數據", "區間前年同期數據", "區間差異分析" };
             }
-            return 0;
+
+            for (int i = 0; i < 4; i++) {
+                Label l = new Label { Text = subTitles[i], Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.White, BackColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+                grid.Controls.Add(l, i, 1);
+            }
+
+            // 第三排：四個資料存放 Panel (透過 out 參數回傳給主程式控制)
+            d1 = CreateDataPanel(); d2 = CreateDataPanel(); d3 = CreateDataPanel(); d4 = CreateDataPanel();
+            grid.Controls.Add(d1, 0, 2); grid.Controls.Add(d2, 1, 2); grid.Controls.Add(d3, 2, 2); grid.Controls.Add(d4, 3, 2);
+
+            outer.Controls.Add(grid);
+            return outer;
         }
 
-        private double GetSumForMonth(DataTable dt, int month, string valCol)
+        private Panel CreateDataPanel()
         {
-            if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
-            string target = string.Format("-{0:D2}-", month);
-            double sum = 0;
-
-            foreach (DataRow row in dt.Rows) {
-                if (row["日期"] != null && row["日期"].ToString().Contains(target)) {
-                    double v;
-                    if (double.TryParse(row[valCol].ToString().Replace(",", "").Trim(), out v)) sum += v;
-                }
-            }
-            return sum;
+            return new FlowLayoutPanel { 
+                Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), 
+                FlowDirection = FlowDirection.TopDown, WrapContents = false, 
+                BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) 
+            };
         }
 
-        private double GetSumForYear(DataTable dt, string valCol)
+        // ==========================================
+        // 核心邏輯：資料運算與填寫
+        // ==========================================
+        private void LoadAllData()
         {
-            if (dt == null || dt.Rows.Count == 0 || !dt.Columns.Contains(valCol)) return 0;
-            double sum = 0;
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-            foreach (DataRow row in dt.Rows) {
-                double v;
-                if (double.TryParse(row[valCol].ToString().Replace(",", "").Trim(), out v)) sum += v;
+            string dS = _dtpStart.Value.ToString("yyyy-MM-dd");
+            string dE = _dtpEnd.Value.ToString("yyyy-MM-dd");
+            
+            string dS_LY = _dtpStart.Value.AddYears(-1).ToString("yyyy-MM-dd");
+            string dE_LY = _dtpEnd.Value.AddYears(-1).ToString("yyyy-MM-dd");
+            
+            string dS_L2Y = _dtpStart.Value.AddYears(-2).ToString("yyyy-MM-dd");
+            string dE_L2Y = _dtpEnd.Value.AddYears(-2).ToString("yyyy-MM-dd");
+
+            // --- 大框 2：水資源數據統計 (WaterMeterReadings + WaterUsageDaily) ---
+            var sumBox2_Curr = GetSumsEndingWith(dS, dE, "WaterMeterReadings", "WaterUsageDaily");
+            var sumBox2_LY = GetSumsEndingWith(dS_LY, dE_LY, "WaterMeterReadings", "WaterUsageDaily");
+            var sumBox2_L2Y = GetSumsEndingWith(dS_L2Y, dE_L2Y, "WaterMeterReadings", "WaterUsageDaily");
+            
+            FillDataPanels(_pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4, sumBox2_Curr, sumBox2_LY, sumBox2_L2Y);
+
+            // --- 大框 3：回收水統計 (專屬邏輯 WaterMeterReadings) ---
+            var recycleCurr = CalculateRecycleStats(dS, dE);
+            var recycleLY = CalculateRecycleStats(dS_LY, dE_LY);
+            var recycleL2Y = CalculateRecycleStats(dS_L2Y, dE_L2Y);
+            
+            FillDataPanels(_pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4, recycleCurr, recycleLY, recycleL2Y, true);
+
+            // --- 大框 4：藥劑數據統計 (WaterChemicals) ---
+            var sumBox4_Curr = GetSumsEndingWith(dS, dE, "WaterChemicals");
+            var sumBox4_LY = GetSumsEndingWith(dS_LY, dE_LY, "WaterChemicals");
+            var sumBox4_L2Y = GetSumsEndingWith(dS_L2Y, dE_L2Y, "WaterChemicals");
+
+            FillDataPanels(_pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4, sumBox4_Curr, sumBox4_LY, sumBox4_L2Y);
+
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+        }
+
+        // ==========================================
+        // 輔助方法：抓取多個資料表所有 "日統計" 結尾的加總
+        // ==========================================
+        private Dictionary<string, double> GetSumsEndingWith(string start, string end, params string[] tableNames)
+        {
+            var results = new Dictionary<string, double>();
+
+            foreach (string tbl in tableNames)
+            {
+                DataTable dt = null;
+                try { dt = DataManager.GetTableData(DbName, tbl, "日期", start, end); } catch { continue; }
+                if (dt == null) continue;
+
+                var targetCols = dt.Columns.Cast<DataColumn>().Where(c => c.ColumnName.EndsWith("日統計")).Select(c => c.ColumnName).ToList();
+
+                foreach (DataRow r in dt.Rows) {
+                    foreach (string col in targetCols) {
+                        string cleanName = col.Replace("日統計", ""); // 畫面上移除 "日統計" 字眼比較好看
+                        if (!results.ContainsKey(cleanName)) results[cleanName] = 0;
+                        if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) {
+                            results[cleanName] += v;
+                        }
+                    }
+                }
             }
-            return sum;
+            return results;
+        }
+
+        // ==========================================
+        // 輔助方法：計算大框 3 專屬回收率邏輯
+        // ==========================================
+        private Dictionary<string, double> CalculateRecycleStats(string start, string end)
+        {
+            var dict = new Dictionary<string, double> {
+                { "廢水處理量", 0 }, { "回收水雙介質A", 0 }, { "回收水雙介質B", 0 }, { "總回收量", 0 }, { "回收率(%)", 0 }
+            };
+
+            DataTable dt = null;
+            try { dt = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end); } catch { return dict; }
+            if (dt == null) return dict;
+
+            foreach (DataRow r in dt.Rows) {
+                if (dt.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) dict["廢水處理量"] += w;
+                if (dt.Columns.Contains("回收水雙介質A日統計") && double.TryParse(r["回收水雙介質A日統計"]?.ToString().Replace(",", ""), out double a)) dict["回收水雙介質A"] += a;
+                if (dt.Columns.Contains("回收水雙介質B日統計") && double.TryParse(r["回收水雙介質B日統計"]?.ToString().Replace(",", ""), out double b)) dict["回收水雙介質B"] += b;
+            }
+
+            dict["總回收量"] = dict["回收水雙介質A"] + dict["回收水雙介質B"];
+            if (dict["廢水處理量"] > 0) {
+                dict["回收率(%)"] = (dict["總回收量"] / dict["廢水處理量"]) * 100;
+            }
+
+            return dict;
+        }
+
+        // ==========================================
+        // 輔助方法：渲染四個區塊的 Label，包含差異分析 (YoY)
+        // ==========================================
+        private void FillDataPanels(Panel p1, Panel p2, Panel p3, Panel p4, Dictionary<string, double> curr, Dictionary<string, double> ly, Dictionary<string, double> l2y, bool isRecycleRate = false)
+        {
+            p1.Controls.Clear(); p2.Controls.Clear(); p3.Controls.Clear(); p4.Controls.Clear();
+
+            foreach (var kvp in curr)
+            {
+                string key = kvp.Key;
+                double vCurr = kvp.Value;
+                double vLy = ly.ContainsKey(key) ? ly[key] : 0;
+                double vL2y = l2y.ContainsKey(key) ? l2y[key] : 0;
+
+                // Panel 1: 當期
+                p1.Controls.Add(CreateStatLabel(key, vCurr, isRecycleRate && key.Contains("%")));
+                // Panel 2: 去年同期
+                p2.Controls.Add(CreateStatLabel(key, vLy, isRecycleRate && key.Contains("%")));
+                // Panel 3: 前年同期
+                p3.Controls.Add(CreateStatLabel(key, vL2y, isRecycleRate && key.Contains("%")));
+
+                // Panel 4: 差異分析 ((當期 - 去年) / 去年 * 100)
+                string diffText = "無基期";
+                Color diffColor = Color.DimGray;
+
+                if (vLy > 0) {
+                    double yoy = ((vCurr - vLy) / vLy) * 100;
+                    
+                    if (isRecycleRate && key.Contains("%")) {
+                        // 如果本身就是百分比 (回收率)，差異直接相減即可 (絕對差異)
+                        yoy = vCurr - vLy; 
+                        diffText = (yoy > 0 ? "+" : "") + yoy.ToString("0.##") + " %";
+                        diffColor = yoy > 0 ? Color.ForestGreen : Color.IndianRed; // 回收率高比較好
+                    } else {
+                        diffText = (yoy > 0 ? "+" : "") + yoy.ToString("0.##") + " %";
+                        diffColor = yoy > 0 ? Color.IndianRed : Color.ForestGreen; // 用量低比較好
+                    }
+                } else if (vCurr > 0) {
+                    diffText = "新數據";
+                    diffColor = Color.SteelBlue;
+                }
+
+                Label lblDiff = new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
+                p4.Controls.Add(lblDiff);
+            }
+        }
+
+        private Label CreateStatLabel(string title, double value, bool isPercentage)
+        {
+            string format = isPercentage ? "0.##" : "N1";
+            string suffix = isPercentage ? " %" : "";
+            return new Label { 
+                Text = $"{title}: {value.ToString(format)}{suffix}", 
+                Font = new Font("Microsoft JhengHei UI", 12F), 
+                ForeColor = Color.FromArgb(45,45,45), 
+                AutoSize = true, 
+                Margin = new Padding(0, 0, 0, 8) 
+            };
+        }
+
+        // ==========================================
+        // 匯出 PDF 功能
+        // ==========================================
+        private void BtnPdf_Click(object sender, EventArgs e)
+        {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "水資源數據統計_" + DateTime.Now.ToString("yyyyMMdd") }) {
+                if (sfd.ShowDialog() == DialogResult.OK) {
+                    try {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+
+                        // 將 _mainScrollPanel 繪製成圖片 (這招能完美保留 UI 排版)
+                        // 因為有 ScrollBar，需要暫時放大 Panel 確保拍到全貌
+                        int originalHeight = _mainScrollPanel.Height;
+                        _mainScrollPanel.Height = _mainScrollPanel.DisplayRectangle.Height; 
+                        
+                        Bitmap bmp = new Bitmap(_mainScrollPanel.Width, _mainScrollPanel.Height);
+                        _mainScrollPanel.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                        
+                        _mainScrollPanel.Height = originalHeight; // 恢復原狀
+
+                        PrintDocument pd = new PrintDocument();
+                        pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                        pd.PrinterSettings.PrintToFile = true;
+                        pd.PrinterSettings.PrintFileName = sfd.FileName;
+                        pd.DefaultPageSettings.Landscape = false; // 直向列印
+                        pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
+
+                        int currentY = 0; // 處理多頁裁切
+
+                        pd.PrintPage += (s, ev) => {
+                            Graphics g = ev.Graphics;
+                            float scale = (float)ev.MarginBounds.Width / bmp.Width;
+                            int sourceHeightFit = (int)(ev.MarginBounds.Height / scale);
+
+                            Rectangle destRect = new Rectangle(ev.MarginBounds.Left, ev.MarginBounds.Top, ev.MarginBounds.Width, ev.MarginBounds.Height);
+                            Rectangle srcRect = new Rectangle(0, currentY, bmp.Width, sourceHeightFit);
+
+                            if (currentY + sourceHeightFit > bmp.Height) {
+                                srcRect.Height = bmp.Height - currentY;
+                                destRect.Height = (int)(srcRect.Height * scale);
+                            }
+
+                            g.DrawImage(bmp, destRect, srcRect, GraphicsUnit.Pixel);
+                            currentY += sourceHeightFit;
+
+                            ev.HasMorePages = currentY < bmp.Height;
+                        };
+
+                        pd.Print();
+                        bmp.Dispose();
+
+                        MessageBox.Show("PDF 匯出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
+                }
+            }
         }
     }
 }
