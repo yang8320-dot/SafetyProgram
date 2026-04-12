@@ -42,7 +42,7 @@ namespace Safety_System
             // 【日】廢水處理水量記錄
             { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [備註] TEXT" },
             // 【日】廢水處理用藥記錄
-            { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC] TEXT, [PAC日統計] TEXT, [NAOH] TEXT, [NAOH日統計] TEXT, [高分子] TEXT, [高分子日統計] TEXT, [備註] TEXT" },
+            { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC] TEXT, [NAOH] TEXT, [高分子] TEXT, [備註] TEXT" },
             // 【日】自來水使用量
             { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水量] TEXT, [廠區自來水量日統計] TEXT, [行政區自來水量] TEXT, [行政區自來水量日統計] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [備註] TEXT" },
             // 【月】納管排放數據
