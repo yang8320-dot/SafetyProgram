@@ -14,7 +14,6 @@ namespace Safety_System
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
-        // 保存小標題的參考，以便後續動態更新日期文字
         private Label _lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4;
         private Label _lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4;
         private Label _lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4;
@@ -94,9 +93,6 @@ namespace Safety_System
             return _mainScrollPanel;
         }
 
-        // ==========================================
-        // 日期連動邏輯
-        // ==========================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
@@ -157,9 +153,6 @@ namespace Safety_System
             return new DateTime(year, month, day);
         }
 
-        // ==========================================
-        // UI 產生器：建立九宮格等距大框
-        // ==========================================
         private Panel BuildNineGridBox(string mainTitle, Color headerColor, out Label l1, out Label l2, out Label l3, out Label l4, out Panel d1, out Panel d2, out Panel d3, out Panel d4)
         {
             Panel outer = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
@@ -173,7 +166,7 @@ namespace Safety_System
             
             for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F)); // 稍微加高以容納雙行日期文字
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F)); 
             grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
 
             Label lblMainTitle = new Label { Text = mainTitle, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
@@ -235,7 +228,7 @@ namespace Safety_System
             string dS_L2Y = dtS.AddYears(-2).ToString("yyyy/MM/dd");
             string dE_L2Y = dtE.AddYears(-2).ToString("yyyy/MM/dd");
 
-            // 更新小標題日期
+            // 更新小標題日期，將第四個框改為明確的「與去年同期差異」
             UpdateSubtitles(_lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, false);
             UpdateSubtitles(_lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, true);
             UpdateSubtitles(_lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, false);
@@ -271,7 +264,7 @@ namespace Safety_System
             l1.Text = $"【{s1} ~ {e1}】\n區間{suffix}";
             l2.Text = $"【{s2} ~ {e2}】\n去年同期區間{suffix}";
             l3.Text = $"【{s3} ~ {e3}】\n前年同期區間{suffix}";
-            l4.Text = $"【{s1} ~ {e1}】\n區間差異分析";
+            l4.Text = $"【{s1} ~ {e1}】\n與去年同期差異分析"; // 需求 1：說明與哪個區間相比
         }
 
         // ==========================================
@@ -305,33 +298,37 @@ namespace Safety_System
             var res = new Dictionary<string, double>();
             foreach (var kvp in raw)
             {
-                // 需求 2.1 & 2.3：隱藏回收水6吋與軟水A、B、C
-                if (kvp.Key.Contains("回收水6吋") || kvp.Key.Contains("軟水")) continue;
+                // 需求 2.1, 2.3 & 2: 隱藏回收水6吋、軟水A/B/C、回收水雙介質A/B
+                if (kvp.Key.Contains("回收水6吋") || kvp.Key.Contains("軟水") || kvp.Key.Contains("回收水雙介質")) continue;
 
-                // 需求 2.5：用電量 * 100
+                // 需求 2.5: 用電量 * 100
                 double val = kvp.Key == "用電量" ? kvp.Value * 100 : kvp.Value;
                 res[kvp.Key] = val;
 
-                // 需求 2.2：在雙介質B後面加入回收水量
-                if (kvp.Key == "回收水雙介質B") {
-                    res["回收水量"] = (raw.ContainsKey("回收水雙介質A") ? raw["回收水雙介質A"] : 0) + 
-                                      (raw.ContainsKey("回收水雙介質B") ? raw["回收水雙介質B"] : 0);
-                }
-
-                // 需求 2.4：在濃縮水至逆洗池後面加入濃縮水合計
-                if (kvp.Key == "濃縮水至逆洗池") {
+                // 需求 2.4: 在濃縮水至逆洗池後面加入濃縮水合計
+                if (kvp.Key == "濃縮水至逆洗池" || (kvp.Key == "濃縮水至冷卻水池" && !raw.ContainsKey("濃縮水至逆洗池"))) {
                     res["濃縮水合計"] = (raw.ContainsKey("濃縮水至冷卻水池") ? raw["濃縮水至冷卻水池"] : 0) + 
                                         (raw.ContainsKey("濃縮水至逆洗池") ? raw["濃縮水至逆洗池"] : 0);
                 }
+            }
+
+            // 需求 3 & 2: 計算 總回收水量
+            if (raw.ContainsKey("回收水雙介質A") || raw.ContainsKey("回收水雙介質B")) {
+                res["總回收水量"] = (raw.ContainsKey("回收水雙介質A") ? raw["回收水雙介質A"] : 0) + 
+                                    (raw.ContainsKey("回收水雙介質B") ? raw["回收水雙介質B"] : 0);
             }
             return res;
         }
 
         private Dictionary<string, double> CalculateRecycleStats(string start, string end)
         {
+            // 需求 2: 隱藏雙介質 A 與 B，僅顯示廢水處理量、總回收水量、回收率
             var dict = new Dictionary<string, double> {
-                { "廢水處理量", 0 }, { "回收水雙介質A", 0 }, { "回收水雙介質B", 0 }, { "總回收量", 0 }, { "回收率(%)", 0 }
+                { "廢水處理量", 0 }, { "總回收水量", 0 }, { "回收率(%)", 0 }
             };
+
+            double sumA = 0;
+            double sumB = 0;
 
             DataTable dt = null;
             try { dt = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end); } catch { return dict; }
@@ -339,13 +336,13 @@ namespace Safety_System
 
             foreach (DataRow r in dt.Rows) {
                 if (dt.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) dict["廢水處理量"] += w;
-                if (dt.Columns.Contains("回收水雙介質A日統計") && double.TryParse(r["回收水雙介質A日統計"]?.ToString().Replace(",", ""), out double a)) dict["回收水雙介質A"] += a;
-                if (dt.Columns.Contains("回收水雙介質B日統計") && double.TryParse(r["回收水雙介質B日統計"]?.ToString().Replace(",", ""), out double b)) dict["回收水雙介質B"] += b;
+                if (dt.Columns.Contains("回收水雙介質A日統計") && double.TryParse(r["回收水雙介質A日統計"]?.ToString().Replace(",", ""), out double a)) sumA += a;
+                if (dt.Columns.Contains("回收水雙介質B日統計") && double.TryParse(r["回收水雙介質B日統計"]?.ToString().Replace(",", ""), out double b)) sumB += b;
             }
 
-            dict["總回收量"] = dict["回收水雙介質A"] + dict["回收水雙介質B"];
+            dict["總回收水量"] = sumA + sumB;
             if (dict["廢水處理量"] > 0) {
-                dict["回收率(%)"] = (dict["總回收量"] / dict["廢水處理量"]) * 100;
+                dict["回收率(%)"] = (dict["總回收水量"] / dict["廢水處理量"]) * 100;
             }
 
             return dict;
@@ -374,9 +371,12 @@ namespace Safety_System
 
                 if (vLy > 0) {
                     double yoy = ((vCurr - vLy) / vLy) * 100;
-                    if (isRecycleRate && key.Contains("%")) yoy = vCurr - vLy; 
+                    if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
-                    diffText = (yoy > 0 ? "+" : "") + yoy.ToString("N0") + " %";
+                    // 差異百分比：回收率保留 1 位小數，其餘整數
+                    string formatStr = key.Contains("回收率") ? "N1" : "N0";
+                    diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
+                    
                     // 需求: 正效益 紅字顯示，負值 綠色顯示 (統一正數為紅，負數為綠)
                     diffColor = yoy > 0 ? Color.IndianRed : (yoy < 0 ? Color.ForestGreen : Color.DimGray); 
                 } else if (vCurr > 0) {
@@ -391,14 +391,17 @@ namespace Safety_System
 
         private Label CreateStatLabel(string title, double value)
         {
-            // 需求 1 & 2.5 & 5：不含小數點，用電為 KWH，回收率為 %，包數為包，其餘皆補 M3
+            // 需求 1 & 4：不含小數點，用電為 KWH，包數為包，回收率為 %(小數點第1位)，其餘皆補 M3
             string unit = " M3";
             if (title.Contains("用電")) unit = " KWH";
             else if (title.Contains("%") || title.Contains("率")) unit = " %";
             else if (title.Contains("包")) unit = " 包";
 
+            // 回收率保留小數點第一位 (N1)，其他數據皆為整數 (N0)
+            string format = title.Contains("回收率") ? "N1" : "N0";
+
             return new Label { 
-                Text = $"{title}: {value.ToString("N0")}{unit}", 
+                Text = $"{title}: {value.ToString(format)}{unit}", 
                 Font = new Font("Microsoft JhengHei UI", 12F), 
                 ForeColor = Color.FromArgb(45,45,45), 
                 AutoSize = true, 
@@ -429,7 +432,6 @@ namespace Safety_System
                         pd.PrinterSettings.PrintToFile = true;
                         pd.PrinterSettings.PrintFileName = sfd.FileName;
                         
-                        // 強制全版面橫向 A4
                         pd.DefaultPageSettings.Landscape = true; 
                         pd.DefaultPageSettings.Margins = new Margins(20, 20, 30, 30);
 
@@ -438,16 +440,13 @@ namespace Safety_System
                         pd.PrintPage += (s, ev) => {
                             Graphics g = ev.Graphics;
                             
-                            // 1. 印上「導出日期」與「查詢區間」標題
                             string headerText = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
                             Font fontHeader = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
                             g.DrawString(headerText, fontHeader, Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 20);
 
-                            // 2. 扣除 Header 後的繪圖空間
                             int printTop = ev.MarginBounds.Top + 15;
                             int printHeight = ev.MarginBounds.Height - 15;
 
-                            // 3. 自動縮放比例 (以寬度貼齊 A4 為主)
                             float scale = (float)ev.MarginBounds.Width / bmp.Width;
                             int sourceHeightFit = (int)(printHeight / scale);
 
