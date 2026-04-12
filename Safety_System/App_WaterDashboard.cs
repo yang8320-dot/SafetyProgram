@@ -37,7 +37,7 @@ namespace Safety_System
             };
 
             // ==========================================
-            // 大框 1：功能選單與日期查詢
+            // 大框 1：功能選單與日期查詢 (上下兩行配置)
             // ==========================================
             Panel box1 = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             box1.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, box1.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -277,14 +277,12 @@ namespace Safety_System
                 try { dt = DataManager.GetTableData(DbName, tbl, "日期", start, end); } catch { continue; }
                 if (dt == null) continue;
 
-                // 🟢 這裡增加了 "污泥產出KG" 的特別捕捉邏輯
                 var targetCols = dt.Columns.Cast<DataColumn>()
                                  .Where(c => c.ColumnName.EndsWith("日統計") || c.ColumnName == "污泥產出KG")
                                  .Select(c => c.ColumnName).ToList();
 
                 foreach (DataRow r in dt.Rows) {
                     foreach (string col in targetCols) {
-                        // 如果是污泥產出KG，名字會直接叫做 污泥量
                         string cleanName = col == "污泥產出KG" ? "污泥量" : col.Replace("日統計", ""); 
                         if (!results.ContainsKey(cleanName)) results[cleanName] = 0;
                         if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) {
@@ -301,21 +299,24 @@ namespace Safety_System
             var res = new Dictionary<string, double>();
             foreach (var kvp in raw)
             {
-                // 需求 2.1, 2.3 & 2: 隱藏回收水6吋、軟水A/B/C、回收水雙介質A/B
                 if (kvp.Key.Contains("回收水6吋") || kvp.Key.Contains("軟水") || kvp.Key.Contains("回收水雙介質")) continue;
 
-                // 需求 2.5: 用電量 * 100
-                double val = kvp.Key == "用電量" ? kvp.Value * 100 : kvp.Value;
+                double val = kvp.Value;
+                if (kvp.Key == "用電量") {
+                    val = kvp.Value * 100;
+                } else if (kvp.Key == "污泥量") {
+                    // 🟢 需求：污泥量 (KG) 轉換為 噸 (除以 1000)
+                    val = kvp.Value / 1000.0;
+                }
+                
                 res[kvp.Key] = val;
 
-                // 需求 2.4: 在濃縮水至逆洗池後面加入濃縮水合計
                 if (kvp.Key == "濃縮水至逆洗池" || (kvp.Key == "濃縮水至冷卻水池" && !raw.ContainsKey("濃縮水至逆洗池"))) {
                     res["濃縮水合計"] = (raw.ContainsKey("濃縮水至冷卻水池") ? raw["濃縮水至冷卻水池"] : 0) + 
                                         (raw.ContainsKey("濃縮水至逆洗池") ? raw["濃縮水至逆洗池"] : 0);
                 }
             }
 
-            // 需求 3 & 2: 計算 總回收水量
             if (raw.ContainsKey("回收水雙介質A") || raw.ContainsKey("回收水雙介質B")) {
                 res["總回收水量"] = (raw.ContainsKey("回收水雙介質A") ? raw["回收水雙介質A"] : 0) + 
                                     (raw.ContainsKey("回收水雙介質B") ? raw["回收水雙介質B"] : 0);
@@ -325,7 +326,6 @@ namespace Safety_System
 
         private Dictionary<string, double> CalculateRecycleStats(string start, string end)
         {
-            // 需求 2: 隱藏雙介質 A 與 B，僅顯示廢水處理量、總回收水量、回收率
             var dict = new Dictionary<string, double> {
                 { "廢水處理量", 0 }, { "總回收水量", 0 }, { "回收率(%)", 0 }
             };
@@ -377,8 +377,11 @@ namespace Safety_System
                     if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
                     string formatStr = key.Contains("回收率") ? "N1" : "N0";
-                    diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
                     
+                    // 🟢 差異百分比顯示：若為污泥量，差異值顯示小數點第三位
+                    if (key.Contains("污泥量")) formatStr = "N3";
+
+                    diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
                     diffColor = yoy > 0 ? Color.IndianRed : (yoy < 0 ? Color.ForestGreen : Color.DimGray); 
                 } else if (vCurr > 0) {
                     diffText = "新數據";
@@ -393,12 +396,19 @@ namespace Safety_System
         private Label CreateStatLabel(string title, double value)
         {
             string unit = " M3";
-            if (title.Contains("用電")) unit = " KWH";
-            else if (title.Contains("%") || title.Contains("率")) unit = " %";
-            else if (title.Contains("包")) unit = " 包";
-            else if (title.Contains("污泥量")) unit = " KG"; // 🟢 污泥量專屬單位
+            string format = "N0"; // 預設無小數點
 
-            string format = title.Contains("回收率") ? "N1" : "N0";
+            if (title.Contains("用電")) {
+                unit = " KWH";
+            } else if (title.Contains("%") || title.Contains("率")) {
+                unit = " %";
+                format = "N1"; // 回收率小數點第一位
+            } else if (title.Contains("包")) {
+                unit = " 包";
+            } else if (title.Contains("污泥量")) {
+                unit = " 噸";   // 🟢 污泥量專屬單位
+                format = "N3";  // 🟢 污泥量專屬格式：小數點第三位
+            }
 
             return new Label { 
                 Text = $"{title}: {value.ToString(format)}{unit}", 
