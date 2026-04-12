@@ -37,7 +37,7 @@ namespace Safety_System
             };
 
             // ==========================================
-            // 大框 1：功能選單與日期查詢 (上下兩行配置)
+            // 大框 1：功能選單與日期查詢
             // ==========================================
             Panel box1 = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             box1.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, box1.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -248,9 +248,9 @@ namespace Safety_System
                 CalculateRecycleStats(searchS, searchE), CalculateRecycleStats(dtS.AddYears(-1).ToString("yyyy-MM-dd"), dtE.AddYears(-1).ToString("yyyy-MM-dd")), CalculateRecycleStats(dtS.AddYears(-2).ToString("yyyy-MM-dd"), dtE.AddYears(-2).ToString("yyyy-MM-dd")), true);
 
             // --- 大框 4：藥劑數據統計 ---
-            var sumBox4_Curr = GetSumsEndingWith(searchS, searchE, "WaterChemicals");
-            var sumBox4_LY = GetSumsEndingWith(dtS.AddYears(-1).ToString("yyyy-MM-dd"), dtE.AddYears(-1).ToString("yyyy-MM-dd"), "WaterChemicals");
-            var sumBox4_L2Y = GetSumsEndingWith(dtS.AddYears(-2).ToString("yyyy-MM-dd"), dtE.AddYears(-2).ToString("yyyy-MM-dd"), "WaterChemicals");
+            var sumBox4_Curr = CalculateChemicalStats(searchS, searchE);
+            var sumBox4_LY = CalculateChemicalStats(dtS.AddYears(-1).ToString("yyyy-MM-dd"), dtE.AddYears(-1).ToString("yyyy-MM-dd"));
+            var sumBox4_L2Y = CalculateChemicalStats(dtS.AddYears(-2).ToString("yyyy-MM-dd"), dtE.AddYears(-2).ToString("yyyy-MM-dd"));
 
             FillDataPanels(_pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4, sumBox4_Curr, sumBox4_LY, sumBox4_L2Y);
 
@@ -305,7 +305,6 @@ namespace Safety_System
                 if (kvp.Key == "用電量") {
                     val = kvp.Value * 100;
                 } else if (kvp.Key == "污泥量") {
-                    // 🟢 需求：污泥量 (KG) 轉換為 噸 (除以 1000)
                     val = kvp.Value / 1000.0;
                 }
                 
@@ -351,6 +350,62 @@ namespace Safety_System
             return dict;
         }
 
+        // 🟢 藥劑專用運算引擎 (取得各藥劑量，並與廢水處理量相除得到每噸耗藥量)
+        private Dictionary<string, double> CalculateChemicalStats(string start, string end)
+        {
+            var dict = new Dictionary<string, double> {
+                { "PAC", 0 }, { "NAOH", 0 }, { "高分子", 0 },
+                { "PAC/M3", 0 }, { "NAOH/M3", 0 }, { "高分子/M3", 0 }
+            };
+
+            double waterTotal = 0;
+
+            // 1. 取得分母 (廢水處理量)
+            try {
+                DataTable dtWater = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end);
+                if (dtWater != null) {
+                    foreach (DataRow r in dtWater.Rows) {
+                        if (dtWater.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) {
+                            waterTotal += w;
+                        }
+                    }
+                }
+            } catch { }
+
+            // 2. 取得分子 (藥劑量) - 兼容 PACPAC_KG 等自訂欄位
+            try {
+                DataTable dtChem = DataManager.GetTableData(DbName, "WaterChemicals", "日期", start, end);
+                if (dtChem != null) {
+                    foreach (DataRow r in dtChem.Rows) {
+                        double pac = 0, naoh = 0, poly = 0;
+
+                        if (dtChem.Columns.Contains("PACPAC_KG")) { double.TryParse(r["PACPAC_KG"]?.ToString().Replace(",", ""), out pac); }
+                        else if (dtChem.Columns.Contains("PAC_KG")) { double.TryParse(r["PAC_KG"]?.ToString().Replace(",", ""), out pac); }
+                        else if (dtChem.Columns.Contains("PAC日統計")) { double.TryParse(r["PAC日統計"]?.ToString().Replace(",", ""), out pac); }
+
+                        if (dtChem.Columns.Contains("NAOH_KG")) { double.TryParse(r["NAOH_KG"]?.ToString().Replace(",", ""), out naoh); }
+                        else if (dtChem.Columns.Contains("NAOH日統計")) { double.TryParse(r["NAOH日統計"]?.ToString().Replace(",", ""), out naoh); }
+
+                        if (dtChem.Columns.Contains("高分子_KG")) { double.TryParse(r["高分子_KG"]?.ToString().Replace(",", ""), out poly); }
+                        else if (dtChem.Columns.Contains("高分子日統計")) { double.TryParse(r["高分子日統計"]?.ToString().Replace(",", ""), out poly); }
+
+                        dict["PAC"] += pac;
+                        dict["NAOH"] += naoh;
+                        dict["高分子"] += poly;
+                    }
+                }
+            } catch { }
+
+            // 3. 計算每噸水耗藥量
+            if (waterTotal > 0) {
+                dict["PAC/M3"] = dict["PAC"] / waterTotal;
+                dict["NAOH/M3"] = dict["NAOH"] / waterTotal;
+                dict["高分子/M3"] = dict["高分子"] / waterTotal;
+            }
+
+            return dict;
+        }
+
         // ==========================================
         // 渲染 Label 數據與差異顏色處理
         // ==========================================
@@ -365,6 +420,13 @@ namespace Safety_System
                 double vLy = ly.ContainsKey(key) ? ly[key] : 0;
                 double vL2y = l2y.ContainsKey(key) ? l2y[key] : 0;
 
+                // 🟢 藥劑區的專屬標題分類插入
+                if (key == "PAC") {
+                    AddSectionHeader(p1, p2, p3, p4, "【藥劑使用量】");
+                } else if (key == "PAC/M3") {
+                    AddSectionHeader(p1, p2, p3, p4, "【每噸水藥劑量】");
+                }
+
                 p1.Controls.Add(CreateStatLabel(key, vCurr));
                 p2.Controls.Add(CreateStatLabel(key, vLy));
                 p3.Controls.Add(CreateStatLabel(key, vL2y));
@@ -376,11 +438,11 @@ namespace Safety_System
                     double yoy = ((vCurr - vLy) / vLy) * 100;
                     if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
-                    string formatStr = key.Contains("回收率") ? "N1" : "N0";
+                    string formatStr = "N0";
+                    if (key.Contains("回收率") || key.Contains("/M3") || key.Contains("污泥量")) {
+                        formatStr = "N1"; // YoY 百分比差異保留 1 位小數
+                    }
                     
-                    // 🟢 差異百分比顯示：若為污泥量，差異值顯示小數點第三位
-                    if (key.Contains("污泥量")) formatStr = "N3";
-
                     diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
                     diffColor = yoy > 0 ? Color.IndianRed : (yoy < 0 ? Color.ForestGreen : Color.DimGray); 
                 } else if (vCurr > 0) {
@@ -393,21 +455,46 @@ namespace Safety_System
             }
         }
 
+        private void AddSectionHeader(Panel p1, Panel p2, Panel p3, Panel p4, string title)
+        {
+            p1.Controls.Add(CreateSectionHeader(title));
+            p2.Controls.Add(CreateSectionHeader(title));
+            p3.Controls.Add(CreateSectionHeader(title));
+            p4.Controls.Add(CreateSectionHeader(title));
+        }
+
+        private Label CreateSectionHeader(string title)
+        {
+            return new Label {
+                Text = title,
+                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
+                ForeColor = Color.DarkSlateBlue,
+                AutoSize = true,
+                Margin = new Padding(0, 10, 0, 5) 
+            };
+        }
+
         private Label CreateStatLabel(string title, double value)
         {
             string unit = " M3";
-            string format = "N0"; // 預設無小數點
+            string format = "N0"; 
 
             if (title.Contains("用電")) {
                 unit = " KWH";
             } else if (title.Contains("%") || title.Contains("率")) {
                 unit = " %";
-                format = "N1"; // 回收率小數點第一位
+                format = "N1"; 
             } else if (title.Contains("包")) {
                 unit = " 包";
             } else if (title.Contains("污泥量")) {
-                unit = " 噸";   // 🟢 污泥量專屬單位
-                format = "N3";  // 🟢 污泥量專屬格式：小數點第三位
+                unit = " 噸";   
+                format = "N3";  
+            } else if (title.Contains("/M3")) {
+                unit = " KG/M3"; // 🟢 藥劑專屬單位
+                format = "N3";   // 🟢 小數點第3位
+            } else if (title == "PAC" || title == "NAOH" || title == "高分子") {
+                unit = " KG";    // 🟢 藥劑專屬單位
+                format = "N0";
             }
 
             return new Label { 
