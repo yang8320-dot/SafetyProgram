@@ -11,18 +11,25 @@ namespace Safety_System
 {
     public class App_WaterDashboard
     {
+        // 每日查詢區間
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
+        
+        // 每月查詢區間 (納管排放專用)
+        private ComboBox _cboStartMonthYear, _cboStartMonthMonth;
+        private ComboBox _cboEndMonthYear, _cboEndMonthMonth;
 
         private Label _lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4;
         private Label _lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4;
         private Label _lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4;
+        private Label _lblBox5Sub1, _lblBox5Sub2, _lblBox5Sub3, _lblBox5Sub4;
 
         private Panel _pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4;
         private Panel _pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4;
         private Panel _pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4;
+        private Panel _pnlBox5Data1, _pnlBox5Data2, _pnlBox5Data3, _pnlBox5Data4;
+        
         private Panel _mainScrollPanel;
-
         private const string DbName = "Water";
 
         public Control GetView()
@@ -33,35 +40,32 @@ namespace Safety_System
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
                 ColumnCount = 1, 
-                RowCount = 4 
+                RowCount = 6 // 擴充為 6 行以容納新的查詢框與數據框
             };
 
             // ==========================================
-            // 大框 1：功能選單與日期查詢
+            // 大框 1：日報表功能選單與日期查詢
             // ==========================================
             Panel box1 = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             box1.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, box1.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
             FlowLayoutPanel flpTop = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, Padding = new Padding(15) };
-            
-            Label lblTitle = new Label { Text = "💧 水資源綜合數據看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
-            
+            Label lblTitle = new Label { Text = "💧 水資源綜合數據看板 (日報表區)", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
             FlowLayoutPanel flpControls = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
             
             _cboStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
             _cboStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
             _cboStartDay = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
-            
             _cboEndYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
             _cboEndMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
             _cboEndDay = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
 
             InitDateComboBoxes(); 
 
-            Button btnSearch = new Button { Text = "🔍 查詢統計", Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
-            btnSearch.Click += (s, e) => LoadAllData();
+            Button btnSearchDaily = new Button { Text = "🔍 查詢日統計", Size = new Size(140, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            btnSearchDaily.Click += (s, e) => LoadDailyData();
             
-            Button btnPdf = new Button { Text = "📄 轉存 PDF", Size = new Size(130, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 全版面轉存 PDF", Size = new Size(180, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
             flpControls.Controls.AddRange(new Control[] { 
@@ -73,7 +77,7 @@ namespace Safety_System
                 _cboEndYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 _cboEndMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 _cboEndDay, new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
-                btnSearch, btnPdf
+                btnSearchDaily, btnPdf
             });
 
             flpTop.Controls.Add(lblTitle);
@@ -81,76 +85,115 @@ namespace Safety_System
             box1.Controls.Add(flpTop);
             mainLayout.Controls.Add(box1, 0, 0);
 
-            // ==========================================
-            // 建立 3 個主要數據區塊
-            // ==========================================
+            // 日報表數據框
             mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 水資源數據統計", Color.Teal, out _lblBox2Sub1, out _lblBox2Sub2, out _lblBox2Sub3, out _lblBox2Sub4, out _pnlBox2Data1, out _pnlBox2Data2, out _pnlBox2Data3, out _pnlBox2Data4), 0, 1);
             mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 回收水統計", Color.ForestGreen, out _lblBox3Sub1, out _lblBox3Sub2, out _lblBox3Sub3, out _lblBox3Sub4, out _pnlBox3Data1, out _pnlBox3Data2, out _pnlBox3Data3, out _pnlBox3Data4), 0, 2);
             mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 藥劑數據統計", Color.Sienna, out _lblBox4Sub1, out _lblBox4Sub2, out _lblBox4Sub3, out _lblBox4Sub4, out _pnlBox4Data1, out _pnlBox4Data2, out _pnlBox4Data3, out _pnlBox4Data4), 0, 3);
 
+            // ==========================================
+            // 新增大框 5：月報表功能選單與日期查詢
+            // ==========================================
+            Panel boxMonthlyFilter = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), BackColor = Color.White, Margin = new Padding(0, 20, 0, 20) };
+            boxMonthlyFilter.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, boxMonthlyFilter.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+            
+            FlowLayoutPanel flpTopMonthly = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, Padding = new Padding(15) };
+            Label lblTitleMonthly = new Label { Text = "💧 納管排放與月度數據看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
+            FlowLayoutPanel flpControlsMonthly = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
+            
+            _cboStartMonthYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
+            _cboStartMonthMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
+            _cboEndMonthYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
+            _cboEndMonthMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
+
+            InitMonthlyComboBoxes();
+
+            Button btnSearchMonthly = new Button { Text = "🔍 查詢月統計", Size = new Size(140, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            btnSearchMonthly.Click += (s, e) => LoadMonthlyData();
+
+            flpControlsMonthly.Controls.AddRange(new Control[] { 
+                new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) },
+                _cboStartMonthYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                _cboStartMonthMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 5, 10, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                new Label { Text = "~", AutoSize = true, Margin = new Padding(0, 5, 10, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) },
+                _cboEndMonthYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                _cboEndMonthMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                btnSearchMonthly
+            });
+
+            flpTopMonthly.Controls.Add(lblTitleMonthly);
+            flpTopMonthly.Controls.Add(flpControlsMonthly);
+            boxMonthlyFilter.Controls.Add(flpTopMonthly);
+            mainLayout.Controls.Add(boxMonthlyFilter, 0, 4);
+
+            // ==========================================
+            // 新增大框 6：納管排放數據統計
+            // ==========================================
+            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 納管排放數據統計", Color.DarkCyan, out _lblBox5Sub1, out _lblBox5Sub2, out _lblBox5Sub3, out _lblBox5Sub4, out _pnlBox5Data1, out _pnlBox5Data2, out _pnlBox5Data3, out _pnlBox5Data4), 0, 5);
+
             _mainScrollPanel.Controls.Add(mainLayout);
-            LoadAllData(); 
+            LoadDailyData();   // 載入日報表資料
+            LoadMonthlyData(); // 載入月報表資料
             return _mainScrollPanel;
         }
 
+        // ==========================================
+        // UI 與選單初始化邏輯
+        // ==========================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
             for (int i = currY - 10; i <= currY + 1; i++) {
-                _cboStartYear.Items.Add(i);
-                _cboEndYear.Items.Add(i);
+                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i);
             }
             for (int i = 1; i <= 12; i++) {
-                _cboStartMonth.Items.Add(i.ToString("D2"));
-                _cboEndMonth.Items.Add(i.ToString("D2"));
+                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2"));
             }
-
             _cboStartYear.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
             _cboStartMonth.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
             _cboEndYear.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
             _cboEndMonth.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
 
-            DateTime start = DateTime.Today.AddMonths(-1);
-            DateTime end = DateTime.Today;
+            SetComboValue(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-1));
+            SetComboValue(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
+        }
 
-            SetComboValue(_cboStartYear, _cboStartMonth, _cboStartDay, start);
-            SetComboValue(_cboEndYear, _cboEndMonth, _cboEndDay, end);
+        private void InitMonthlyComboBoxes()
+        {
+            int currY = DateTime.Today.Year;
+            for (int i = currY - 10; i <= currY + 1; i++) {
+                _cboStartMonthYear.Items.Add(i); _cboEndMonthYear.Items.Add(i);
+            }
+            for (int i = 1; i <= 12; i++) {
+                _cboStartMonthMonth.Items.Add(i.ToString("D2")); _cboEndMonthMonth.Items.Add(i.ToString("D2"));
+            }
+            
+            DateTime start = DateTime.Today.AddMonths(-6);
+            _cboStartMonthYear.SelectedItem = start.Year; _cboStartMonthMonth.SelectedItem = start.Month.ToString("D2");
+            _cboEndMonthYear.SelectedItem = DateTime.Today.Year; _cboEndMonthMonth.SelectedItem = DateTime.Today.Month.ToString("D2");
         }
 
         private void UpdateDaysCombo(ComboBox y, ComboBox m, ComboBox d)
         {
             if (y.SelectedItem == null || m.SelectedItem == null) return;
-            int year = (int)y.SelectedItem;
-            int month = int.Parse(m.SelectedItem.ToString());
-            int days = DateTime.DaysInMonth(year, month);
-
+            int days = DateTime.DaysInMonth((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()));
             string currentDay = d.SelectedItem?.ToString();
             d.Items.Clear();
             for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
-
-            if (currentDay != null && d.Items.Contains(currentDay)) {
-                d.SelectedItem = currentDay;
-            } else {
-                d.SelectedIndex = d.Items.Count - 1; 
-            }
+            if (currentDay != null && d.Items.Contains(currentDay)) d.SelectedItem = currentDay;
+            else d.SelectedIndex = d.Items.Count - 1; 
         }
 
         private void SetComboValue(ComboBox y, ComboBox m, ComboBox d, DateTime date)
         {
-            y.SelectedItem = date.Year;
-            m.SelectedItem = date.Month.ToString("D2");
-            UpdateDaysCombo(y, m, d);
-            d.SelectedItem = date.Day.ToString("D2");
+            y.SelectedItem = date.Year; m.SelectedItem = date.Month.ToString("D2");
+            UpdateDaysCombo(y, m, d); d.SelectedItem = date.Day.ToString("D2");
         }
 
         private DateTime GetDateFromCombo(ComboBox y, ComboBox m, ComboBox d)
         {
-            int year = (int)y.SelectedItem;
-            int month = int.Parse(m.SelectedItem.ToString());
             int day = int.Parse(d.SelectedItem.ToString());
-            int maxDay = DateTime.DaysInMonth(year, month);
-            if (day > maxDay) day = maxDay; 
-            return new DateTime(year, month, day);
+            int maxDay = DateTime.DaysInMonth((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()));
+            return new DateTime((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()), day > maxDay ? maxDay : day);
         }
 
         private Panel BuildNineGridBox(string mainTitle, Color headerColor, out Label l1, out Label l2, out Label l3, out Label l4, out Panel d1, out Panel d2, out Panel d3, out Panel d4)
@@ -158,30 +201,21 @@ namespace Safety_System
             Panel outer = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             outer.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, outer.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-            TableLayoutPanel grid = new TableLayoutPanel { 
-                Dock = DockStyle.Top, AutoSize = true, 
-                ColumnCount = 4, RowCount = 3, 
-                Padding = new Padding(10) 
-            };
-            
+            TableLayoutPanel grid = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 3, Padding = new Padding(10) };
             for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F)); 
             grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
 
             Label lblMainTitle = new Label { Text = mainTitle, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
-            grid.Controls.Add(lblMainTitle, 0, 0);
-            grid.SetColumnSpan(lblMainTitle, 4);
+            grid.Controls.Add(lblMainTitle, 0, 0); grid.SetColumnSpan(lblMainTitle, 4);
 
-            l1 = CreateSubTitleLabel(headerColor);
-            l2 = CreateSubTitleLabel(headerColor);
-            l3 = CreateSubTitleLabel(headerColor);
-            l4 = CreateSubTitleLabel(headerColor);
+            l1 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            l2 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            l3 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            l4 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
 
-            grid.Controls.Add(l1, 0, 1);
-            grid.Controls.Add(l2, 1, 1);
-            grid.Controls.Add(l3, 2, 1);
-            grid.Controls.Add(l4, 3, 1);
+            grid.Controls.Add(l1, 0, 1); grid.Controls.Add(l2, 1, 1); grid.Controls.Add(l3, 2, 1); grid.Controls.Add(l4, 3, 1);
 
             d1 = CreateDataPanel(); d2 = CreateDataPanel(); d3 = CreateDataPanel(); d4 = CreateDataPanel();
             grid.Controls.Add(d1, 0, 2); grid.Controls.Add(d2, 1, 2); grid.Controls.Add(d3, 2, 2); grid.Controls.Add(d4, 3, 2);
@@ -190,219 +224,190 @@ namespace Safety_System
             return outer;
         }
 
-        private Label CreateSubTitleLabel(Color bgColor)
-        {
-            return new Label { 
-                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
-                ForeColor = Color.White, 
-                BackColor = bgColor, 
-                TextAlign = ContentAlignment.MiddleCenter, 
-                Dock = DockStyle.Fill, 
-                Margin = new Padding(2) 
-            };
-        }
-
         private Panel CreateDataPanel()
         {
-            return new FlowLayoutPanel { 
-                Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), 
-                FlowDirection = FlowDirection.TopDown, WrapContents = false, 
-                BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) 
-            };
+            return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
         // ==========================================
-        // 核心邏輯：資料運算與填寫
+        // 核心運算：日報表與月報表載入邏輯
         // ==========================================
-        private void LoadAllData()
+        private void LoadDailyData()
         {
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-
             DateTime dtS = GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
             DateTime dtE = GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
 
-            string dS = dtS.ToString("yyyy/MM/dd");
-            string dE = dtE.ToString("yyyy/MM/dd");
-            string dS_LY = dtS.AddYears(-1).ToString("yyyy/MM/dd");
-            string dE_LY = dtE.AddYears(-1).ToString("yyyy/MM/dd");
-            string dS_L2Y = dtS.AddYears(-2).ToString("yyyy/MM/dd");
-            string dE_L2Y = dtE.AddYears(-2).ToString("yyyy/MM/dd");
+            UpdateSubtitles(_lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4, dtS, dtE, false);
+            UpdateSubtitles(_lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4, dtS, dtE, true);
+            UpdateSubtitles(_lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4, dtS, dtE, false);
 
-            UpdateSubtitles(_lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, false);
-            UpdateSubtitles(_lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, true);
-            UpdateSubtitles(_lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, false);
+            string sS = dtS.ToString("yyyy-MM-dd"), sE = dtE.ToString("yyyy-MM-dd");
+            string sLY_S = dtS.AddYears(-1).ToString("yyyy-MM-dd"), sLY_E = dtE.AddYears(-1).ToString("yyyy-MM-dd");
+            string sL2Y_S = dtS.AddYears(-2).ToString("yyyy-MM-dd"), sL2Y_E = dtE.AddYears(-2).ToString("yyyy-MM-dd");
 
-            string searchS = dtS.ToString("yyyy-MM-dd");
-            string searchE = dtE.ToString("yyyy-MM-dd");
+            var rawBox2_Curr = GetSumsEndingWith(sS, sE, "WaterMeterReadings", "WaterUsageDaily");
+            var rawBox2_LY = GetSumsEndingWith(sLY_S, sLY_E, "WaterMeterReadings", "WaterUsageDaily");
+            var rawBox2_L2Y = GetSumsEndingWith(sL2Y_S, sL2Y_E, "WaterMeterReadings", "WaterUsageDaily");
+            FillDataPanels(_pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4, ProcessBox2Data(rawBox2_Curr), ProcessBox2Data(rawBox2_LY), ProcessBox2Data(rawBox2_L2Y));
 
-            // --- 大框 2：水資源數據統計 ---
-            var rawBox2_Curr = GetSumsEndingWith(searchS, searchE, "WaterMeterReadings", "WaterUsageDaily");
-            var rawBox2_LY = GetSumsEndingWith(dtS.AddYears(-1).ToString("yyyy-MM-dd"), dtE.AddYears(-1).ToString("yyyy-MM-dd"), "WaterMeterReadings", "WaterUsageDaily");
-            var rawBox2_L2Y = GetSumsEndingWith(dtS.AddYears(-2).ToString("yyyy-MM-dd"), dtE.AddYears(-2).ToString("yyyy-MM-dd"), "WaterMeterReadings", "WaterUsageDaily");
-            
-            FillDataPanels(_pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4, 
-                ProcessBox2Data(rawBox2_Curr), ProcessBox2Data(rawBox2_LY), ProcessBox2Data(rawBox2_L2Y));
+            FillDataPanels(_pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4, CalculateRecycleStats(sS, sE), CalculateRecycleStats(sLY_S, sLY_E), CalculateRecycleStats(sL2Y_S, sL2Y_E), true);
 
-            // --- 大框 3：回收水統計 ---
-            FillDataPanels(_pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4, 
-                CalculateRecycleStats(searchS, searchE), CalculateRecycleStats(dtS.AddYears(-1).ToString("yyyy-MM-dd"), dtE.AddYears(-1).ToString("yyyy-MM-dd")), CalculateRecycleStats(dtS.AddYears(-2).ToString("yyyy-MM-dd"), dtE.AddYears(-2).ToString("yyyy-MM-dd")), true);
-
-            // --- 大框 4：藥劑數據統計 ---
-            var sumBox4_Curr = CalculateChemicalStats(searchS, searchE);
-            var sumBox4_LY = CalculateChemicalStats(dtS.AddYears(-1).ToString("yyyy-MM-dd"), dtE.AddYears(-1).ToString("yyyy-MM-dd"));
-            var sumBox4_L2Y = CalculateChemicalStats(dtS.AddYears(-2).ToString("yyyy-MM-dd"), dtE.AddYears(-2).ToString("yyyy-MM-dd"));
-
+            var sumBox4_Curr = CalculateChemicalStats(sS, sE);
+            var sumBox4_LY = CalculateChemicalStats(sLY_S, sLY_E);
+            var sumBox4_L2Y = CalculateChemicalStats(sL2Y_S, sL2Y_E);
             FillDataPanels(_pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4, sumBox4_Curr, sumBox4_LY, sumBox4_L2Y);
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
 
-        private void UpdateSubtitles(Label l1, Label l2, Label l3, Label l4, string s1, string e1, string s2, string e2, string s3, string e3, bool isRecycle)
+        private void LoadMonthlyData()
+        {
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+            string startYM = $"{_cboStartMonthYear.Text}-{_cboStartMonthMonth.Text}";
+            string endYM = $"{_cboEndMonthYear.Text}-{_cboEndMonthMonth.Text}";
+            
+            string startLY = $"{int.Parse(_cboStartMonthYear.Text) - 1}-{_cboStartMonthMonth.Text}";
+            string endLY = $"{int.Parse(_cboEndMonthYear.Text) - 1}-{_cboEndMonthMonth.Text}";
+            string startL2Y = $"{int.Parse(_cboStartMonthYear.Text) - 2}-{_cboStartMonthMonth.Text}";
+            string endL2Y = $"{int.Parse(_cboEndMonthYear.Text) - 2}-{_cboEndMonthMonth.Text}";
+
+            _lblBox5Sub1.Text = $"【{startYM.Replace("-","/")} ~ {endYM.Replace("-","/")}】\n區間數據統計";
+            _lblBox5Sub2.Text = $"【{startLY.Replace("-","/")} ~ {endLY.Replace("-","/")}】\n去年同期區間數據統計";
+            _lblBox5Sub3.Text = $"【{startL2Y.Replace("-","/")} ~ {endL2Y.Replace("-","/")}】\n前年同期區間數據統計";
+            _lblBox5Sub4.Text = $"【{startYM.Replace("-","/")} ~ {endYM.Replace("-","/")}】\n與去年同期差異分析";
+
+            var curr = CalculateDischargeStats(startYM, endYM);
+            var ly = CalculateDischargeStats(startLY, endLY);
+            var l2y = CalculateDischargeStats(startL2Y, endL2Y);
+
+            FillDataPanels(_pnlBox5Data1, _pnlBox5Data2, _pnlBox5Data3, _pnlBox5Data4, curr, ly, l2y);
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+        }
+
+        private void UpdateSubtitles(Label l1, Label l2, Label l3, Label l4, DateTime dtS, DateTime dtE, bool isRecycle)
         {
             string suffix = isRecycle ? "回收水量統計" : "數據統計";
-            l1.Text = $"【{s1} ~ {e1}】\n區間{suffix}";
-            l2.Text = $"【{s2} ~ {e2}】\n去年同期區間{suffix}";
-            l3.Text = $"【{s3} ~ {e3}】\n前年同期區間{suffix}";
-            l4.Text = $"【{s1} ~ {e1}】\n與去年同期差異分析"; 
+            l1.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n區間{suffix}";
+            l2.Text = $"【{dtS.AddYears(-1):yyyy/MM/dd} ~ {dtE.AddYears(-1):yyyy/MM/dd}】\n去年同期區間{suffix}";
+            l3.Text = $"【{dtS.AddYears(-2):yyyy/MM/dd} ~ {dtE.AddYears(-2):yyyy/MM/dd}】\n前年同期區間{suffix}";
+            l4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析"; 
         }
 
         // ==========================================
-        // 資料客製化過濾與運算邏輯
+        // 資料客製化過濾與運算
         // ==========================================
-        private Dictionary<string, double> GetSumsEndingWith(string start, string end, params string[] tableNames)
+        private Dictionary<string, double> CalculateDischargeStats(string startYM, string endYM)
         {
-            var results = new Dictionary<string, double>();
-            foreach (string tbl in tableNames) {
-                DataTable dt = null;
-                try { dt = DataManager.GetTableData(DbName, tbl, "日期", start, end); } catch { continue; }
-                if (dt == null) continue;
+            var dict = new Dictionary<string, double>();
+            dict["納管排放水量"] = 0;
+            string[] metrics = { "SS", "COD", "BOD", "氨氮" };
+            foreach (var m in metrics) { dict[$"{m}平均值"] = 0; dict[$"{m}最大值"] = 0; dict[$"{m}最小值"] = 0; }
 
-                var targetCols = dt.Columns.Cast<DataColumn>()
-                                 .Where(c => c.ColumnName.EndsWith("日統計") || c.ColumnName == "污泥產出KG")
-                                 .Select(c => c.ColumnName).ToList();
+            DataTable dt = null;
+            try { dt = DataManager.GetTableData(DbName, "DischargeData", "月份", startYM, endYM); } catch { return dict; }
+            if (dt == null) return dict;
 
-                foreach (DataRow r in dt.Rows) {
-                    foreach (string col in targetCols) {
-                        string cleanName = col == "污泥產出KG" ? "污泥量" : col.Replace("日統計", ""); 
-                        if (!results.ContainsKey(cleanName)) results[cleanName] = 0;
-                        if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) {
-                            results[cleanName] += v;
-                        }
+            double totalWater = 0;
+            var lists = new Dictionary<string, List<double>>();
+            foreach (var m in metrics) lists[m] = new List<double>();
+
+            foreach (DataRow r in dt.Rows) {
+                if (dt.Columns.Contains("水量") && double.TryParse(r["水量"]?.ToString().Replace(",", ""), out double w)) totalWater += w;
+                foreach (var m in metrics) {
+                    if (dt.Columns.Contains(m) && double.TryParse(r[m]?.ToString().Replace(",", ""), out double val)) {
+                        lists[m].Add(val);
                     }
                 }
             }
-            return results;
-        }
 
-        private Dictionary<string, double> ProcessBox2Data(Dictionary<string, double> raw)
-        {
-            var res = new Dictionary<string, double>();
-            foreach (var kvp in raw)
-            {
-                if (kvp.Key.Contains("回收水6吋") || kvp.Key.Contains("軟水") || kvp.Key.Contains("回收水雙介質")) continue;
-
-                double val = kvp.Value;
-                if (kvp.Key == "用電量") {
-                    val = kvp.Value * 100;
-                } else if (kvp.Key == "污泥量") {
-                    val = kvp.Value / 1000.0;
-                }
-                
-                res[kvp.Key] = val;
-
-                if (kvp.Key == "濃縮水至逆洗池" || (kvp.Key == "濃縮水至冷卻水池" && !raw.ContainsKey("濃縮水至逆洗池"))) {
-                    res["濃縮水合計"] = (raw.ContainsKey("濃縮水至冷卻水池") ? raw["濃縮水至冷卻水池"] : 0) + 
-                                        (raw.ContainsKey("濃縮水至逆洗池") ? raw["濃縮水至逆洗池"] : 0);
+            dict["納管排放水量"] = totalWater;
+            foreach (var m in metrics) {
+                if (lists[m].Count > 0) {
+                    dict[$"{m}平均值"] = lists[m].Average();
+                    dict[$"{m}最大值"] = lists[m].Max();
+                    dict[$"{m}最小值"] = lists[m].Min();
                 }
             }
+            return dict;
+        }
 
-            if (raw.ContainsKey("回收水雙介質A") || raw.ContainsKey("回收水雙介質B")) {
-                res["總回收水量"] = (raw.ContainsKey("回收水雙介質A") ? raw["回收水雙介質A"] : 0) + 
-                                    (raw.ContainsKey("回收水雙介質B") ? raw["回收水雙介質B"] : 0);
+        private Dictionary<string, double> GetSumsEndingWith(string start, string end, params string[] tableNames) {
+            var res = new Dictionary<string, double>();
+            foreach (string tbl in tableNames) {
+                try {
+                    var dt = DataManager.GetTableData(DbName, tbl, "日期", start, end);
+                    if (dt == null) continue;
+                    var targetCols = dt.Columns.Cast<DataColumn>().Where(c => c.ColumnName.EndsWith("日統計") || c.ColumnName == "污泥產出KG").Select(c => c.ColumnName).ToList();
+                    foreach (DataRow r in dt.Rows) {
+                        foreach (string col in targetCols) {
+                            string cleanName = col == "污泥產出KG" ? "污泥量" : col.Replace("日統計", ""); 
+                            if (!res.ContainsKey(cleanName)) res[cleanName] = 0;
+                            if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) res[cleanName] += v;
+                        }
+                    }
+                } catch { }
             }
             return res;
         }
 
-        private Dictionary<string, double> CalculateRecycleStats(string start, string end)
-        {
-            var dict = new Dictionary<string, double> {
-                { "廢水處理量", 0 }, { "總回收水量", 0 }, { "回收率(%)", 0 }
-            };
-
-            double sumA = 0;
-            double sumB = 0;
-
-            DataTable dt = null;
-            try { dt = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end); } catch { return dict; }
-            if (dt == null) return dict;
-
-            foreach (DataRow r in dt.Rows) {
-                if (dt.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) dict["廢水處理量"] += w;
-                if (dt.Columns.Contains("回收水雙介質A日統計") && double.TryParse(r["回收水雙介質A日統計"]?.ToString().Replace(",", ""), out double a)) sumA += a;
-                if (dt.Columns.Contains("回收水雙介質B日統計") && double.TryParse(r["回收水雙介質B日統計"]?.ToString().Replace(",", ""), out double b)) sumB += b;
+        private Dictionary<string, double> ProcessBox2Data(Dictionary<string, double> raw) {
+            var res = new Dictionary<string, double>();
+            foreach (var kvp in raw) {
+                if (kvp.Key.Contains("回收水6吋") || kvp.Key.Contains("軟水") || kvp.Key.Contains("回收水雙介質")) continue;
+                double val = kvp.Value;
+                if (kvp.Key == "用電量") val = kvp.Value * 100;
+                else if (kvp.Key == "污泥量") val = kvp.Value / 1000.0;
+                
+                res[kvp.Key] = val;
+                if (kvp.Key == "濃縮水至逆洗池" || (kvp.Key == "濃縮水至冷卻水池" && !raw.ContainsKey("濃縮水至逆洗池"))) {
+                    res["濃縮水合計"] = (raw.ContainsKey("濃縮水至冷卻水池") ? raw["濃縮水至冷卻水池"] : 0) + (raw.ContainsKey("濃縮水至逆洗池") ? raw["濃縮水至逆洗池"] : 0);
+                }
             }
+            if (raw.ContainsKey("回收水雙介質A") || raw.ContainsKey("回收水雙介質B")) {
+                res["總回收水量"] = (raw.ContainsKey("回收水雙介質A") ? raw["回收水雙介質A"] : 0) + (raw.ContainsKey("回收水雙介質B") ? raw["回收水雙介質B"] : 0);
+            }
+            return res;
+        }
 
+        private Dictionary<string, double> CalculateRecycleStats(string start, string end) {
+            var dict = new Dictionary<string, double> { { "廢水處理量", 0 }, { "總回收水量", 0 }, { "回收率(%)", 0 } };
+            double sumA = 0, sumB = 0;
+            try {
+                var dt = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end);
+                if (dt != null) {
+                    foreach (DataRow r in dt.Rows) {
+                        if (dt.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) dict["廢水處理量"] += w;
+                        if (dt.Columns.Contains("回收水雙介質A日統計") && double.TryParse(r["回收水雙介質A日統計"]?.ToString().Replace(",", ""), out double a)) sumA += a;
+                        if (dt.Columns.Contains("回收水雙介質B日統計") && double.TryParse(r["回收水雙介質B日統計"]?.ToString().Replace(",", ""), out double b)) sumB += b;
+                    }
+                }
+            } catch { }
             dict["總回收水量"] = sumA + sumB;
-            if (dict["廢水處理量"] > 0) {
-                dict["回收率(%)"] = (dict["總回收水量"] / dict["廢水處理量"]) * 100;
-            }
-
+            if (dict["廢水處理量"] > 0) dict["回收率(%)"] = (dict["總回收水量"] / dict["廢水處理量"]) * 100;
             return dict;
         }
 
-        // 🟢 藥劑專用運算引擎 (取得各藥劑量，並與廢水處理量相除得到每噸耗藥量)
-        private Dictionary<string, double> CalculateChemicalStats(string start, string end)
-        {
-            var dict = new Dictionary<string, double> {
-                { "PAC", 0 }, { "NAOH", 0 }, { "高分子", 0 },
-                { "PAC/M3", 0 }, { "NAOH/M3", 0 }, { "高分子/M3", 0 }
-            };
-
+        private Dictionary<string, double> CalculateChemicalStats(string start, string end) {
+            var dict = new Dictionary<string, double> { { "PAC", 0 }, { "NAOH", 0 }, { "高分子", 0 }, { "PAC/M3", 0 }, { "NAOH/M3", 0 }, { "高分子/M3", 0 } };
             double waterTotal = 0;
-
-            // 1. 取得分母 (廢水處理量)
             try {
-                DataTable dtWater = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end);
-                if (dtWater != null) {
-                    foreach (DataRow r in dtWater.Rows) {
-                        if (dtWater.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) {
-                            waterTotal += w;
-                        }
-                    }
-                }
+                var dtWater = DataManager.GetTableData(DbName, "WaterMeterReadings", "日期", start, end);
+                if (dtWater != null) foreach (DataRow r in dtWater.Rows) if (dtWater.Columns.Contains("廢水處理量日統計") && double.TryParse(r["廢水處理量日統計"]?.ToString().Replace(",", ""), out double w)) waterTotal += w;
             } catch { }
-
-            // 2. 取得分子 (藥劑量) - 兼容 PACPAC_KG 等自訂欄位
             try {
-                DataTable dtChem = DataManager.GetTableData(DbName, "WaterChemicals", "日期", start, end);
+                var dtChem = DataManager.GetTableData(DbName, "WaterChemicals", "日期", start, end);
                 if (dtChem != null) {
                     foreach (DataRow r in dtChem.Rows) {
                         double pac = 0, naoh = 0, poly = 0;
-
-                        if (dtChem.Columns.Contains("PACPAC_KG")) { double.TryParse(r["PACPAC_KG"]?.ToString().Replace(",", ""), out pac); }
-                        else if (dtChem.Columns.Contains("PAC_KG")) { double.TryParse(r["PAC_KG"]?.ToString().Replace(",", ""), out pac); }
-                        else if (dtChem.Columns.Contains("PAC日統計")) { double.TryParse(r["PAC日統計"]?.ToString().Replace(",", ""), out pac); }
-
-                        if (dtChem.Columns.Contains("NAOH_KG")) { double.TryParse(r["NAOH_KG"]?.ToString().Replace(",", ""), out naoh); }
-                        else if (dtChem.Columns.Contains("NAOH日統計")) { double.TryParse(r["NAOH日統計"]?.ToString().Replace(",", ""), out naoh); }
-
-                        if (dtChem.Columns.Contains("高分子_KG")) { double.TryParse(r["高分子_KG"]?.ToString().Replace(",", ""), out poly); }
-                        else if (dtChem.Columns.Contains("高分子日統計")) { double.TryParse(r["高分子日統計"]?.ToString().Replace(",", ""), out poly); }
-
-                        dict["PAC"] += pac;
-                        dict["NAOH"] += naoh;
-                        dict["高分子"] += poly;
+                        if (dtChem.Columns.Contains("PACPAC_KG")) double.TryParse(r["PACPAC_KG"]?.ToString().Replace(",", ""), out pac); else if (dtChem.Columns.Contains("PAC_KG")) double.TryParse(r["PAC_KG"]?.ToString().Replace(",", ""), out pac); else if (dtChem.Columns.Contains("PAC日統計")) double.TryParse(r["PAC日統計"]?.ToString().Replace(",", ""), out pac);
+                        if (dtChem.Columns.Contains("NAOH_KG")) double.TryParse(r["NAOH_KG"]?.ToString().Replace(",", ""), out naoh); else if (dtChem.Columns.Contains("NAOH日統計")) double.TryParse(r["NAOH日統計"]?.ToString().Replace(",", ""), out naoh);
+                        if (dtChem.Columns.Contains("高分子_KG")) double.TryParse(r["高分子_KG"]?.ToString().Replace(",", ""), out poly); else if (dtChem.Columns.Contains("高分子日統計")) double.TryParse(r["高分子日統計"]?.ToString().Replace(",", ""), out poly);
+                        dict["PAC"] += pac; dict["NAOH"] += naoh; dict["高分子"] += poly;
                     }
                 }
             } catch { }
-
-            // 3. 計算每噸水耗藥量
-            if (waterTotal > 0) {
-                dict["PAC/M3"] = dict["PAC"] / waterTotal;
-                dict["NAOH/M3"] = dict["NAOH"] / waterTotal;
-                dict["高分子/M3"] = dict["高分子"] / waterTotal;
-            }
-
+            if (waterTotal > 0) { dict["PAC/M3"] = dict["PAC"] / waterTotal; dict["NAOH/M3"] = dict["NAOH"] / waterTotal; dict["高分子/M3"] = dict["高分子"] / waterTotal; }
             return dict;
         }
 
@@ -420,12 +425,10 @@ namespace Safety_System
                 double vLy = ly.ContainsKey(key) ? ly[key] : 0;
                 double vL2y = l2y.ContainsKey(key) ? l2y[key] : 0;
 
-                // 🟢 藥劑區的專屬標題分類插入
-                if (key == "PAC") {
-                    AddSectionHeader(p1, p2, p3, p4, "【藥劑使用量】");
-                } else if (key == "PAC/M3") {
-                    AddSectionHeader(p1, p2, p3, p4, "【每噸水藥劑量】");
-                }
+                // 群組標題處理
+                if (key == "PAC") AddSectionHeader(p1, p2, p3, p4, "【藥劑使用量】");
+                else if (key == "PAC/M3") AddSectionHeader(p1, p2, p3, p4, "【每噸水藥劑量】");
+                else if (key == "SS平均值") AddSectionHeader(p1, p2, p3, p4, "【水質】");
 
                 p1.Controls.Add(CreateStatLabel(key, vCurr));
                 p2.Controls.Add(CreateStatLabel(key, vLy));
@@ -438,10 +441,7 @@ namespace Safety_System
                     double yoy = ((vCurr - vLy) / vLy) * 100;
                     if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
-                    string formatStr = "N0";
-                    if (key.Contains("回收率") || key.Contains("/M3") || key.Contains("污泥量")) {
-                        formatStr = "N1"; // YoY 百分比差異保留 1 位小數
-                    }
+                    string formatStr = (key.Contains("回收率") || key.Contains("/M3") || key.Contains("污泥量") || key.Contains("平均") || key.Contains("最大") || key.Contains("最小")) ? "N1" : "N0";
                     
                     diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
                     diffColor = yoy > 0 ? Color.IndianRed : (yoy < 0 ? Color.ForestGreen : Color.DimGray); 
@@ -450,64 +450,34 @@ namespace Safety_System
                     diffColor = Color.SteelBlue;
                 }
 
-                Label lblDiff = new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
-                p4.Controls.Add(lblDiff);
+                p4.Controls.Add(new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) });
             }
         }
 
         private void AddSectionHeader(Panel p1, Panel p2, Panel p3, Panel p4, string title)
         {
-            p1.Controls.Add(CreateSectionHeader(title));
-            p2.Controls.Add(CreateSectionHeader(title));
-            p3.Controls.Add(CreateSectionHeader(title));
-            p4.Controls.Add(CreateSectionHeader(title));
+            p1.Controls.Add(CreateSectionHeader(title)); p2.Controls.Add(CreateSectionHeader(title));
+            p3.Controls.Add(CreateSectionHeader(title)); p4.Controls.Add(CreateSectionHeader(title));
         }
 
-        private Label CreateSectionHeader(string title)
-        {
-            return new Label {
-                Text = title,
-                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
-                ForeColor = Color.DarkSlateBlue,
-                AutoSize = true,
-                Margin = new Padding(0, 10, 0, 5) 
-            };
-        }
+        private Label CreateSectionHeader(string title) { return new Label { Text = title, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 10, 0, 5) }; }
 
         private Label CreateStatLabel(string title, double value)
         {
-            string unit = " M3";
-            string format = "N0"; 
+            string unit = " M3", format = "N0"; 
+            if (title.Contains("用電")) { unit = " KWH"; } 
+            else if (title.Contains("%") || title.Contains("率")) { unit = " %"; format = "N1"; } 
+            else if (title.Contains("包")) { unit = " 包"; } 
+            else if (title.Contains("污泥量")) { unit = " 噸"; format = "N3"; } 
+            else if (title.Contains("/M3")) { unit = " KG/M3"; format = "N3"; } 
+            else if (title == "PAC" || title == "NAOH" || title == "高分子") { unit = " KG"; format = "N0"; }
+            else if (title.Contains("平均") || title.Contains("最大") || title.Contains("最小")) { unit = " mg/L"; format = "N2"; } // 🟢 水質單位與小數點2位
 
-            if (title.Contains("用電")) {
-                unit = " KWH";
-            } else if (title.Contains("%") || title.Contains("率")) {
-                unit = " %";
-                format = "N1"; 
-            } else if (title.Contains("包")) {
-                unit = " 包";
-            } else if (title.Contains("污泥量")) {
-                unit = " 噸";   
-                format = "N3";  
-            } else if (title.Contains("/M3")) {
-                unit = " KG/M3"; // 🟢 藥劑專屬單位
-                format = "N3";   // 🟢 小數點第3位
-            } else if (title == "PAC" || title == "NAOH" || title == "高分子") {
-                unit = " KG";    // 🟢 藥劑專屬單位
-                format = "N0";
-            }
-
-            return new Label { 
-                Text = $"{title}: {value.ToString(format)}{unit}", 
-                Font = new Font("Microsoft JhengHei UI", 12F), 
-                ForeColor = Color.FromArgb(45,45,45), 
-                AutoSize = true, 
-                Margin = new Padding(0, 0, 0, 8) 
-            };
+            return new Label { Text = $"{title}: {value.ToString(format)}{unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         }
 
         // ==========================================
-        // 匯出 PDF 功能：A4 橫向、自動縮放、加上導出時間
+        // 匯出 PDF 功能：A4 橫向、自動縮放、分頁
         // ==========================================
         private void BtnPdf_Click(object sender, EventArgs e)
         {
@@ -521,29 +491,22 @@ namespace Safety_System
                         
                         Bitmap bmp = new Bitmap(_mainScrollPanel.Width, _mainScrollPanel.Height);
                         _mainScrollPanel.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                        
                         _mainScrollPanel.Height = originalHeight; 
 
                         PrintDocument pd = new PrintDocument();
                         pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                         pd.PrinterSettings.PrintToFile = true;
                         pd.PrinterSettings.PrintFileName = sfd.FileName;
-                        
                         pd.DefaultPageSettings.Landscape = true; 
                         pd.DefaultPageSettings.Margins = new Margins(20, 20, 30, 30);
 
                         int currentY = 0;
-
                         pd.PrintPage += (s, ev) => {
                             Graphics g = ev.Graphics;
-                            
-                            string headerText = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
-                            Font fontHeader = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
-                            g.DrawString(headerText, fontHeader, Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 20);
+                            string headerText = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   日報查詢：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text}~{_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}   |   月報查詢：{_cboStartMonthYear.Text}/{_cboStartMonthMonth.Text}~{_cboEndMonthYear.Text}/{_cboEndMonthMonth.Text}";
+                            g.DrawString(headerText, new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 20);
 
-                            int printTop = ev.MarginBounds.Top + 15;
-                            int printHeight = ev.MarginBounds.Height - 15;
-
+                            int printTop = ev.MarginBounds.Top + 15, printHeight = ev.MarginBounds.Height - 15;
                             float scale = (float)ev.MarginBounds.Width / bmp.Width;
                             int sourceHeightFit = (int)(printHeight / scale);
 
@@ -557,19 +520,13 @@ namespace Safety_System
 
                             g.DrawImage(bmp, destRect, srcRect, GraphicsUnit.Pixel);
                             currentY += sourceHeightFit;
-
                             ev.HasMorePages = currentY < bmp.Height;
                         };
-
                         pd.Print();
                         bmp.Dispose();
-
-                        MessageBox.Show("PDF 匯出成功！已縮放至全版面 A4。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) {
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    } finally {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-                    }
+                        MessageBox.Show("PDF 匯出成功！已縮放至全版面 A4 並自動分頁。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) { MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally { if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; }
                 }
             }
         }
