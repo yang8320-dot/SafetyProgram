@@ -37,7 +37,7 @@ namespace Safety_System
             };
 
             // ==========================================
-            // 大框 1：功能選單與日期查詢 (上下兩行配置)
+            // 大框 1：功能選單與日期查詢
             // ==========================================
             Panel box1 = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             box1.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, box1.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -228,7 +228,6 @@ namespace Safety_System
             string dS_L2Y = dtS.AddYears(-2).ToString("yyyy/MM/dd");
             string dE_L2Y = dtE.AddYears(-2).ToString("yyyy/MM/dd");
 
-            // 更新小標題日期，將第四個框改為明確的「與去年同期差異」
             UpdateSubtitles(_lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, false);
             UpdateSubtitles(_lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, true);
             UpdateSubtitles(_lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4, dS, dE, dS_LY, dE_LY, dS_L2Y, dE_L2Y, false);
@@ -264,7 +263,7 @@ namespace Safety_System
             l1.Text = $"【{s1} ~ {e1}】\n區間{suffix}";
             l2.Text = $"【{s2} ~ {e2}】\n去年同期區間{suffix}";
             l3.Text = $"【{s3} ~ {e3}】\n前年同期區間{suffix}";
-            l4.Text = $"【{s1} ~ {e1}】\n與去年同期差異分析"; // 需求 1：說明與哪個區間相比
+            l4.Text = $"【{s1} ~ {e1}】\n與去年同期差異分析"; 
         }
 
         // ==========================================
@@ -278,11 +277,15 @@ namespace Safety_System
                 try { dt = DataManager.GetTableData(DbName, tbl, "日期", start, end); } catch { continue; }
                 if (dt == null) continue;
 
-                var targetCols = dt.Columns.Cast<DataColumn>().Where(c => c.ColumnName.EndsWith("日統計")).Select(c => c.ColumnName).ToList();
+                // 🟢 這裡增加了 "污泥產出KG" 的特別捕捉邏輯
+                var targetCols = dt.Columns.Cast<DataColumn>()
+                                 .Where(c => c.ColumnName.EndsWith("日統計") || c.ColumnName == "污泥產出KG")
+                                 .Select(c => c.ColumnName).ToList();
 
                 foreach (DataRow r in dt.Rows) {
                     foreach (string col in targetCols) {
-                        string cleanName = col.Replace("日統計", ""); 
+                        // 如果是污泥產出KG，名字會直接叫做 污泥量
+                        string cleanName = col == "污泥產出KG" ? "污泥量" : col.Replace("日統計", ""); 
                         if (!results.ContainsKey(cleanName)) results[cleanName] = 0;
                         if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) {
                             results[cleanName] += v;
@@ -373,11 +376,9 @@ namespace Safety_System
                     double yoy = ((vCurr - vLy) / vLy) * 100;
                     if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
-                    // 差異百分比：回收率保留 1 位小數，其餘整數
                     string formatStr = key.Contains("回收率") ? "N1" : "N0";
                     diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
                     
-                    // 需求: 正效益 紅字顯示，負值 綠色顯示 (統一正數為紅，負數為綠)
                     diffColor = yoy > 0 ? Color.IndianRed : (yoy < 0 ? Color.ForestGreen : Color.DimGray); 
                 } else if (vCurr > 0) {
                     diffText = "新數據";
@@ -391,13 +392,12 @@ namespace Safety_System
 
         private Label CreateStatLabel(string title, double value)
         {
-            // 需求 1 & 4：不含小數點，用電為 KWH，包數為包，回收率為 %(小數點第1位)，其餘皆補 M3
             string unit = " M3";
             if (title.Contains("用電")) unit = " KWH";
             else if (title.Contains("%") || title.Contains("率")) unit = " %";
             else if (title.Contains("包")) unit = " 包";
+            else if (title.Contains("污泥量")) unit = " KG"; // 🟢 污泥量專屬單位
 
-            // 回收率保留小數點第一位 (N1)，其他數據皆為整數 (N0)
             string format = title.Contains("回收率") ? "N1" : "N0";
 
             return new Label { 
