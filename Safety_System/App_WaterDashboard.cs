@@ -5,14 +5,15 @@ using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 
 namespace Safety_System
 {
     public class App_WaterDashboard
     {
-        private DateTimePicker _dtpStart, _dtpEnd;
+        private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
+        private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
+
         private Panel _pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4;
         private Panel _pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4;
         private Panel _pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4;
@@ -32,32 +33,50 @@ namespace Safety_System
             };
 
             // ==========================================
-            // 大框 1：功能選單與日期查詢
+            // 大框 1：功能選單與日期查詢 (上下兩行配置)
             // ==========================================
-            Panel box1 = new Panel { Dock = DockStyle.Fill, Height = 80, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+            Panel box1 = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             box1.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, box1.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
-            Label lblTitle = new Label { Text = "💧 水資源綜合數據看板", Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Location = new Point(20, 22) };
+            FlowLayoutPanel flpTop = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, Padding = new Padding(15) };
             
-            FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 22, 20, 0) };
+            // 第一行：標題
+            Label lblTitle = new Label { Text = "💧 水資源綜合數據看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
             
-            _dtpStart = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 130, Font = new Font("Microsoft JhengHei UI", 12F), Value = DateTime.Today.AddMonths(-1) };
-            _dtpEnd = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 130, Font = new Font("Microsoft JhengHei UI", 12F), Value = DateTime.Today };
+            // 第二行：年、月、日連動查詢與按鈕
+            FlowLayoutPanel flpControls = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
             
-            Button btnSearch = new Button { Text = "🔍 查詢統計", Size = new Size(120, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            _cboStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
+            _cboStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
+            _cboStartDay = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
+            
+            _cboEndYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
+            _cboEndMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
+            _cboEndDay = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
+
+            InitDateComboBoxes(); // 初始化選單與綁定連動事件
+
+            Button btnSearch = new Button { Text = "🔍 查詢統計", Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnSearch.Click += (s, e) => LoadAllData();
             
-            Button btnPdf = new Button { Text = "📄 轉存 PDF", Size = new Size(120, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 轉存 PDF", Size = new Size(130, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
             flpControls.Controls.AddRange(new Control[] { 
                 new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) },
-                _dtpStart, new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) }, _dtpEnd,
-                new Panel { Width = 10, Height = 1 }, btnSearch, btnPdf
+                _cboStartYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                _cboStartMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                _cboStartDay, new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 5, 10, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                new Label { Text = "~", AutoSize = true, Margin = new Padding(0, 5, 10, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) },
+                _cboEndYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                _cboEndMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                _cboEndDay, new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
+                btnSearch, btnPdf
             });
 
-            box1.Controls.Add(lblTitle);
-            box1.Controls.Add(flpControls);
+            flpTop.Controls.Add(lblTitle);
+            flpTop.Controls.Add(flpControls);
+            box1.Controls.Add(flpTop);
             mainLayout.Controls.Add(box1, 0, 0);
 
             // ==========================================
@@ -70,6 +89,71 @@ namespace Safety_System
             _mainScrollPanel.Controls.Add(mainLayout);
             LoadAllData(); // 初始化載入
             return _mainScrollPanel;
+        }
+
+        // ==========================================
+        // 日期連動邏輯
+        // ==========================================
+        private void InitDateComboBoxes()
+        {
+            int currY = DateTime.Today.Year;
+            for (int i = currY - 10; i <= currY + 1; i++) {
+                _cboStartYear.Items.Add(i);
+                _cboEndYear.Items.Add(i);
+            }
+            for (int i = 1; i <= 12; i++) {
+                _cboStartMonth.Items.Add(i.ToString("D2"));
+                _cboEndMonth.Items.Add(i.ToString("D2"));
+            }
+
+            _cboStartYear.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
+            _cboStartMonth.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
+            
+            _cboEndYear.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
+            _cboEndMonth.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
+
+            // 預設為近一個月
+            DateTime start = DateTime.Today.AddMonths(-1);
+            DateTime end = DateTime.Today;
+
+            SetComboValue(_cboStartYear, _cboStartMonth, _cboStartDay, start);
+            SetComboValue(_cboEndYear, _cboEndMonth, _cboEndDay, end);
+        }
+
+        private void UpdateDaysCombo(ComboBox y, ComboBox m, ComboBox d)
+        {
+            if (y.SelectedItem == null || m.SelectedItem == null) return;
+            int year = (int)y.SelectedItem;
+            int month = int.Parse(m.SelectedItem.ToString());
+            int days = DateTime.DaysInMonth(year, month);
+
+            string currentDay = d.SelectedItem?.ToString();
+            d.Items.Clear();
+            for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
+
+            if (currentDay != null && d.Items.Contains(currentDay)) {
+                d.SelectedItem = currentDay;
+            } else {
+                d.SelectedIndex = d.Items.Count - 1; // 預設選最後一天防呆
+            }
+        }
+
+        private void SetComboValue(ComboBox y, ComboBox m, ComboBox d, DateTime date)
+        {
+            y.SelectedItem = date.Year;
+            m.SelectedItem = date.Month.ToString("D2");
+            UpdateDaysCombo(y, m, d);
+            d.SelectedItem = date.Day.ToString("D2");
+        }
+
+        private DateTime GetDateFromCombo(ComboBox y, ComboBox m, ComboBox d)
+        {
+            int year = (int)y.SelectedItem;
+            int month = int.Parse(m.SelectedItem.ToString());
+            int day = int.Parse(d.SelectedItem.ToString());
+            int maxDay = DateTime.DaysInMonth(year, month);
+            if (day > maxDay) day = maxDay; // 安全防護
+            return new DateTime(year, month, day);
         }
 
         // ==========================================
@@ -88,16 +172,14 @@ namespace Safety_System
             
             // 四個欄位等距 25%
             for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 第一排 標題
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F)); // 第二排 副標題
-            grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第三排 數據區
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F)); 
+            grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
 
-            // 第一排：全版面標題
             Label lblMainTitle = new Label { Text = mainTitle, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
             grid.Controls.Add(lblMainTitle, 0, 0);
             grid.SetColumnSpan(lblMainTitle, 4);
 
-            // 第二排：四個小標題
             string[] subTitles;
             if (mainTitle.Contains("回收水")) {
                 subTitles = new[] { "區間回收水量統計", "區間去年同期回收水量數據", "區間前年同期回收水量數據", "區間差異分析" };
@@ -110,7 +192,6 @@ namespace Safety_System
                 grid.Controls.Add(l, i, 1);
             }
 
-            // 第三排：四個資料存放 Panel (透過 out 參數回傳給主程式控制)
             d1 = CreateDataPanel(); d2 = CreateDataPanel(); d3 = CreateDataPanel(); d4 = CreateDataPanel();
             grid.Controls.Add(d1, 0, 2); grid.Controls.Add(d2, 1, 2); grid.Controls.Add(d3, 2, 2); grid.Controls.Add(d4, 3, 2);
 
@@ -134,14 +215,17 @@ namespace Safety_System
         {
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-            string dS = _dtpStart.Value.ToString("yyyy-MM-dd");
-            string dE = _dtpEnd.Value.ToString("yyyy-MM-dd");
+            DateTime dtS = GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
+            DateTime dtE = GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
+
+            string dS = dtS.ToString("yyyy-MM-dd");
+            string dE = dtE.ToString("yyyy-MM-dd");
             
-            string dS_LY = _dtpStart.Value.AddYears(-1).ToString("yyyy-MM-dd");
-            string dE_LY = _dtpEnd.Value.AddYears(-1).ToString("yyyy-MM-dd");
+            string dS_LY = dtS.AddYears(-1).ToString("yyyy-MM-dd");
+            string dE_LY = dtE.AddYears(-1).ToString("yyyy-MM-dd");
             
-            string dS_L2Y = _dtpStart.Value.AddYears(-2).ToString("yyyy-MM-dd");
-            string dE_L2Y = _dtpEnd.Value.AddYears(-2).ToString("yyyy-MM-dd");
+            string dS_L2Y = dtS.AddYears(-2).ToString("yyyy-MM-dd");
+            string dE_L2Y = dtE.AddYears(-2).ToString("yyyy-MM-dd");
 
             // --- 大框 2：水資源數據統計 (WaterMeterReadings + WaterUsageDaily) ---
             var sumBox2_Curr = GetSumsEndingWith(dS, dE, "WaterMeterReadings", "WaterUsageDaily");
@@ -167,9 +251,6 @@ namespace Safety_System
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
 
-        // ==========================================
-        // 輔助方法：抓取多個資料表所有 "日統計" 結尾的加總
-        // ==========================================
         private Dictionary<string, double> GetSumsEndingWith(string start, string end, params string[] tableNames)
         {
             var results = new Dictionary<string, double>();
@@ -184,7 +265,7 @@ namespace Safety_System
 
                 foreach (DataRow r in dt.Rows) {
                     foreach (string col in targetCols) {
-                        string cleanName = col.Replace("日統計", ""); // 畫面上移除 "日統計" 字眼比較好看
+                        string cleanName = col.Replace("日統計", ""); 
                         if (!results.ContainsKey(cleanName)) results[cleanName] = 0;
                         if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) {
                             results[cleanName] += v;
@@ -195,9 +276,6 @@ namespace Safety_System
             return results;
         }
 
-        // ==========================================
-        // 輔助方法：計算大框 3 專屬回收率邏輯
-        // ==========================================
         private Dictionary<string, double> CalculateRecycleStats(string start, string end)
         {
             var dict = new Dictionary<string, double> {
@@ -222,9 +300,6 @@ namespace Safety_System
             return dict;
         }
 
-        // ==========================================
-        // 輔助方法：渲染四個區塊的 Label，包含差異分析 (YoY)
-        // ==========================================
         private void FillDataPanels(Panel p1, Panel p2, Panel p3, Panel p4, Dictionary<string, double> curr, Dictionary<string, double> ly, Dictionary<string, double> l2y, bool isRecycleRate = false)
         {
             p1.Controls.Clear(); p2.Controls.Clear(); p3.Controls.Clear(); p4.Controls.Clear();
@@ -236,14 +311,10 @@ namespace Safety_System
                 double vLy = ly.ContainsKey(key) ? ly[key] : 0;
                 double vL2y = l2y.ContainsKey(key) ? l2y[key] : 0;
 
-                // Panel 1: 當期
                 p1.Controls.Add(CreateStatLabel(key, vCurr, isRecycleRate && key.Contains("%")));
-                // Panel 2: 去年同期
                 p2.Controls.Add(CreateStatLabel(key, vLy, isRecycleRate && key.Contains("%")));
-                // Panel 3: 前年同期
                 p3.Controls.Add(CreateStatLabel(key, vL2y, isRecycleRate && key.Contains("%")));
 
-                // Panel 4: 差異分析 ((當期 - 去年) / 去年 * 100)
                 string diffText = "無基期";
                 Color diffColor = Color.DimGray;
 
@@ -251,13 +322,12 @@ namespace Safety_System
                     double yoy = ((vCurr - vLy) / vLy) * 100;
                     
                     if (isRecycleRate && key.Contains("%")) {
-                        // 如果本身就是百分比 (回收率)，差異直接相減即可 (絕對差異)
                         yoy = vCurr - vLy; 
                         diffText = (yoy > 0 ? "+" : "") + yoy.ToString("0.##") + " %";
-                        diffColor = yoy > 0 ? Color.ForestGreen : Color.IndianRed; // 回收率高比較好
+                        diffColor = yoy > 0 ? Color.ForestGreen : Color.IndianRed; 
                     } else {
                         diffText = (yoy > 0 ? "+" : "") + yoy.ToString("0.##") + " %";
-                        diffColor = yoy > 0 ? Color.IndianRed : Color.ForestGreen; // 用量低比較好
+                        diffColor = yoy > 0 ? Color.IndianRed : Color.ForestGreen; 
                     }
                 } else if (vCurr > 0) {
                     diffText = "新數據";
@@ -283,42 +353,55 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 匯出 PDF 功能
+        // 匯出 全版面 A4 橫向 PDF，並加上導出日期
         // ==========================================
         private void BtnPdf_Click(object sender, EventArgs e)
         {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "水資源數據統計_" + DateTime.Now.ToString("yyyyMMdd") }) {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "水資源綜合統計表_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     try {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                        // 將 _mainScrollPanel 繪製成圖片 (這招能完美保留 UI 排版)
-                        // 因為有 ScrollBar，需要暫時放大 Panel 確保拍到全貌
+                        // 拍照以保留完美 UI 樣式
                         int originalHeight = _mainScrollPanel.Height;
                         _mainScrollPanel.Height = _mainScrollPanel.DisplayRectangle.Height; 
                         
                         Bitmap bmp = new Bitmap(_mainScrollPanel.Width, _mainScrollPanel.Height);
                         _mainScrollPanel.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
                         
-                        _mainScrollPanel.Height = originalHeight; // 恢復原狀
+                        _mainScrollPanel.Height = originalHeight; 
 
                         PrintDocument pd = new PrintDocument();
                         pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                         pd.PrinterSettings.PrintToFile = true;
                         pd.PrinterSettings.PrintFileName = sfd.FileName;
-                        pd.DefaultPageSettings.Landscape = false; // 直向列印
-                        pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
+                        
+                        // 強制全版面橫向 A4
+                        pd.DefaultPageSettings.Landscape = true; 
+                        pd.DefaultPageSettings.Margins = new Margins(20, 20, 30, 30);
 
-                        int currentY = 0; // 處理多頁裁切
+                        int currentY = 0;
 
                         pd.PrintPage += (s, ev) => {
                             Graphics g = ev.Graphics;
-                            float scale = (float)ev.MarginBounds.Width / bmp.Width;
-                            int sourceHeightFit = (int)(ev.MarginBounds.Height / scale);
+                            
+                            // 1. 印上「導出日期」與「查詢區間」標題
+                            string headerText = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+                            Font fontHeader = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
+                            g.DrawString(headerText, fontHeader, Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 20);
 
-                            Rectangle destRect = new Rectangle(ev.MarginBounds.Left, ev.MarginBounds.Top, ev.MarginBounds.Width, ev.MarginBounds.Height);
+                            // 2. 扣除 Header 後的繪圖空間
+                            int printTop = ev.MarginBounds.Top + 15;
+                            int printHeight = ev.MarginBounds.Height - 15;
+
+                            // 3. 自動縮放比例 (以寬度貼齊 A4 為主)
+                            float scale = (float)ev.MarginBounds.Width / bmp.Width;
+                            int sourceHeightFit = (int)(printHeight / scale);
+
+                            Rectangle destRect = new Rectangle(ev.MarginBounds.Left, printTop, ev.MarginBounds.Width, printHeight);
                             Rectangle srcRect = new Rectangle(0, currentY, bmp.Width, sourceHeightFit);
 
+                            // 如果是最後一頁，不需要畫滿整個框
                             if (currentY + sourceHeightFit > bmp.Height) {
                                 srcRect.Height = bmp.Height - currentY;
                                 destRect.Height = (int)(srcRect.Height * scale);
@@ -333,7 +416,7 @@ namespace Safety_System
                         pd.Print();
                         bmp.Dispose();
 
-                        MessageBox.Show("PDF 匯出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("PDF 匯出成功！已縮放至全版面 A4。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
