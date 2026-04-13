@@ -25,39 +25,25 @@ namespace Safety_System
 
         private bool _isFirstLoad = true;
         
-        // 🟢 動態傳入的參數
         private readonly string _dbName; 
         private readonly string _tableName; 
         private readonly string _chineseTitle;
         
-        // 🟢 動態時間模式判定
         private bool _isMonthlyMode = false;
         private string _dateColumnName = "日期";
 
-        // 導入自動運算 Helper (處理差值統計與星期推算，並加速大批次貼上)
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        /// 🟢 終極集中管理：所有標準資料表的初始 Schema
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            // ===== 新增：化學品 =====
             { "ChemRegulations", "[日期] TEXT, [法規來源] TEXT, [公告日期] TEXT, [項目] TEXT, [容許曝露量min] TEXT, [容許曝露量max] TEXT, [管制量min] TEXT, [管制量max] TEXT, [應辦理項目] TEXT, [備註] TEXT" },
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [備註] TEXT" },
-            
-            // 空污
-            //空污申報記錄
             { "AirPollution", "[月份] TEXT, [甲醇] TEXT, [乙醇] TEXT, [油墨] TEXT, [網板清洗劑] TEXT , [備註] TEXT" },
-            // 廢棄物
-            //廢棄物申報表 生產日月報
             { "WasteMonthly", "[月份] TEXT, [切_廢玻璃] TEXT, [名稱] TEXT, [重量_kg] TEXT, [清理商] TEXT" },
-            // 消防
             { "FireResponsible", "[日期] TEXT, [管轄區域] TEXT, [正負責人] TEXT, [副負責人] TEXT, [聯絡分機] TEXT, [備註] TEXT" },
             { "HazardStats", "[日期] TEXT, [場所名稱] TEXT, [物品名稱] TEXT, [儲存數量] TEXT, [管制倍數] TEXT, [是否合格] TEXT" },
             { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [備註] TEXT" },
-            // 教育訓練
             { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [備註] TEXT" },
-            // 檢測數據
-            // 檢測數據 環測
             { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [備註] TEXT" },
             { "WastewaterPeriodic", "[日期] TEXT, [申報季別] TEXT, [排放水量] TEXT, [COD] TEXT, [SS] TEXT, [BOD] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
             { "DrinkingWater", "[日期] TEXT, [採樣點位置] TEXT, [大腸桿菌群] TEXT, [總菌落數] TEXT, [鉛] TEXT, [濁度] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
@@ -69,16 +55,12 @@ namespace Safety_System
             { "TCLP", "[日期] TEXT, [樣品名稱] TEXT, [鎘] TEXT, [鉛] TEXT, [鉻] TEXT, [砷] TEXT, [銅] TEXT, [鋅] TEXT, [檢驗機構] TEXT, [備註] TEXT" },
             { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [備註] TEXT" },
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [備註] TEXT" },
-            // 工安
             { "NearMiss", "[日期] TEXT, [地點] TEXT, [事件經過] TEXT, [提報人] TEXT, [改善措施] TEXT" },
             { "SafetyInspection", "[日期] TEXT, [巡檢區域] TEXT, [檢查項目] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善措施] TEXT, [負責人] TEXT, [狀態] TEXT" },
             { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT" },
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT" },
             { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT" },
-            // 護理
-            // 護理 健康促進
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [備註] TEXT" },
-            // 護理 職災申報
             { "WorkInjuryReport", "[月份] TEXT, [男性工時] TEXT, [女性工時] TEXT, [承攬人工時] TEXT, [勞保申請狀態] TEXT, [備註] TEXT" }
         };
 
@@ -91,12 +73,10 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 1. 初始化資料表
             string schema = _schemaMap.ContainsKey(_tableName) ? _schemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
-            // 2. 動態偵測查詢模式 (查日期 還是 查月份)
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             if (columns.Contains("月份") && !columns.Contains("日期")) {
                 _isMonthlyMode = true;
@@ -134,7 +114,6 @@ namespace Safety_System
                 _cboStartDay.Items.Add(i.ToString("D2")); _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            // 預設日期設定
             if (_isMonthlyMode) {
                 SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-6));
             } else {
@@ -149,7 +128,9 @@ namespace Safety_System
             bSave.Click += BtnSave_Click; 
             
             Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) }; bExport.Click += BtnExport_Click;
-            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(150, 35) }; bImport.Click += BtnImportCsv_Click;
+
+            // 🟢 修改按鈕文字與事件
+            Button bImport = new Button { Text = "📥 匯入Excel", Size = new Size(150, 35) }; bImport.Click += BtnImportExcel_Click;
 
             _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
@@ -164,22 +145,17 @@ namespace Safety_System
             row1.Controls.Add(_cboStartYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             row1.Controls.Add(_cboStartMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             
-            // 🟢 動態隱藏日的選項
             if (!_isMonthlyMode) { row1.Controls.Add(_cboStartDay); row1.Controls.Add(_lblStartDay); }
             
             row1.Controls.Add(new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) });
             row1.Controls.Add(_cboEndYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             row1.Controls.Add(_cboEndMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             
-            // 🟢 動態隱藏日的選項
             if (!_isMonthlyMode) { row1.Controls.Add(_cboEndDay); row1.Controls.Add(_lblEndDay); }
 
             row1.Controls.Add(bRead); row1.Controls.Add(bExport); row1.Controls.Add(bImport); row1.Controls.Add(_btnToggle); row1.Controls.Add(bSave);
             boxTop.Controls.Add(row1);
 
-            // ==========================================
-            // 進階欄位與權限操作區
-            // ==========================================
             _boxAdvanced = new GroupBox { Text = "進階欄位與權限操作", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray };
             FlowLayoutPanel flpAdv = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
             
@@ -221,9 +197,6 @@ namespace Safety_System
             flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2);
             _boxAdvanced.Controls.Add(flpAdv);
 
-            // ==========================================
-            // 表格區
-            // ==========================================
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
@@ -287,7 +260,6 @@ namespace Safety_System
                 if (c.Name != "Id" && c.Name != _dateColumnName) _cboColumns.Items.Add(c.Name);
         }
 
-        // 🟢 動態時間防呆格式化
         private void EnforceDateFormat(DataTable dt)
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
@@ -331,41 +303,68 @@ namespace Safety_System
             }
         }
 
-        private void BtnImportCsv_Click(object sender, EventArgs e)
+        // 🟢 修改為讀取 Excel 格式
+        private void BtnImportExcel_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
-                        string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
-                        if (lines.Length < 2) return;
-                        DataTable dt = (DataTable)_dgv.DataSource;
-                        string[] headers = ParseCsvLine(lines[0]);
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                        _dgv.DataSource = null; 
-                        _calcHelper?.BeginBulkUpdate();
-
-                        foreach (string line in lines.Skip(1)) {
-                            if (string.IsNullOrWhiteSpace(line)) continue;
-                            DataRow nr = dt.NewRow();
-                            string[] vs = ParseCsvLine(line);
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) {
-                                string cn = headers[h].Trim();
-                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim().Trim('"');
+                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
+                            ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                            if (ws == null || ws.Dimension == null) {
+                                MessageBox.Show("找不到工作表或檔案為空！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                return;
                             }
-                            dt.Rows.Add(nr);
-                        }
 
-                        _calcHelper?.RecalculateTable(dt); 
-                        _calcHelper?.EndBulkUpdate();
-                        _dgv.DataSource = dt; 
-                        RestoreColumnOrder();
-                        MessageBox.Show("匯入成功!請檢查數據後點擊儲存。");
-                    } catch (Exception ex) { RefreshGrid(); MessageBox.Show("匯入異常：" + ex.Message); }
+                            int rowCount = ws.Dimension.Rows;
+                            int colCount = ws.Dimension.Columns;
+
+                            // 解析 Header
+                            string[] headers = new string[colCount];
+                            for (int c = 1; c <= colCount; c++) {
+                                headers[c - 1] = ws.Cells[1, c].Text.Trim();
+                            }
+
+                            DataTable dt = (DataTable)_dgv.DataSource;
+                            _dgv.DataSource = null; 
+                            _calcHelper?.BeginBulkUpdate();
+
+                            // 讀取資料列
+                            for (int r = 2; r <= rowCount; r++) {
+                                DataRow nr = dt.NewRow();
+                                bool hasData = false;
+
+                                for (int c = 1; c <= colCount; c++) {
+                                    string cn = headers[c - 1];
+                                    // 🟢 EPPlus 的 .Text 會取得格式化後的文字（保留日期格式）
+                                    string val = ws.Cells[r, c].Text.Trim(); 
+
+                                    if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) {
+                                        nr[cn] = val;
+                                        hasData = true;
+                                    }
+                                }
+                                if (hasData) dt.Rows.Add(nr);
+                            }
+
+                            _calcHelper?.RecalculateTable(dt); 
+                            _calcHelper?.EndBulkUpdate();
+                            _dgv.DataSource = dt; 
+                            RestoreColumnOrder();
+
+                            MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                    } catch (Exception ex) { 
+                        RefreshGrid(); 
+                        MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
                 }
             }
         }
-
-        private string[] ParseCsvLine(string line) { var res = new System.Collections.Generic.List<string>(); bool q = false; var f = new StringBuilder(); foreach (char c in line) { if (c == '\"') q = !q; else if (c == ',' && !q) { res.Add(f.ToString()); f.Clear(); } else f.Append(c); } res.Add(f.ToString()); return res.ToArray(); }
 
         private void Dgv_KeyDown(object sender, KeyEventArgs e)
         {
