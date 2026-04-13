@@ -189,7 +189,7 @@ namespace Safety_System
             string dictKey = $"{module}_{key}";
             if (_visibilitySettings.ContainsKey(dictKey)) return _visibilitySettings[dictKey];
 
-            // 🟢 需求2：將 BOD 與 氨氮 預設隱藏；以及原有的貯存區、清水池隱藏邏輯
+            // 預設隱藏邏輯
             if (key.Contains("貯存區") || key.Contains("清水池") || key.Contains("BOD") || key.Contains("氨氮")) {
                 _visibilitySettings[dictKey] = false;
                 return false;
@@ -286,7 +286,6 @@ namespace Safety_System
             return new DateTime((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()), day > maxDay ? maxDay : day);
         }
 
-        // 🟢 九宮格產生器 (加入自訂義統計按鈕)
         private Panel BuildNineGridBox(string moduleName, string mainTitle, Color headerColor, out Label l1, out Label l2, out Label l3, out Label l4, out Panel d1, out Panel d2, out Panel d3, out Panel d4)
         {
             Panel outer = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
@@ -316,7 +315,6 @@ namespace Safety_System
                 else if (mod == "DischargeStat") currentData = CalculateDischargeStats($"{_cboStartMonthYear.Text}-{_cboStartMonthMonth.Text}", $"{_cboEndMonthYear.Text}-{_cboEndMonthMonth.Text}");
                 else currentData = ProcessBox2Data(GetSumsEndingWith(GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay).ToString("yyyy-MM-dd"), GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay).ToString("yyyy-MM-dd"), "WaterMeterReadings", "WaterUsageDaily"));
                 
-                // 加入自訂義的項目讓它可以被勾選隱藏
                 var customs = CustomStatEngine.GetStatsForModule(mod);
                 foreach (var c in customs) currentData[c.StatName] = 0;
 
@@ -374,25 +372,21 @@ namespace Safety_System
             string sLY_S = dtS.AddYears(-1).ToString("yyyy-MM-dd"), sLY_E = dtE.AddYears(-1).ToString("yyyy-MM-dd");
             string sL2Y_S = dtS.AddYears(-2).ToString("yyyy-MM-dd"), sL2Y_E = dtE.AddYears(-2).ToString("yyyy-MM-dd");
 
-            // 框 2: 水資源
             FillDataPanels("WaterStat", _pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4, 
                 MergeCustom("WaterStat", sS, sE, ProcessBox2Data(GetSumsEndingWith(sS, sE, "WaterMeterReadings", "WaterUsageDaily"))), 
                 MergeCustom("WaterStat", sLY_S, sLY_E, ProcessBox2Data(GetSumsEndingWith(sLY_S, sLY_E, "WaterMeterReadings", "WaterUsageDaily"))), 
                 MergeCustom("WaterStat", sL2Y_S, sL2Y_E, ProcessBox2Data(GetSumsEndingWith(sL2Y_S, sL2Y_E, "WaterMeterReadings", "WaterUsageDaily"))));
 
-            // 框 3: 回收水
             FillDataPanels("RecycleStat", _pnlBox3Data1, _pnlBox3Data2, _pnlBox3Data3, _pnlBox3Data4, 
                 MergeCustom("RecycleStat", sS, sE, CalculateRecycleStats(sS, sE)), 
                 MergeCustom("RecycleStat", sLY_S, sLY_E, CalculateRecycleStats(sLY_S, sLY_E)), 
                 MergeCustom("RecycleStat", sL2Y_S, sL2Y_E, CalculateRecycleStats(sL2Y_S, sL2Y_E)), true);
 
-            // 框 4: 藥劑
             FillDataPanels("ChemStat", _pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4, 
                 MergeCustom("ChemStat", sS, sE, CalculateChemicalStats(sS, sE)), 
                 MergeCustom("ChemStat", sLY_S, sLY_E, CalculateChemicalStats(sLY_S, sLY_E)), 
                 MergeCustom("ChemStat", sL2Y_S, sL2Y_E, CalculateChemicalStats(sL2Y_S, sL2Y_E)));
 
-            // 框 5: 自來水日報表
             FillDataPanels("DailyUsage", _pnlBox5Data1, _pnlBox5Data2, _pnlBox5Data3, _pnlBox5Data4, 
                 MergeCustom("DailyUsage", sS, sE, CalculateDailyUsageStats(sS, sE)), 
                 MergeCustom("DailyUsage", sLY_S, sLY_E, CalculateDailyUsageStats(sLY_S, sLY_E)), 
@@ -422,13 +416,11 @@ namespace Safety_System
             _lblBox7Sub3.Text = $"【{startL2Y.Replace("-","/")} ~ {endL2Y.Replace("-","/")}】\n前年同期區間數據統計";
             _lblBox7Sub4.Text = $"【{startYM.Replace("-","/")} ~ {endYM.Replace("-","/")}】\n與去年同期差異分析";
 
-            // 框 6: 納管排放
             FillDataPanels("DischargeStat", _pnlBox6Data1, _pnlBox6Data2, _pnlBox6Data3, _pnlBox6Data4, 
                 MergeCustom("DischargeStat", startYM, endYM, CalculateDischargeStats(startYM, endYM)), 
                 MergeCustom("DischargeStat", startLY, endLY, CalculateDischargeStats(startLY, endLY)), 
                 MergeCustom("DischargeStat", startL2Y, endL2Y, CalculateDischargeStats(startL2Y, endL2Y)));
 
-            // 框 7: 自來水月報 (繳費單)
             FillDataPanels("MonthlyVolume", _pnlBox7Data1, _pnlBox7Data2, _pnlBox7Data3, _pnlBox7Data4, 
                 MergeCustom("MonthlyVolume", startYM, endYM, CalculateMonthlyVolumeStats(startYM, endYM)), 
                 MergeCustom("MonthlyVolume", startLY, endLY, CalculateMonthlyVolumeStats(startLY, endLY)), 
@@ -456,7 +448,6 @@ namespace Safety_System
         // ==========================================
         // 資料客製化過濾與運算
         // ==========================================
-        // 🟢 需求1：修正為直接抓取對應欄位，不含日統計後綴
         private Dictionary<string, double> CalculateDailyUsageStats(string start, string end)
         {
             var dict = new Dictionary<string, double> {
@@ -473,7 +464,6 @@ namespace Safety_System
             int validDays = 0;
             foreach (DataRow r in dt.Rows) {
                 bool hasData = false;
-                // 修正：直接針對 "廠區自來水使用量" 與 "行政區自來水使用量" 欄位
                 if (dt.Columns.Contains("廠區自來水使用量") && double.TryParse(r["廠區自來水使用量"]?.ToString().Replace(",", ""), out double f)) { dict["廠區"] += f; hasData = true; }
                 if (dt.Columns.Contains("行政區自來水使用量") && double.TryParse(r["行政區自來水使用量"]?.ToString().Replace(",", ""), out double a)) { dict["行政區"] += a; hasData = true; }
                 
@@ -482,7 +472,6 @@ namespace Safety_System
                 if (hasData) validDays++;
             }
 
-            // 全廠用量計算
             dict["全廠用量"] = dict["廠區"] + dict["行政區"];
             
             if (validDays > 0) {
@@ -495,19 +484,35 @@ namespace Safety_System
             return dict;
         }
 
+        // 🟢 需求：月報平均使用量新增
         private Dictionary<string, double> CalculateMonthlyVolumeStats(string startYM, string endYM)
         {
-            var dict = new Dictionary<string, double> { { "廠區", 0 }, { "行政區", 0 }, { "全廠用量", 0 } };
+            var dict = new Dictionary<string, double> { 
+                { "廠區", 0 }, { "行政區", 0 }, { "全廠用量", 0 },
+                { "廠區月平均", 0 }, { "行政區月平均", 0 }, { "全廠月平均", 0 } // 新增月平均欄位
+            };
+            
             DataTable dt = null;
             try { dt = DataManager.GetTableData(DbName, "WaterVolume", "月份", startYM, endYM); } catch { return dict; }
             if (dt == null) return dict;
 
+            int validMonths = 0; // 紀錄區間筆數
             foreach (DataRow r in dt.Rows) {
-                if (dt.Columns.Contains("廠區自來水繳費單") && double.TryParse(r["廠區自來水繳費單"]?.ToString().Replace(",", ""), out double f)) dict["廠區"] += f;
-                if (dt.Columns.Contains("行政區自來水繳費單") && double.TryParse(r["行政區自來水繳費單"]?.ToString().Replace(",", ""), out double a)) dict["行政區"] += a;
+                bool hasData = false;
+                if (dt.Columns.Contains("廠區自來水繳費單") && double.TryParse(r["廠區自來水繳費單"]?.ToString().Replace(",", ""), out double f)) { dict["廠區"] += f; hasData = true; }
+                if (dt.Columns.Contains("行政區自來水繳費單") && double.TryParse(r["行政區自來水繳費單"]?.ToString().Replace(",", ""), out double a)) { dict["行政區"] += a; hasData = true; }
+                if (hasData) validMonths++;
             }
 
             dict["全廠用量"] = dict["廠區"] + dict["行政區"];
+
+            // 計算月平均
+            if (validMonths > 0) {
+                dict["廠區月平均"] = dict["廠區"] / validMonths;
+                dict["行政區月平均"] = dict["行政區"] / validMonths;
+                dict["全廠月平均"] = dict["全廠用量"] / validMonths;
+            }
+
             return dict;
         }
 
@@ -632,7 +637,7 @@ namespace Safety_System
         {
             p1.Controls.Clear(); p2.Controls.Clear(); p3.Controls.Clear(); p4.Controls.Clear();
 
-            bool dailyUsageHeaderAdded1 = false, dailyUsageHeaderAdded2 = false, monthlyHeaderAdded = false;
+            bool dailyUsageHeaderAdded1 = false, dailyUsageHeaderAdded2 = false, monthlyHeaderAdded1 = false, monthlyHeaderAdded2 = false;
 
             foreach (var kvp in curr)
             {
@@ -652,7 +657,12 @@ namespace Safety_System
                         AddSectionHeader(p1, p2, p3, p4, "【平均使用量】"); dailyUsageHeaderAdded2 = true;
                     }
                 } else if (moduleName == "MonthlyVolume") {
-                    if (!monthlyHeaderAdded) { AddSectionHeader(p1, p2, p3, p4, "【自來水量】"); monthlyHeaderAdded = true; }
+                    if (!monthlyHeaderAdded1 && (key == "廠區" || key == "行政區" || key == "全廠用量")) { 
+                        AddSectionHeader(p1, p2, p3, p4, "【自來水量】"); monthlyHeaderAdded1 = true; 
+                    } else if (!monthlyHeaderAdded2 && (key.Contains("平均"))) { 
+                        // 🟢 動態加入【平均使用量】群組標題
+                        AddSectionHeader(p1, p2, p3, p4, "【平均使用量】"); monthlyHeaderAdded2 = true; 
+                    }
                 }
 
                 double vCurr = kvp.Value;
@@ -664,7 +674,7 @@ namespace Safety_System
                 p3.Controls.Add(CreateStatLabel(key, vL2y));
 
                 string diffText = "無基期"; Color diffColor = Color.DimGray;
-                if (vLy > 0 || (vCurr == 0 && vLy > 0)) { // 修正若去年有數據今年無數據的顯示
+                if (vLy > 0 || (vCurr == 0 && vLy > 0)) { 
                     double yoy = vLy == 0 ? 0 : ((vCurr - vLy) / vLy) * 100;
                     if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
@@ -689,10 +699,9 @@ namespace Safety_System
         {
             string unit = " M3", format = "N0"; 
             
-            // 如果是在 CustomUnitsCache 中，優先套用自定義單位與格式
             if (CustomUnitsCache.ContainsKey(title)) {
                 unit = " " + CustomUnitsCache[title];
-                format = "N2"; // 自定義預設顯示兩位小數
+                format = "N2"; 
             }
             else {
                 if (title.Contains("用電")) { unit = " KWH"; } 
@@ -701,6 +710,7 @@ namespace Safety_System
                 else if (title.Contains("污泥量")) { unit = " 噸"; format = "N3"; } 
                 else if (title.Contains("/M3")) { unit = " KG/M3"; format = "N3"; } 
                 else if (title == "PAC" || title == "NAOH" || title == "高分子") { unit = " KG"; format = "N0"; }
+                else if (title.Contains("月平均")) { unit = " M3/月"; format = "N1"; } // 🟢 賦予月平均單位
                 else if (title.Contains("平均") || title.Contains("最大") || title.Contains("最小")) { 
                     if (title.Contains("SS") || title.Contains("COD") || title.Contains("BOD") || title.Contains("氨氮")) { unit = " mg/L"; format = "N2"; } 
                     else { unit = " M3/日"; format = "N1"; } 
@@ -860,7 +870,7 @@ namespace Safety_System
             return _rules.Where(r => r.Module == moduleName).ToList();
         }
 
-        // 🟢 將公式翻譯並計算 (利用 DataManager 抓取資料後記憶體運算，避免干涉 Core DB Thread)
+        // 將公式翻譯並計算
         public static Dictionary<string, double> EvaluateForModule(string module, string startDate, string endDate)
         {
             var result = new Dictionary<string, double>();
@@ -871,8 +881,8 @@ namespace Safety_System
             {
                 string formula = rule.Formula;
                 
-                // 找出所有聚合函數：例如 SUM([WaterMeterReadings].[用電量])
-                Regex regex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN)\(\[(?<table>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
+                // 🟢 支援 COUNT 解析
+                Regex regex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<table>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
                 var matches = regex.Matches(formula);
 
                 foreach (Match m in matches)
@@ -893,20 +903,20 @@ namespace Safety_System
                                     values.Add(v);
                                 }
                             }
-                            if (values.Count > 0) {
+                            
+                            if (values.Count > 0 || agg == "COUNT") { // COUNT 即使為 0 也可以成立
                                 if (agg == "SUM") computedValue = values.Sum();
                                 else if (agg == "AVG") computedValue = values.Average();
                                 else if (agg == "MAX") computedValue = values.Max();
                                 else if (agg == "MIN") computedValue = values.Min();
+                                else if (agg == "COUNT") computedValue = values.Count;
                             }
                         }
                     } catch { }
 
-                    // 將計算結果替換回字串中
                     formula = formula.Replace(m.Value, computedValue.ToString());
                 }
 
-                // 計算純數學算式
                 double finalVal = 0;
                 try {
                     DataTable dtMath = new DataTable();
@@ -920,10 +930,10 @@ namespace Safety_System
             return result;
         }
 
-        // 🟢 提供動態設定介面
+        // 🟢 介面尺寸與下拉選單寬度加大優化
         public static void OpenConfigDialog(string moduleName)
         {
-            using (Form f = new Form() { Width = 750, Height = 600, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
+            using (Form f = new Form() { Width = 850, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
             {
                 Label lblTop = new Label { Text = "📝 自定義延伸統計公式", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Top, Padding = new Padding(10), AutoSize = true };
 
@@ -934,25 +944,27 @@ namespace Safety_System
                 leftPnl.Controls.Add(lbExisting);
                 leftPnl.Controls.Add(new Label { Text = "已建立的統計項目:", Dock = DockStyle.Top, Height = 30 });
 
-                Panel rightPnl = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+                Panel rightPnl = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
 
-                // 名稱與單位
-                FlowLayoutPanel pnlNameUnit = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,0,0,10) };
-                TextBox txtName = new TextBox { Width = 150 };
-                TextBox txtUnit = new TextBox { Width = 80 };
+                FlowLayoutPanel pnlNameUnit = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,0,0,15) };
+                TextBox txtName = new TextBox { Width = 180 };
+                TextBox txtUnit = new TextBox { Width = 100 };
                 pnlNameUnit.Controls.AddRange(new Control[] {
                     new Label { Text = "顯示名稱:", AutoSize = true, Margin = new Padding(0,5,5,0) }, txtName,
-                    new Label { Text = "單位:", AutoSize = true, Margin = new Padding(15,5,5,0) }, txtUnit
+                    new Label { Text = "單位:", AutoSize = true, Margin = new Padding(20,5,5,0) }, txtUnit
                 });
 
-                // 選擇欄位插入區塊
-                GroupBox boxBuilder = new GroupBox { Text = "建立來源欄位", Dock = DockStyle.Top, Height = 100, Padding = new Padding(10) };
+                // 🟢 高度增加，避免推擠
+                GroupBox boxBuilder = new GroupBox { Text = "建立來源欄位", Dock = DockStyle.Top, Height = 140, Padding = new Padding(10) };
                 FlowLayoutPanel pnlFields = new FlowLayoutPanel { Dock = DockStyle.Fill };
                 
-                ComboBox cbTables = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
-                ComboBox cbCols = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                ComboBox cbAggs = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
-                cbAggs.Items.AddRange(new string[] { "SUM", "AVG", "MAX", "MIN" }); cbAggs.SelectedIndex = 0;
+                // 🟢 選單寬度加大
+                ComboBox cbTables = new ComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
+                ComboBox cbCols = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+                ComboBox cbAggs = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList };
+                
+                // 🟢 加入 COUNT
+                cbAggs.Items.AddRange(new string[] { "SUM", "AVG", "MAX", "MIN", "COUNT" }); cbAggs.SelectedIndex = 0;
                 
                 cbTables.Items.AddRange(WaterTables);
                 cbTables.SelectedIndexChanged += (s, e) => {
@@ -964,24 +976,22 @@ namespace Safety_System
                     }
                 };
 
-                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 120, BackColor = Color.LightBlue };
+                // 🟢 按鈕獨立向下推，避免與選單擠在同一行
+                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 130, Height = 32, BackColor = Color.LightBlue, Margin = new Padding(0, 15, 0, 0) };
 
                 pnlFields.Controls.AddRange(new Control[] { cbTables, cbCols, cbAggs, btnInsert });
                 boxBuilder.Controls.Add(pnlFields);
 
-                // 計算機鍵盤
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(0,5,0,5) };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(0,10,0,5) };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
                 foreach (var k in keys) {
-                    Button b = new Button { Text = k, Width = 40, Height = 30 };
+                    Button b = new Button { Text = k, Width = 45, Height = 35 };
                     pnlKeys.Controls.Add(b);
                 }
 
-                // 公式區
-                Label lblF = new Label { Text = "計算公式: (支援數學運算子與欄位變數)", Dock = DockStyle.Top, Height = 30, Margin = new Padding(0,10,0,0) };
+                Label lblF = new Label { Text = "計算公式: (支援數學運算子與欄位變數)", Dock = DockStyle.Top, Height = 30, Margin = new Padding(0,15,0,0) };
                 RichTextBox rtbFormula = new RichTextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
 
-                // 綁定鍵盤事件
                 foreach (Control c in pnlKeys.Controls) {
                     if (c is Button b) b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " ");
                 }
@@ -997,12 +1007,10 @@ namespace Safety_System
                 rightPnl.Controls.Add(boxBuilder);
                 rightPnl.Controls.Add(pnlNameUnit);
 
-                // 底部儲存與刪除按鈕
                 Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
                 Button btnSave = new Button { Text = "💾 儲存並套用", Width = 150, Dock = DockStyle.Right, BackColor = Color.ForestGreen, ForeColor = Color.White };
                 Button btnDel = new Button { Text = "🗑️ 刪除", Width = 100, Dock = DockStyle.Left, BackColor = Color.IndianRed, ForeColor = Color.White };
 
-                // 選取連動
                 lbExisting.SelectedIndexChanged += (s, e) => {
                     if (lbExisting.SelectedIndex >= 0) {
                         var rule = _rules.First(r => r.Module == moduleName && r.StatName == lbExisting.SelectedItem.ToString());
