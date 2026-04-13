@@ -1,4 +1,4 @@
-name: Build MiniProgram01
+name: MiniProgram01
 
 on:
   workflow_dispatch:
