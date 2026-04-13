@@ -484,19 +484,18 @@ namespace Safety_System
             return dict;
         }
 
-        // 🟢 需求：月報平均使用量新增
         private Dictionary<string, double> CalculateMonthlyVolumeStats(string startYM, string endYM)
         {
             var dict = new Dictionary<string, double> { 
                 { "廠區", 0 }, { "行政區", 0 }, { "全廠用量", 0 },
-                { "廠區月平均", 0 }, { "行政區月平均", 0 }, { "全廠月平均", 0 } // 新增月平均欄位
+                { "廠區月平均", 0 }, { "行政區月平均", 0 }, { "全廠月平均", 0 } 
             };
             
             DataTable dt = null;
             try { dt = DataManager.GetTableData(DbName, "WaterVolume", "月份", startYM, endYM); } catch { return dict; }
             if (dt == null) return dict;
 
-            int validMonths = 0; // 紀錄區間筆數
+            int validMonths = 0; 
             foreach (DataRow r in dt.Rows) {
                 bool hasData = false;
                 if (dt.Columns.Contains("廠區自來水繳費單") && double.TryParse(r["廠區自來水繳費單"]?.ToString().Replace(",", ""), out double f)) { dict["廠區"] += f; hasData = true; }
@@ -506,7 +505,6 @@ namespace Safety_System
 
             dict["全廠用量"] = dict["廠區"] + dict["行政區"];
 
-            // 計算月平均
             if (validMonths > 0) {
                 dict["廠區月平均"] = dict["廠區"] / validMonths;
                 dict["行政區月平均"] = dict["行政區"] / validMonths;
@@ -659,8 +657,7 @@ namespace Safety_System
                 } else if (moduleName == "MonthlyVolume") {
                     if (!monthlyHeaderAdded1 && (key == "廠區" || key == "行政區" || key == "全廠用量")) { 
                         AddSectionHeader(p1, p2, p3, p4, "【自來水量】"); monthlyHeaderAdded1 = true; 
-                    } else if (!monthlyHeaderAdded2 && (key.Contains("平均"))) { 
-                        // 🟢 動態加入【平均使用量】群組標題
+                    } else if (!monthlyHeaderAdded2 && (key.Contains("月平均"))) { 
                         AddSectionHeader(p1, p2, p3, p4, "【平均使用量】"); monthlyHeaderAdded2 = true; 
                     }
                 }
@@ -710,7 +707,7 @@ namespace Safety_System
                 else if (title.Contains("污泥量")) { unit = " 噸"; format = "N3"; } 
                 else if (title.Contains("/M3")) { unit = " KG/M3"; format = "N3"; } 
                 else if (title == "PAC" || title == "NAOH" || title == "高分子") { unit = " KG"; format = "N0"; }
-                else if (title.Contains("月平均")) { unit = " M3/月"; format = "N1"; } // 🟢 賦予月平均單位
+                else if (title.Contains("月平均")) { unit = " M3/月"; format = "N1"; } 
                 else if (title.Contains("平均") || title.Contains("最大") || title.Contains("最小")) { 
                     if (title.Contains("SS") || title.Contains("COD") || title.Contains("BOD") || title.Contains("氨氮")) { unit = " mg/L"; format = "N2"; } 
                     else { unit = " M3/日"; format = "N1"; } 
@@ -904,7 +901,7 @@ namespace Safety_System
                                 }
                             }
                             
-                            if (values.Count > 0 || agg == "COUNT") { // COUNT 即使為 0 也可以成立
+                            if (values.Count > 0 || agg == "COUNT") { 
                                 if (agg == "SUM") computedValue = values.Sum();
                                 else if (agg == "AVG") computedValue = values.Average();
                                 else if (agg == "MAX") computedValue = values.Max();
@@ -930,14 +927,15 @@ namespace Safety_System
             return result;
         }
 
-        // 🟢 介面尺寸與下拉選單寬度加大優化
+        // 🟢 完整重構：單行對齊、寬高優化的設計
         public static void OpenConfigDialog(string moduleName)
         {
-            using (Form f = new Form() { Width = 1000, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
+            // 加寬視窗
+            using (Form f = new Form() { Width = 950, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
             {
                 Label lblTop = new Label { Text = "📝 自定義延伸統計公式", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Top, Padding = new Padding(10), AutoSize = true };
 
-                Panel leftPnl = new Panel { Dock = DockStyle.Left, Width = 250, Padding = new Padding(10) };
+                Panel leftPnl = new Panel { Dock = DockStyle.Left, Width = 280, Padding = new Padding(10) };
                 ListBox lbExisting = new ListBox { Dock = DockStyle.Fill };
                 var existingRules = GetStatsForModule(moduleName);
                 foreach (var r in existingRules) lbExisting.Items.Add(r.StatName);
@@ -946,26 +944,27 @@ namespace Safety_System
 
                 Panel rightPnl = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
 
-                FlowLayoutPanel pnlNameUnit = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,0,0,15) };
-                TextBox txtName = new TextBox { Width = 180 };
+                // 顯示名稱區
+                FlowLayoutPanel pnlTop = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 0, 0, 15) };
+                TextBox txtName = new TextBox { Width = 200 };
                 TextBox txtUnit = new TextBox { Width = 100 };
-                pnlNameUnit.Controls.AddRange(new Control[] {
-                    new Label { Text = "顯示名稱:", AutoSize = true, Margin = new Padding(0,5,5,0) }, txtName,
-                    new Label { Text = "單位:", AutoSize = true, Margin = new Padding(20,5,5,0) }, txtUnit
+                pnlTop.Controls.AddRange(new Control[] {
+                    new Label { Text = "顯示名稱:", AutoSize = true, Margin = new Padding(0, 5, 5, 0) }, txtName,
+                    new Label { Text = "單位:", AutoSize = true, Margin = new Padding(20, 5, 5, 0) }, txtUnit
                 });
 
-                // 🟢 高度增加，避免推擠
-                GroupBox boxBuilder = new GroupBox { Text = "建立來源欄位", Dock = DockStyle.Top, Height = 140, Padding = new Padding(10) };
-                FlowLayoutPanel pnlFields = new FlowLayoutPanel { Dock = DockStyle.Fill };
+                // 🟢 建立來源欄位 (完美單行設計)
+                GroupBox boxBuilder = new GroupBox { Text = "建立來源欄位", Dock = DockStyle.Top, Height = 100, Padding = new Padding(10) };
+                FlowLayoutPanel pnlFields = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
                 
-                // 🟢 選單寬度加大
-                ComboBox cbTables = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
-                ComboBox cbCols = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
-                ComboBox cbAggs = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList };
-                
-                // 🟢 加入 COUNT
+                int comboW = 180;
+                ComboBox cbTables = new ComboBox { Width = comboW, DropDownStyle = ComboBoxStyle.DropDownList };
+                ComboBox cbCols = new ComboBox { Width = comboW, DropDownStyle = ComboBoxStyle.DropDownList };
+                ComboBox cbAggs = new ComboBox { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
                 cbAggs.Items.AddRange(new string[] { "SUM", "AVG", "MAX", "MIN", "COUNT" }); cbAggs.SelectedIndex = 0;
                 
+                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 120, Height = 32, BackColor = Color.LightBlue };
+
                 cbTables.Items.AddRange(WaterTables);
                 cbTables.SelectedIndexChanged += (s, e) => {
                     cbCols.Items.Clear();
@@ -976,37 +975,34 @@ namespace Safety_System
                     }
                 };
 
-                // 🟢 按鈕獨立向下推，避免與選單擠在同一行
-                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 130, Height = 32, BackColor = Color.LightBlue, Margin = new Padding(0, 3, 3, 3) };
-
                 pnlFields.Controls.AddRange(new Control[] { cbTables, cbCols, cbAggs, btnInsert });
                 boxBuilder.Controls.Add(pnlFields);
 
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(0,10,0,5) };
+                // 按鈕列
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(0, 10, 0, 5) };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
                 foreach (var k in keys) {
-                    Button b = new Button { Text = k, Width = 45, Height = 35 };
+                    Button b = new Button { Text = k, Width = 50, Height = 35 };
                     pnlKeys.Controls.Add(b);
+                    b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " "); // 綁定到下方的 rtbFormula
                 }
 
-                Label lblF = new Label { Text = "計算公式: (支援數學運算子與欄位變數)", Dock = DockStyle.Top, Height = 30, Margin = new Padding(0,15,0,0) };
+                // 公式區
+                Label lblF = new Label { Text = "計算公式: (支援數學運算子與欄位變數)", Dock = DockStyle.Top, Height = 30, Margin = new Padding(0,10,0,0) };
                 RichTextBox rtbFormula = new RichTextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
 
-                foreach (Control c in pnlKeys.Controls) {
-                    if (c is Button b) b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " ");
-                }
                 btnInsert.Click += (s, e) => {
-                    if (cbTables.SelectedItem != null && cbCols.SelectedItem != null && cbAggs.SelectedItem != null) {
+                    if (cbTables.SelectedItem != null && cbCols.SelectedItem != null && cbAggs.SelectedItem != null)
                         rtbFormula.AppendText($"{cbAggs.Text}([{cbTables.Text}].[{cbCols.Text}])");
-                    }
                 };
 
                 rightPnl.Controls.Add(rtbFormula);
                 rightPnl.Controls.Add(lblF);
                 rightPnl.Controls.Add(pnlKeys);
                 rightPnl.Controls.Add(boxBuilder);
-                rightPnl.Controls.Add(pnlNameUnit);
+                rightPnl.Controls.Add(pnlTop);
 
+                // 底部控制列
                 Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
                 Button btnSave = new Button { Text = "💾 儲存並套用", Width = 150, Dock = DockStyle.Right, BackColor = Color.ForestGreen, ForeColor = Color.White };
                 Button btnDel = new Button { Text = "🗑️ 刪除", Width = 100, Dock = DockStyle.Left, BackColor = Color.IndianRed, ForeColor = Color.White };
