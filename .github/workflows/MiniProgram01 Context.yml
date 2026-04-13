@@ -31,7 +31,7 @@ jobs:
         import os
 
         # 目標資料夾路徑
-        TARGET_DIR = 'SafetyProgram/MiniProgram01'
+        TARGET_DIR = './MiniProgram01'
         
         valid_extensions = ('.cs', '.csproj', '.config', '.md', '.txt')
         exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
