@@ -1,4 +1,4 @@
-name: Build and Package MiniProgram01
+name: MiniProgram01 Context
 
 # 設定觸發條件
 on:
