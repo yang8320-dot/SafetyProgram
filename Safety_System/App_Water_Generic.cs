@@ -29,25 +29,17 @@ namespace Safety_System
         private readonly string _tableName; 
         private readonly string _chineseTitle;
         
-        // 🟢 動態時間模式判定
         private bool _isMonthlyMode = false;
         private string _dateColumnName = "日期";
 
-        // 🟢 專屬水資源的自動運算 Helper (處理日統計、月統計、星期推算)
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 🟢 集中管理水污系統的初始 Schema
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            // 【日】廢水處理水量記錄
             { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [備註] TEXT" },
-            // 【日】廢水處理用藥記錄
             { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [備註] TEXT" },
-            // 【日】自來水使用量
             { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [備註] TEXT" },
-            // 【月】納管排放數據
             { "DischargeData", "[月份] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [備註] TEXT" },
-            // 【月】自來水用量統計
             { "WaterVolume", "[月份] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [備註] TEXT" }
         };
 
@@ -64,7 +56,6 @@ namespace Safety_System
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
-            // 🟢 動態偵測查詢模式 (查日期 還是 查月份)
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             if (columns.Contains("月份") && !columns.Contains("日期")) {
                 _isMonthlyMode = true;
@@ -72,7 +63,6 @@ namespace Safety_System
             } else {
                 _isMonthlyMode = false;
                 _dateColumnName = "日期";
-                // 確保日報表都有星期欄位
                 if (!columns.Contains("星期")) DataManager.AddColumn(_dbName, _tableName, "星期");
             }
 
@@ -118,7 +108,9 @@ namespace Safety_System
             bSave.Click += BtnSave_Click; 
             
             Button bExport = new Button { Text = "📤 匯出Excel", Size = new Size(130, 35) }; bExport.Click += BtnExport_Click;
-            Button bImport = new Button { Text = "📥 匯入CSV", Size = new Size(130, 35) }; bImport.Click += BtnImportCsv_Click;
+            
+            // 🟢 修改按鈕文字
+            Button bImport = new Button { Text = "📥 匯入Excel", Size = new Size(130, 35) }; bImport.Click += BtnImportExcel_Click;
 
             _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(130, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
@@ -133,14 +125,12 @@ namespace Safety_System
             row1.Controls.Add(_cboStartYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             row1.Controls.Add(_cboStartMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             
-            // 🟢 若為月報表模式，自動隱藏日的選擇器
             if (!_isMonthlyMode) { row1.Controls.Add(_cboStartDay); row1.Controls.Add(_lblStartDay); }
             
             row1.Controls.Add(new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) });
             row1.Controls.Add(_cboEndYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             row1.Controls.Add(_cboEndMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
             
-            // 🟢 若為月報表模式，自動隱藏日的選擇器
             if (!_isMonthlyMode) { row1.Controls.Add(_cboEndDay); row1.Controls.Add(_lblEndDay); }
 
             row1.Controls.Add(bRead); row1.Controls.Add(bExport); row1.Controls.Add(bImport); row1.Controls.Add(_btnToggle); row1.Controls.Add(bSave);
@@ -194,8 +184,6 @@ namespace Safety_System
             };
             
             _dgv.KeyDown += Dgv_KeyDown;
-            
-            // 🟢 綁定水資源專屬運算引擎
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
             main.Controls.Add(boxTop, 0, 0); main.Controls.Add(_boxAdvanced, 0, 1); main.Controls.Add(_dgv, 0, 2);
@@ -252,7 +240,6 @@ namespace Safety_System
                 if (c.Name != "Id" && c.Name != _dateColumnName) _cboColumns.Items.Add(c.Name);
         }
 
-        // 🟢 動態時間防呆格式化 (切換 yyyy-MM-dd 或 yyyy-MM)
         private void EnforceDateFormat(DataTable dt)
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
@@ -296,41 +283,68 @@ namespace Safety_System
             }
         }
 
-        private void BtnImportCsv_Click(object sender, EventArgs e)
+        // 🟢 修改為讀取 Excel 格式
+        private void BtnImportExcel_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv" }) {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
-                        string[] lines = File.ReadAllLines(ofd.FileName, Encoding.Default);
-                        if (lines.Length < 2) return;
-                        DataTable dt = (DataTable)_dgv.DataSource;
-                        string[] headers = ParseCsvLine(lines[0]);
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                        _dgv.DataSource = null; 
-                        _calcHelper?.BeginBulkUpdate();
-
-                        foreach (string line in lines.Skip(1)) {
-                            if (string.IsNullOrWhiteSpace(line)) continue;
-                            DataRow nr = dt.NewRow();
-                            string[] vs = ParseCsvLine(line);
-                            for (int h = 0; h < headers.Length && h < vs.Length; h++) {
-                                string cn = headers[h].Trim();
-                                if (dt.Columns.Contains(cn) && cn != "Id") nr[cn] = vs[h].Trim().Trim('"');
+                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
+                            ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                            if (ws == null || ws.Dimension == null) {
+                                MessageBox.Show("找不到工作表或檔案為空！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                return;
                             }
-                            dt.Rows.Add(nr);
-                        }
 
-                        _calcHelper?.RecalculateTable(dt); 
-                        _calcHelper?.EndBulkUpdate();
-                        _dgv.DataSource = dt; 
-                        RestoreColumnOrder();
-                        MessageBox.Show("匯入成功!請檢查數據後點擊儲存。");
-                    } catch (Exception ex) { RefreshGrid(); MessageBox.Show("匯入異常：" + ex.Message); }
+                            int rowCount = ws.Dimension.Rows;
+                            int colCount = ws.Dimension.Columns;
+
+                            // 解析 Header
+                            string[] headers = new string[colCount];
+                            for (int c = 1; c <= colCount; c++) {
+                                headers[c - 1] = ws.Cells[1, c].Text.Trim();
+                            }
+
+                            DataTable dt = (DataTable)_dgv.DataSource;
+                            _dgv.DataSource = null; 
+                            _calcHelper?.BeginBulkUpdate();
+
+                            // 讀取資料列
+                            for (int r = 2; r <= rowCount; r++) {
+                                DataRow nr = dt.NewRow();
+                                bool hasData = false;
+
+                                for (int c = 1; c <= colCount; c++) {
+                                    string cn = headers[c - 1];
+                                    // 🟢 EPPlus 的 .Text 會取得格式化後的文字（保留日期格式）
+                                    string val = ws.Cells[r, c].Text.Trim(); 
+
+                                    if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) {
+                                        nr[cn] = val;
+                                        hasData = true;
+                                    }
+                                }
+                                if (hasData) dt.Rows.Add(nr);
+                            }
+
+                            _calcHelper?.RecalculateTable(dt); 
+                            _calcHelper?.EndBulkUpdate();
+                            _dgv.DataSource = dt; 
+                            RestoreColumnOrder();
+
+                            MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                    } catch (Exception ex) { 
+                        RefreshGrid(); 
+                        MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
                 }
             }
         }
-
-        private string[] ParseCsvLine(string line) { var res = new System.Collections.Generic.List<string>(); bool q = false; var f = new StringBuilder(); foreach (char c in line) { if (c == '\"') q = !q; else if (c == ',' && !q) { res.Add(f.ToString()); f.Clear(); } else f.Append(c); } res.Add(f.ToString()); return res.ToArray(); }
 
         private void Dgv_KeyDown(object sender, KeyEventArgs e)
         {
