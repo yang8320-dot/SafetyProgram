@@ -1,58 +1,92 @@
 name: MiniProgram01 Context
 
-# 設定觸發條件
 on:
   push:
-    branches: [ "main" ]
-    # 僅當 MiniProgram01 資料夾或此 workflow 有異動時才觸發，節省資源
-    paths:
-      - 'MiniProgram01/**'
-      - '.github/workflows/**'
-  pull_request:
-    branches: [ "main" ]
-    paths:
-      - 'MiniProgram01/**'
-  workflow_dispatch: # 允許在 GitHub Actions 頁面手動點擊觸發
+    branches: [ "main", "master" ]
+  # 允許手動觸發
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build Single Executable
-    runs-on: windows-latest # .NET Framework 4.7.2 必須在 Windows 環境編譯
+    runs-on: ubuntu-latest
 
     steps:
-    - name: 1. 取得儲存庫程式碼 (Checkout Code)
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: 2. 設定 MSBuild 環境 (Setup MSBuild)
-      uses: microsoft/setup-msbuild@v2
-
-    - name: 3. 設定 NuGet 環境 (Setup NuGet)
-      uses: nuget/setup-nuget@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        nuget-version: 'latest'
+        python-version: '3.10'
 
-    - name: 4. 還原 NuGet 套件 (Restore NuGet Packages)
-      # 針對 MiniProgram01 目錄下的 csproj 進行還原
-      # 若您的 .csproj 檔名不是 MiniProgram01.csproj，請修改此處檔名
-      run: nuget restore "MiniProgram01\MiniProgram01.csproj"
-
-    - name: 5. 編譯專案 (Build Project)
-      # 使用 MSBuild 進行 Release 編譯
-      # 注意：若專案已安裝 Costura.Fody，此步驟完成後即會產出單一 .exe 檔
+    - name: Create and Run Context Generator
       run: |
-        msbuild "MiniProgram01\MiniProgram01.csproj" `
-          -property:Configuration=Release `
-          -property:Platform="Any CPU" `
-          -target:Rebuild
+        cat << 'EOF' > generate_context.py
+        import os
 
-    - name: 6. 上傳單一執行檔 (Upload Artifact)
+        # 🟢 將目標資料夾設為根目錄 '.'，以便抓取所有的 .cs 與設定檔
+        TARGET_DIR = '.'
+        
+        # 🟢 定義要收集的檔案副檔名 (特別針對 C# 專案保留 .cs, .txt 等)
+        valid_extensions = (
+            '.cs', '.csproj', '.config', '.md', '.txt'
+        )
+        
+        # 🟢 排除編譯暫存與 Git 系統資料夾
+        exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
+
+        if not os.path.exists(TARGET_DIR):
+            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")
+            exit(1)
+
+        file_paths = []
+        full_content = []
+
+        # 遍歷資料夾並收集資料
+        for root, dirs, files in os.walk(TARGET_DIR):
+            # 過濾掉不需要的資料夾
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            for file in files:
+                if file.lower().endswith(valid_extensions):
+                    # 避免抓到腳本自己生成的 txt
+                    if file in ['0_project_tree.txt', 'project_context_all.txt']:
+                        continue
+                        
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, '.')
+                    file_paths.append(rel_path)
+                    
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
+                            content = code_f.read()
+                    except Exception as e:
+                        content = f"// 無法讀取此檔案: {e}\n"
+                    
+                    # 格式化內容，加入明顯的分隔線與檔名標註
+                    header = f"\n{'='*60}\n/// FILE: {rel_path} ///\n{'='*60}\n\n"
+                    full_content.append(header + content + "\n")
+
+        # 1. 寫入目錄結構檔
+        with open('0_project_tree.txt', 'w', encoding='utf-8') as f_tree:
+            f_tree.write(f"# C# 專案檔案總覽 (總計 {len(file_paths)} 個檔案)\n\n")
+            for path in sorted(file_paths):
+                f_tree.write(f"- {path}\n")
+
+        # 2. 寫入單一完整程式碼檔
+        with open('project_context_all.txt', 'w', encoding='utf-8') as f_all:
+            f_all.write(f"# C# 專案完整代碼總覽\n")
+            f_all.write("".join(full_content))
+
+        print(f"成功生成目錄與完整內容，共計 {len(file_paths)} 個檔案。")
+        EOF
+        python generate_context.py
+
+    - name: Upload Context Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: MiniProgram01-Portable-Executable
-        # 指定只抓取 Release 目錄下的 .exe 檔案
-        # 如果有純文字設定檔 (.txt) 需要一併打包給使用者，也可以在這裡加入，例如：
-        # path: |
-        #   MiniProgram01\bin\Release\*.exe
-        #   MiniProgram01\bin\Release\*.txt
-        path: MiniProgram01\bin\Release\*.exe
-        if-no-files-found: error
+        name: MiniProgram-Code-Context
+        path: |
+          0_project_tree.txt
+          project_context_all.txt
+        # 設定 Artifact 保留天數，避免佔用過多 GitHub 空間
+        retention-days: 7
