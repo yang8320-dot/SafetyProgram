@@ -54,7 +54,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            CustomStatEngine.LoadSettings(); // 載入自定義統計設定
+            CustomStatEngine.LoadSettings(); 
             LoadVisibilitySettings(); 
 
             _mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
@@ -160,9 +160,6 @@ namespace Safety_System
             return _mainScrollPanel;
         }
 
-        // ==========================================
-        // UI 與設定邏輯
-        // ==========================================
         private void LoadVisibilitySettings()
         {
             _visibilitySettings.Clear();
@@ -303,7 +300,6 @@ namespace Safety_System
             Button btnSettings = new Button { Text = "⚙️ 設定顯示", Size = new Size(110, 30), BackColor = Color.LightGray, ForeColor = Color.Black, Font = new Font("Microsoft JhengHei UI", 10F), Dock = DockStyle.Right, Cursor = Cursors.Hand };
             Button btnCustom = new Button { Text = "➕ 統計設定", Size = new Size(110, 30), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F), Dock = DockStyle.Right, Cursor = Cursors.Hand, Margin = new Padding(0,0,10,0) };
 
-            // 既有設定
             btnSettings.Tag = moduleName;
             btnSettings.Click += (s, e) => {
                 string mod = ((Button)s).Tag.ToString();
@@ -321,7 +317,6 @@ namespace Safety_System
                 OpenSettingsDialog(mod, currentData);
             };
 
-            // 新增自訂統計
             btnCustom.Tag = moduleName;
             btnCustom.Click += (s, e) => {
                 CustomStatEngine.OpenConfigDialog(moduleName);
@@ -354,9 +349,6 @@ namespace Safety_System
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
-        // ==========================================
-        // 核心運算：日報表與月報表載入邏輯
-        // ==========================================
         private void LoadDailyData()
         {
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
@@ -445,9 +437,6 @@ namespace Safety_System
             l4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析"; 
         }
 
-        // ==========================================
-        // 資料客製化過濾與運算
-        // ==========================================
         private Dictionary<string, double> CalculateDailyUsageStats(string start, string end)
         {
             var dict = new Dictionary<string, double> {
@@ -628,9 +617,6 @@ namespace Safety_System
             return dict;
         }
 
-        // ==========================================
-        // 渲染 Label 數據與差異顏色處理
-        // ==========================================
         private void FillDataPanels(string moduleName, Panel p1, Panel p2, Panel p3, Panel p4, Dictionary<string, double> curr, Dictionary<string, double> ly, Dictionary<string, double> l2y, bool isRecycleRate = false)
         {
             p1.Controls.Clear(); p2.Controls.Clear(); p3.Controls.Clear(); p4.Controls.Clear();
@@ -717,9 +703,6 @@ namespace Safety_System
             return new Label { Text = $"{title}: {value.ToString(format)}{unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         }
 
-        // ==========================================
-        // 匯出 PDF 功能
-        // ==========================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
@@ -821,9 +804,6 @@ namespace Safety_System
         }
     }
 
-    // =========================================================================
-    // 🟢 獨立引擎：處理動態自訂義統計 (Formula Engine)
-    // =========================================================================
     public static class CustomStatEngine
     {
         public class CustomRule {
@@ -867,7 +847,6 @@ namespace Safety_System
             return _rules.Where(r => r.Module == moduleName).ToList();
         }
 
-        // 將公式翻譯並計算
         public static Dictionary<string, double> EvaluateForModule(string module, string startDate, string endDate)
         {
             var result = new Dictionary<string, double>();
@@ -878,7 +857,6 @@ namespace Safety_System
             {
                 string formula = rule.Formula;
                 
-                // 🟢 支援 COUNT 解析
                 Regex regex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<table>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
                 var matches = regex.Matches(formula);
 
@@ -927,10 +905,8 @@ namespace Safety_System
             return result;
         }
 
-        // 🟢 完整重構：單行對齊、寬高優化的設計
         public static void OpenConfigDialog(string moduleName)
         {
-            // 加寬視窗
             using (Form f = new Form() { Width = 950, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
             {
                 Label lblTop = new Label { Text = "📝 自定義延伸統計公式", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Top, Padding = new Padding(10), AutoSize = true };
@@ -944,7 +920,9 @@ namespace Safety_System
 
                 Panel rightPnl = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
 
-                // 顯示名稱區
+                int comboW = 180;
+                int btnW = 120;
+
                 FlowLayoutPanel pnlTop = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 0, 0, 15) };
                 TextBox txtName = new TextBox { Width = 200 };
                 TextBox txtUnit = new TextBox { Width = 100 };
@@ -953,17 +931,15 @@ namespace Safety_System
                     new Label { Text = "單位:", AutoSize = true, Margin = new Padding(20, 5, 5, 0) }, txtUnit
                 });
 
-                // 🟢 建立來源欄位 (完美單行設計)
                 GroupBox boxBuilder = new GroupBox { Text = "建立來源欄位", Dock = DockStyle.Top, Height = 100, Padding = new Padding(10) };
                 FlowLayoutPanel pnlFields = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
                 
-                int comboW = 180;
                 ComboBox cbTables = new ComboBox { Width = comboW, DropDownStyle = ComboBoxStyle.DropDownList };
                 ComboBox cbCols = new ComboBox { Width = comboW, DropDownStyle = ComboBoxStyle.DropDownList };
                 ComboBox cbAggs = new ComboBox { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
                 cbAggs.Items.AddRange(new string[] { "SUM", "AVG", "MAX", "MIN", "COUNT" }); cbAggs.SelectedIndex = 0;
                 
-                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 120, Height = 32, BackColor = Color.LightBlue };
+                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = btnW, Height = 32, BackColor = Color.LightBlue };
 
                 cbTables.Items.AddRange(WaterTables);
                 cbTables.SelectedIndexChanged += (s, e) => {
@@ -978,19 +954,22 @@ namespace Safety_System
                 pnlFields.Controls.AddRange(new Control[] { cbTables, cbCols, cbAggs, btnInsert });
                 boxBuilder.Controls.Add(pnlFields);
 
-                // 按鈕列
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(0, 10, 0, 5) };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 50, Height = 35 };
                     pnlKeys.Controls.Add(b);
-                    b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " "); // 綁定到下方的 rtbFormula
                 }
 
-                // 公式區
-                Label lblF = new Label { Text = "計算公式: (支援數學運算子與欄位變數)", Dock = DockStyle.Top, Height = 30, Margin = new Padding(0,10,0,0) };
+                // 🟢 修正：提前宣告 rtbFormula，解決編譯錯誤
                 RichTextBox rtbFormula = new RichTextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
+                Label lblF = new Label { Text = "計算公式: (支援數學運算子與欄位變數)", Dock = DockStyle.Top, Height = 30, Margin = new Padding(0,10,0,0) };
 
+                // 🟢 綁定鍵盤事件
+                foreach (Control c in pnlKeys.Controls) {
+                    if (c is Button b) b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " ");
+                }
+                
                 btnInsert.Click += (s, e) => {
                     if (cbTables.SelectedItem != null && cbCols.SelectedItem != null && cbAggs.SelectedItem != null)
                         rtbFormula.AppendText($"{cbAggs.Text}([{cbTables.Text}].[{cbCols.Text}])");
@@ -1002,7 +981,6 @@ namespace Safety_System
                 rightPnl.Controls.Add(boxBuilder);
                 rightPnl.Controls.Add(pnlTop);
 
-                // 底部控制列
                 Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
                 Button btnSave = new Button { Text = "💾 儲存並套用", Width = 150, Dock = DockStyle.Right, BackColor = Color.ForestGreen, ForeColor = Color.White };
                 Button btnDel = new Button { Text = "🗑️ 刪除", Width = 100, Dock = DockStyle.Left, BackColor = Color.IndianRed, ForeColor = Color.White };
