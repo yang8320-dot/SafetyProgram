@@ -15,7 +15,7 @@ public class App_FileWatcher : UserControl {
     private Dictionary<string, string> pathPairs = new Dictionary<string, string>();
     private Dictionary<string, DateTime> lastProcessedTimes = new Dictionary<string, DateTime>();
     
-    // 【新增】用於控制 UI 防洗版的快取，紀錄各資料夾/檔案最後一次顯示在畫面的時間
+    // 用於控制 UI 防洗版的快取
     private Dictionary<string, DateTime> lastUINotifications = new Dictionary<string, DateTime>();
     
     private readonly object lockObj = new object();
@@ -151,7 +151,7 @@ public class App_FileWatcher : UserControl {
         
         string checkName = Path.GetFileName(e.FullPath);
         
-        // 【核心修改 1】：增加排除看圖軟體與系統自動生成的縮圖暫存檔
+        // 排除系統垃圾檔與暫存檔
         if (checkName.StartsWith("~") || 
             checkName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
             checkName.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase) ||
@@ -201,7 +201,7 @@ public class App_FileWatcher : UserControl {
         }
 
         lock (lockObj) {
-            // 防抖動處理
+            // 防抖動處理 (短時間同檔案連續觸發過濾)
             if (lastProcessedTimes.ContainsKey(e.FullPath) && (DateTime.Now - lastProcessedTimes[e.FullPath]).TotalMilliseconds < 800) return;
             lastProcessedTimes[e.FullPath] = DateTime.Now;
         }
@@ -248,29 +248,39 @@ public class App_FileWatcher : UserControl {
             }
 
             if (copySuccess && showUI) {
-                // 【核心修改 2】：將 UI 顯示改為資料夾收斂模式
                 string[] pathParts = relPath.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
                 bool isInsideFolder = pathParts.Length > 1;
-                
-                // 如果在資料夾內，取最上層資料夾名稱；否則直接顯示檔名
                 string displayFileName = isInsideFolder ? "📁 " + pathParts[0] + " (資料夾群組)" : Path.GetFileName(srcFile);
 
                 bool shouldUpdateUI = false;
                 lock (lockObj) {
-                    // 同一個資料夾/檔案，在 2 秒內只會在 UI 產生一次卡片，避免大量檔案同時備份造成洗版
                     if (!lastUINotifications.ContainsKey(displayFileName) || (DateTime.Now - lastUINotifications[displayFileName]).TotalSeconds > 2) {
                         lastUINotifications[displayFileName] = DateTime.Now;
                         shouldUpdateUI = true;
                     }
                 }
 
-                if (!shouldUpdateUI) return; // UI 防洗版略過，但背景確實已經備份完了
+                if (!shouldUpdateUI) return; 
 
                 try {
                     this.Invoke(new Action(() => {
                         parentForm.AlertTab(0); 
                         
+                        // 【重點新增】：UI 防重複疊加卡片邏輯
+                        string cardUniqueName = displayFileName;
+                        
+                        // 1. 先掃描畫面上是否已經有這個檔案/資料夾的卡片
+                        foreach (Control ctrl in cardPanel.Controls) {
+                            if (ctrl.Name == cardUniqueName) {
+                                // 如果有，直接把它提到清單最上方提醒，但不產生新卡片
+                                cardPanel.Controls.SetChildIndex(ctrl, 0);
+                                return; // 直接中斷後續新增流程
+                            }
+                        }
+                        
+                        // 2. 如果沒有，才建立新的 Panel
                         Panel c = new Panel() { 
+                            Name = cardUniqueName, // 賦予 Name 以便未來識別
                             Width = 340, AutoSize = true, 
                             MinimumSize = new Size(0, 65), 
                             BackColor = Color.WhiteSmoke, 
@@ -316,7 +326,6 @@ public class App_FileWatcher : UserControl {
                         btnPnl.Controls.Add(bView); 
                         btnPnl.Controls.Add(bClose);
 
-                        // 顯示位置：如果是群組顯示第一層資料夾路徑，若是單一檔案則顯示原路徑
                         string displayLoc = string.IsNullOrWhiteSpace(customName) ? (isInsideFolder ? pathParts[0] : relPath) : customName;
                         Label lbl = new Label() { 
                             Text = displayFileName + "\n位置: " + displayLoc, 
@@ -382,10 +391,9 @@ public class App_FileWatcher : UserControl {
 }
 
 // ==========================================
-// 視窗：監控設定 (保持原樣不變)
+// 視窗：監控設定
 // ==========================================
 public class MonitorSettingsWindow : Form {
-    /* 略... (這段完全不需修改，可直接沿用原本的) */
     private App_FileWatcher parentWatcher;
     private TextBox txtCustomName, txtSource, txtBackup;
     private ComboBox cmbMethod, cmbFreq, cmbDepth, cmbSync, cmbRetain;
@@ -470,6 +478,7 @@ public class MonitorSettingsWindow : Form {
             };
             mainFlow.Controls.Add(btnList);
         }
+
         this.Controls.Add(mainFlow);
     }
 
@@ -516,10 +525,9 @@ public class MonitorSettingsWindow : Form {
 }
 
 // ==========================================
-// 視窗：管理監控任務清單 (保持原樣不變)
+// 視窗：管理監控任務清單
 // ==========================================
 public class MonitorListWindow : Form {
-    /* 略... (這段完全不需修改，可直接沿用原本的) */
     private App_FileWatcher parentWatcher;
     private FlowLayoutPanel flow;
     private Font MainFont = new Font("Microsoft JhengHei UI", 9.5f);
@@ -541,7 +549,11 @@ public class MonitorListWindow : Form {
         
         flow.Resize += (s, e) => {
             int w = flow.ClientSize.Width - 30;
-            if (w > 0) foreach (Control c in flow.Controls) if (c is Panel) c.Width = w;
+            if (w > 0) {
+                foreach (Control c in flow.Controls) {
+                    if (c is Panel) c.Width = w;
+                }
+            }
         };
         
         this.Controls.Add(flow);
@@ -574,28 +586,52 @@ public class MonitorListWindow : Form {
             card.Width = flow.ClientSize.Width > 30 ? flow.ClientSize.Width - 30 : 400;
 
             TableLayoutPanel tlp = new TableLayoutPanel() { 
-                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true 
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, 
+                AutoSize = true 
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110f));
 
-            Label lbl = new Label() { Text = displayName + "\n=> " + parts[1], Dock = DockStyle.Fill, AutoSize = true, Font = MainFont };
+            Label lbl = new Label() { 
+                Text = displayName + "\n=> " + parts[1], 
+                Dock = DockStyle.Fill, AutoSize = true, Font = MainFont 
+            };
             
-            FlowLayoutPanel btnPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0) };
+            FlowLayoutPanel btnPanel = new FlowLayoutPanel() { 
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, 
+                WrapContents = false, Margin = new Padding(0) 
+            };
             
-            Button btnEdit = new Button() { Text = "編輯", Width = 50, Height = 30, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-            btnEdit.Click += (s, e) => { new MonitorSettingsWindow(parentWatcher, key, data).Show(); this.Close(); };
+            Button btnEdit = new Button() { 
+                Text = "編輯", Width = 50, Height = 30, 
+                BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, 
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand 
+            };
+            btnEdit.Click += (s, e) => {
+                new MonitorSettingsWindow(parentWatcher, key, data).Show();
+                this.Close();
+            };
             
-            Button btnDel = new Button() { Text = "刪除", Width = 50, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            Button btnDel = new Button() { 
+                Text = "刪除", Width = 50, Height = 30, 
+                BackColor = Color.IndianRed, ForeColor = Color.White, 
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand 
+            };
             btnDel.Click += (s, e) => {
                 if (MessageBox.Show("確定要刪除此監控任務嗎？", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                    parentWatcher.DeleteTask(key); RefreshList();
+                    parentWatcher.DeleteTask(key);
+                    RefreshList();
                 }
             };
             
-            btnPanel.Controls.Add(btnEdit); btnPanel.Controls.Add(btnDel);
-            tlp.Controls.Add(lbl, 0, 0); tlp.Controls.Add(btnPanel, 1, 0);
-            card.Controls.Add(tlp); flow.Controls.Add(card);
+            btnPanel.Controls.Add(btnEdit);
+            btnPanel.Controls.Add(btnDel);
+
+            tlp.Controls.Add(lbl, 0, 0);
+            tlp.Controls.Add(btnPanel, 1, 0);
+
+            card.Controls.Add(tlp);
+            flow.Controls.Add(card);
         }
     }
 }
