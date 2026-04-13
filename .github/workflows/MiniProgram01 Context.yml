@@ -24,8 +24,8 @@ jobs:
         cat << 'EOF' > generate_context.py
         import os
 
-        # 🟢 將目標資料夾設為根目錄 '.'，以便抓取所有的 .cs 與設定檔
-        TARGET_DIR = '.'
+        # 🟢 將目標資料夾精確指向 SafetyProgram/MiniProgram01
+        TARGET_DIR = 'SafetyProgram/MiniProgram01'
         
         # 🟢 定義要收集的檔案副檔名 (特別針對 C# 專案保留 .cs, .txt 等)
         valid_extensions = (
@@ -36,7 +36,7 @@ jobs:
         exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
 
         if not os.path.exists(TARGET_DIR):
-            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")
+            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！請確認路徑大小寫與名稱是否正確。")
             exit(1)
 
         file_paths = []
@@ -84,7 +84,7 @@ jobs:
     - name: Upload Context Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: MiniProgram-Code-Context
+        name: MiniProgram01-Code-Context
         path: |
           0_project_tree.txt
           project_context_all.txt
