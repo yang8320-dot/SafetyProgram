@@ -46,9 +46,9 @@ namespace Safety_System
             // 【日】自來水使用量
             { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水量] TEXT, [廠區自來水量日統計] TEXT, [行政區自來水量] TEXT, [行政區自來水量日統計] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [備註] TEXT" },
             // 【月】納管排放數據
-            { "DischargeData", "[月份] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT" },
+            { "DischargeData", "[月份] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [備註] TEXT" },
             // 【月】自來水用量統計
-            { "WaterVolume", "[月份] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT" }
+            { "WaterVolume", "[月份] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [備註] TEXT" }
         };
 
         public App_Water_Generic(string dbName, string tableName, string chineseTitle)
