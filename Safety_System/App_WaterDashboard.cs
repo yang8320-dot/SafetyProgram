@@ -29,7 +29,10 @@ namespace Safety_System
         private Panel _pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4;
         private Panel _pnlBox5Data1, _pnlBox5Data2, _pnlBox5Data3, _pnlBox5Data4;
         
+        // 🟢 儲存各個大框的參考，供 PDF 個別渲染使用
+        private Panel _pnlWaterBox, _pnlRecycleBox, _pnlChemBox, _pnlDischargeBox;
         private Panel _mainScrollPanel;
+
         private const string DbName = "Water";
 
         public Control GetView()
@@ -40,7 +43,7 @@ namespace Safety_System
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
                 ColumnCount = 1, 
-                RowCount = 6 // 擴充為 6 行以容納新的查詢框與數據框
+                RowCount = 6 
             };
 
             // ==========================================
@@ -65,7 +68,7 @@ namespace Safety_System
             Button btnSearchDaily = new Button { Text = "🔍 查詢日統計", Size = new Size(140, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnSearchDaily.Click += (s, e) => LoadDailyData();
             
-            Button btnPdf = new Button { Text = "📄 全版面轉存 PDF", Size = new Size(180, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 選擇並導出 PDF", Size = new Size(180, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
             flpControls.Controls.AddRange(new Control[] { 
@@ -86,12 +89,16 @@ namespace Safety_System
             mainLayout.Controls.Add(box1, 0, 0);
 
             // 日報表數據框
-            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 水資源數據統計", Color.Teal, out _lblBox2Sub1, out _lblBox2Sub2, out _lblBox2Sub3, out _lblBox2Sub4, out _pnlBox2Data1, out _pnlBox2Data2, out _pnlBox2Data3, out _pnlBox2Data4), 0, 1);
-            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 回收水統計", Color.ForestGreen, out _lblBox3Sub1, out _lblBox3Sub2, out _lblBox3Sub3, out _lblBox3Sub4, out _pnlBox3Data1, out _pnlBox3Data2, out _pnlBox3Data3, out _pnlBox3Data4), 0, 2);
-            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 藥劑數據統計", Color.Sienna, out _lblBox4Sub1, out _lblBox4Sub2, out _lblBox4Sub3, out _lblBox4Sub4, out _pnlBox4Data1, out _pnlBox4Data2, out _pnlBox4Data3, out _pnlBox4Data4), 0, 3);
+            _pnlWaterBox = BuildNineGridBox("台灣玻璃彰濱廠 - 水資源數據統計", Color.Teal, out _lblBox2Sub1, out _lblBox2Sub2, out _lblBox2Sub3, out _lblBox2Sub4, out _pnlBox2Data1, out _pnlBox2Data2, out _pnlBox2Data3, out _pnlBox2Data4);
+            _pnlRecycleBox = BuildNineGridBox("台灣玻璃彰濱廠 - 回收水統計", Color.ForestGreen, out _lblBox3Sub1, out _lblBox3Sub2, out _lblBox3Sub3, out _lblBox3Sub4, out _pnlBox3Data1, out _pnlBox3Data2, out _pnlBox3Data3, out _pnlBox3Data4);
+            _pnlChemBox = BuildNineGridBox("台灣玻璃彰濱廠 - 藥劑數據統計", Color.Sienna, out _lblBox4Sub1, out _lblBox4Sub2, out _lblBox4Sub3, out _lblBox4Sub4, out _pnlBox4Data1, out _pnlBox4Data2, out _pnlBox4Data3, out _pnlBox4Data4);
+            
+            mainLayout.Controls.Add(_pnlWaterBox, 0, 1);
+            mainLayout.Controls.Add(_pnlRecycleBox, 0, 2);
+            mainLayout.Controls.Add(_pnlChemBox, 0, 3);
 
             // ==========================================
-            // 新增大框 5：月報表功能選單與日期查詢
+            // 大框 5：月報表功能選單與日期查詢
             // ==========================================
             Panel boxMonthlyFilter = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), BackColor = Color.White, Margin = new Padding(0, 20, 0, 20) };
             boxMonthlyFilter.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, boxMonthlyFilter.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -126,9 +133,10 @@ namespace Safety_System
             mainLayout.Controls.Add(boxMonthlyFilter, 0, 4);
 
             // ==========================================
-            // 新增大框 6：納管排放數據統計
+            // 大框 6：納管排放數據統計
             // ==========================================
-            mainLayout.Controls.Add(BuildNineGridBox("台灣玻璃彰濱廠 - 納管排放數據統計", Color.DarkCyan, out _lblBox5Sub1, out _lblBox5Sub2, out _lblBox5Sub3, out _lblBox5Sub4, out _pnlBox5Data1, out _pnlBox5Data2, out _pnlBox5Data3, out _pnlBox5Data4), 0, 5);
+            _pnlDischargeBox = BuildNineGridBox("台灣玻璃彰濱廠 - 納管排放數據統計", Color.DarkCyan, out _lblBox5Sub1, out _lblBox5Sub2, out _lblBox5Sub3, out _lblBox5Sub4, out _pnlBox5Data1, out _pnlBox5Data2, out _pnlBox5Data3, out _pnlBox5Data4);
+            mainLayout.Controls.Add(_pnlDischargeBox, 0, 5);
 
             _mainScrollPanel.Controls.Add(mainLayout);
             LoadDailyData();   // 載入日報表資料
@@ -471,62 +479,118 @@ namespace Safety_System
             else if (title.Contains("污泥量")) { unit = " 噸"; format = "N3"; } 
             else if (title.Contains("/M3")) { unit = " KG/M3"; format = "N3"; } 
             else if (title == "PAC" || title == "NAOH" || title == "高分子") { unit = " KG"; format = "N0"; }
-            else if (title.Contains("平均") || title.Contains("最大") || title.Contains("最小")) { unit = " mg/L"; format = "N2"; } // 🟢 水質單位與小數點2位
+            else if (title.Contains("平均") || title.Contains("最大") || title.Contains("最小")) { unit = " mg/L"; format = "N2"; } 
 
             return new Label { Text = $"{title}: {value.ToString(format)}{unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         }
 
         // ==========================================
-        // 匯出 PDF 功能：A4 橫向、自動縮放、分頁
+        // 匯出 PDF 功能：選擇項目、自動分頁、A4 橫向
         // ==========================================
+        private List<Panel> GetSelectedExportPanels()
+        {
+            List<Panel> selectedPanels = new List<Panel>();
+            using (Form f = new Form() { Width = 400, Height = 330, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
+                f.Controls.Add(lbl);
+
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 170, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
+                clb.Items.Add("水資源數據統計", true);
+                clb.Items.Add("回收水統計", true);
+                clb.Items.Add("藥劑數據統計", true);
+                clb.Items.Add("納管排放數據統計", true);
+                f.Controls.Add(clb);
+
+                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 50, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                f.Controls.Add(btnOk);
+
+                if (f.ShowDialog() == DialogResult.OK)
+                {
+                    if (clb.GetItemChecked(0)) selectedPanels.Add(_pnlWaterBox);
+                    if (clb.GetItemChecked(1)) selectedPanels.Add(_pnlRecycleBox);
+                    if (clb.GetItemChecked(2)) selectedPanels.Add(_pnlChemBox);
+                    if (clb.GetItemChecked(3)) selectedPanels.Add(_pnlDischargeBox);
+                }
+            }
+            return selectedPanels;
+        }
+
         private void BtnPdf_Click(object sender, EventArgs e)
         {
+            var panelsToExport = GetSelectedExportPanels();
+            if (panelsToExport.Count == 0) return;
+
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "水資源綜合統計表_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     try {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                        int originalHeight = _mainScrollPanel.Height;
-                        _mainScrollPanel.Height = _mainScrollPanel.DisplayRectangle.Height; 
-                        
-                        Bitmap bmp = new Bitmap(_mainScrollPanel.Width, _mainScrollPanel.Height);
-                        _mainScrollPanel.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                        _mainScrollPanel.Height = originalHeight; 
+                        List<Bitmap> bitmaps = new List<Bitmap>();
+                        foreach (var pnl in panelsToExport) {
+                            Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                            pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                            bitmaps.Add(bmp);
+                        }
 
                         PrintDocument pd = new PrintDocument();
                         pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                         pd.PrinterSettings.PrintToFile = true;
                         pd.PrinterSettings.PrintFileName = sfd.FileName;
                         pd.DefaultPageSettings.Landscape = true; 
-                        pd.DefaultPageSettings.Margins = new Margins(20, 20, 30, 30);
+                        pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
 
-                        int currentY = 0;
+                        int currentBmpIndex = 0;
+
                         pd.PrintPage += (s, ev) => {
                             Graphics g = ev.Graphics;
+                            
+                            // 每一頁最上方畫上標題與查詢區間
                             string headerText = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   日報查詢：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text}~{_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}   |   月報查詢：{_cboStartMonthYear.Text}/{_cboStartMonthMonth.Text}~{_cboEndMonthYear.Text}/{_cboEndMonthMonth.Text}";
-                            g.DrawString(headerText, new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 20);
+                            g.DrawString(headerText, new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 15);
 
-                            int printTop = ev.MarginBounds.Top + 15, printHeight = ev.MarginBounds.Height - 15;
-                            float scale = (float)ev.MarginBounds.Width / bmp.Width;
-                            int sourceHeightFit = (int)(printHeight / scale);
+                            int currentY = ev.MarginBounds.Top + 15;
+                            int bottomLimit = ev.MarginBounds.Bottom;
 
-                            Rectangle destRect = new Rectangle(ev.MarginBounds.Left, printTop, ev.MarginBounds.Width, printHeight);
-                            Rectangle srcRect = new Rectangle(0, currentY, bmp.Width, sourceHeightFit);
+                            while (currentBmpIndex < bitmaps.Count) {
+                                Bitmap bmp = bitmaps[currentBmpIndex];
+                                float scale = (float)ev.MarginBounds.Width / bmp.Width;
+                                int scaledHeight = (int)(bmp.Height * scale);
 
-                            if (currentY + sourceHeightFit > bmp.Height) {
-                                srcRect.Height = bmp.Height - currentY;
-                                destRect.Height = (int)(srcRect.Height * scale);
+                                // 判斷紙張剩下的高度是否塞得下這個圖表
+                                if (currentY + scaledHeight > bottomLimit) {
+                                    // 若連一頁的最上面都塞不下，只好強制縮小圖表塞入一頁
+                                    if (currentY == ev.MarginBounds.Top + 15) {
+                                        scale = Math.Min(scale, (float)(bottomLimit - currentY) / bmp.Height);
+                                        scaledHeight = (int)(bmp.Height * scale);
+                                        g.DrawImage(bmp, ev.MarginBounds.Left, currentY, (int)(bmp.Width * scale), scaledHeight);
+                                        currentY += scaledHeight + 20;
+                                        currentBmpIndex++;
+                                    } else {
+                                        // 空間不夠，換下一頁印
+                                        ev.HasMorePages = true;
+                                        return;
+                                    }
+                                } else {
+                                    // 畫上去
+                                    g.DrawImage(bmp, ev.MarginBounds.Left, currentY, ev.MarginBounds.Width, scaledHeight);
+                                    currentY += scaledHeight + 20; // 每個框之間的間距
+                                    currentBmpIndex++;
+                                }
                             }
-
-                            g.DrawImage(bmp, destRect, srcRect, GraphicsUnit.Pixel);
-                            currentY += sourceHeightFit;
-                            ev.HasMorePages = currentY < bmp.Height;
+                            ev.HasMorePages = false;
                         };
+
                         pd.Print();
-                        bmp.Dispose();
-                        MessageBox.Show("PDF 匯出成功！已縮放至全版面 A4 並自動分頁。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) { MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    } finally { if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; }
+
+                        foreach (var bmp in bitmaps) bmp.Dispose();
+
+                        MessageBox.Show("PDF 匯出成功！已根據項目自動分頁並全版面 A4 對齊。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) { 
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally { 
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
+                    }
                 }
             }
         }
