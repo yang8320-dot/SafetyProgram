@@ -3,7 +3,6 @@ name: MiniProgram01 Context
 on:
   push:
     branches: [ "main", "master" ]
-  # 允許手動觸發
   workflow_dispatch:
 
 jobs:
@@ -19,60 +18,53 @@ jobs:
       with:
         python-version: '3.10'
 
+    # 🟢 新增的除錯步驟：這會印出 GitHub 伺服器上實際看到的資料夾結構
+    - name: Debug - List all folders
+      run: |
+        echo "=== 當前目錄下的所有資料夾 ==="
+        find . -type d -not -path "*/\.git/*"
+        echo "==============================="
+
     - name: Create and Run Context Generator
       run: |
         cat << 'EOF' > generate_context.py
         import os
 
-        # 🟢 將目標資料夾精確指向 SafetyProgram/MiniProgram01
+        # 目標資料夾路徑
         TARGET_DIR = 'SafetyProgram/MiniProgram01'
         
-        # 🟢 定義要收集的檔案副檔名 (特別針對 C# 專案保留 .cs, .txt 等)
-        valid_extensions = (
-            '.cs', '.csproj', '.config', '.md', '.txt'
-        )
-        
-        # 🟢 排除編譯暫存與 Git 系統資料夾
+        valid_extensions = ('.cs', '.csproj', '.config', '.md', '.txt')
         exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
 
         if not os.path.exists(TARGET_DIR):
-            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！請確認路徑大小寫與名稱是否正確。")
+            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")
+            print("請往上看 'Debug - List all folders' 步驟的輸出，確認正確的路徑名稱。")
             exit(1)
 
         file_paths = []
         full_content = []
 
-        # 遍歷資料夾並收集資料
         for root, dirs, files in os.walk(TARGET_DIR):
-            # 過濾掉不需要的資料夾
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             for file in files:
                 if file.lower().endswith(valid_extensions):
-                    # 避免抓到腳本自己生成的 txt
-                    if file in ['0_project_tree.txt', 'project_context_all.txt']:
-                        continue
-                        
+                    if file in ['0_project_tree.txt', 'project_context_all.txt']: continue
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, '.')
                     file_paths.append(rel_path)
-                    
                     try:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
                             content = code_f.read()
                     except Exception as e:
                         content = f"// 無法讀取此檔案: {e}\n"
-                    
-                    # 格式化內容，加入明顯的分隔線與檔名標註
                     header = f"\n{'='*60}\n/// FILE: {rel_path} ///\n{'='*60}\n\n"
                     full_content.append(header + content + "\n")
 
-        # 1. 寫入目錄結構檔
         with open('0_project_tree.txt', 'w', encoding='utf-8') as f_tree:
             f_tree.write(f"# C# 專案檔案總覽 (總計 {len(file_paths)} 個檔案)\n\n")
             for path in sorted(file_paths):
                 f_tree.write(f"- {path}\n")
 
-        # 2. 寫入單一完整程式碼檔
         with open('project_context_all.txt', 'w', encoding='utf-8') as f_all:
             f_all.write(f"# C# 專案完整代碼總覽\n")
             f_all.write("".join(full_content))
@@ -82,11 +74,12 @@ jobs:
         python generate_context.py
 
     - name: Upload Context Artifacts
+      # 只有在前面的步驟都成功時才執行上傳
+      if: success() 
       uses: actions/upload-artifact@v4
       with:
         name: MiniProgram01-Code-Context
         path: |
           0_project_tree.txt
           project_context_all.txt
-        # 設定 Artifact 保留天數，避免佔用過多 GitHub 空間
         retention-days: 7
