@@ -1,0 +1,58 @@
+name: Build and Package MiniProgram01
+
+# 設定觸發條件
+on:
+  push:
+    branches: [ "main" ]
+    # 僅當 MiniProgram01 資料夾或此 workflow 有異動時才觸發，節省資源
+    paths:
+      - 'MiniProgram01/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'MiniProgram01/**'
+  workflow_dispatch: # 允許在 GitHub Actions 頁面手動點擊觸發
+
+jobs:
+  build:
+    name: Build Single Executable
+    runs-on: windows-latest # .NET Framework 4.7.2 必須在 Windows 環境編譯
+
+    steps:
+    - name: 1. 取得儲存庫程式碼 (Checkout Code)
+      uses: actions/checkout@v4
+
+    - name: 2. 設定 MSBuild 環境 (Setup MSBuild)
+      uses: microsoft/setup-msbuild@v2
+
+    - name: 3. 設定 NuGet 環境 (Setup NuGet)
+      uses: nuget/setup-nuget@v3
+      with:
+        nuget-version: 'latest'
+
+    - name: 4. 還原 NuGet 套件 (Restore NuGet Packages)
+      # 針對 MiniProgram01 目錄下的 csproj 進行還原
+      # 若您的 .csproj 檔名不是 MiniProgram01.csproj，請修改此處檔名
+      run: nuget restore "MiniProgram01\MiniProgram01.csproj"
+
+    - name: 5. 編譯專案 (Build Project)
+      # 使用 MSBuild 進行 Release 編譯
+      # 注意：若專案已安裝 Costura.Fody，此步驟完成後即會產出單一 .exe 檔
+      run: |
+        msbuild "MiniProgram01\MiniProgram01.csproj" `
+          -property:Configuration=Release `
+          -property:Platform="Any CPU" `
+          -target:Rebuild
+
+    - name: 6. 上傳單一執行檔 (Upload Artifact)
+      uses: actions/upload-artifact@v4
+      with:
+        name: MiniProgram01-Portable-Executable
+        # 指定只抓取 Release 目錄下的 .exe 檔案
+        # 如果有純文字設定檔 (.txt) 需要一併打包給使用者，也可以在這裡加入，例如：
+        # path: |
+        #   MiniProgram01\bin\Release\*.exe
+        #   MiniProgram01\bin\Release\*.txt
+        path: MiniProgram01\bin\Release\*.exe
+        if-no-files-found: error
