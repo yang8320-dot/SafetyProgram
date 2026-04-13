@@ -22,12 +22,12 @@ namespace Safety_System
         private ComboBox _cboEndMonthYear, _cboEndMonthMonth;
 
         // 小標題參考
-        private Label _lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4; // 水資源
-        private Label _lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4; // 回收水
-        private Label _lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4; // 藥劑
-        private Label _lblBox5Sub1, _lblBox5Sub2, _lblBox5Sub3, _lblBox5Sub4; // 自來水日報 (新)
-        private Label _lblBox6Sub1, _lblBox6Sub2, _lblBox6Sub3, _lblBox6Sub4; // 納管排放
-        private Label _lblBox7Sub1, _lblBox7Sub2, _lblBox7Sub3, _lblBox7Sub4; // 自來水月報 (新)
+        private Label _lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4; 
+        private Label _lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4; 
+        private Label _lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4; 
+        private Label _lblBox5Sub1, _lblBox5Sub2, _lblBox5Sub3, _lblBox5Sub4; 
+        private Label _lblBox6Sub1, _lblBox6Sub2, _lblBox6Sub3, _lblBox6Sub4; 
+        private Label _lblBox7Sub1, _lblBox7Sub2, _lblBox7Sub3, _lblBox7Sub4; 
 
         // 數據欄位參考
         private Panel _pnlBox2Data1, _pnlBox2Data2, _pnlBox2Data3, _pnlBox2Data4;
@@ -50,7 +50,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            LoadVisibilitySettings(); // 載入顯示設定
+            LoadVisibilitySettings(); 
 
             _mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
 
@@ -107,7 +107,7 @@ namespace Safety_System
             mainLayout.Controls.Add(_pnlWaterBox, 0, 1);
             mainLayout.Controls.Add(_pnlRecycleBox, 0, 2);
             mainLayout.Controls.Add(_pnlChemBox, 0, 3);
-            mainLayout.Controls.Add(_pnlDailyUsageBox, 0, 4); // 🟢 新增：自來水日報表
+            mainLayout.Controls.Add(_pnlDailyUsageBox, 0, 4); 
 
             // ==========================================
             // 月報表功能選單與日期查詢
@@ -144,7 +144,7 @@ namespace Safety_System
 
             // 月報表資料框
             _pnlDischargeBox = BuildNineGridBox("DischargeStat", "台灣玻璃彰濱廠 - 納管排放數據統計", Color.DarkCyan, out _lblBox6Sub1, out _lblBox6Sub2, out _lblBox6Sub3, out _lblBox6Sub4, out _pnlBox6Data1, out _pnlBox6Data2, out _pnlBox6Data3, out _pnlBox6Data4);
-            _pnlMonthlyVolumeBox = BuildNineGridBox("MonthlyVolume", "台灣玻璃彰濱廠 - 自來水用量(繳費單)月統計", Color.MediumPurple, out _lblBox7Sub1, out _lblBox7Sub2, out _lblBox7Sub3, out _lblBox7Sub4, out _pnlBox7Data1, out _pnlBox7Data2, out _pnlBox7Data3, out _pnlBox7Data4); // 🟢 新增：自來水月報表
+            _pnlMonthlyVolumeBox = BuildNineGridBox("MonthlyVolume", "台灣玻璃彰濱廠 - 自來水用量(繳費單)月統計", Color.MediumPurple, out _lblBox7Sub1, out _lblBox7Sub2, out _lblBox7Sub3, out _lblBox7Sub4, out _pnlBox7Data1, out _pnlBox7Data2, out _pnlBox7Data3, out _pnlBox7Data4);
 
             mainLayout.Controls.Add(_pnlDischargeBox, 0, 6);
             mainLayout.Controls.Add(_pnlMonthlyVolumeBox, 0, 7);
@@ -184,8 +184,8 @@ namespace Safety_System
             string dictKey = $"{module}_{key}";
             if (_visibilitySettings.ContainsKey(dictKey)) return _visibilitySettings[dictKey];
 
-            // 🟢 預設隱藏邏輯：自來水至貯存區相關
-            if (key.Contains("貯存區")) {
+            // 🟢 預設隱藏邏輯：自來水至貯存區相關、自來水至清水池相關
+            if (key.Contains("貯存區") || key.Contains("清水池")) {
                 _visibilitySettings[dictKey] = false;
                 return false;
             }
@@ -203,10 +203,8 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 
-                // 排除群組標題用的 Key
                 var keys = currentData.Keys.Where(k => !k.Contains("【") && !k.EndsWith("/M3") && k != "PAC" && k != "NAOH" && k != "高分子").ToList();
                 
-                // 為了讓設定畫面也有那些特殊計算的欄位 (例如藥劑、水質)
                 if (moduleName == "ChemStat") {
                     keys = new List<string> { "PAC", "NAOH", "高分子", "PAC/M3", "NAOH/M3", "高分子/M3" };
                 } else if (moduleName == "DischargeStat") {
@@ -230,7 +228,6 @@ namespace Safety_System
                     }
                     SaveVisibilitySettings();
                     
-                    // 重新載入資料以套用設定
                     if (moduleName == "DischargeStat" || moduleName == "MonthlyVolume") LoadMonthlyData();
                     else LoadDailyData();
                 }
@@ -296,17 +293,14 @@ namespace Safety_System
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F)); 
             grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
 
-            // Header Panel 容納標題與設定按鈕
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
             Label lblMainTitle = new Label { Text = mainTitle, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = headerColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
             Button btnSettings = new Button { Text = "⚙️ 設定顯示", Size = new Size(110, 30), BackColor = Color.LightGray, ForeColor = Color.Black, Font = new Font("Microsoft JhengHei UI", 10F), Dock = DockStyle.Right, Cursor = Cursors.Hand };
             
-            // 綁定設定按鈕事件 (使用 Tag 來記錄模組名稱)
             btnSettings.Tag = moduleName;
             btnSettings.Click += (s, e) => {
                 string mod = ((Button)s).Tag.ToString();
                 Dictionary<string, double> currentData = new Dictionary<string, double>();
-                // 為了讓設定視窗能抓到清單，先取得最近的當期資料格式
                 if (mod == "DailyUsage") currentData = CalculateDailyUsageStats(GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay).ToString("yyyy-MM-dd"), GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay).ToString("yyyy-MM-dd"));
                 else if (mod == "MonthlyVolume") currentData = CalculateMonthlyVolumeStats($"{_cboStartMonthYear.Text}-{_cboStartMonthMonth.Text}", $"{_cboEndMonthYear.Text}-{_cboEndMonthMonth.Text}");
                 else if (mod == "ChemStat") currentData = CalculateChemicalStats(GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay).ToString("yyyy-MM-dd"), GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay).ToString("yyyy-MM-dd"));
@@ -353,7 +347,7 @@ namespace Safety_System
             UpdateSubtitles(_lblBox2Sub1, _lblBox2Sub2, _lblBox2Sub3, _lblBox2Sub4, dtS, dtE, false);
             UpdateSubtitles(_lblBox3Sub1, _lblBox3Sub2, _lblBox3Sub3, _lblBox3Sub4, dtS, dtE, true);
             UpdateSubtitles(_lblBox4Sub1, _lblBox4Sub2, _lblBox4Sub3, _lblBox4Sub4, dtS, dtE, false);
-            UpdateSubtitles(_lblBox5Sub1, _lblBox5Sub2, _lblBox5Sub3, _lblBox5Sub4, dtS, dtE, false); // 新增
+            UpdateSubtitles(_lblBox5Sub1, _lblBox5Sub2, _lblBox5Sub3, _lblBox5Sub4, dtS, dtE, false); 
 
             string sS = dtS.ToString("yyyy-MM-dd"), sE = dtE.ToString("yyyy-MM-dd");
             string sLY_S = dtS.AddYears(-1).ToString("yyyy-MM-dd"), sLY_E = dtE.AddYears(-1).ToString("yyyy-MM-dd");
@@ -373,7 +367,7 @@ namespace Safety_System
             FillDataPanels("ChemStat", _pnlBox4Data1, _pnlBox4Data2, _pnlBox4Data3, _pnlBox4Data4, 
                 CalculateChemicalStats(sS, sE), CalculateChemicalStats(sLY_S, sLY_E), CalculateChemicalStats(sL2Y_S, sL2Y_E));
 
-            // 框 5: 自來水日報表 (新)
+            // 框 5: 自來水日報表
             FillDataPanels("DailyUsage", _pnlBox5Data1, _pnlBox5Data2, _pnlBox5Data3, _pnlBox5Data4, 
                 CalculateDailyUsageStats(sS, sE), CalculateDailyUsageStats(sLY_S, sLY_E), CalculateDailyUsageStats(sL2Y_S, sL2Y_E));
 
@@ -424,13 +418,14 @@ namespace Safety_System
         // ==========================================
         // 資料客製化過濾與運算
         // ==========================================
-        // 🟢 需求 1: 自來水用量統計 (日統計)
+        // 🟢 需求: 自來水用量統計 (日統計，增加清水池)
         private Dictionary<string, double> CalculateDailyUsageStats(string start, string end)
         {
             var dict = new Dictionary<string, double> {
                 { "廠區", 0 }, { "行政區", 0 }, { "全廠用量", 0 },
                 { "廠區平均", 0 }, { "行政區平均", 0 }, { "全廠平均", 0 },
-                { "自來水至貯存區", 0 }, { "自來水至貯存區平均", 0 }
+                { "自來水至貯存區", 0 }, { "自來水至貯存區平均", 0 },
+                { "自來水至清水池", 0 }, { "自來水至清水池平均", 0 } // 🟢 新增清水池
             };
 
             DataTable dt = null;
@@ -440,9 +435,10 @@ namespace Safety_System
             int validDays = 0;
             foreach (DataRow r in dt.Rows) {
                 bool hasData = false;
-                if (dt.Columns.Contains("廠區自來水量日統計") && double.TryParse(r["廠區自來水量日統計"]?.ToString().Replace(",", ""), out double f)) { dict["廠區"] += f; hasData = true; }
-                if (dt.Columns.Contains("行政區自來水量日統計") && double.TryParse(r["行政區自來水量日統計"]?.ToString().Replace(",", ""), out double a)) { dict["行政區"] += a; hasData = true; }
+                if (dt.Columns.Contains("廠區自來水使用量日統計") && double.TryParse(r["廠區自來水使用量日統計"]?.ToString().Replace(",", ""), out double f)) { dict["廠區"] += f; hasData = true; }
+                if (dt.Columns.Contains("行政區自來水使用量日統計") && double.TryParse(r["行政區自來水使用量日統計"]?.ToString().Replace(",", ""), out double a)) { dict["行政區"] += a; hasData = true; }
                 if (dt.Columns.Contains("自來水至貯存池日統計") && double.TryParse(r["自來水至貯存池日統計"]?.ToString().Replace(",", ""), out double s)) { dict["自來水至貯存區"] += s; hasData = true; }
+                if (dt.Columns.Contains("自來水至清水池日統計") && double.TryParse(r["自來水至清水池日統計"]?.ToString().Replace(",", ""), out double c)) { dict["自來水至清水池"] += c; hasData = true; }
                 if (hasData) validDays++;
             }
 
@@ -453,17 +449,14 @@ namespace Safety_System
                 dict["行政區平均"] = dict["行政區"] / validDays;
                 dict["全廠平均"] = dict["全廠用量"] / validDays;
                 dict["自來水至貯存區平均"] = dict["自來水至貯存區"] / validDays;
+                dict["自來水至清水池平均"] = dict["自來水至清水池"] / validDays;
             }
             return dict;
         }
 
-        // 🟢 需求 2: 自來水用量月統計 (繳費單)
         private Dictionary<string, double> CalculateMonthlyVolumeStats(string startYM, string endYM)
         {
-            var dict = new Dictionary<string, double> {
-                { "廠區", 0 }, { "行政區", 0 }, { "全廠用量", 0 }
-            };
-
+            var dict = new Dictionary<string, double> { { "廠區", 0 }, { "行政區", 0 }, { "全廠用量", 0 } };
             DataTable dt = null;
             try { dt = DataManager.GetTableData(DbName, "WaterVolume", "月份", startYM, endYM); } catch { return dict; }
             if (dt == null) return dict;
@@ -598,18 +591,14 @@ namespace Safety_System
         {
             p1.Controls.Clear(); p2.Controls.Clear(); p3.Controls.Clear(); p4.Controls.Clear();
 
-            // 新增自來水相關的小群組標題
-            bool dailyUsageHeaderAdded1 = false, dailyUsageHeaderAdded2 = false;
-            bool monthlyHeaderAdded = false;
+            bool dailyUsageHeaderAdded1 = false, dailyUsageHeaderAdded2 = false, monthlyHeaderAdded = false;
 
             foreach (var kvp in curr)
             {
                 string key = kvp.Key;
 
-                // 🟢 檢查使用者是否在設定中隱藏了該欄位
                 if (!IsVisible(moduleName, key)) continue;
 
-                // 群組標題處理
                 if (moduleName == "ChemStat") {
                     if (key == "PAC") AddSectionHeader(p1, p2, p3, p4, "【藥劑使用量】");
                     else if (key == "PAC/M3") AddSectionHeader(p1, p2, p3, p4, "【每噸水藥劑量】");
@@ -617,17 +606,12 @@ namespace Safety_System
                     if (key == "SS平均值") AddSectionHeader(p1, p2, p3, p4, "【水質】");
                 } else if (moduleName == "DailyUsage") {
                     if (!dailyUsageHeaderAdded1 && (key == "廠區" || key == "行政區" || key == "全廠用量")) {
-                        AddSectionHeader(p1, p2, p3, p4, "【自來水用量】");
-                        dailyUsageHeaderAdded1 = true;
-                    } else if (!dailyUsageHeaderAdded2 && (key.Contains("平均") || key.Contains("貯存區"))) {
-                        AddSectionHeader(p1, p2, p3, p4, "【平均使用量】");
-                        dailyUsageHeaderAdded2 = true;
+                        AddSectionHeader(p1, p2, p3, p4, "【自來水用量】"); dailyUsageHeaderAdded1 = true;
+                    } else if (!dailyUsageHeaderAdded2 && (key.Contains("平均") || key.Contains("貯存區") || key.Contains("清水池"))) {
+                        AddSectionHeader(p1, p2, p3, p4, "【平均使用量】"); dailyUsageHeaderAdded2 = true;
                     }
                 } else if (moduleName == "MonthlyVolume") {
-                    if (!monthlyHeaderAdded) {
-                        AddSectionHeader(p1, p2, p3, p4, "【自來水量】");
-                        monthlyHeaderAdded = true;
-                    }
+                    if (!monthlyHeaderAdded) { AddSectionHeader(p1, p2, p3, p4, "【自來水量】"); monthlyHeaderAdded = true; }
                 }
 
                 double vCurr = kvp.Value;
@@ -638,28 +622,22 @@ namespace Safety_System
                 p2.Controls.Add(CreateStatLabel(key, vLy));
                 p3.Controls.Add(CreateStatLabel(key, vL2y));
 
-                string diffText = "無基期";
-                Color diffColor = Color.DimGray;
-
+                string diffText = "無基期"; Color diffColor = Color.DimGray;
                 if (vLy > 0) {
                     double yoy = ((vCurr - vLy) / vLy) * 100;
                     if (isRecycleRate && key.Contains("回收率")) yoy = vCurr - vLy; 
 
                     string formatStr = (key.Contains("回收率") || key.Contains("/M3") || key.Contains("污泥量") || key.Contains("平均") || key.Contains("最大") || key.Contains("最小")) ? "N1" : "N0";
-                    
                     diffText = (yoy > 0 ? "+" : "") + yoy.ToString(formatStr) + " %";
                     diffColor = yoy > 0 ? Color.IndianRed : (yoy < 0 ? Color.ForestGreen : Color.DimGray); 
                 } else if (vCurr > 0) {
-                    diffText = "新數據";
-                    diffColor = Color.SteelBlue;
+                    diffText = "新數據"; diffColor = Color.SteelBlue;
                 }
-
                 p4.Controls.Add(new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) });
             }
         }
 
-        private void AddSectionHeader(Panel p1, Panel p2, Panel p3, Panel p4, string title)
-        {
+        private void AddSectionHeader(Panel p1, Panel p2, Panel p3, Panel p4, string title) {
             p1.Controls.Add(CreateSectionHeader(title)); p2.Controls.Add(CreateSectionHeader(title));
             p3.Controls.Add(CreateSectionHeader(title)); p4.Controls.Add(CreateSectionHeader(title));
         }
@@ -676,18 +654,15 @@ namespace Safety_System
             else if (title.Contains("/M3")) { unit = " KG/M3"; format = "N3"; } 
             else if (title == "PAC" || title == "NAOH" || title == "高分子") { unit = " KG"; format = "N0"; }
             else if (title.Contains("平均") || title.Contains("最大") || title.Contains("最小")) { 
-                if (title.Contains("SS") || title.Contains("COD") || title.Contains("BOD") || title.Contains("氨氮")) {
-                    unit = " mg/L"; format = "N2"; 
-                } else {
-                    unit = " M3/日"; format = "N1"; // 自來水平均用量
-                }
+                if (title.Contains("SS") || title.Contains("COD") || title.Contains("BOD") || title.Contains("氨氮")) { unit = " mg/L"; format = "N2"; } 
+                else { unit = " M3/日"; format = "N1"; } 
             } 
 
             return new Label { Text = $"{title}: {value.ToString(format)}{unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         }
 
         // ==========================================
-        // 匯出 PDF 功能：選擇項目、自動分頁、A4 橫向
+        // 匯出 PDF 功能
         // ==========================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -698,19 +673,14 @@ namespace Safety_System
                 f.Controls.Add(lbl);
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 230, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
-                clb.Items.Add("水資源數據統計", true);
-                clb.Items.Add("回收水統計", true);
-                clb.Items.Add("藥劑數據統計", true);
-                clb.Items.Add("自來水用量統計", true);
-                clb.Items.Add("納管排放數據統計", true);
-                clb.Items.Add("自來水用量(繳費單)月統計", true);
+                clb.Items.Add("水資源數據統計", true); clb.Items.Add("回收水統計", true); clb.Items.Add("藥劑數據統計", true);
+                clb.Items.Add("自來水用量統計", true); clb.Items.Add("納管排放數據統計", true); clb.Items.Add("自來水用量(繳費單)月統計", true);
                 f.Controls.Add(clb);
 
                 Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 50, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
                 f.Controls.Add(btnOk);
 
-                if (f.ShowDialog() == DialogResult.OK)
-                {
+                if (f.ShowDialog() == DialogResult.OK) {
                     if (clb.GetItemChecked(0)) selectedPanels.Add(_pnlWaterBox);
                     if (clb.GetItemChecked(1)) selectedPanels.Add(_pnlRecycleBox);
                     if (clb.GetItemChecked(2)) selectedPanels.Add(_pnlChemBox);
@@ -750,7 +720,6 @@ namespace Safety_System
 
                         pd.PrintPage += (s, ev) => {
                             Graphics g = ev.Graphics;
-                            
                             string headerText = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   日報查詢：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text}~{_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}   |   月報查詢：{_cboStartMonthYear.Text}/{_cboStartMonthMonth.Text}~{_cboEndMonthYear.Text}/{_cboEndMonthMonth.Text}";
                             g.DrawString(headerText, new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Brushes.Black, ev.MarginBounds.Left, ev.MarginBounds.Top - 15);
 
