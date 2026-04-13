@@ -44,7 +44,7 @@ namespace Safety_System
             // 【日】廢水處理用藥記錄
             { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [備註] TEXT" },
             // 【日】自來水使用量
-            { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水量] TEXT, [行政區自來水量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [備註] TEXT" },
+            { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [備註] TEXT" },
             // 【月】納管排放數據
             { "DischargeData", "[月份] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [備註] TEXT" },
             // 【月】自來水用量統計
