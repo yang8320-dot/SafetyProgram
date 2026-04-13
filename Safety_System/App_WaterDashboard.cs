@@ -933,7 +933,7 @@ namespace Safety_System
         // 🟢 介面尺寸與下拉選單寬度加大優化
         public static void OpenConfigDialog(string moduleName)
         {
-            using (Form f = new Form() { Width = 850, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
+            using (Form f = new Form() { Width = 1000, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
             {
                 Label lblTop = new Label { Text = "📝 自定義延伸統計公式", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Top, Padding = new Padding(10), AutoSize = true };
 
@@ -959,8 +959,8 @@ namespace Safety_System
                 FlowLayoutPanel pnlFields = new FlowLayoutPanel { Dock = DockStyle.Fill };
                 
                 // 🟢 選單寬度加大
-                ComboBox cbTables = new ComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
-                ComboBox cbCols = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+                ComboBox cbTables = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+                ComboBox cbCols = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
                 ComboBox cbAggs = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList };
                 
                 // 🟢 加入 COUNT
@@ -977,7 +977,7 @@ namespace Safety_System
                 };
 
                 // 🟢 按鈕獨立向下推，避免與選單擠在同一行
-                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 130, Height = 32, BackColor = Color.LightBlue, Margin = new Padding(0, 15, 0, 0) };
+                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 130, Height = 32, BackColor = Color.LightBlue, Margin = new Padding(0, 3, 3, 3) };
 
                 pnlFields.Controls.AddRange(new Control[] { cbTables, cbCols, cbAggs, btnInsert });
                 boxBuilder.Controls.Add(pnlFields);
