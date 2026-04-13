@@ -1,4 +1,4 @@
-name: Generate Safety System Context
+name: SafetySystem Context
 
 on:
   push:
