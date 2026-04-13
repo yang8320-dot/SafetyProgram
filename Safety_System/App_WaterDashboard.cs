@@ -907,7 +907,7 @@ namespace Safety_System
 
         public static void OpenConfigDialog(string moduleName)
         {
-            using (Form f = new Form() { Width = 950, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
+            using (Form f = new Form() { Width = 1050, Height = 650, Text = $"統計設定引擎 ({moduleName})", StartPosition = FormStartPosition.CenterParent, Font = new Font("Microsoft JhengHei UI", 12F) })
             {
                 Label lblTop = new Label { Text = "📝 自定義延伸統計公式", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Top, Padding = new Padding(10), AutoSize = true };
 
@@ -924,7 +924,7 @@ namespace Safety_System
                 int btnW = 120;
 
                 FlowLayoutPanel pnlTop = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 0, 0, 15) };
-                TextBox txtName = new TextBox { Width = 200 };
+                TextBox txtName = new TextBox { Width = 250 };
                 TextBox txtUnit = new TextBox { Width = 100 };
                 pnlTop.Controls.AddRange(new Control[] {
                     new Label { Text = "顯示名稱:", AutoSize = true, Margin = new Padding(0, 5, 5, 0) }, txtName,
