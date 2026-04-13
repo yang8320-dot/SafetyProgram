@@ -5,7 +5,8 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using OfficeOpenXml; // 引入 EPPlus 來產出 Excel
+using OfficeOpenXml;
+using OfficeOpenXml.DataValidation; // 引入 EPPlus 資料驗證功能
 
 namespace Safety_System
 {
@@ -146,30 +147,46 @@ namespace Safety_System
                 records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
             }
 
-            // 🟢 直接將解析結果寫入為 Excel 檔案
-            string[] headers = { "日期", "類別", "法規名稱", "條", "項", "款", "目", "內容", "重點摘要", "適用性", "有提升績效機會", "有潛在不符合風險", "鑑別日期", "備註" };
+            // 🟢 移除了「類別」欄位，剩餘 13 個欄位
+            string[] headers = { "日期", "法規名稱", "條", "項", "款", "目", "內容", "重點摘要", "適用性", "有提升績效機會", "有潛在不符合風險", "鑑別日期", "備註" };
             
             using (ExcelPackage p = new ExcelPackage())
             {
                 var ws = p.Workbook.Worksheets.Add("法規轉換資料");
                 
-                // 寫入標題
+                // 1. 寫入標題
                 for (int c = 0; c < headers.Length; c++) {
                     ws.Cells[1, c + 1].Value = headers[c];
                     ws.Cells[1, c + 1].Style.Font.Bold = true;
                 }
 
-                // 寫入資料
+                // 2. 寫入資料
                 for (int r = 0; r < records.Count; r++) {
                     for (int c = 0; c < records[r].Length; c++) {
                         ws.Cells[r + 2, c + 1].Value = records[r][c];
                     }
                 }
 
-                // 設定自動換行與適當欄寬
-                ws.Column(8).Width = 80; // 內容欄位拉寬
-                ws.Column(8).Style.WrapText = true;
+                // 3. 設定自動換行與適當欄寬 (內容在第 7 欄)
+                ws.Column(7).Width = 80; 
+                ws.Column(7).Style.WrapText = true;
                 ws.Cells.AutoFitColumns(15, 50);
+
+                // 🟢 4. 在「適用性」欄位 (第 9 欄) 加入下拉選單防呆
+                int applicabilityColIndex = 9; 
+                int maxRow = records.Count + 1; // 加上標題行
+                
+                if (maxRow >= 2) {
+                    var valList = ws.DataValidations.AddListValidation(ws.Cells[2, applicabilityColIndex, maxRow, applicabilityColIndex].Address);
+                    valList.ShowErrorMessage = true;
+                    valList.ErrorStyle = ExcelDataValidationWarningStyle.stop;
+                    valList.ErrorTitle = "輸入錯誤";
+                    valList.Error = "請從下拉選單中選擇有效的適用性選項。";
+                    valList.Formula.Values.Add("適用");
+                    valList.Formula.Values.Add("不適用");
+                    valList.Formula.Values.Add("參考");
+                    valList.Formula.Values.Add("確認中");
+                }
 
                 p.SaveAs(new FileInfo(excelPath));
             }
@@ -180,15 +197,24 @@ namespace Safety_System
         // =========================================================
         private static string[] CreateRecord(string date, string lawName, string tiao, int xiang, string kuan, string mu, string content)
         {
-            string[] rec = new string[14];
-            for (int i = 0; i < 14; i++) rec[i] = "";
-            rec[0] = date;   
-            rec[2] = lawName;
-            rec[3] = tiao;    
-            rec[4] = xiang.ToString("D2"); 
-            rec[5] = kuan;    
-            rec[6] = mu;      
-            rec[7] = content; 
+            // 🟢 移除了類別，改為 13 個元素陣列
+            string[] rec = new string[13];
+            for (int i = 0; i < 13; i++) rec[i] = "";
+            
+            rec[0] = date;             // 日期
+            rec[1] = lawName;          // 法規名稱
+            rec[2] = tiao;             // 條
+            rec[3] = xiang.ToString("D2"); // 項
+            rec[4] = kuan;             // 款
+            rec[5] = mu;               // 目
+            rec[6] = content;          // 內容
+            rec[7] = "";               // 重點摘要 (預留空白)
+            rec[8] = "";               // 適用性 (預留空白，由 User 在 Excel 下拉選擇)
+            rec[9] = "";               // 有提升績效機會
+            rec[10] = "";              // 有潛在不符合風險
+            rec[11] = DateTime.Today.ToString("yyyy-MM-dd"); // 🟢 自動填入當下日期 (鑑別日期)
+            rec[12] = "";              // 備註
+            
             return rec;
         }
 
