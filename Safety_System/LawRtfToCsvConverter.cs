@@ -147,7 +147,7 @@ namespace Safety_System
                 records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
             }
 
-            // 🟢 移除了「類別」欄位，剩餘 13 個欄位
+            // 移除了「類別」欄位，剩餘 13 個欄位
             string[] headers = { "日期", "法規名稱", "條", "項", "款", "目", "內容", "重點摘要", "適用性", "有提升績效機會", "有潛在不符合風險", "鑑別日期", "備註" };
             
             using (ExcelPackage p = new ExcelPackage())
@@ -172,20 +172,40 @@ namespace Safety_System
                 ws.Column(7).Style.WrapText = true;
                 ws.Cells.AutoFitColumns(15, 50);
 
-                // 🟢 4. 在「適用性」欄位 (第 9 欄) 加入下拉選單防呆
-                int applicabilityColIndex = 9; 
                 int maxRow = records.Count + 1; // 加上標題行
                 
                 if (maxRow >= 2) {
-                    var valList = ws.DataValidations.AddListValidation(ws.Cells[2, applicabilityColIndex, maxRow, applicabilityColIndex].Address);
-                    valList.ShowErrorMessage = true;
-                    valList.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-                    valList.ErrorTitle = "輸入錯誤";
-                    valList.Error = "請從下拉選單中選擇有效的適用性選項。";
-                    valList.Formula.Values.Add("適用");
-                    valList.Formula.Values.Add("不適用");
-                    valList.Formula.Values.Add("參考");
-                    valList.Formula.Values.Add("確認中");
+                    // 🟢 4. 在「適用性」欄位 (第 9 欄) 加入下拉選單防呆
+                    int applicabilityColIndex = 9; 
+                    var valApply = ws.DataValidations.AddListValidation(ws.Cells[2, applicabilityColIndex, maxRow, applicabilityColIndex].Address);
+                    valApply.ShowErrorMessage = true;
+                    valApply.ErrorStyle = ExcelDataValidationWarningStyle.stop;
+                    valApply.ErrorTitle = "輸入錯誤";
+                    valApply.Error = "請從下拉選單中選擇有效的選項。";
+                    valApply.Formula.Values.Add("適用");
+                    valApply.Formula.Values.Add("不適用");
+                    valApply.Formula.Values.Add("參考");
+                    valApply.Formula.Values.Add("確認中");
+
+                    // 🟢 5. 在「有提升績效機會」欄位 (第 10 欄) 加入下拉選單防呆
+                    int perfColIndex = 10;
+                    var valPerf = ws.DataValidations.AddListValidation(ws.Cells[2, perfColIndex, maxRow, perfColIndex].Address);
+                    valPerf.ShowErrorMessage = true;
+                    valPerf.ErrorStyle = ExcelDataValidationWarningStyle.stop;
+                    valPerf.ErrorTitle = "輸入錯誤";
+                    valPerf.Error = "只能選擇空格或 v。";
+                    valPerf.Formula.Values.Add(" "); // 空格選項 (Excel需要這樣設定)
+                    valPerf.Formula.Values.Add("v");
+
+                    // 🟢 6. 在「有潛在不符合風險」欄位 (第 11 欄) 加入下拉選單防呆
+                    int riskColIndex = 11;
+                    var valRisk = ws.DataValidations.AddListValidation(ws.Cells[2, riskColIndex, maxRow, riskColIndex].Address);
+                    valRisk.ShowErrorMessage = true;
+                    valRisk.ErrorStyle = ExcelDataValidationWarningStyle.stop;
+                    valRisk.ErrorTitle = "輸入錯誤";
+                    valRisk.Error = "只能選擇空格或 v。";
+                    valRisk.Formula.Values.Add(" "); 
+                    valRisk.Formula.Values.Add("v");
                 }
 
                 p.SaveAs(new FileInfo(excelPath));
@@ -197,7 +217,6 @@ namespace Safety_System
         // =========================================================
         private static string[] CreateRecord(string date, string lawName, string tiao, int xiang, string kuan, string mu, string content)
         {
-            // 🟢 移除了類別，改為 13 個元素陣列
             string[] rec = new string[13];
             for (int i = 0; i < 13; i++) rec[i] = "";
             
@@ -208,11 +227,11 @@ namespace Safety_System
             rec[4] = kuan;             // 款
             rec[5] = mu;               // 目
             rec[6] = content;          // 內容
-            rec[7] = "";               // 重點摘要 (預留空白)
-            rec[8] = "";               // 適用性 (預留空白，由 User 在 Excel 下拉選擇)
+            rec[7] = "";               // 重點摘要
+            rec[8] = "";               // 適用性
             rec[9] = "";               // 有提升績效機會
             rec[10] = "";              // 有潛在不符合風險
-            rec[11] = DateTime.Today.ToString("yyyy-MM-dd"); // 🟢 自動填入當下日期 (鑑別日期)
+            rec[11] = DateTime.Today.ToString("yyyy-MM-dd"); // 鑑別日期
             rec[12] = "";              // 備註
             
             return rec;
