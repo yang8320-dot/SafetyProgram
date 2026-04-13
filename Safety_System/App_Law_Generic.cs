@@ -72,9 +72,9 @@ namespace Safety_System
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第 1 列：BoxTop (包含日期與搜尋排)
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 第 2 列：BoxOps (包含欄位管理)
-            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 第 3 列：DataGridView 表格 (填滿剩餘高度)
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
+            main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10) };
             
@@ -157,13 +157,15 @@ namespace Safety_System
             Button btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             btnAdvancedSearch.Click += (s, e) => ExecuteAdvancedSearch(txtLatestCount.Text, _cboSearchColumn.SelectedItem?.ToString(), _txtSearchKeyword.Text);
 
-            Button btnRtfToCsv = new Button { Text = "📄 全國法規 RTF 轉 CSV", Size = new Size(220, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
-            btnRtfToCsv.Click += BtnRtfToCsv_Click;
+            // 🟢 更新為轉 EXCEL 的按鈕設定
+            Button btnRtfToExcel = new Button { Text = "📄 全國法規 RTF 轉 EXCEL", Size = new Size(240, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
+            btnRtfToExcel.Click += BtnRtfToExcel_Click;
 
-            Button bImport = new Button { Text = "📥 匯入 CSV", Size = new Size(120, 35), BackColor = Color.WhiteSmoke, Margin = new Padding(15, 0, 0, 0) }; 
-            bImport.Click += BtnImportCsv_Click;
+            // 🟢 更新為匯入 EXCEL 的按鈕設定
+            Button bImport = new Button { Text = "📥 匯入 EXCEL", Size = new Size(140, 35), BackColor = Color.WhiteSmoke, Margin = new Padding(15, 0, 0, 0) }; 
+            bImport.Click += BtnImportExcel_Click;
 
-            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch, btnRtfToCsv, bImport });
+            row3.Controls.AddRange(new Control[] { lblLimit, txtLatestCount, lblSearchCol, _cboSearchColumn, lblKeyword, _txtSearchKeyword, btnAdvancedSearch, btnRtfToExcel, bImport });
 
             flpTopContainer.Controls.Add(row1);
             flpTopContainer.Controls.Add(row3);
@@ -225,8 +227,6 @@ namespace Safety_System
             _dgv.DataError += Dgv_DataError;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
             _dgv.KeyDown += Dgv_KeyDown; 
-            
-            // 🟢 加入儲存格點擊事件 (負責鑑別日期自動帶入)
             _dgv.CellClick += Dgv_CellClick;
 
             main.Controls.Add(boxTop, 0, 0); 
@@ -237,7 +237,6 @@ namespace Safety_System
             return main;
         }
 
-        // 🟢 鑑別日期空白時，點擊自動帶入今天日期功能
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
@@ -408,14 +407,12 @@ namespace Safety_System
             DataTable allData = DataManager.GetTableData(_dbName, _tableName, "日期", "", "");
             DataView dv = allData.DefaultView;
 
-            // 🟢 搜尋邏輯升級：加入「適用性」與「鑑別日期」未填寫的篩選判斷
             if (!string.IsNullOrEmpty(searchCol)) 
             {
                 if (keyword == "有鍵入資料者") {
                     dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
                 }
                 else if ((searchCol == "適用性" || searchCol == "鑑別日期") && string.IsNullOrWhiteSpace(keyword)) {
-                    // 若搜尋適用性或鑑別日期且關鍵字為空白，則撈出「尚未評估/未填寫」的項目
                     dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
                 }
                 else if (!string.IsNullOrWhiteSpace(keyword)) {
@@ -625,59 +622,61 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底防假當機：非同步背景匯入與安全資料合併
-        private async void BtnImportCsv_Click(object sender, EventArgs e) {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv" }) {
+        // 🟢 將原本的匯入 CSV 改為匯入 EXCEL
+        private async void BtnImportExcel_Click(object sender, EventArgs e) {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                        string fileContent = File.ReadAllText(ofd.FileName, Encoding.Default);
                         DataTable originalDt = (DataTable)_dgv.DataSource;
-                        
-                        // 斷開 UI，防閃爍
                         _dgv.DataSource = null; 
-
-                        // 複製表格結構，準備在背景安全寫入
                         DataTable tempDt = originalDt.Clone();
 
-                        // 將龐大的解析與建立資料列工作丟入背景，釋放 UI 執行緒
                         await Task.Run(() => {
-                            List<string[]> parsedRows = ParseCsvText(fileContent);
-                            if (parsedRows.Count < 2) return; 
+                            using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
+                                ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                                if (ws == null || ws.Dimension == null) return;
 
-                            string[] headers = parsedRows[0];
+                                int rowCount = ws.Dimension.Rows;
+                                int colCount = ws.Dimension.Columns;
 
-                            for (int i = 1; i < parsedRows.Count; i++) {
-                                string[] vs = parsedRows[i];
-                                if (vs.Length == 1 && string.IsNullOrWhiteSpace(vs[0])) continue;
+                                string[] headers = new string[colCount];
+                                for (int c = 1; c <= colCount; c++) {
+                                    headers[c - 1] = ws.Cells[1, c].Text.Trim();
+                                }
 
-                                DataRow nr = tempDt.NewRow(); 
-                                for (int h = 0; h < headers.Length && h < vs.Length; h++) { 
-                                    string cn = headers[h].Trim(); 
-                                    if (tempDt.Columns.Contains(cn) && cn != "Id") {
-                                        string val = vs[h].Trim();
-                                        
-                                        if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
-                                            if (!string.IsNullOrWhiteSpace(val)) {
-                                                if (DateTime.TryParse(val, out DateTime parsedDate)) {
-                                                    val = parsedDate.ToString("yyyy-MM-dd");
-                                                } else {
-                                                    string temp = val.Replace("/", "-");
-                                                    if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
-                                                        val = parsedDate2.ToString("yyyy-MM-dd");
+                                for (int r = 2; r <= rowCount; r++) {
+                                    DataRow nr = tempDt.NewRow();
+                                    bool hasData = false;
+                                    
+                                    for (int c = 1; c <= colCount; c++) {
+                                        string cn = headers[c - 1];
+                                        if (tempDt.Columns.Contains(cn) && cn != "Id") {
+                                            string val = ws.Cells[r, c].Text.Trim();
+                                            
+                                            // 日期防呆
+                                            if (cn == "日期" || cn == "鑑別日期" || cn == "施行日期" || cn == "再次確認日期") {
+                                                if (!string.IsNullOrWhiteSpace(val)) {
+                                                    if (DateTime.TryParse(val, out DateTime parsedDate)) {
+                                                        val = parsedDate.ToString("yyyy-MM-dd");
+                                                    } else {
+                                                        string temp = val.Replace("/", "-");
+                                                        if (DateTime.TryParse(temp, out DateTime parsedDate2)) {
+                                                            val = parsedDate2.ToString("yyyy-MM-dd");
+                                                        }
                                                     }
                                                 }
                                             }
+                                            nr[cn] = val;
+                                            if (!string.IsNullOrEmpty(val)) hasData = true;
                                         }
-                                        nr[cn] = val; 
                                     }
+                                    if (hasData) tempDt.Rows.Add(nr);
                                 }
-                                tempDt.Rows.Add(nr);
                             }
                         });
 
-                        // 回到 UI 執行緒，將背景處理好的幾千筆資料瞬間合併回去
                         originalDt.Merge(tempDt);
                         _dgv.DataSource = originalDt; 
 
@@ -687,7 +686,6 @@ namespace Safety_System
                             _dgv.Columns["Id"].ReadOnly = true;
                             _dgv.Columns["Id"].Visible = false;
                         }
-
                         _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
 
                         MessageBox.Show($"載入 {tempDt.Rows.Count} 筆資料成功！\n系統已就緒，請點擊「儲存」以寫入資料庫。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -701,65 +699,16 @@ namespace Safety_System
             }
         }
 
-        private List<string[]> ParseCsvText(string csvText)
-        {
-            var result = new List<string[]>();
-            var currentRecord = new List<string>();
-            var currentField = new StringBuilder();
-            bool inQuotes = false;
-
-            for (int i = 0; i < csvText.Length; i++)
-            {
-                char c = csvText[i];
-
-                if (c == '\"')
-                {
-                    if (inQuotes && i + 1 < csvText.Length && csvText[i + 1] == '\"') {
-                        currentField.Append('\"');
-                        i++; 
-                    } else {
-                        inQuotes = !inQuotes;
-                    }
-                }
-                else if (c == ',' && !inQuotes)
-                {
-                    currentRecord.Add(currentField.ToString());
-                    currentField.Clear();
-                }
-                else if ((c == '\r' || c == '\n') && !inQuotes)
-                {
-                    if (c == '\r' && i + 1 < csvText.Length && csvText[i + 1] == '\n') {
-                        i++; 
-                    }
-                    currentRecord.Add(currentField.ToString());
-                    currentField.Clear();
-                    result.Add(currentRecord.ToArray());
-                    currentRecord.Clear();
-                }
-                else
-                {
-                    currentField.Append(c);
-                }
-            }
-
-            if (currentField.Length > 0 || currentRecord.Count > 0)
-            {
-                currentRecord.Add(currentField.ToString());
-                result.Add(currentRecord.ToArray());
-            }
-
-            return result;
-        }
-
-        private void BtnRtfToCsv_Click(object sender, EventArgs e)
+        // 🟢 將原本的 RTF 轉 CSV 改為呼叫轉換為 EXCEL
+        private void BtnRtfToExcel_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "RTF 法規檔案 (*.rtf)|*.rtf", Title = "請選擇全國法規資料庫下載的 RTF 檔案" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
-                    using (SaveFileDialog sfd = new SaveFileDialog { Filter = "CSV 檔案 (*.csv)|*.csv", FileName = Path.GetFileNameWithoutExtension(ofd.FileName) + "_轉換.csv" }) {
+                    using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", FileName = Path.GetFileNameWithoutExtension(ofd.FileName) + "_轉換.xlsx" }) {
                         if (sfd.ShowDialog() == DialogResult.OK) {
                             try {
-                                LawRtfToCsvConverter.Convert(ofd.FileName, sfd.FileName);
-                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入 CSV」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                LawRtfToExcelConverter.Convert(ofd.FileName, sfd.FileName);
+                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入 EXCEL」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             } catch (Exception ex) {
                                 MessageBox.Show("轉換失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             }
