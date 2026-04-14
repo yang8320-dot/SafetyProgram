@@ -75,14 +75,13 @@ namespace Safety_System
                 if (!columns.Contains("星期")) DataManager.AddColumn(_dbName, _tableName, "星期");
             }
 
-            // 🟢 優化 3：TableLayoutPanel 加入 Padding 15，實現完美自適應排版
+            // 優化排版
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 給 Status Label
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 🟢 優化 3：GroupBox 加入 Margin 10px 推開下方距離
             GroupBox boxTop = new GroupBox { Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             
@@ -199,10 +198,8 @@ namespace Safety_System
             flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2);
             _boxAdvanced.Controls.Add(flpAdv);
 
-            // 🟢 新增：UI 狀態提示列
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 優化 3：DGV 行高加大至 35，且加入 Margin 10px 推開下方距離
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
@@ -222,7 +219,7 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            // 🟢 啟動非同步載入，加上棄洞 _ = 以消除 CS4014
+            // 啟動非同步載入，使用棄洞以消除 CS4014
             _ = LoadGridDataAsync(); 
             return main;
         }
@@ -281,7 +278,6 @@ namespace Safety_System
             _dgv.DataSource = dt;
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             
-            // 強制日期欄位 UI 顯示
             if (_dgv.Columns.Contains(_dateColumnName)) {
                 _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
             }
@@ -352,7 +348,7 @@ namespace Safety_System
                 if (success) {
                     SetUIState(true, "資料儲存成功！", Color.Green);
                     MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadGridDataAsync(); // 🟢 加入 await 消除警告
+                    await LoadGridDataAsync(); // 補上 await
                 } else {
                     SetUIState(true, "資料儲存失敗", Color.Red);
                 }
@@ -393,6 +389,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 重構：全新智慧 Excel 匯入邏輯
         private async void BtnImportExcel_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
@@ -401,9 +398,11 @@ namespace Safety_System
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
                         SetUIState(false, "Excel 解析與水資源差值運算中，請稍候...", Color.Orange);
 
-                        DataTable dt = (DataTable)_dgv.DataSource;
+                        DataTable originalDt = (DataTable)_dgv.DataSource;
                         _dgv.DataSource = null; 
                         
+                        DataTable newBoundDt = null;
+
                         await Task.Run(() => {
                             using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
                                 ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
@@ -415,39 +414,117 @@ namespace Safety_System
                                 string[] headers = new string[colCount];
                                 for (int c = 1; c <= colCount; c++) headers[c - 1] = ws.Cells[1, c].Text.Trim();
 
-                                // 🟢 水資源專用：暫停 UI 計算，進入大批運算模式
                                 _calcHelper?.BeginBulkUpdate();
 
+                                // 🟢 1. 解析 Excel 到暫存表，並找出 Excel 的最小(最早)日期
+                                DataTable excelDt = originalDt.Clone();
+                                DateTime? minImportDate = null;
+                                string dateFormat = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
+
                                 for (int r = 2; r <= rowCount; r++) {
-                                    DataRow nr = dt.NewRow();
+                                    DataRow nr = excelDt.NewRow();
                                     bool hasData = false;
 
                                     for (int c = 1; c <= colCount; c++) {
                                         string cn = headers[c - 1];
                                         string val = ws.Cells[r, c].Text.Trim(); 
 
-                                        if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) {
+                                        if (excelDt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) {
                                             nr[cn] = val;
                                             hasData = true;
+                                            
+                                            // 找最小日期
+                                            if (cn == _dateColumnName) {
+                                                string dStr = val.Replace("/", "-");
+                                                if (DateTime.TryParse(dStr, out DateTime d)) {
+                                                    nr[cn] = d.ToString(dateFormat); // 標準化格式
+                                                    if (minImportDate == null || d < minImportDate) minImportDate = d;
+                                                }
+                                            }
                                         }
                                     }
-                                    if (hasData) dt.Rows.Add(nr);
+                                    if (hasData) excelDt.Rows.Add(nr);
                                 }
 
-                                // 🟢 水資源專用：觸發背景中的日差值與星期計算
-                                _calcHelper?.RecalculateTable(dt); 
+                                if (excelDt.Rows.Count == 0) return;
+
+                                // 🟢 2. 從資料庫撈出 minImportDate 之前的「最後一筆紀錄」，補入原表格當作差值計算基準
+                                if (minImportDate.HasValue) {
+                                    string minDateStr = minImportDate.Value.ToString(dateFormat);
+                                    DataTable allDbData = DataManager.GetTableData(_dbName, _tableName, "", "", ""); 
+                                    
+                                    var query = allDbData.AsEnumerable()
+                                        .Where(row => string.Compare(row[_dateColumnName]?.ToString(), minDateStr) < 0)
+                                        .OrderByDescending(row => row[_dateColumnName]?.ToString());
+                                    
+                                    DataRow baselineRow = query.FirstOrDefault();
+                                    
+                                    // 檢查這筆基準紀錄是否已經在畫面表格中，沒有才補入
+                                    if (baselineRow != null) {
+                                        bool exists = false;
+                                        string baseId = baselineRow["Id"].ToString();
+                                        foreach(DataRow existing in originalDt.Rows) {
+                                            if (existing.RowState != DataRowState.Deleted && existing["Id"].ToString() == baseId) {
+                                                exists = true; break;
+                                            }
+                                        }
+                                        if (!exists) {
+                                            originalDt.ImportRow(baselineRow);
+                                        }
+                                    }
+                                }
+
+                                // 🟢 3. 將 Excel 資料寫入 originalDt (覆蓋更新 或 新增)
+                                foreach(DataRow r in excelDt.Rows) {
+                                    string importDate = r[_dateColumnName]?.ToString();
+                                    if(string.IsNullOrEmpty(importDate)) continue;
+
+                                    // 尋找同日期的既有紀錄
+                                    DataRow existingRow = originalDt.AsEnumerable()
+                                        .FirstOrDefault(row => row.RowState != DataRowState.Deleted && row[_dateColumnName]?.ToString() == importDate);
+                                    
+                                    if (existingRow != null) {
+                                        // 找到相同日期：僅針對有變更的欄位做取代更新
+                                        foreach(DataColumn col in excelDt.Columns) {
+                                            string colName = col.ColumnName;
+                                            if (colName == "Id" || colName == _dateColumnName) continue;
+                                            
+                                            if (r[colName] != DBNull.Value && !string.IsNullOrEmpty(r[colName].ToString())) {
+                                                if (existingRow[colName].ToString() != r[colName].ToString()) {
+                                                    existingRow[colName] = r[colName]; // 取代值
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // 找不到相同日期：新增為新紀錄
+                                        originalDt.ImportRow(r);
+                                    }
+                                }
+
+                                // 🟢 4. 按日期排序確保時序正確，供 RecalculateTable 可以按行精準算出「日統計」
+                                originalDt.DefaultView.Sort = $"{_dateColumnName} ASC";
+                                newBoundDt = originalDt.DefaultView.ToTable(); // 產出經過排序的新表
+
+                                // 🟢 5. 觸發背景日差值計算
+                                _calcHelper?.RecalculateTable(newBoundDt); 
                                 _calcHelper?.EndBulkUpdate();
-                                EnforceDateFormats(dt); // 匯入後強制格式化日期
+                                EnforceDateFormats(newBoundDt); 
                             }
                         });
 
-                        _dgv.DataSource = dt; 
+                        // 綁回 DGV
+                        if (newBoundDt != null) {
+                            _dgv.DataSource = newBoundDt; 
+                        } else {
+                            _dgv.DataSource = originalDt;
+                        }
+                        
                         RestoreColumnOrder();
 
-                        SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
-                        MessageBox.Show("Excel 匯入成功！\n系統已自動計算日差值，請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{((DataTable)_dgv.DataSource).Rows.Count}", Color.Green);
+                        MessageBox.Show("Excel 匯入成功！\n系統已自動撈取前一筆數據計算差值，並合併重複日期。\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { 
-                        await LoadGridDataAsync(); // 🟢 發生錯誤時還原資料庫狀態，補上 await 消除警告
+                        await LoadGridDataAsync(); // 發生錯誤時還原資料庫狀態
                         MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     } finally {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
@@ -479,7 +556,7 @@ namespace Safety_System
                     _calcHelper?.RecalculateTable(dt);
                     _calcHelper?.EndBulkUpdate();
                     
-                    EnforceDateFormats(dt); // 🟢 貼上後觸發日期格式防呆
+                    EnforceDateFormats(dt); 
                     _dgv.Refresh();
                 } catch { _calcHelper?.EndBulkUpdate(); }
             }
