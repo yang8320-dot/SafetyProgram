@@ -120,9 +120,17 @@ namespace Safety_System
             menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_Water_Generic("Water", "DischargeData", "【月】納管排放數據").GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_Water_Generic("Water", "WaterVolume", "【月】自來水用量統計").GetView()));
 
-            var menuWaste = new ToolStripMenuItem("廢棄物");
+            // 🟢 修改：產能及廢棄物申報月表 (掛載7個全新資料表)
+            var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("廢棄物看板", () => new App_WasteDashboard().GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("廢棄物統計表", () => new App_GenericTable("Waste", "WasteMonthly", "廢棄物統計表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("複層月表", () => new App_GenericTable("Waste", "Waste_FuCeng", "複層月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("膠合月表", () => new App_GenericTable("Waste", "Waste_JiaoHe", "膠合月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("鍍板月表", () => new App_GenericTable("Waste", "Waste_DuBan", "鍍板月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("強化月表", () => new App_GenericTable("Waste", "Waste_QiangHua", "強化月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("切磨月表", () => new App_GenericTable("Waste", "Waste_QieMo", "切磨月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("物料月表", () => new App_GenericTable("Waste", "Waste_WuLiao", "物料月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("工安月表", () => new App_GenericTable("Waste", "Waste_GongAn", "工安月表").GetView()));
+
 
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
