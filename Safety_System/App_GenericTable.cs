@@ -39,14 +39,17 @@ namespace Safety_System
 
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            // 🟢 加入全新的 7 個廢棄物月表預設結構 (若無特別指定，預設給月份、附件與備註)
-            { "Waste_FuCeng", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_JiaoHe", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_DuBan", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_QiangHua", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_QieMo", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_WuLiao", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_GongAn", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            // 🟢 產能及廢棄物申報月表 (已更正為最新英文代號與水站月表)
+            { "Waste_IL", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_LM", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_CR", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_T", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_GCTE", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_ML", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_Water", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 🟢 ESG績效管理 (依據需求客製化精準欄位)
+            { "ESG_Performance", "[年度] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
             // 原有表單結構保留
             { "ChemRegulations", "[類別] TEXT, [公告日期] TEXT, [法規名稱] TEXT, [法規內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CAS No] TEXT, [檢測週期] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [管制濃度] TEXT, [分級運作量] TEXT, [管制行為] TEXT, [定期申報頻率] TEXT, [毒性分類] TEXT, [記錄] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -91,6 +94,7 @@ namespace Safety_System
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             
+            // 🟢 強力防呆：動態尋找可作為查詢的時間欄位
             if (columns.Contains("月份")) {
                 _isMonthlyMode = true;
                 _dateColumnName = "月份";
@@ -98,9 +102,9 @@ namespace Safety_System
                 _isMonthlyMode = false;
                 _dateColumnName = "日期";
             } else {
-                string altDateCol = columns.FirstOrDefault(c => c.Contains("日期") || c.Contains("月份"));
+                string altDateCol = columns.FirstOrDefault(c => c.Contains("日期") || c.Contains("月份") || c.Contains("年度"));
                 if (!string.IsNullOrEmpty(altDateCol)) {
-                    _isMonthlyMode = altDateCol.Contains("月份");
+                    _isMonthlyMode = altDateCol.Contains("月份") || altDateCol.Contains("年度");
                     _dateColumnName = altDateCol;
                 } else {
                     _isMonthlyMode = false;
