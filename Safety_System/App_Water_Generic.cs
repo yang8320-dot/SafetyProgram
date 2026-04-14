@@ -219,7 +219,7 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            // 啟動非同步載入，使用棄洞以消除 CS4014
+            // 啟動非同步載入
             _ = LoadGridDataAsync(); 
             return main;
         }
@@ -363,7 +363,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 匯入/匯出與剪貼簿 (加入背景運算引擎)
+        // 🟢 匯出邏輯
         // ==========================================
         private void BtnExport_Click(object sender, EventArgs e)
         {
@@ -389,7 +389,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 重構：全新智慧 Excel 匯入邏輯
+        // 🟢 重構：全新智慧 Excel 匯入邏輯 (已修復 .AsEnumerable() 錯誤，改用 .Rows.Cast<DataRow>())
         private async void BtnImportExcel_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
@@ -453,7 +453,8 @@ namespace Safety_System
                                     string minDateStr = minImportDate.Value.ToString(dateFormat);
                                     DataTable allDbData = DataManager.GetTableData(_dbName, _tableName, "", "", ""); 
                                     
-                                    var query = allDbData.AsEnumerable()
+                                    // 修正：使用 .Rows.Cast<DataRow>() 解決編譯器推斷問題
+                                    var query = allDbData.Rows.Cast<DataRow>()
                                         .Where(row => string.Compare(row[_dateColumnName]?.ToString(), minDateStr) < 0)
                                         .OrderByDescending(row => row[_dateColumnName]?.ToString());
                                     
@@ -479,8 +480,8 @@ namespace Safety_System
                                     string importDate = r[_dateColumnName]?.ToString();
                                     if(string.IsNullOrEmpty(importDate)) continue;
 
-                                    // 尋找同日期的既有紀錄
-                                    DataRow existingRow = originalDt.AsEnumerable()
+                                    // 尋找同日期的既有紀錄 (修正：使用 .Rows.Cast<DataRow>())
+                                    DataRow existingRow = originalDt.Rows.Cast<DataRow>()
                                         .FirstOrDefault(row => row.RowState != DataRowState.Deleted && row[_dateColumnName]?.ToString() == importDate);
                                     
                                     if (existingRow != null) {
