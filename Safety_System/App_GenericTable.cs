@@ -14,10 +14,13 @@ namespace Safety_System
 {
     public class App_GenericTable
     {
+        // 🟢 定義三種時間模式：日期 (年月日)、年月 (隱藏日)、年度 (隱藏月日)
+        private enum TimeMode { Date, YearMonth, Year }
+        private TimeMode _timeMode = TimeMode.Date;
+
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
-        private Label _lblStartDay, _lblEndDay;
         
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
@@ -32,31 +35,36 @@ namespace Safety_System
         private readonly string _tableName; 
         private readonly string _chineseTitle;
         
-        private bool _isMonthlyMode = false;
         private string _dateColumnName = "日期";
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
+        // 🟢 完整的結構定義清單
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            // 🟢 產能及廢棄物申報月表 (已更正為最新英文代號與水站月表)
-            { "Waste_IL", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_LM", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_CR", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_T", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_GCTE", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_ML", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "Waste_Water", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            // 🟢 產能及廢棄物申報月表 (名稱更新與水站月表)
+            { "Waste_IL", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_LM", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_CR", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_T", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_GCTE", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_ML", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_Water", "[年月] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 ESG績效管理 (依據需求客製化精準欄位)
-            { "ESG_Performance", "[年度] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            // 🟢 ESG績效管理
+            { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 原有表單結構保留
+            // 🟢 空污申報紀錄
+            { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 🟢 其他原含有「月份」的表單，全部改為「年月」
+            { "HazardStats", "[年月] TEXT, [品項] TEXT, [單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WorkInjuryReport", "[年月] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 🟢 以下保留原狀
             { "ChemRegulations", "[類別] TEXT, [公告日期] TEXT, [法規名稱] TEXT, [法規內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CAS No] TEXT, [檢測週期] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [管制濃度] TEXT, [分級運作量] TEXT, [管制行為] TEXT, [定期申報頻率] TEXT, [毒性分類] TEXT, [記錄] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "AirPollution", "[月份] TEXT, [甲醇] TEXT, [乙醇] TEXT, [油墨] TEXT, [網板清洗劑] TEXT , [附件檔案] TEXT, [備註] TEXT" },
             { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [防火負責人職稱] TEXT, [火源責任人] TEXT, [火源責任人職稱] TEXT, [責任代理人] TEXT, [責任代理人職稱] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "HazardStats", "[月份] TEXT, [品項] TEXT, [單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -75,8 +83,7 @@ namespace Safety_System
             { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "WorkInjuryReport", "[月份] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" }
+            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
         public App_GenericTable(string dbName, string tableName, string chineseTitle)
@@ -92,23 +99,64 @@ namespace Safety_System
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
+            // 🟢 自動資料庫升級：將舊的「月份」重新命名為「年月」
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
-            
-            // 🟢 強力防呆：動態尋找可作為查詢的時間欄位
-            if (columns.Contains("月份")) {
-                _isMonthlyMode = true;
-                _dateColumnName = "月份";
-            } else if (columns.Contains("日期")) {
-                _isMonthlyMode = false;
-                _dateColumnName = "日期";
-            } else {
-                string altDateCol = columns.FirstOrDefault(c => c.Contains("日期") || c.Contains("月份") || c.Contains("年度"));
-                if (!string.IsNullOrEmpty(altDateCol)) {
-                    _isMonthlyMode = altDateCol.Contains("月份") || altDateCol.Contains("年度");
-                    _dateColumnName = altDateCol;
-                } else {
-                    _isMonthlyMode = false;
-                    _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id";
+            if (columns.Contains("月份")) 
+            {
+                try 
+                {
+                    DataManager.RenameColumn(_dbName, _tableName, "月份", "年月");
+                    columns = DataManager.GetColumnNames(_dbName, _tableName); // 重新讀取
+                } 
+                catch { }
+            }
+
+            // 🟢 智慧判斷優先順序：日期 > 年月 > 年度
+            if (columns.Contains("日期")) 
+            { 
+                _timeMode = TimeMode.Date; 
+                _dateColumnName = "日期"; 
+            }
+            else if (columns.Contains("年月")) 
+            { 
+                _timeMode = TimeMode.YearMonth; 
+                _dateColumnName = "年月"; 
+            }
+            else if (columns.Contains("年度")) 
+            { 
+                _timeMode = TimeMode.Year; 
+                _dateColumnName = "年度"; 
+            }
+            else 
+            {
+                string altDate = columns.FirstOrDefault(c => c.Contains("日期"));
+                if (altDate != null) 
+                { 
+                    _timeMode = TimeMode.Date; 
+                    _dateColumnName = altDate; 
+                }
+                else 
+                {
+                    altDate = columns.FirstOrDefault(c => c.Contains("年月"));
+                    if (altDate != null) 
+                    { 
+                        _timeMode = TimeMode.YearMonth; 
+                        _dateColumnName = altDate; 
+                    }
+                    else 
+                    {
+                        altDate = columns.FirstOrDefault(c => c.Contains("年度"));
+                        if (altDate != null) 
+                        { 
+                            _timeMode = TimeMode.Year; 
+                            _dateColumnName = altDate; 
+                        }
+                        else 
+                        { 
+                            _timeMode = TimeMode.Date; 
+                            _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id"; 
+                        }
+                    }
                 }
             }
 
@@ -132,17 +180,27 @@ namespace Safety_System
 
             int currentYear = DateTime.Now.Year;
             for (int i = currentYear - 25; i <= currentYear + 25; i++) {
-                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i);
+                _cboStartYear.Items.Add(i); 
+                _cboEndYear.Items.Add(i);
             }
             for (int i = 1; i <= 12; i++) {
-                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2"));
+                _cboStartMonth.Items.Add(i.ToString("D2")); 
+                _cboEndMonth.Items.Add(i.ToString("D2"));
             }
             for (int i = 1; i <= 31; i++) {
-                _cboStartDay.Items.Add(i.ToString("D2")); _cboEndDay.Items.Add(i.ToString("D2"));
+                _cboStartDay.Items.Add(i.ToString("D2")); 
+                _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            if (_isMonthlyMode) SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-6));
-            else SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+            if (_timeMode == TimeMode.YearMonth || _timeMode == TimeMode.Year) 
+            {
+                SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-6));
+            }
+            else 
+            {
+                SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+            }
+            
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
@@ -163,22 +221,34 @@ namespace Safety_System
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
             };
 
-            _lblStartDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-            _lblEndDay = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            // 🟢 動態隱藏不必要的下拉選單
+            Label lblSY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblSM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblSD = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
+            Label lblEY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblEM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblED = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
 
-            row1.Controls.Add(lblRange);
-            row1.Controls.Add(_cboStartYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
-            row1.Controls.Add(_cboStartMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
-            
-            if (!_isMonthlyMode) { row1.Controls.Add(_cboStartDay); row1.Controls.Add(_lblStartDay); }
-            
-            row1.Controls.Add(new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) });
-            row1.Controls.Add(_cboEndYear); row1.Controls.Add(new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
-            row1.Controls.Add(_cboEndMonth); row1.Controls.Add(new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) });
-            
-            if (!_isMonthlyMode) { row1.Controls.Add(_cboEndDay); row1.Controls.Add(_lblEndDay); }
+            if (_timeMode == TimeMode.YearMonth) 
+            {
+                _cboStartDay.Visible = false; lblSD.Visible = false;
+                _cboEndDay.Visible = false; lblED.Visible = false;
+            } 
+            else if (_timeMode == TimeMode.Year) 
+            {
+                _cboStartDay.Visible = false; lblSD.Visible = false;
+                _cboEndDay.Visible = false; lblED.Visible = false;
+                _cboStartMonth.Visible = false; lblSM.Visible = false;
+                _cboEndMonth.Visible = false; lblEM.Visible = false;
+            }
 
-            row1.Controls.Add(_btnRead); row1.Controls.Add(_btnExport); row1.Controls.Add(_btnImport); row1.Controls.Add(_btnToggle); row1.Controls.Add(_btnSave);
+            row1.Controls.AddRange(new Control[] {
+                lblRange, _cboStartYear, lblSY, _cboStartMonth, lblSM, _cboStartDay, lblSD,
+                lblTilde, _cboEndYear, lblEY, _cboEndMonth, lblEM, _cboEndDay, lblED,
+                _btnRead, _btnExport, _btnImport, _btnToggle, _btnSave
+            });
+
             boxTop.Controls.Add(row1);
 
             _boxAdvanced = new GroupBox { Text = "進階欄位與權限操作", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray, Margin = new Padding(0, 0, 0, 10) };
@@ -188,32 +258,66 @@ namespace Safety_System
             _txtNewColName = new TextBox { Width = 150 };
             
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
-            bAdd.Click += async (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await LoadGridDataAsync(); _txtNewColName.Clear(); } };
+            bAdd.Click += async (s, e) => { 
+                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
+                { 
+                    DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); 
+                    await LoadGridDataAsync(); 
+                    _txtNewColName.Clear(); 
+                } 
+            };
             
-            _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
+            _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList }; 
+            _txtRenameCol = new TextBox { Width = 120 };
             
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
-            bRen.Click += async (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await LoadGridDataAsync(); _txtRenameCol.Clear(); } };
+            bRen.Click += async (s, e) => { 
+                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
+                { 
+                    DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); 
+                    await LoadGridDataAsync(); 
+                    _txtRenameCol.Clear(); 
+                } 
+            };
             
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += async (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo)==DialogResult.Yes){ DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await LoadGridDataAsync(); } } };
+            bDelCol.Click += async (s, e) => { 
+                if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
+                { 
+                    if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    { 
+                        DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); 
+                        await LoadGridDataAsync(); 
+                    } 
+                } 
+            };
             
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDelRow.Click += async (s, e) => {
-                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
-                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                    if (AuthManager.VerifyUser()) {
-                        foreach (var r in selectedRows) {
-                            if (_dgv.Columns.Contains("附件檔案")) {
+                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
+                                       .Select(c => c.OwningRow)
+                                       .Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value)
+                                       .Distinct().ToList();
+                                       
+                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
+                {
+                    if (AuthManager.VerifyUser()) 
+                    {
+                        foreach (var r in selectedRows) 
+                        {
+                            if (_dgv.Columns.Contains("附件檔案")) 
+                            {
                                 string relPathStr = r.Cells["附件檔案"].Value?.ToString();
-                                if (!string.IsNullOrEmpty(relPathStr)) {
+                                if (!string.IsNullOrEmpty(relPathStr)) 
+                                {
                                     string[] paths = relPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
                                     foreach (var p in paths) DeletePhysicalFile(p, r.Index);
                                 }
                             }
                             DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
                         }
-                        await LoadGridDataAsync(); MessageBox.Show("刪除成功！");
+                        await LoadGridDataAsync(); 
+                        MessageBox.Show("刪除成功！");
                     }
                 }
             };
@@ -224,7 +328,8 @@ namespace Safety_System
             TextBox txtLimit = new TextBox { Width = 100, Text = "100" };
             Button bLimitRead = new Button { Text = "讀取指定筆數", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             bLimitRead.Click += async (s, e) => { 
-                if (int.TryParse(txtLimit.Text, out int l)) { 
+                if (int.TryParse(txtLimit.Text, out int l)) 
+                { 
                     SetUIState(false, "讀取中...", Color.Orange);
                     DataTable dt = null;
                     await Task.Run(() => {
@@ -237,9 +342,11 @@ namespace Safety_System
                     SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
                 } 
             };
+            
             rowAdv2.Controls.AddRange(new Control[] { new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, txtLimit, bLimitRead });
             
-            flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2);
+            flpAdv.Controls.Add(rowAdv1); 
+            flpAdv.Controls.Add(rowAdv2);
             _boxAdvanced.Controls.Add(flpAdv);
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
@@ -252,6 +359,7 @@ namespace Safety_System
                 AllowUserToOrderColumns = true,
                 Margin = new Padding(0, 10, 0, 10)
             };
+            
             _dgv.RowTemplate.Height = 35;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
@@ -270,34 +378,40 @@ namespace Safety_System
             return main;
         }
 
-        private void SetUIState(bool isEnabled, string statusText, Color statusColor)
+        // ==========================================
+        // 狀態與日期強制格式化管理
+        // ==========================================
+        private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
-            _btnRead.Enabled = isEnabled;
-            _btnSave.Enabled = isEnabled;
-            _btnImport.Enabled = isEnabled;
+            _btnRead.Enabled = isEnabled; 
+            _btnSave.Enabled = isEnabled; 
+            _btnImport.Enabled = isEnabled; 
             _btnExport.Enabled = isEnabled;
             
-            _lblStatus.Text = statusText;
+            _lblStatus.Text = statusText; 
             _lblStatus.ForeColor = statusColor;
         }
 
         // ==========================================
         // 🟢 多檔案附件專用事件與清理機制
         // ==========================================
-        private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e) 
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0) 
             {
                 string colName = _dgv.Columns[e.ColumnIndex].Name;
-                if (colName.Contains("附件檔案") && e.Value != null)
+                if (colName.Contains("附件檔案") && e.Value != null) 
                 {
                     string pathStr = e.Value.ToString();
-                    if (!string.IsNullOrEmpty(pathStr))
+                    if (!string.IsNullOrEmpty(pathStr)) 
                     {
                         string[] parts = pathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length > 1) {
+                        if (parts.Length > 1) 
+                        {
                             e.Value = $"📁 [共 {parts.Length} 個檔案]";
-                        } else {
+                        } 
+                        else 
+                        {
                             e.Value = Path.GetFileName(parts[0]);
                         }
                         e.FormattingApplied = true;
@@ -306,19 +420,18 @@ namespace Safety_System
             }
         }
 
-        private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
+        private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e) 
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow)
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow) 
             {
-                string colName = _dgv.Columns[e.ColumnIndex].Name;
-                if (colName.Contains("附件檔案"))
+                if (_dgv.Columns[e.ColumnIndex].Name.Contains("附件檔案")) 
                 {
                     string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
-
-                    // 將實體刪除的委派方法傳入，讓 Form 內部可以直接操作刪除
-                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, path => DeletePhysicalFile(path, e.RowIndex)))
+                    
+                    // 呼叫全新的四區塊多檔附件視窗
+                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, path => DeletePhysicalFile(path, e.RowIndex))) 
                     {
-                        if (frm.ShowDialog() == DialogResult.OK)
+                        if (frm.ShowDialog() == DialogResult.OK) 
                         {
                             _dgv[e.ColumnIndex, e.RowIndex].Value = frm.FinalPathsString;
                             _dgv.EndEdit();
@@ -328,41 +441,50 @@ namespace Safety_System
             }
         }
 
-        // 支援多檔字串分割的防呆實體刪除
-        private void DeletePhysicalFile(string relativePath, int currentRowIndex)
+        private void DeletePhysicalFile(string relativePath, int currentRowIndex) 
         {
             if (string.IsNullOrWhiteSpace(relativePath)) return;
-
+            
             bool isUsedByOthers = false;
-            foreach (DataGridViewRow row in _dgv.Rows) {
+            foreach (DataGridViewRow row in _dgv.Rows) 
+            {
                 if (row.Index == currentRowIndex || row.IsNewRow) continue;
-                if (_dgv.Columns.Contains("附件檔案")) {
+                
+                if (_dgv.Columns.Contains("附件檔案")) 
+                {
                     string cellVal = row.Cells["附件檔案"].Value?.ToString();
-                    if (!string.IsNullOrEmpty(cellVal)) {
+                    if (!string.IsNullOrEmpty(cellVal)) 
+                    {
                         string[] paths = cellVal.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (paths.Contains(relativePath)) {
-                            isUsedByOthers = true;
-                            break;
+                        if (paths.Contains(relativePath)) 
+                        { 
+                            isUsedByOthers = true; 
+                            break; 
                         }
                     }
                 }
             }
-
+            
             if (isUsedByOthers) return;
-
-            try {
+            
+            try 
+            {
                 string absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
-                if (File.Exists(absPath)) {
+                if (File.Exists(absPath)) 
+                {
                     File.Delete(absPath); 
-
                     DirectoryInfo dir = new DirectoryInfo(Path.GetDirectoryName(absPath));
                     string attachRootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
-
-                    while (dir != null && dir.FullName.StartsWith(attachRootDir) && dir.FullName.Length > attachRootDir.Length) {
-                        if (dir.Exists && dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) {
+                    
+                    while (dir != null && dir.FullName.StartsWith(attachRootDir) && dir.FullName.Length > attachRootDir.Length) 
+                    {
+                        if (dir.Exists && dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) 
+                        {
                             dir.Delete(); 
                             dir = dir.Parent;
-                        } else {
+                        } 
+                        else 
+                        { 
                             break; 
                         }
                     }
@@ -371,17 +493,25 @@ namespace Safety_System
             catch { }
         }
 
-        private void ApplyGridStyles()
+        private void ApplyGridStyles() 
         {
-            if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
-            
-            if (_dgv.Columns.Contains(_dateColumnName)) {
-                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
-            }
-
-            foreach (DataGridViewColumn col in _dgv.Columns)
+            if (_dgv.Columns.Contains("Id")) 
             {
-                if (col.Name.Contains("附件檔案"))
+                _dgv.Columns["Id"].ReadOnly = true;
+            }
+            
+            if (_dgv.Columns.Contains(_dateColumnName)) 
+            {
+                string fmt = "yyyy-MM-dd";
+                if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
+                else if (_timeMode == TimeMode.Year) fmt = "yyyy";
+                
+                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
+            }
+            
+            foreach (DataGridViewColumn col in _dgv.Columns) 
+            {
+                if (col.Name.Contains("附件檔案")) 
                 {
                     col.ReadOnly = true; 
                     col.DefaultCellStyle.ForeColor = Color.Blue;
@@ -395,153 +525,204 @@ namespace Safety_System
         // 原有核心邏輯區 (讀取/存檔/匯出/匯入/貼上)
         // ==========================================
 
-        private async void BtnSave_Click(object sender, EventArgs e)
+        private async void BtnSave_Click(object sender, EventArgs e) 
         {
-            try {
+            try 
+            {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                _dgv.EndEdit();
-                SaveColumnOrder();
-                
+                _dgv.EndEdit(); 
+                SaveColumnOrder(); 
                 SetUIState(false, "資料庫寫入中，請稍候...", Color.Orange);
-
-                DataTable dt = (DataTable)_dgv.DataSource;
                 
+                DataTable dt = (DataTable)_dgv.DataSource;
                 bool success = false;
-                await Task.Run(() => {
+                
+                await Task.Run(() => { 
                     EnforceDateFormat(dt); 
-                    success = DataManager.BulkSaveTable(_dbName, _tableName, dt);
+                    success = DataManager.BulkSaveTable(_dbName, _tableName, dt); 
                 });
-
-                if (success) {
-                    SetUIState(true, "資料儲存成功！", Color.Green);
-                    MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadGridDataAsync();
-                } else {
-                    SetUIState(true, "資料儲存失敗", Color.Red);
+                
+                if (success) 
+                { 
+                    SetUIState(true, "資料儲存成功！", Color.Green); 
+                    MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                    await LoadGridDataAsync(); 
+                } 
+                else 
+                { 
+                    SetUIState(true, "資料儲存失敗", Color.Red); 
                 }
             } 
-            catch (Exception ex) {
-                SetUIState(true, "儲存異常", Color.Red);
-                MessageBox.Show("儲存異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            catch (Exception ex) 
+            { 
+                SetUIState(true, "儲存異常", Color.Red); 
+                MessageBox.Show("儲存異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
             }
-            finally {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            finally 
+            { 
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
             }
         }
 
-        private async Task LoadGridDataAsync()
+        private async Task LoadGridDataAsync() 
         {
             SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
-            
             DataTable dt = null;
             
             string sDate = GetDateString(_cboStartYear, _cboStartMonth, _cboStartDay);
             string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
-
+            
             await Task.Run(() => {
-                if (_isFirstLoad) {
-                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
-                    _isFirstLoad = false;
-                } else {
-                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
+                if (_isFirstLoad) 
+                { 
+                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30); 
+                    _isFirstLoad = false; 
+                } 
+                else 
+                { 
+                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate); 
                 }
                 EnforceDateFormat(dt); 
             });
-
-            _dgv.DataSource = dt;
             
+            _dgv.DataSource = dt; 
             ApplyGridStyles(); 
-
-            UpdateCboColumns();
+            UpdateCboColumns(); 
             RestoreColumnOrder();
-
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
-        private string GetDateString(ComboBox y, ComboBox m, ComboBox d)
+        private string GetDateString(ComboBox y, ComboBox m, ComboBox d) 
         {
-            if (_isMonthlyMode) return $"{y.SelectedItem}-{m.SelectedItem}";
+            if (_timeMode == TimeMode.Year) return y.SelectedItem.ToString();
+            if (_timeMode == TimeMode.YearMonth) return $"{y.SelectedItem}-{m.SelectedItem}";
+            
             return $"{y.SelectedItem}-{m.SelectedItem}-{d.SelectedItem}";
         }
 
-        private void UpdateCboColumns()
+        private void UpdateCboColumns() 
         {
             _cboColumns.Items.Clear();
-            foreach (DataGridViewColumn c in _dgv.Columns)
-                if (c.Name != "Id" && c.Name != _dateColumnName) _cboColumns.Items.Add(c.Name);
+            foreach (DataGridViewColumn c in _dgv.Columns) 
+            {
+                if (c.Name != "Id" && c.Name != _dateColumnName) 
+                {
+                    _cboColumns.Items.Add(c.Name);
+                }
+            }
         }
 
-        private void EnforceDateFormat(DataTable dt)
+        private void EnforceDateFormat(DataTable dt) 
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
-            string format = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
             
-            foreach (DataRow row in dt.Rows) {
+            string format = "yyyy-MM-dd";
+            if (_timeMode == TimeMode.YearMonth) format = "yyyy-MM";
+            else if (_timeMode == TimeMode.Year) format = "yyyy";
+            
+            foreach (DataRow row in dt.Rows) 
+            {
                 if (row.RowState == DataRowState.Deleted) continue;
+                
                 string val = row[_dateColumnName]?.ToString();
                 
-                if (!string.IsNullOrWhiteSpace(val)) {
+                if (!string.IsNullOrWhiteSpace(val)) 
+                {
                     val = val.Replace("/", "-");
-                    if (DateTime.TryParse(val, out DateTime d)) {
+                    if (_timeMode == TimeMode.Year && val.Length == 4 && int.TryParse(val, out _)) 
+                    {
+                        row[_dateColumnName] = val; 
+                        continue;
+                    }
+                    if (DateTime.TryParse(val, out DateTime d)) 
+                    {
                         row[_dateColumnName] = d.ToString(format);
                     }
                 }
             }
         }
 
-        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) {
+        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) 
+        {
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
-            m.SelectedItem = date.Month.ToString("D2");
+            m.SelectedItem = date.Month.ToString("D2"); 
             d.SelectedItem = date.Day.ToString("D2");
         }
 
-        private void SaveColumnOrder() { 
-            try { 
+        private void SaveColumnOrder() 
+        { 
+            try 
+            { 
                 var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray(); 
                 File.WriteAllText($"ColOrder_{_dbName}_{_tableName}.txt", string.Join(",", ordered), Encoding.UTF8); 
-            } catch { } 
+            } 
+            catch { } 
         }
         
-        private void RestoreColumnOrder() { 
-            try { 
+        private void RestoreColumnOrder() 
+        { 
+            try 
+            { 
                 string fn = $"ColOrder_{_dbName}_{_tableName}.txt"; 
-                if (File.Exists(fn)) { 
+                if (File.Exists(fn)) 
+                { 
                     string[] saved = File.ReadAllText(fn, Encoding.UTF8).Split(','); 
                     for (int i = 0; i < saved.Length; i++) 
+                    {
                         if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i; 
+                    }
                 } 
-            } catch { } 
+            } 
+            catch { } 
         }
 
-        private void BtnExport_Click(object sender, EventArgs e)
+        private void BtnExport_Click(object sender, EventArgs e) 
         {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv", FileName = _chineseTitle + "_" + DateTime.Now.ToString("yyyyMMdd") }) {
-                if (sfd.ShowDialog() == DialogResult.OK) {
-                    try {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv", FileName = _chineseTitle + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        if (sfd.FilterIndex == 1) {
-                            using (ExcelPackage p = new ExcelPackage()) {
-                                var ws = p.Workbook.Worksheets.Add("Data"); ws.Cells["A1"].LoadFromDataTable(dt, true); p.SaveAs(new FileInfo(sfd.FileName));
-                            }
-                        } else {
-                            StringBuilder sb = new StringBuilder();
+                        if (sfd.FilterIndex == 1) 
+                        { 
+                            using (ExcelPackage p = new ExcelPackage()) 
+                            { 
+                                var ws = p.Workbook.Worksheets.Add("Data"); 
+                                ws.Cells["A1"].LoadFromDataTable(dt, true); 
+                                p.SaveAs(new FileInfo(sfd.FileName)); 
+                            } 
+                        } 
+                        else 
+                        {
+                            StringBuilder sb = new StringBuilder(); 
                             sb.AppendLine(string.Join(",", dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName)));
-                            foreach (DataRow r in dt.Rows) sb.AppendLine(string.Join(",", r.ItemArray.Select(i => i?.ToString().Replace(",", "，"))));
+                            
+                            foreach (DataRow r in dt.Rows) 
+                            {
+                                sb.AppendLine(string.Join(",", r.ItemArray.Select(i => i?.ToString().Replace(",", "，"))));
+                            }
                             File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
                         }
                         MessageBox.Show("匯出成功！(附件欄位將輸出為相對路徑，以保證資料完整性)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) { 
+                    } 
+                    catch (Exception ex) 
+                    { 
                         MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     }
                 }
             }
         }
 
-        private async void BtnImportExcel_Click(object sender, EventArgs e)
+        private async void BtnImportExcel_Click(object sender, EventArgs e) 
         {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
-                if (ofd.ShowDialog() == DialogResult.OK) {
-                    try {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) 
+            {
+                if (ofd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
                         SetUIState(false, "Excel 解析與背景運算中，請稍候...", Color.Orange);
 
@@ -549,85 +730,107 @@ namespace Safety_System
                         _dgv.DataSource = null; 
                         
                         await Task.Run(() => {
-                            using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
+                            using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
+                            {
                                 ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
                                 if (ws == null || ws.Dimension == null) return;
-
-                                int rowCount = ws.Dimension.Rows;
+                                
+                                int rowCount = ws.Dimension.Rows; 
                                 int colCount = ws.Dimension.Columns;
-
+                                
                                 string[] headers = new string[colCount];
-                                for (int c = 1; c <= colCount; c++) {
+                                for (int c = 1; c <= colCount; c++) 
+                                {
                                     headers[c - 1] = ws.Cells[1, c].Text.Trim();
                                 }
 
                                 _calcHelper?.BeginBulkUpdate();
-
-                                for (int r = 2; r <= rowCount; r++) {
-                                    DataRow nr = dt.NewRow();
+                                
+                                for (int r = 2; r <= rowCount; r++) 
+                                {
+                                    DataRow nr = dt.NewRow(); 
                                     bool hasData = false;
-
-                                    for (int c = 1; c <= colCount; c++) {
-                                        string cn = headers[c - 1];
+                                    
+                                    for (int c = 1; c <= colCount; c++) 
+                                    {
+                                        string cn = headers[c - 1]; 
                                         string val = ws.Cells[r, c].Text.Trim(); 
-
-                                        if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) {
-                                            nr[cn] = val;
+                                        
+                                        if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) 
+                                        {
+                                            nr[cn] = val; 
                                             hasData = true;
                                         }
                                     }
                                     if (hasData) dt.Rows.Add(nr);
                                 }
-
+                                
                                 _calcHelper?.RecalculateTable(dt); 
-                                _calcHelper?.EndBulkUpdate();
+                                _calcHelper?.EndBulkUpdate(); 
                                 EnforceDateFormat(dt);
                             }
                         });
-
+                        
                         _dgv.DataSource = dt; 
                         ApplyGridStyles(); 
                         RestoreColumnOrder();
-
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
                         MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) { 
+                    } 
+                    catch (Exception ex) 
+                    { 
                         await LoadGridDataAsync(); 
                         MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
-                    } finally {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    } 
+                    finally 
+                    { 
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
                     }
                 }
             }
         }
 
-        private void Dgv_KeyDown(object sender, KeyEventArgs e)
+        private void Dgv_KeyDown(object sender, KeyEventArgs e) 
         {
-            if (e.Control && e.KeyCode == Keys.V) {
-                try {
-                    string text = Clipboard.GetText(); if (string.IsNullOrEmpty(text)) return;
+            if (e.Control && e.KeyCode == Keys.V) 
+            {
+                try 
+                {
+                    string text = Clipboard.GetText(); 
+                    if (string.IsNullOrEmpty(text)) return;
+                    
                     _calcHelper?.BeginBulkUpdate();
                     string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                    int r = _dgv.CurrentCell.RowIndex, c = _dgv.CurrentCell.ColumnIndex;
+                    
+                    int r = _dgv.CurrentCell.RowIndex;
+                    int c = _dgv.CurrentCell.ColumnIndex;
                     DataTable dt = (DataTable)_dgv.DataSource;
-                    foreach (string line in lines) {
+                    
+                    foreach (string line in lines) 
+                    {
                         if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
                         string[] cells = line.Split('\t');
-                        for (int i = 0; i < cells.Length; i++) {
-                            if (c + i < _dgv.Columns.Count) {
-                                if (_dgv.Columns[c + i].Name.Contains("附件檔案") || !_dgv.Columns[c + i].ReadOnly) {
+                        for (int i = 0; i < cells.Length; i++) 
+                        {
+                            if (c + i < _dgv.Columns.Count) 
+                            {
+                                if (_dgv.Columns[c + i].Name.Contains("附件檔案") || !_dgv.Columns[c + i].ReadOnly) 
+                                {
                                     _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
                                 }
                             }
                         }
                         r++;
                     }
-                    _calcHelper?.RecalculateTable(dt);
-                    _calcHelper?.EndBulkUpdate();
-                    
+                    _calcHelper?.RecalculateTable(dt); 
+                    _calcHelper?.EndBulkUpdate(); 
                     EnforceDateFormat(dt); 
                     _dgv.Refresh();
-                } catch { _calcHelper?.EndBulkUpdate(); }
+                } 
+                catch 
+                { 
+                    _calcHelper?.EndBulkUpdate(); 
+                }
             }
         }
 
@@ -640,151 +843,155 @@ namespace Safety_System
             private List<string> _paths = new List<string>();
             private string _dbName, _tableName;
             private Action<string> _deleteAction;
-
             private FlowLayoutPanel _flpList;
 
-            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, Action<string> deleteAction)
+            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, Action<string> deleteAction) 
             {
-                _dbName = dbName;
-                _tableName = tableName;
+                _dbName = dbName; 
+                _tableName = tableName; 
                 _deleteAction = deleteAction;
-
-                if (!string.IsNullOrEmpty(currentRelPathStr)) {
+                
+                if (!string.IsNullOrEmpty(currentRelPathStr)) 
+                {
                     _paths = new List<string>(currentRelPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries));
                 }
-
-                this.Text = "多檔附件管理中心";
-                this.Size = new Size(500, 550);
+                
+                this.Text = "多檔附件管理中心"; 
+                this.Size = new Size(500, 550); 
                 this.StartPosition = FormStartPosition.CenterParent;
-                this.FormBorderStyle = FormBorderStyle.FixedDialog;
-                this.MaximizeBox = false;
-                this.MinimizeBox = false;
+                this.FormBorderStyle = FormBorderStyle.FixedDialog; 
+                this.MaximizeBox = false; 
+                this.MinimizeBox = false; 
                 this.BackColor = Color.White;
 
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
-                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); // 框1: 列表
-                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); // 框2: 拖曳
-                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 框3: 清除
-                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F)); // 框4: 儲存
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); 
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
 
-                // ======== 框1：已上傳清單 ========
                 GroupBox boxList = new GroupBox { Text = "1. 已上傳檔案清單", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(10) };
                 _flpList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-                boxList.Controls.Add(_flpList);
+                boxList.Controls.Add(_flpList); 
                 tlp.Controls.Add(boxList, 0, 0);
 
-                // ======== 框2：拖曳上傳區 ========
                 GroupBox boxUpload = new GroupBox { Text = "2. 新增附件檔案", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlDrop = new Panel { Dock = DockStyle.Fill, AllowDrop = true, BackColor = Color.AliceBlue, Cursor = Cursors.Hand };
                 pnlDrop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlDrop.ClientRectangle, Color.SteelBlue, ButtonBorderStyle.Dashed);
-                Label lblDrop = new Label { Text = "📁 點擊此處選擇多個檔案\n\n或\n\n將檔案拖曳至此區域", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), ForeColor = Color.SteelBlue };
                 
-                lblDrop.Click += (s, e) => SelectFiles();
-                pnlDrop.Click += (s, e) => SelectFiles();
+                Label lblDrop = new Label { Text = "📁 點擊此處選擇多個檔案\n\n或\n\n將檔案拖曳至此區域", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), ForeColor = Color.SteelBlue };
+                lblDrop.Click += (s, e) => SelectFiles(); 
+                pnlDrop.Click += (s, e) => SelectFiles(); 
                 pnlDrop.Controls.Add(lblDrop);
-
-                pnlDrop.DragEnter += (s, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; };
-                pnlDrop.DragDrop += (s, e) => {
-                    string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                    ProcessUpload(files);
+                
+                pnlDrop.DragEnter += (s, e) => { 
+                    if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; 
                 };
-                boxUpload.Controls.Add(pnlDrop);
+                pnlDrop.DragDrop += (s, e) => { 
+                    ProcessUpload((string[])e.Data.GetData(DataFormats.FileDrop)); 
+                };
+                boxUpload.Controls.Add(pnlDrop); 
                 tlp.Controls.Add(boxUpload, 0, 1);
 
-                // ======== 框3：全部清除 ========
                 Button btnClearAll = new Button { Text = "🗑️ 清除此筆紀錄的所有附件", Dock = DockStyle.Fill, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(3, 5, 3, 5) };
                 btnClearAll.Click += (s, e) => {
                     if (_paths.Count == 0) return;
-                    if (MessageBox.Show("確定要清除所有附件嗎？\n(實體檔案將被同步永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                    if (MessageBox.Show("確定要清除所有附件嗎？\n(實體檔案將被同步永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
+                    {
                         foreach (var p in _paths) _deleteAction(p);
-                        _paths.Clear();
+                        _paths.Clear(); 
                         RefreshListUI();
                     }
                 };
                 tlp.Controls.Add(btnClearAll, 0, 2);
 
-                // ======== 框4：確認儲存 ========
                 Button btnSaveClose = new Button { Text = "💾 確認變更並返回", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Margin = new Padding(3, 5, 3, 5) };
-                btnSaveClose.Click += (s, e) => {
-                    FinalPathsString = string.Join("|", _paths);
-                    this.DialogResult = DialogResult.OK;
+                btnSaveClose.Click += (s, e) => { 
+                    FinalPathsString = string.Join("|", _paths); 
+                    this.DialogResult = DialogResult.OK; 
                 };
                 tlp.Controls.Add(btnSaveClose, 0, 3);
 
-                this.Controls.Add(tlp);
+                this.Controls.Add(tlp); 
                 RefreshListUI();
             }
 
-            private void RefreshListUI()
+            private void RefreshListUI() 
             {
                 _flpList.Controls.Clear();
-                if (_paths.Count == 0) {
-                    _flpList.Controls.Add(new Label { Text = "(尚無任何附件)", ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10) });
-                    return;
+                if (_paths.Count == 0) 
+                { 
+                    _flpList.Controls.Add(new Label { Text = "(尚無任何附件)", ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10) }); 
+                    return; 
                 }
-
-                foreach (string path in _paths) {
+                
+                foreach (string path in _paths) 
+                {
                     Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
-                    
                     Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
                     Button bOpen = new Button { Text = "開啟", Width = 60, Dock = DockStyle.Right, BackColor = Color.LightGray };
-                    bOpen.Click += (s, e) => {
-                        try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); }
-                        catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); }
+                    bOpen.Click += (s, e) => { 
+                        try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
+                        catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
                     };
-
+                    
                     Button bDel = new Button { Text = "刪除", Width = 60, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White };
-                    bDel.Click += (s, e) => {
-                        if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                            _deleteAction(path);
-                            _paths.Remove(path);
-                            RefreshListUI();
-                        }
+                    bDel.Click += (s, e) => { 
+                        if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) 
+                        { 
+                            _deleteAction(path); 
+                            _paths.Remove(path); 
+                            RefreshListUI(); 
+                        } 
                     };
-
-                    pItem.Controls.Add(lName);
-                    pItem.Controls.Add(bOpen);
-                    pItem.Controls.Add(bDel);
+                    
+                    pItem.Controls.Add(lName); 
+                    pItem.Controls.Add(bOpen); 
+                    pItem.Controls.Add(bDel); 
                     _flpList.Controls.Add(pItem);
                 }
             }
 
-            private void SelectFiles()
+            private void SelectFiles() 
             {
-                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Multiselect = true, Filter = "所有檔案 (*.*)|*.*" }) {
-                    if (ofd.ShowDialog() == DialogResult.OK) {
-                        ProcessUpload(ofd.FileNames);
-                    }
+                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Multiselect = true, Filter = "所有檔案 (*.*)|*.*" }) 
+                {
+                    if (ofd.ShowDialog() == DialogResult.OK) ProcessUpload(ofd.FileNames);
                 }
             }
 
-            private void ProcessUpload(string[] sourceFiles)
+            private void ProcessUpload(string[] sourceFiles) 
             {
                 if (sourceFiles.Length == 0) return;
                 
                 string datePart = DateTime.Now.ToString("yyyy-MM");
                 string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
+                
                 if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
-
-                foreach (string src in sourceFiles) {
-                    try {
-                        string ext = Path.GetExtension(src);
+                
+                foreach (string src in sourceFiles) 
+                {
+                    try 
+                    {
+                        string ext = Path.GetExtension(src); 
                         string baseName = Path.GetFileNameWithoutExtension(src);
-                        string destName = baseName + ext;
+                        string destName = baseName + ext; 
                         string destPath = Path.Combine(destDir, destName);
-
-                        int count = 1;
-                        while (File.Exists(destPath)) {
-                            destName = $"{baseName}_{count++}{ext}";
-                            destPath = Path.Combine(destDir, destName);
+                        
+                        int count = 1; 
+                        while (File.Exists(destPath)) 
+                        { 
+                            destName = $"{baseName}_{count++}{ext}"; 
+                            destPath = Path.Combine(destDir, destName); 
                         }
-
-                        File.Copy(src, destPath);
-                        string relPath = Path.Combine("附件", _dbName, _tableName, datePart, destName);
-                        _paths.Add(relPath);
-                    } catch (Exception ex) {
-                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤");
+                        
+                        File.Copy(src, destPath); 
+                        _paths.Add(Path.Combine("附件", _dbName, _tableName, datePart, destName));
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); 
                     }
                 }
                 RefreshListUI();
