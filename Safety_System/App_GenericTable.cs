@@ -178,9 +178,16 @@ namespace Safety_System
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDelRow.Click += async (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
-                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
+                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                     if (AuthManager.VerifyUser()) {
-                        foreach (var r in selectedRows) DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                        foreach (var r in selectedRows) {
+                            // 🟢 同步刪除附件檔案
+                            if (_dgv.Columns.Contains("附件檔案")) {
+                                string relPath = r.Cells["附件檔案"].Value?.ToString();
+                                DeletePhysicalFile(relPath, r.Index);
+                            }
+                            DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                        }
                         await LoadGridDataAsync(); MessageBox.Show("刪除成功！");
                     }
                 }
@@ -223,7 +230,6 @@ namespace Safety_System
             _dgv.RowTemplate.Height = 35;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
-            // 🟢 註冊附件格式與點擊事件
             _dgv.CellFormatting += Dgv_CellFormatting;
             _dgv.CellClick += Dgv_CellClick;
             _dgv.KeyDown += Dgv_KeyDown;
@@ -251,7 +257,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 附件檔案專用事件
+        // 🟢 附件檔案專用事件與清理機制
         // ==========================================
         private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
@@ -263,7 +269,6 @@ namespace Safety_System
                     string path = e.Value.ToString();
                     if (!string.IsNullOrEmpty(path))
                     {
-                        // 畫面上只顯示檔名，隱藏真實相對路徑
                         e.Value = Path.GetFileName(path);
                         e.FormattingApplied = true;
                     }
@@ -273,7 +278,7 @@ namespace Safety_System
 
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow)
             {
                 string colName = _dgv.Columns[e.ColumnIndex].Name;
                 if (colName.Contains("附件檔案"))
@@ -290,7 +295,6 @@ namespace Safety_System
                                     string src = frm.SelectedFilePath;
                                     string datePart = DateTime.Now.ToString("yyyy-MM");
                                     
-                                    // 建立附件目錄：附件 / 庫名 / 表名 / 年月
                                     string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
                                     if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
 
@@ -299,7 +303,6 @@ namespace Safety_System
                                     string destName = baseName + ext;
                                     string destPath = Path.Combine(destDir, destName);
 
-                                    // 防撞名處理
                                     int count = 1;
                                     while (File.Exists(destPath)) {
                                         destName = $"{baseName}_{count++}{ext}";
@@ -308,7 +311,6 @@ namespace Safety_System
 
                                     File.Copy(src, destPath);
                                     
-                                    // 存入資料庫的為相對路徑
                                     string relPath = Path.Combine("附件", _dbName, _tableName, datePart, destName);
                                     _dgv[e.ColumnIndex, e.RowIndex].Value = relPath;
                                     _dgv.EndEdit();
@@ -319,6 +321,8 @@ namespace Safety_System
                             }
                             else if (frm.ResultAction == AttachmentAction.Clear)
                             {
+                                // 🟢 呼叫檔案清理，清除實體檔案與空資料夾
+                                DeletePhysicalFile(currentVal, e.RowIndex);
                                 _dgv[e.ColumnIndex, e.RowIndex].Value = "";
                                 _dgv.EndEdit();
                             }
@@ -326,6 +330,47 @@ namespace Safety_System
                     }
                 }
             }
+        }
+
+        // 🟢 實體檔案清理機制 (包含防呆檢查與資料夾遞迴清理)
+        private void DeletePhysicalFile(string relativePath, int currentRowIndex)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath)) return;
+
+            // 防呆檢查：如果有其他列透過複製貼上指向同一個檔案，則不要刪除實體檔案
+            bool isUsedByOthers = false;
+            foreach (DataGridViewRow row in _dgv.Rows) {
+                if (row.Index == currentRowIndex || row.IsNewRow) continue;
+                if (_dgv.Columns.Contains("附件檔案")) {
+                    if (row.Cells["附件檔案"].Value?.ToString() == relativePath) {
+                        isUsedByOthers = true;
+                        break;
+                    }
+                }
+            }
+
+            if (isUsedByOthers) return;
+
+            try {
+                string absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
+                if (File.Exists(absPath)) {
+                    File.Delete(absPath); // 刪除實體檔案
+
+                    // 檢查並刪除空資料夾，遞迴至「附件」根目錄
+                    DirectoryInfo dir = new DirectoryInfo(Path.GetDirectoryName(absPath));
+                    string attachRootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
+
+                    while (dir != null && dir.FullName.StartsWith(attachRootDir) && dir.FullName.Length > attachRootDir.Length) {
+                        if (dir.Exists && dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) {
+                            dir.Delete(); // 只有完全空的情況下才會刪除
+                            dir = dir.Parent;
+                        } else {
+                            break; // 若資料夾不為空，就停止遞迴
+                        }
+                    }
+                }
+            } 
+            catch { /* 安全忽略檔案被鎖定或其他 I/O 異常 */ }
         }
 
         private void ApplyGridStyles()
@@ -340,7 +385,7 @@ namespace Safety_System
             {
                 if (col.Name.Contains("附件檔案"))
                 {
-                    col.ReadOnly = true; // 防呆，禁止手敲文字，一律透過點擊呼叫上傳視窗
+                    col.ReadOnly = true; 
                     col.DefaultCellStyle.ForeColor = Color.Blue;
                     col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -407,7 +452,7 @@ namespace Safety_System
 
             _dgv.DataSource = dt;
             
-            ApplyGridStyles(); // 🟢 套用樣式與附件唯讀防呆
+            ApplyGridStyles(); 
 
             UpdateCboColumns();
             RestoreColumnOrder();
@@ -543,7 +588,7 @@ namespace Safety_System
                         });
 
                         _dgv.DataSource = dt; 
-                        ApplyGridStyles(); // 🟢 匯入後重新上色
+                        ApplyGridStyles(); 
                         RestoreColumnOrder();
 
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
@@ -572,7 +617,6 @@ namespace Safety_System
                         string[] cells = line.Split('\t');
                         for (int i = 0; i < cells.Length; i++) {
                             if (c + i < _dgv.Columns.Count) {
-                                // 🟢 允許貼上相對路徑到附件欄位，但透過 ReadOnly 放行檢查
                                 if (_dgv.Columns[c + i].Name.Contains("附件檔案") || !_dgv.Columns[c + i].ReadOnly) {
                                     _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
                                 }
@@ -682,10 +726,11 @@ namespace Safety_System
                     Height = 45, 
                     BackColor = Color.IndianRed, 
                     ForeColor = Color.White, 
-                    Font = new Font("Microsoft JhengHei UI", 12F) 
+                    Font = new Font("Microsoft JhengHei UI", 12F),
+                    Enabled = !string.IsNullOrEmpty(_currentRelPath)
                 };
                 btnClear.Click += (s, e) => {
-                    if (MessageBox.Show("確定要清除此附件記錄嗎？\n(注意：實際實體檔案不會被刪除，僅清除本列表關聯)", "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                    if (MessageBox.Show("確定要清除此附件記錄嗎？\n(實體檔案將被同步永久刪除)", "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                         ResultAction = AttachmentAction.Clear;
                         this.DialogResult = DialogResult.OK;
                     }
