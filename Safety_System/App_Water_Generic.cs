@@ -222,7 +222,7 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            // 🟢 啟動非同步載入
+            // 🟢 啟動非同步載入，加上棄洞 _ = 以消除 CS4014
             _ = LoadGridDataAsync(); 
             return main;
         }
@@ -352,7 +352,7 @@ namespace Safety_System
                 if (success) {
                     SetUIState(true, "資料儲存成功！", Color.Green);
                     MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadGridDataAsync();
+                    await LoadGridDataAsync(); // 🟢 加入 await 消除警告
                 } else {
                     SetUIState(true, "資料儲存失敗", Color.Red);
                 }
@@ -447,7 +447,7 @@ namespace Safety_System
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
                         MessageBox.Show("Excel 匯入成功！\n系統已自動計算日差值，請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { 
-                        await LoadGridDataAsync(); // 發生錯誤時還原資料庫狀態
+                        await LoadGridDataAsync(); // 🟢 發生錯誤時還原資料庫狀態，補上 await 消除警告
                         MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     } finally {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
