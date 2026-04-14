@@ -984,15 +984,49 @@ namespace Safety_System
                     Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                     Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    Button bOpen = new Button { Text = "開啟", Width = 60, Dock = DockStyle.Right, BackColor = Color.LightGray };
+                    // 🟢 [修改] 調整按鈕寬度，以容納三個按鈕
+                    Button bOpen = new Button { Text = "開啟", Width = 55, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                     bOpen.Click += (s, e) => { 
                         try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
                         catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
                     };
+
+                    // 🟢 [新增] 下載/另存新檔按鈕
+                    Button bDownload = new Button { Text = "下載", Width = 55, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                    bDownload.Click += (s, e) => {
+                        try 
+                        {
+                            string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                            if (!File.Exists(sourcePath)) 
+                            {
+                                MessageBox.Show("找不到原始檔案，可能已被移動或刪除。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                return;
+                            }
+
+                            using (SaveFileDialog sfd = new SaveFileDialog())
+                            {
+                                string fileName = Path.GetFileName(path);
+                                string ext = Path.GetExtension(path);
+                                sfd.FileName = fileName;
+                                sfd.Title = "另存附件檔案";
+                                sfd.Filter = $"檔案 (*{ext})|*{ext}|所有檔案 (*.*)|*.*";
+                                
+                                if (sfd.ShowDialog() == DialogResult.OK)
+                                {
+                                    File.Copy(sourcePath, sfd.FileName, true);
+                                    MessageBox.Show("檔案下載完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                }
+                            }
+                        }
+                        catch (Exception ex) 
+                        {
+                            MessageBox.Show("下載失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    };
                     
-                    Button bDel = new Button { Text = "刪除", Width = 60, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White };
+                    Button bDel = new Button { Text = "刪除", Width = 55, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDel.Click += (s, e) => { 
-                        if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) 
+                        if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
                         { 
                             _deleteAction(path); 
                             _paths.Remove(path); 
@@ -1001,8 +1035,11 @@ namespace Safety_System
                     };
                     
                     pItem.Controls.Add(lName); 
-                    pItem.Controls.Add(bOpen); 
-                    pItem.Controls.Add(bDel); 
+                    // 🟢 注意加入的順序會影響 Dock.Right 的排列 (越晚加的越靠右)
+                    pItem.Controls.Add(bDel);       // 最右邊：刪除
+                    pItem.Controls.Add(bDownload);  // 中間：下載
+                    pItem.Controls.Add(bOpen);      // 左邊：開啟
+                    
                     _flpList.Controls.Add(pItem);
                 }
             }
