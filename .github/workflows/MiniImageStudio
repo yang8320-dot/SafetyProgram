@@ -1,0 +1,37 @@
+name: Build MiniImageStudio
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.1
+
+    - name: Restore NuGet Packages
+      run: nuget restore MiniImageStudio.sln
+
+    - name: Build Solution
+      run: msbuild MiniImageStudio.sln /p:Configuration=Release /p:Platform="Any CPU"
+
+    - name: Download ILRepack
+      run: nuget install ILRepack -Version 2.0.18 -OutputDirectory tools
+
+    # 使用 ILRepack 將所有 dll 壓入主要的 exe 內，形成單一執行檔
+    - name: Merge to Single EXE
+      run: |
+        $ilrepack = (Get-ChildItem -Path tools -Filter ILRepack.exe -Recurse).FullName
+        & $ilrepack /out:bin\Release\MiniImageStudio_Portable.exe bin\Release\MiniImageStudio.exe
+        # 若有使用其他外部 dll (如 Newtonsoft.Json)，請將其路徑接在上方指令後方
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: MiniImageStudio-Portable
+        path: bin\Release\MiniImageStudio_Portable.exe
