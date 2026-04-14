@@ -23,10 +23,8 @@ namespace Safety_System
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
         
-        // 🟢 將控制按鈕宣告於全域以利狀態控制防連點
         private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;     
 
-        // 🟢 新增：UI 狀態提示列
         private Label _lblStatus;
 
         private bool _isFirstLoad = true;
@@ -40,13 +38,14 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
+        // 🟢 將 [附件檔案] 欄位加入水資源五大表中
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [備註] TEXT" },
-            { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [備註] TEXT" },
-            { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [備註] TEXT" },
-            { "DischargeData", "[月份] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [備註] TEXT" },
-            { "WaterVolume", "[月份] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [備註] TEXT" }
+            { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "DischargeData", "[月份] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterVolume", "[月份] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
         public App_Water_Generic(string dbName, string tableName, string chineseTitle)
@@ -75,7 +74,7 @@ namespace Safety_System
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             GroupBox boxTop = new GroupBox { Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
@@ -161,9 +160,18 @@ namespace Safety_System
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDelRow.Click += async (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
-                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
+                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                     if (AuthManager.VerifyUser()) {
-                        foreach (var r in selectedRows) DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                        foreach (var r in selectedRows) {
+                            // 🟢 同步刪除附件檔案
+                            foreach (DataGridViewColumn col in _dgv.Columns) {
+                                if (col.Name.Contains("附件檔案")) {
+                                    string relPath = r.Cells[col.Name].Value?.ToString();
+                                    DeletePhysicalFile(relPath, r.Index);
+                                }
+                            }
+                            DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                        }
                         await LoadGridDataAsync(); MessageBox.Show("刪除成功！");
                     }
                 }
@@ -183,6 +191,7 @@ namespace Safety_System
                         EnforceDateFormats(dt);
                     });
                     _dgv.DataSource = dt; 
+                    ApplyGridStyles(); // 套用樣式
                     RestoreColumnOrder();
                     SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
                 } 
@@ -203,6 +212,9 @@ namespace Safety_System
             _dgv.RowTemplate.Height = 35;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
+            // 🟢 綁定附件與複製貼上事件
+            _dgv.CellFormatting += Dgv_CellFormatting;
+            _dgv.CellClick += Dgv_CellClick;
             _dgv.KeyDown += Dgv_KeyDown;
             
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
@@ -227,6 +239,145 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
+        // ==========================================
+        // 🟢 附件檔案專用事件與清理機制
+        // ==========================================
+        private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+            {
+                string colName = _dgv.Columns[e.ColumnIndex].Name;
+                if (colName.Contains("附件檔案") && e.Value != null)
+                {
+                    string path = e.Value.ToString();
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        e.Value = Path.GetFileName(path);
+                        e.FormattingApplied = true;
+                    }
+                }
+            }
+        }
+
+        private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow)
+            {
+                string colName = _dgv.Columns[e.ColumnIndex].Name;
+                if (colName.Contains("附件檔案"))
+                {
+                    string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
+
+                    using (var frm = new AttachmentForm(currentVal))
+                    {
+                        if (frm.ShowDialog() == DialogResult.OK)
+                        {
+                            if (frm.ResultAction == AttachmentAction.Upload)
+                            {
+                                try {
+                                    string src = frm.SelectedFilePath;
+                                    string datePart = DateTime.Now.ToString("yyyy-MM");
+                                    
+                                    string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
+                                    if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+
+                                    string ext = Path.GetExtension(src);
+                                    string baseName = Path.GetFileNameWithoutExtension(src);
+                                    string destName = baseName + ext;
+                                    string destPath = Path.Combine(destDir, destName);
+
+                                    int count = 1;
+                                    while (File.Exists(destPath)) {
+                                        destName = $"{baseName}_{count++}{ext}";
+                                        destPath = Path.Combine(destDir, destName);
+                                    }
+
+                                    File.Copy(src, destPath);
+                                    
+                                    string relPath = Path.Combine("附件", _dbName, _tableName, datePart, destName);
+                                    _dgv[e.ColumnIndex, e.RowIndex].Value = relPath;
+                                    _dgv.EndEdit();
+                                } 
+                                catch (Exception ex) {
+                                    MessageBox.Show("儲存附件失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                }
+                            }
+                            else if (frm.ResultAction == AttachmentAction.Clear)
+                            {
+                                DeletePhysicalFile(currentVal, e.RowIndex);
+                                _dgv[e.ColumnIndex, e.RowIndex].Value = "";
+                                _dgv.EndEdit();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void DeletePhysicalFile(string relativePath, int currentRowIndex)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath)) return;
+
+            bool isUsedByOthers = false;
+            foreach (DataGridViewRow row in _dgv.Rows) {
+                if (row.Index == currentRowIndex || row.IsNewRow) continue;
+                foreach (DataGridViewColumn col in _dgv.Columns) {
+                    if (col.Name.Contains("附件檔案")) {
+                        if (row.Cells[col.Name].Value?.ToString() == relativePath) {
+                            isUsedByOthers = true;
+                            break;
+                        }
+                    }
+                }
+                if (isUsedByOthers) break;
+            }
+
+            if (isUsedByOthers) return;
+
+            try {
+                string absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
+                if (File.Exists(absPath)) {
+                    File.Delete(absPath); 
+
+                    DirectoryInfo dir = new DirectoryInfo(Path.GetDirectoryName(absPath));
+                    string attachRootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
+
+                    while (dir != null && dir.FullName.StartsWith(attachRootDir) && dir.FullName.Length > attachRootDir.Length) {
+                        if (dir.Exists && dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) {
+                            dir.Delete(); 
+                            dir = dir.Parent;
+                        } else {
+                            break; 
+                        }
+                    }
+                }
+            } 
+            catch { }
+        }
+
+        private void ApplyGridStyles()
+        {
+            if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
+            
+            if (_dgv.Columns.Contains(_dateColumnName)) {
+                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
+            }
+
+            foreach (DataGridViewColumn col in _dgv.Columns)
+            {
+                if (col.Name.Contains("附件檔案"))
+                {
+                    col.ReadOnly = true; 
+                    col.DefaultCellStyle.ForeColor = Color.Blue;
+                    col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
+                    col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                }
+            }
+        }
+
+        // ==========================================
+        // 🟢 資料庫與日期操作邏輯
+        // ==========================================
         private void EnforceDateFormats(DataTable dt)
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
@@ -262,11 +413,8 @@ namespace Safety_System
             });
 
             _dgv.DataSource = dt;
-            if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             
-            if (_dgv.Columns.Contains(_dateColumnName)) {
-                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
-            }
+            ApplyGridStyles();
 
             UpdateCboColumns();
             RestoreColumnOrder();
@@ -361,7 +509,7 @@ namespace Safety_System
                             foreach (DataRow r in dt.Rows) sb.AppendLine(string.Join(",", r.ItemArray.Select(i => i?.ToString().Replace(",", "，"))));
                             File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
                         }
-                        MessageBox.Show("匯出成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("匯出成功！(附件欄位將輸出為相對路徑，以保證資料完整性)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { 
                         MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     }
@@ -369,7 +517,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 智慧 Excel 匯入邏輯 (前後包夾讀取，確保「新邏輯日統計」完美接軌)
+        // 🟢 重構：全新智慧 Excel 匯入邏輯
         private async void BtnImportExcel_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "請選擇要匯入的 Excel 檔案" }) {
@@ -396,7 +544,6 @@ namespace Safety_System
 
                                 _calcHelper?.BeginBulkUpdate();
 
-                                // 🟢 1. 解析 Excel 到暫存表，並找出 Excel 的最小(最早)與最大(最晚)日期
                                 DataTable excelDt = originalDt.Clone();
                                 DateTime? minImportDate = null;
                                 DateTime? maxImportDate = null;
@@ -414,11 +561,10 @@ namespace Safety_System
                                             nr[cn] = val;
                                             hasData = true;
                                             
-                                            // 尋找邊界日期
                                             if (cn == _dateColumnName) {
                                                 string dStr = val.Replace("/", "-");
                                                 if (DateTime.TryParse(dStr, out DateTime d)) {
-                                                    nr[cn] = d.ToString(dateFormat); // 標準化格式
+                                                    nr[cn] = d.ToString(dateFormat);
                                                     if (minImportDate == null || d < minImportDate) minImportDate = d;
                                                     if (maxImportDate == null || d > maxImportDate) maxImportDate = d;
                                                 }
@@ -432,8 +578,6 @@ namespace Safety_System
 
                                 DataTable allDbData = DataManager.GetTableData(_dbName, _tableName, "", "", ""); 
 
-                                // 🟢 2. 新邏輯需要上一筆(Baseline)與下一筆(Futureline)來保證接軌
-                                // 2A. 抓取 Baseline (第一筆的前一筆，用於讓 Baseline 算出它的日統計)
                                 if (minImportDate.HasValue) {
                                     string minDateStr = minImportDate.Value.ToString(dateFormat);
                                     
@@ -454,7 +598,6 @@ namespace Safety_System
                                     }
                                 }
 
-                                // 2B. 抓取 Futureline (最後一筆的後一筆，用於讓 Excel 最後一筆算出日統計)
                                 if (maxImportDate.HasValue) {
                                     string maxDateStr = maxImportDate.Value.ToString(dateFormat);
                                     
@@ -475,7 +618,6 @@ namespace Safety_System
                                     }
                                 }
 
-                                // 🟢 3. 將 Excel 資料寫入 originalDt (覆蓋更新 或 新增)
                                 foreach(DataRow r in excelDt.Rows) {
                                     string importDate = r[_dateColumnName]?.ToString();
                                     if(string.IsNullOrEmpty(importDate)) continue;
@@ -490,7 +632,7 @@ namespace Safety_System
                                             
                                             if (r[colName] != DBNull.Value && !string.IsNullOrEmpty(r[colName].ToString())) {
                                                 if (existingRow[colName].ToString() != r[colName].ToString()) {
-                                                    existingRow[colName] = r[colName]; // 取代值
+                                                    existingRow[colName] = r[colName]; 
                                                 }
                                             }
                                         }
@@ -499,30 +641,28 @@ namespace Safety_System
                                     }
                                 }
 
-                                // 🟢 4. 按日期排序確保時序正確，供 RecalculateTable 可以按行精準算出「日統計」
                                 originalDt.DefaultView.Sort = $"{_dateColumnName} ASC";
-                                newBoundDt = originalDt.DefaultView.ToTable(); // 產出經過排序的新表
+                                newBoundDt = originalDt.DefaultView.ToTable(); 
 
-                                // 🟢 5. 觸發背景日差值計算
                                 _calcHelper?.RecalculateTable(newBoundDt); 
                                 _calcHelper?.EndBulkUpdate();
                                 EnforceDateFormats(newBoundDt); 
                             }
                         });
 
-                        // 綁回 DGV
                         if (newBoundDt != null) {
                             _dgv.DataSource = newBoundDt; 
                         } else {
                             _dgv.DataSource = originalDt;
                         }
                         
+                        ApplyGridStyles();
                         RestoreColumnOrder();
 
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{((DataTable)_dgv.DataSource).Rows.Count}", Color.Green);
                         MessageBox.Show("Excel 匯入成功！\n系統已自動撈取接軌數據計算差值，並合併重複日期。\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { 
-                        await LoadGridDataAsync(); // 發生錯誤時還原資料庫狀態
+                        await LoadGridDataAsync(); 
                         MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     } finally {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
@@ -545,9 +685,14 @@ namespace Safety_System
                     foreach (string line in lines) {
                         if (r >= _dgv.Rows.Count - 1) dt.Rows.Add(dt.NewRow());
                         string[] cells = line.Split('\t');
-                        for (int i = 0; i < cells.Length; i++)
-                            if (c + i < _dgv.Columns.Count && !_dgv.Columns[c + i].ReadOnly)
-                                _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
+                        for (int i = 0; i < cells.Length; i++) {
+                            if (c + i < _dgv.Columns.Count) {
+                                // 🟢 允許貼上相對路徑到附件欄位
+                                if (_dgv.Columns[c + i].Name.Contains("附件檔案") || !_dgv.Columns[c + i].ReadOnly) {
+                                    _dgv[c + i, r].Value = cells[i].Trim().Trim('"');
+                                }
+                            }
+                        }
                         r++;
                     }
                     
@@ -557,6 +702,124 @@ namespace Safety_System
                     EnforceDateFormats(dt); 
                     _dgv.Refresh();
                 } catch { _calcHelper?.EndBulkUpdate(); }
+            }
+        }
+
+        // ==========================================
+        // 🟢 附件檔案專屬視窗類別
+        // ==========================================
+        private enum AttachmentAction { None, Upload, Clear }
+
+        private class AttachmentForm : Form
+        {
+            public string SelectedFilePath { get; private set; }
+            public AttachmentAction ResultAction { get; private set; } = AttachmentAction.None;
+            
+            private string _currentRelPath;
+            private string _absPath;
+
+            public AttachmentForm(string currentRelPath)
+            {
+                _currentRelPath = currentRelPath;
+                if (!string.IsNullOrEmpty(_currentRelPath)) {
+                    _absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _currentRelPath);
+                }
+
+                this.Text = "附件檔案管理";
+                this.Size = new Size(450, 350);
+                this.StartPosition = FormStartPosition.CenterParent;
+                this.FormBorderStyle = FormBorderStyle.FixedDialog;
+                this.MaximizeBox = false;
+                this.MinimizeBox = false;
+                this.BackColor = Color.White;
+
+                Label lblStatus = new Label { 
+                    Text = string.IsNullOrEmpty(_currentRelPath) ? "狀態: 尚無附件" : "目前附件: " + Path.GetFileName(_currentRelPath), 
+                    Dock = DockStyle.Top, 
+                    Padding = new Padding(15), 
+                    AutoSize = true, 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
+                    ForeColor = string.IsNullOrEmpty(_currentRelPath) ? Color.DimGray : Color.DarkSlateBlue
+                };
+                this.Controls.Add(lblStatus);
+
+                Button btnOpen = new Button { 
+                    Text = "📄 開啟現有附件", 
+                    Dock = DockStyle.Top, 
+                    Height = 45, 
+                    Enabled = !string.IsNullOrEmpty(_currentRelPath) && File.Exists(_absPath), 
+                    Font = new Font("Microsoft JhengHei UI", 12F),
+                    BackColor = Color.WhiteSmoke
+                };
+                btnOpen.Click += (s, e) => {
+                    try { System.Diagnostics.Process.Start(_absPath); }
+                    catch (Exception ex) { MessageBox.Show("無法開啟檔案: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                };
+                this.Controls.Add(btnOpen);
+
+                Panel pnlDrop = new Panel { 
+                    Dock = DockStyle.Fill, 
+                    AllowDrop = true, 
+                    BackColor = Color.AliceBlue, 
+                    Cursor = Cursors.Hand 
+                };
+                
+                pnlDrop.Paint += (s, e) => {
+                    ControlPaint.DrawBorder(e.Graphics, pnlDrop.ClientRectangle, Color.SteelBlue, ButtonBorderStyle.Dashed);
+                };
+
+                Label lblDrop = new Label { 
+                    Text = "📁 點擊此處選擇檔案\n\n或\n\n將檔案拖曳至此區域", 
+                    Dock = DockStyle.Fill, 
+                    TextAlign = ContentAlignment.MiddleCenter, 
+                    Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), 
+                    ForeColor = Color.SteelBlue 
+                };
+                lblDrop.Click += (s, e) => SelectFile();
+                pnlDrop.Click += (s, e) => SelectFile();
+                pnlDrop.Controls.Add(lblDrop);
+
+                pnlDrop.DragEnter += (s, e) => {
+                    if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
+                };
+                pnlDrop.DragDrop += (s, e) => {
+                    string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                    if (files.Length > 0) {
+                        SelectedFilePath = files[0];
+                        ResultAction = AttachmentAction.Upload;
+                        this.DialogResult = DialogResult.OK;
+                    }
+                };
+                this.Controls.Add(pnlDrop);
+
+                Button btnClear = new Button { 
+                    Text = "🗑️ 清除此筆附件", 
+                    Dock = DockStyle.Bottom, 
+                    Height = 45, 
+                    BackColor = Color.IndianRed, 
+                    ForeColor = Color.White, 
+                    Font = new Font("Microsoft JhengHei UI", 12F),
+                    Enabled = !string.IsNullOrEmpty(_currentRelPath)
+                };
+                btnClear.Click += (s, e) => {
+                    if (MessageBox.Show("確定要清除此附件記錄嗎？\n(實體檔案將被同步永久刪除)", "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        ResultAction = AttachmentAction.Clear;
+                        this.DialogResult = DialogResult.OK;
+                    }
+                };
+                this.Controls.Add(btnClear);
+            }
+
+            private void SelectFile()
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Filter = "所有檔案 (*.*)|*.*" })
+                {
+                    if (ofd.ShowDialog() == DialogResult.OK) {
+                        SelectedFilePath = ofd.FileName;
+                        ResultAction = AttachmentAction.Upload;
+                        this.DialogResult = DialogResult.OK;
+                    }
+                }
             }
         }
     }
