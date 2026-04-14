@@ -247,7 +247,7 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
             
-            // 🟢 啟動時非同步載入
+            // 🟢 啟動時非同步載入，加上棄洞消除警告
             _ = LoadGridDataAsync(); 
             return main;
         }
@@ -714,7 +714,7 @@ namespace Safety_System
                                     }
                                     if (hasData) tempDt.Rows.Add(nr);
                                 }
-                                EnforceDateFormats(tempDt); // 🟢 匯入後強制統一日期
+                                EnforceDateFormats(tempDt); 
                             }
                         });
 
@@ -725,7 +725,8 @@ namespace Safety_System
                         SetUIState(true, $"匯入成功！新增資料後總筆數：{tempDt.Rows.Count}", Color.Green);
                         MessageBox.Show($"載入 {tempDt.Rows.Count} 筆資料成功！\n系統已就緒，請點擊「儲存」以寫入資料庫。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
-                        await LoadGridDataAsync(false); 
+                        // 🟢 修正此處的呼叫，移除多餘參數
+                        await LoadGridDataAsync(); 
                         MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
@@ -776,7 +777,7 @@ namespace Safety_System
                         }
                         r++;
                     }
-                    EnforceDateFormats(dt); // 🟢 貼上後立即修正日期防呆
+                    EnforceDateFormats(dt); 
                     _dgv.ResumeLayout();
                 } catch (Exception ex) { 
                     _dgv.ResumeLayout(); MessageBox.Show("貼上失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
