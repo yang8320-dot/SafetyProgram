@@ -911,7 +911,7 @@ namespace Safety_System
                 }
                 
                 this.Text = "多檔附件管理中心"; 
-                this.Size = new Size(500, 550); 
+                this.Size = new Size(700, 600); 
                 this.StartPosition = FormStartPosition.CenterParent;
                 this.FormBorderStyle = FormBorderStyle.FixedDialog; 
                 this.MaximizeBox = false; 
@@ -985,14 +985,14 @@ namespace Safety_System
                     Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
                     // 🟢 [修改] 調整按鈕寬度，以容納三個按鈕
-                    Button bOpen = new Button { Text = "開啟", Width = 55, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+                    Button bOpen = new Button { Text = "開啟", Width = 80, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                     bOpen.Click += (s, e) => { 
                         try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
                         catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
                     };
 
                     // 🟢 [新增] 下載/另存新檔按鈕
-                    Button bDownload = new Button { Text = "下載", Width = 55, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                    Button bDownload = new Button { Text = "下載", Width = 80, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDownload.Click += (s, e) => {
                         try 
                         {
@@ -1024,7 +1024,7 @@ namespace Safety_System
                         }
                     };
                     
-                    Button bDel = new Button { Text = "刪除", Width = 55, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
+                    Button bDel = new Button { Text = "刪除", Width = 80, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDel.Click += (s, e) => { 
                         if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
                         { 
