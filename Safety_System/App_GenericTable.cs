@@ -53,17 +53,17 @@ namespace Safety_System
             { "IndustrialZoneTest", "[日期] TEXT, [採樣點位置] TEXT, [水溫] TEXT, [pH值] TEXT, [COD] TEXT, [SS] TEXT, [重金屬] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "SoilGasTest", "[日期] TEXT, [採樣井編號] TEXT, [測漏氣體濃度] TEXT, [甲烷] TEXT, [二氧化碳] TEXT, [氧氣] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastewaterSelfTest", "[日期] TEXT, [採樣時間] TEXT, [採樣位置] TEXT, [pH值] TEXT, [COD] TEXT, [SS] TEXT, [透視度] TEXT, [檢驗人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "CoolingWaterVendor", "[日期] TEXT, [廠商名稱] TEXT, [水溫] TEXT, [pH值] TEXT, [導電度] TEXT, [濁度] TEXT, [總鐵] TEXT, [銅離子] TEXT, [添加藥劑] TEXT, [檢驗結果] TEXT, [附件檔案] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "CoolingWaterVendor", "[日期] TEXT, [廠商名稱] TEXT, [水溫] TEXT, [pH值] TEXT, [導電度] TEXT, [濁度] TEXT, [總鐵] TEXT, [銅離子] TEXT, [添加藥劑] TEXT, [檢驗結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "CoolingWaterSelf", "[日期] TEXT, [水溫] TEXT, [pH值] TEXT, [導電度] TEXT, [濁度] TEXT, [總鐵] TEXT, [銅離子] TEXT, [檢驗人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "TCLP", "[日期] TEXT, [樣品名稱] TEXT, [總鉛] TEXT, [鏓鉻] TEXT, [鏓銅] TEXT, [鏓鋇] TEXT, [總鎘] TEXT, [總硒] TEXT, [六價鉻] TEXT, [總汞] TEXT, [總砷] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "TCLP", "[日期] TEXT, [樣品名稱] TEXT, [總鉛] TEXT, [鏓鉻] TEXT, [鏓銅] TEXT, [鏓鋇] TEXT, [總鎘] TEXT, [總硒] TEXT, [六價鉻] TEXT, [總汞] TEXT, [總砷] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "NearMiss", "[日期] TEXT, [地點] TEXT, [事件經過] TEXT, [提報人] TEXT, [改善措施] TEXT, [附件檔案] TEXT" },
             { "SafetyInspection", "[日期] TEXT, [巡檢區域] TEXT, [檢查項目] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善措施] TEXT, [負責人] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjuryReport", "[月份] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
@@ -81,12 +81,25 @@ namespace Safety_System
             DataManager.InitTable(_dbName, _tableName, createSql);
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
-            if (columns.Contains("月份") && !columns.Contains("日期")) {
+            
+            // 🟢 [核心修正]：動態偵測真正的時間欄位名稱，解決公告日期、更新日期等造成的崩潰
+            if (columns.Contains("月份")) {
                 _isMonthlyMode = true;
                 _dateColumnName = "月份";
-            } else {
+            } else if (columns.Contains("日期")) {
                 _isMonthlyMode = false;
                 _dateColumnName = "日期";
+            } else {
+                // 尋找名稱中包含「日期」或「月份」的欄位 (例如：公告日期、更新日期)
+                string altDateCol = columns.FirstOrDefault(c => c.Contains("日期") || c.Contains("月份"));
+                if (!string.IsNullOrEmpty(altDateCol)) {
+                    _isMonthlyMode = altDateCol.Contains("月份");
+                    _dateColumnName = altDateCol;
+                } else {
+                    // 極端防呆：如果完全沒有時間欄位，預設為第一欄以防止 SQL 報錯
+                    _isMonthlyMode = false;
+                    _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id";
+                }
             }
 
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
@@ -181,7 +194,6 @@ namespace Safety_System
                 if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                     if (AuthManager.VerifyUser()) {
                         foreach (var r in selectedRows) {
-                            // 🟢 同步刪除附件檔案
                             if (_dgv.Columns.Contains("附件檔案")) {
                                 string relPath = r.Cells["附件檔案"].Value?.ToString();
                                 DeletePhysicalFile(relPath, r.Index);
@@ -321,7 +333,6 @@ namespace Safety_System
                             }
                             else if (frm.ResultAction == AttachmentAction.Clear)
                             {
-                                // 🟢 呼叫檔案清理，清除實體檔案與空資料夾
                                 DeletePhysicalFile(currentVal, e.RowIndex);
                                 _dgv[e.ColumnIndex, e.RowIndex].Value = "";
                                 _dgv.EndEdit();
@@ -332,12 +343,10 @@ namespace Safety_System
             }
         }
 
-        // 🟢 實體檔案清理機制 (包含防呆檢查與資料夾遞迴清理)
         private void DeletePhysicalFile(string relativePath, int currentRowIndex)
         {
             if (string.IsNullOrWhiteSpace(relativePath)) return;
 
-            // 防呆檢查：如果有其他列透過複製貼上指向同一個檔案，則不要刪除實體檔案
             bool isUsedByOthers = false;
             foreach (DataGridViewRow row in _dgv.Rows) {
                 if (row.Index == currentRowIndex || row.IsNewRow) continue;
@@ -354,23 +363,22 @@ namespace Safety_System
             try {
                 string absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
                 if (File.Exists(absPath)) {
-                    File.Delete(absPath); // 刪除實體檔案
+                    File.Delete(absPath); 
 
-                    // 檢查並刪除空資料夾，遞迴至「附件」根目錄
                     DirectoryInfo dir = new DirectoryInfo(Path.GetDirectoryName(absPath));
                     string attachRootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
 
                     while (dir != null && dir.FullName.StartsWith(attachRootDir) && dir.FullName.Length > attachRootDir.Length) {
                         if (dir.Exists && dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) {
-                            dir.Delete(); // 只有完全空的情況下才會刪除
+                            dir.Delete(); 
                             dir = dir.Parent;
                         } else {
-                            break; // 若資料夾不為空，就停止遞迴
+                            break; 
                         }
                     }
                 }
             } 
-            catch { /* 安全忽略檔案被鎖定或其他 I/O 異常 */ }
+            catch { }
         }
 
         private void ApplyGridStyles()
