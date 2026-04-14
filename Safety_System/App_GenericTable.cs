@@ -93,14 +93,12 @@ namespace Safety_System
                 _dateColumnName = "日期";
             }
 
-            // 🟢 優化 3：完美排版，TableLayoutPanel 加入 Padding 15
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 給 Status Label
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 🟢 Box 加入 Margin 下方推開 10px
             GroupBox boxTop = new GroupBox { Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
             FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             
@@ -128,12 +126,11 @@ namespace Safety_System
             else SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            // 實例化控制按鈕
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
-            _btnRead.Click += BtnRead_Click; // 🟢 改為非同步事件
+            _btnRead.Click += BtnRead_Click; 
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _btnSave.Click += BtnSave_Click; // 🟢 改為非同步事件
+            _btnSave.Click += BtnSave_Click; 
             
             _btnExport = new Button { Text = "📤 匯出Excel", Size = new Size(130, 35) }; 
             _btnExport.Click += BtnExport_Click;
@@ -172,24 +169,24 @@ namespace Safety_System
             _txtNewColName = new TextBox { Width = 150 };
             
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
-            bAdd.Click += (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); LoadGridDataAsync(); _txtNewColName.Clear(); } };
+            bAdd.Click += async (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await LoadGridDataAsync(); _txtNewColName.Clear(); } };
             
             _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
             
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
-            bRen.Click += (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); LoadGridDataAsync(); _txtRenameCol.Clear(); } };
+            bRen.Click += async (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await LoadGridDataAsync(); _txtRenameCol.Clear(); } };
             
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo)==DialogResult.Yes){ DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); LoadGridDataAsync(); } } };
+            bDelCol.Click += async (s, e) => { if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo)==DialogResult.Yes){ DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await LoadGridDataAsync(); } } };
             
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
-            bDelRow.Click += (s, e) => {
+            bDelRow.Click += async (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
                 if (selectedRows.Count > 0) {
                     if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
                         if (AuthManager.VerifyUser()) {
                             foreach (var r in selectedRows) DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
-                            LoadGridDataAsync(); MessageBox.Show("刪除成功！");
+                            await LoadGridDataAsync(); MessageBox.Show("刪除成功！");
                         }
                     }
                 }
@@ -218,10 +215,8 @@ namespace Safety_System
             flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2);
             _boxAdvanced.Controls.Add(flpAdv);
 
-            // 🟢 新增：狀態標籤
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 優化 3：RowTemplate.Height 加高至 35，且設定 AlternatingRowsDefaultCellStyle 提升質感
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
@@ -241,11 +236,10 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            LoadGridDataAsync(); // 🟢 啟動時非同步載入
+            _ = LoadGridDataAsync(); // 🟢 啟動時非同步載入，使用 _ = 消除 CS4014 警告
             return main;
         }
 
-        // 🟢 封裝防連點與 UI 狀態切換方法
         private void SetUIState(bool isEnabled, string statusText, Color statusColor)
         {
             _btnRead.Enabled = isEnabled;
@@ -257,7 +251,6 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
-        // 🟢 優化 1 & 2 & 5：非同步儲存與防連點
         private async void BtnSave_Click(object sender, EventArgs e)
         {
             try {
@@ -269,17 +262,16 @@ namespace Safety_System
 
                 DataTable dt = (DataTable)_dgv.DataSource;
                 
-                // 進入背景執行緒，不卡畫面
                 bool success = false;
                 await Task.Run(() => {
-                    EnforceDateFormat(dt); // 寫入前再強控一次格式
+                    EnforceDateFormat(dt); 
                     success = DataManager.BulkSaveTable(_dbName, _tableName, dt);
                 });
 
                 if (success) {
                     SetUIState(true, "資料儲存成功！", Color.Green);
                     MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    LoadGridDataAsync(); // 存完重新載入
+                    await LoadGridDataAsync(); // 🟢 補上 await 消除警告
                 } else {
                     SetUIState(true, "資料儲存失敗", Color.Red);
                 }
@@ -299,14 +291,12 @@ namespace Safety_System
             await LoadGridDataAsync();
         }
 
-        // 🟢 優化 1 & 2 & 5：非同步讀取資料庫
         private async Task LoadGridDataAsync()
         {
             SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
             
             DataTable dt = null;
             
-            // 必須在 UI 執行緒取得 ComboBox 的值
             string sDate = GetDateString(_cboStartYear, _cboStartMonth, _cboStartDay);
             string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
 
@@ -317,15 +307,13 @@ namespace Safety_System
                 } else {
                     dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
                 }
-                EnforceDateFormat(dt); // 背景強制格式化，省去 UI 卡頓
+                EnforceDateFormat(dt); 
             });
 
-            // 由於使用 async/await，此處已自動切回主 UI 執行緒
             _dgv.DataSource = dt;
             
             if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].ReadOnly = true;
             
-            // 🟢 強制設定 DataGridView 的日期欄位顯示格式 (UI 防呆)
             if (_dgv.Columns.Contains(_dateColumnName)) {
                 _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = _isMonthlyMode ? "yyyy-MM" : "yyyy-MM-dd";
             }
@@ -349,7 +337,6 @@ namespace Safety_System
                 if (c.Name != "Id" && c.Name != _dateColumnName) _cboColumns.Items.Add(c.Name);
         }
 
-        // 🟢 優化 4：強制轉型處理，確保所有日期格式嚴格一致
         private void EnforceDateFormat(DataTable dt)
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
@@ -360,7 +347,6 @@ namespace Safety_System
                 string val = row[_dateColumnName]?.ToString();
                 
                 if (!string.IsNullOrWhiteSpace(val)) {
-                    // 支援以斜線或減號分隔的輸入
                     val = val.Replace("/", "-");
                     if (DateTime.TryParse(val, out DateTime d)) {
                         row[_dateColumnName] = d.ToString(format);
@@ -375,12 +361,11 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
-        // 🟢 在存取設定檔時加上 try-catch，防止檔案被鎖住時報錯
         private void SaveColumnOrder() { 
             try { 
                 var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray(); 
                 File.WriteAllText($"ColOrder_{_dbName}_{_tableName}.txt", string.Join(",", ordered), Encoding.UTF8); 
-            } catch { /* 多執行緒或權限咬住時安全忽略 */ } 
+            } catch { } 
         }
         
         private void RestoreColumnOrder() { 
@@ -391,7 +376,7 @@ namespace Safety_System
                     for (int i = 0; i < saved.Length; i++) 
                         if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i; 
                 } 
-            } catch { /* 多執行緒或權限咬住時安全忽略 */ } 
+            } catch { } 
         }
 
         private void BtnExport_Click(object sender, EventArgs e)
@@ -462,7 +447,7 @@ namespace Safety_System
 
                                 _calcHelper?.RecalculateTable(dt); 
                                 _calcHelper?.EndBulkUpdate();
-                                EnforceDateFormat(dt); // 匯入後強制格式化日期
+                                EnforceDateFormat(dt); 
                             }
                         });
 
@@ -472,7 +457,7 @@ namespace Safety_System
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
                         MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { 
-                        await LoadGridDataAsync(); // 發生錯誤時還原資料庫狀態
+                        await LoadGridDataAsync(); // 發生錯誤時還原
                         MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     } finally {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
@@ -501,7 +486,7 @@ namespace Safety_System
                     _calcHelper?.RecalculateTable(dt);
                     _calcHelper?.EndBulkUpdate();
                     
-                    EnforceDateFormat(dt); // 貼上後觸發日期格式防呆
+                    EnforceDateFormat(dt); 
                     _dgv.Refresh();
                 } catch { _calcHelper?.EndBulkUpdate(); }
             }
