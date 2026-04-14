@@ -21,7 +21,7 @@ namespace Safety_System
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
-        private Label _lblStartDay, _lblEndDay;
+        //private Label _lblStartDay, _lblEndDay;
         
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
