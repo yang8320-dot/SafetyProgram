@@ -857,7 +857,7 @@ namespace Safety_System
                 }
                 
                 this.Text = "多檔附件管理中心"; 
-                this.Size = new Size(600, 650); 
+                this.Size = new Size(700, 600); 
                 this.StartPosition = FormStartPosition.CenterParent;
                 this.FormBorderStyle = FormBorderStyle.FixedDialog; 
                 this.MaximizeBox = false; 
