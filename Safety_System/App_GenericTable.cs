@@ -39,10 +39,19 @@ namespace Safety_System
 
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
+            // 🟢 加入全新的 7 個廢棄物月表預設結構 (若無特別指定，預設給月份、附件與備註)
+            { "Waste_FuCeng", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_JiaoHe", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_DuBan", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_QiangHua", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_QieMo", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_WuLiao", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_GongAn", "[月份] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 原有表單結構保留
             { "ChemRegulations", "[類別] TEXT, [公告日期] TEXT, [法規名稱] TEXT, [法規內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CAS No] TEXT, [檢測週期] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [管制濃度] TEXT, [分級運作量] TEXT, [管制行為] TEXT, [定期申報頻率] TEXT, [毒性分類] TEXT, [記錄] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "AirPollution", "[月份] TEXT, [甲醇] TEXT, [乙醇] TEXT, [油墨] TEXT, [網板清洗劑] TEXT , [附件檔案] TEXT, [備註] TEXT" },
-            { "WasteMonthly", "[月份] TEXT, [複層生產加不良MT] TEXT, [複層生產量MT] TEXT, [複層丁基膠MT] TEXT, [複層結構膠MT] TEXT, [複層鋁條MT] TEXT, [複層乾燥劑MT] TEXT, [膠點生產加不良MT] TEXT, [膠合生產量MT] TEXT, [膠合PVB膜MT] TEXT, [鍍板生產加不良MT] TEXT, [鍍板生產量MT] TEXT, [除膜加不良MT] TEXT, [除膜成品量MT] TEXT, [靶材MT] TEXT, [隔離粉MT] TEXT, [氧化鈰MT] TEXT, [噴砂底板成品鋁MT] TEXT, [噴砂底板成品其它MT] TEXT, [氧化鋁砂金鋼砂MT] TEXT, [強化生產加不良MT] TEXT, [強化生產量MT] TEXT, [強化砂布輪MT] TEXT, [強化砂帶MT] TEXT, [印刷生產加不良MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [防火負責人職稱] TEXT, [火源責任人] TEXT, [火源責任人職稱] TEXT, [責任代理人] TEXT, [責任代理人職稱] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HazardStats", "[月份] TEXT, [品項] TEXT, [單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -82,7 +91,6 @@ namespace Safety_System
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             
-            // 🟢 [核心修正]：動態偵測真正的時間欄位名稱，解決公告日期、更新日期等造成的崩潰
             if (columns.Contains("月份")) {
                 _isMonthlyMode = true;
                 _dateColumnName = "月份";
@@ -90,13 +98,11 @@ namespace Safety_System
                 _isMonthlyMode = false;
                 _dateColumnName = "日期";
             } else {
-                // 尋找名稱中包含「日期」或「月份」的欄位 (例如：公告日期、更新日期)
                 string altDateCol = columns.FirstOrDefault(c => c.Contains("日期") || c.Contains("月份"));
                 if (!string.IsNullOrEmpty(altDateCol)) {
                     _isMonthlyMode = altDateCol.Contains("月份");
                     _dateColumnName = altDateCol;
                 } else {
-                    // 極端防呆：如果完全沒有時間欄位，預設為第一欄以防止 SQL 報錯
                     _isMonthlyMode = false;
                     _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id";
                 }
@@ -195,8 +201,11 @@ namespace Safety_System
                     if (AuthManager.VerifyUser()) {
                         foreach (var r in selectedRows) {
                             if (_dgv.Columns.Contains("附件檔案")) {
-                                string relPath = r.Cells["附件檔案"].Value?.ToString();
-                                DeletePhysicalFile(relPath, r.Index);
+                                string relPathStr = r.Cells["附件檔案"].Value?.ToString();
+                                if (!string.IsNullOrEmpty(relPathStr)) {
+                                    string[] paths = relPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                                    foreach (var p in paths) DeletePhysicalFile(p, r.Index);
+                                }
                             }
                             DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
                         }
@@ -269,7 +278,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 附件檔案專用事件與清理機制
+        // 🟢 多檔案附件專用事件與清理機制
         // ==========================================
         private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
@@ -278,10 +287,15 @@ namespace Safety_System
                 string colName = _dgv.Columns[e.ColumnIndex].Name;
                 if (colName.Contains("附件檔案") && e.Value != null)
                 {
-                    string path = e.Value.ToString();
-                    if (!string.IsNullOrEmpty(path))
+                    string pathStr = e.Value.ToString();
+                    if (!string.IsNullOrEmpty(pathStr))
                     {
-                        e.Value = Path.GetFileName(path);
+                        string[] parts = pathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 1) {
+                            e.Value = $"📁 [共 {parts.Length} 個檔案]";
+                        } else {
+                            e.Value = Path.GetFileName(parts[0]);
+                        }
                         e.FormattingApplied = true;
                     }
                 }
@@ -297,52 +311,20 @@ namespace Safety_System
                 {
                     string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
 
-                    using (var frm = new AttachmentForm(currentVal))
+                    // 將實體刪除的委派方法傳入，讓 Form 內部可以直接操作刪除
+                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, path => DeletePhysicalFile(path, e.RowIndex)))
                     {
                         if (frm.ShowDialog() == DialogResult.OK)
                         {
-                            if (frm.ResultAction == AttachmentAction.Upload)
-                            {
-                                try {
-                                    string src = frm.SelectedFilePath;
-                                    string datePart = DateTime.Now.ToString("yyyy-MM");
-                                    
-                                    string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
-                                    if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
-
-                                    string ext = Path.GetExtension(src);
-                                    string baseName = Path.GetFileNameWithoutExtension(src);
-                                    string destName = baseName + ext;
-                                    string destPath = Path.Combine(destDir, destName);
-
-                                    int count = 1;
-                                    while (File.Exists(destPath)) {
-                                        destName = $"{baseName}_{count++}{ext}";
-                                        destPath = Path.Combine(destDir, destName);
-                                    }
-
-                                    File.Copy(src, destPath);
-                                    
-                                    string relPath = Path.Combine("附件", _dbName, _tableName, datePart, destName);
-                                    _dgv[e.ColumnIndex, e.RowIndex].Value = relPath;
-                                    _dgv.EndEdit();
-                                } 
-                                catch (Exception ex) {
-                                    MessageBox.Show("儲存附件失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                }
-                            }
-                            else if (frm.ResultAction == AttachmentAction.Clear)
-                            {
-                                DeletePhysicalFile(currentVal, e.RowIndex);
-                                _dgv[e.ColumnIndex, e.RowIndex].Value = "";
-                                _dgv.EndEdit();
-                            }
+                            _dgv[e.ColumnIndex, e.RowIndex].Value = frm.FinalPathsString;
+                            _dgv.EndEdit();
                         }
                     }
                 }
             }
         }
 
+        // 支援多檔字串分割的防呆實體刪除
         private void DeletePhysicalFile(string relativePath, int currentRowIndex)
         {
             if (string.IsNullOrWhiteSpace(relativePath)) return;
@@ -351,9 +333,13 @@ namespace Safety_System
             foreach (DataGridViewRow row in _dgv.Rows) {
                 if (row.Index == currentRowIndex || row.IsNewRow) continue;
                 if (_dgv.Columns.Contains("附件檔案")) {
-                    if (row.Cells["附件檔案"].Value?.ToString() == relativePath) {
-                        isUsedByOthers = true;
-                        break;
+                    string cellVal = row.Cells["附件檔案"].Value?.ToString();
+                    if (!string.IsNullOrEmpty(cellVal)) {
+                        string[] paths = cellVal.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (paths.Contains(relativePath)) {
+                            isUsedByOthers = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -402,7 +388,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 原有核心邏輯區
+        // 原有核心邏輯區 (讀取/存檔/匯出/匯入/貼上)
         // ==========================================
 
         private async void BtnSave_Click(object sender, EventArgs e)
@@ -642,120 +628,162 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 附件檔案專屬視窗類別
+        // 🟢 全新四區塊：多檔附件管理視窗
         // ==========================================
-        private enum AttachmentAction { None, Upload, Clear }
-
         private class AttachmentForm : Form
         {
-            public string SelectedFilePath { get; private set; }
-            public AttachmentAction ResultAction { get; private set; } = AttachmentAction.None;
-            
-            private string _currentRelPath;
-            private string _absPath;
+            public string FinalPathsString { get; private set; }
+            private List<string> _paths = new List<string>();
+            private string _dbName, _tableName;
+            private Action<string> _deleteAction;
 
-            public AttachmentForm(string currentRelPath)
+            private FlowLayoutPanel _flpList;
+
+            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, Action<string> deleteAction)
             {
-                _currentRelPath = currentRelPath;
-                if (!string.IsNullOrEmpty(_currentRelPath)) {
-                    _absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _currentRelPath);
+                _dbName = dbName;
+                _tableName = tableName;
+                _deleteAction = deleteAction;
+
+                if (!string.IsNullOrEmpty(currentRelPathStr)) {
+                    _paths = new List<string>(currentRelPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries));
                 }
 
-                this.Text = "附件檔案管理";
-                this.Size = new Size(450, 350);
+                this.Text = "多檔附件管理中心";
+                this.Size = new Size(500, 550);
                 this.StartPosition = FormStartPosition.CenterParent;
                 this.FormBorderStyle = FormBorderStyle.FixedDialog;
                 this.MaximizeBox = false;
                 this.MinimizeBox = false;
                 this.BackColor = Color.White;
 
-                Label lblStatus = new Label { 
-                    Text = string.IsNullOrEmpty(_currentRelPath) ? "狀態: 尚無附件" : "目前附件: " + Path.GetFileName(_currentRelPath), 
-                    Dock = DockStyle.Top, 
-                    Padding = new Padding(15), 
-                    AutoSize = true, 
-                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                    ForeColor = string.IsNullOrEmpty(_currentRelPath) ? Color.DimGray : Color.DarkSlateBlue
-                };
-                this.Controls.Add(lblStatus);
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); // 框1: 列表
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); // 框2: 拖曳
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 框3: 清除
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F)); // 框4: 儲存
 
-                Button btnOpen = new Button { 
-                    Text = "📄 開啟現有附件", 
-                    Dock = DockStyle.Top, 
-                    Height = 45, 
-                    Enabled = !string.IsNullOrEmpty(_currentRelPath) && File.Exists(_absPath), 
-                    Font = new Font("Microsoft JhengHei UI", 12F),
-                    BackColor = Color.WhiteSmoke
-                };
-                btnOpen.Click += (s, e) => {
-                    try { System.Diagnostics.Process.Start(_absPath); }
-                    catch (Exception ex) { MessageBox.Show("無法開啟檔案: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-                };
-                this.Controls.Add(btnOpen);
+                // ======== 框1：已上傳清單 ========
+                GroupBox boxList = new GroupBox { Text = "1. 已上傳檔案清單", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(10) };
+                _flpList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+                boxList.Controls.Add(_flpList);
+                tlp.Controls.Add(boxList, 0, 0);
 
-                Panel pnlDrop = new Panel { 
-                    Dock = DockStyle.Fill, 
-                    AllowDrop = true, 
-                    BackColor = Color.AliceBlue, 
-                    Cursor = Cursors.Hand 
-                };
+                // ======== 框2：拖曳上傳區 ========
+                GroupBox boxUpload = new GroupBox { Text = "2. 新增附件檔案", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(10) };
+                Panel pnlDrop = new Panel { Dock = DockStyle.Fill, AllowDrop = true, BackColor = Color.AliceBlue, Cursor = Cursors.Hand };
+                pnlDrop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlDrop.ClientRectangle, Color.SteelBlue, ButtonBorderStyle.Dashed);
+                Label lblDrop = new Label { Text = "📁 點擊此處選擇多個檔案\n\n或\n\n將檔案拖曳至此區域", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), ForeColor = Color.SteelBlue };
                 
-                pnlDrop.Paint += (s, e) => {
-                    ControlPaint.DrawBorder(e.Graphics, pnlDrop.ClientRectangle, Color.SteelBlue, ButtonBorderStyle.Dashed);
-                };
-
-                Label lblDrop = new Label { 
-                    Text = "📁 點擊此處選擇檔案\n\n或\n\n將檔案拖曳至此區域", 
-                    Dock = DockStyle.Fill, 
-                    TextAlign = ContentAlignment.MiddleCenter, 
-                    Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), 
-                    ForeColor = Color.SteelBlue 
-                };
-                lblDrop.Click += (s, e) => SelectFile();
-                pnlDrop.Click += (s, e) => SelectFile();
+                lblDrop.Click += (s, e) => SelectFiles();
+                pnlDrop.Click += (s, e) => SelectFiles();
                 pnlDrop.Controls.Add(lblDrop);
 
-                pnlDrop.DragEnter += (s, e) => {
-                    if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
-                };
+                pnlDrop.DragEnter += (s, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; };
                 pnlDrop.DragDrop += (s, e) => {
                     string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                    if (files.Length > 0) {
-                        SelectedFilePath = files[0];
-                        ResultAction = AttachmentAction.Upload;
-                        this.DialogResult = DialogResult.OK;
-                    }
+                    ProcessUpload(files);
                 };
-                this.Controls.Add(pnlDrop);
+                boxUpload.Controls.Add(pnlDrop);
+                tlp.Controls.Add(boxUpload, 0, 1);
 
-                Button btnClear = new Button { 
-                    Text = "🗑️ 清除此筆附件", 
-                    Dock = DockStyle.Bottom, 
-                    Height = 45, 
-                    BackColor = Color.IndianRed, 
-                    ForeColor = Color.White, 
-                    Font = new Font("Microsoft JhengHei UI", 12F),
-                    Enabled = !string.IsNullOrEmpty(_currentRelPath)
-                };
-                btnClear.Click += (s, e) => {
-                    if (MessageBox.Show("確定要清除此附件記錄嗎？\n(實體檔案將被同步永久刪除)", "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        ResultAction = AttachmentAction.Clear;
-                        this.DialogResult = DialogResult.OK;
+                // ======== 框3：全部清除 ========
+                Button btnClearAll = new Button { Text = "🗑️ 清除此筆紀錄的所有附件", Dock = DockStyle.Fill, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(3, 5, 3, 5) };
+                btnClearAll.Click += (s, e) => {
+                    if (_paths.Count == 0) return;
+                    if (MessageBox.Show("確定要清除所有附件嗎？\n(實體檔案將被同步永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        foreach (var p in _paths) _deleteAction(p);
+                        _paths.Clear();
+                        RefreshListUI();
                     }
                 };
-                this.Controls.Add(btnClear);
+                tlp.Controls.Add(btnClearAll, 0, 2);
+
+                // ======== 框4：確認儲存 ========
+                Button btnSaveClose = new Button { Text = "💾 確認變更並返回", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Margin = new Padding(3, 5, 3, 5) };
+                btnSaveClose.Click += (s, e) => {
+                    FinalPathsString = string.Join("|", _paths);
+                    this.DialogResult = DialogResult.OK;
+                };
+                tlp.Controls.Add(btnSaveClose, 0, 3);
+
+                this.Controls.Add(tlp);
+                RefreshListUI();
             }
 
-            private void SelectFile()
+            private void RefreshListUI()
             {
-                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Filter = "所有檔案 (*.*)|*.*" })
-                {
+                _flpList.Controls.Clear();
+                if (_paths.Count == 0) {
+                    _flpList.Controls.Add(new Label { Text = "(尚無任何附件)", ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10) });
+                    return;
+                }
+
+                foreach (string path in _paths) {
+                    Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
+                    
+                    Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    
+                    Button bOpen = new Button { Text = "開啟", Width = 60, Dock = DockStyle.Right, BackColor = Color.LightGray };
+                    bOpen.Click += (s, e) => {
+                        try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); }
+                        catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); }
+                    };
+
+                    Button bDel = new Button { Text = "刪除", Width = 60, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White };
+                    bDel.Click += (s, e) => {
+                        if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
+                            _deleteAction(path);
+                            _paths.Remove(path);
+                            RefreshListUI();
+                        }
+                    };
+
+                    pItem.Controls.Add(lName);
+                    pItem.Controls.Add(bOpen);
+                    pItem.Controls.Add(bDel);
+                    _flpList.Controls.Add(pItem);
+                }
+            }
+
+            private void SelectFiles()
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Multiselect = true, Filter = "所有檔案 (*.*)|*.*" }) {
                     if (ofd.ShowDialog() == DialogResult.OK) {
-                        SelectedFilePath = ofd.FileName;
-                        ResultAction = AttachmentAction.Upload;
-                        this.DialogResult = DialogResult.OK;
+                        ProcessUpload(ofd.FileNames);
                     }
                 }
+            }
+
+            private void ProcessUpload(string[] sourceFiles)
+            {
+                if (sourceFiles.Length == 0) return;
+                
+                string datePart = DateTime.Now.ToString("yyyy-MM");
+                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
+                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+
+                foreach (string src in sourceFiles) {
+                    try {
+                        string ext = Path.GetExtension(src);
+                        string baseName = Path.GetFileNameWithoutExtension(src);
+                        string destName = baseName + ext;
+                        string destPath = Path.Combine(destDir, destName);
+
+                        int count = 1;
+                        while (File.Exists(destPath)) {
+                            destName = $"{baseName}_{count++}{ext}";
+                            destPath = Path.Combine(destDir, destName);
+                        }
+
+                        File.Copy(src, destPath);
+                        string relPath = Path.Combine("附件", _dbName, _tableName, datePart, destName);
+                        _paths.Add(relPath);
+                    } catch (Exception ex) {
+                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤");
+                    }
+                }
+                RefreshListUI();
             }
         }
     }
