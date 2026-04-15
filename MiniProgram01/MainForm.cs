@@ -178,6 +178,7 @@ public class MainForm : Form {
         }
         File.WriteAllLines(pathConfigFile, lines);
     }
+
     // --- 原本的 Tab 繪製與提醒閃爍邏輯 ---
     private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
         TabPage page = tabControl.TabPages[e.Index];
@@ -311,7 +312,7 @@ public class MainForm : Form {
 }
 
 // =======================================================
-// 新增的設定視窗類別 (與 MainForm 放在同一個檔案底部即可)
+// 新增的設定視窗類別 (HotkeyPathSettingsForm)
 // =======================================================
 public class HotkeyPathSettingsForm : Form {
     private Dictionary<int, string> currentPaths;
