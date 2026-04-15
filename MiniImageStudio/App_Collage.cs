@@ -9,6 +9,9 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
 using System.Collections.Generic;
+using System.Linq; // <--- 請務必補上這一行！
+
+
 
 namespace MiniImageStudio {
     public class App_Collage : UserControl {
