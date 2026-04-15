@@ -1,6 +1,4 @@
-/* * 功能：批次壓縮與縮圖 (修復控制項重疊問題)
- * 對應選單名稱：壓縮
- * 對應資料表名稱：App_Compress
+/* * 功能：批次壓縮與縮圖 (導入流式排版解決重疊問題)
  */
 using System;
 using System.Drawing;
@@ -24,31 +22,35 @@ namespace MiniImageStudio {
         }
 
         private void InitializeUI() {
-            // 面板高度加大為 130，分為兩排排列
-            Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 130, BackColor = SystemColors.Control };
+            // 使用自動流式排版，絕對不會重疊
+            FlowLayoutPanel topPanel = new FlowLayoutPanel { 
+                Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, 
+                Padding = new Padding(5), BackColor = SystemColors.Control 
+            };
             
-            // --- 第一排 (Top: 15) ---
-            Button btnAdd = new Button { Text = "加入圖片", Width = 110, Height = 40, Left = 15, Top = 15 };
-            Label lblSize = new Label { Text = "最長邊像素:", Left = 140, Top = 25, AutoSize = true };
-            txtMaxSize = new TextBox { Text = "1024", Left = 240, Top = 22, Width = 80 };
+            Button btnAdd = new Button { Text = "加入圖片", Width = 110, Height = 40, Margin = new Padding(5) };
+            Label lblSize = new Label { Text = "最長邊像素:", AutoSize = true, Margin = new Padding(5, 15, 0, 5) };
+            txtMaxSize = new TextBox { Text = "1024", Width = 80, Margin = new Padding(5, 12, 15, 5) };
+            Button btnSetFolder = new Button { Text = "設定輸出資料夾", Width = 150, Height = 40, Margin = new Padding(5) };
+            Button btnProcess = new Button { Text = "開始批次處理", Width = 140, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(5) };
             
-            Button btnProcess = new Button { Text = "開始批次處理", Width = 140, Height = 40, Left = 350, Top = 15, BackColor = Color.SteelBlue, ForeColor = Color.White };
-            lblStatus = new Label { Text = "等待中...", Left = 510, Top = 25, AutoSize = true };
-
-            // --- 第二排 (Top: 70) ---
-            Button btnSetFolder = new Button { Text = "設定輸出資料夾", Width = 150, Height = 40, Left = 15, Top = 70 };
-            lblOutPath = new Label { Text = "輸出至: (預設為原資料夾內的 Compressed 子目錄)", Left = 180, Top = 80, AutoSize = true, ForeColor = Color.DimGray };
+            lblStatus = new Label { Text = "等待中...", AutoSize = true, Margin = new Padding(15, 15, 5, 5) };
+            
+            // 第二排資訊
+            FlowLayoutPanel infoPanel = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, BackColor = SystemColors.Control };
+            lblOutPath = new Label { Text = "輸出至: (預設為原資料夾內的 Compressed 子目錄)", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(10, 0, 10, 10) };
+            infoPanel.Controls.Add(lblOutPath);
 
             btnAdd.Click += BtnAdd_Click;
             btnSetFolder.Click += BtnSetFolder_Click;
             btnProcess.Click += async (s, e) => await ProcessImagesAsync();
 
-            topPanel.Controls.AddRange(new Control[] { btnAdd, lblSize, txtMaxSize, btnProcess, lblStatus, btnSetFolder, lblOutPath });
-
+            topPanel.Controls.AddRange(new Control[] { btnAdd, lblSize, txtMaxSize, btnSetFolder, btnProcess, lblStatus });
+            
             listFiles = new ListBox { Dock = DockStyle.Fill, ItemHeight = 20 };
             
             this.Controls.Add(listFiles);
-            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 15 });
+            this.Controls.Add(infoPanel);
             this.Controls.Add(topPanel);
         }
 
@@ -76,9 +78,7 @@ namespace MiniImageStudio {
         private async Task ProcessImagesAsync() {
             if (listFiles.Items.Count == 0) return;
             if (!int.TryParse(txtMaxSize.Text, out int maxSize)) maxSize = 1024;
-            
-            lblStatus.Text = "處理中，請稍候...";
-            lblStatus.ForeColor = Color.OrangeRed;
+            lblStatus.Text = "處理中，請稍候..."; lblStatus.ForeColor = Color.OrangeRed;
             var files = listFiles.Items.Cast<string>().ToList();
 
             await Task.Run(() => {
@@ -88,16 +88,11 @@ namespace MiniImageStudio {
                             int newW = img.Width, newH = img.Height;
                             if (Math.Max(img.Width, img.Height) > maxSize) {
                                 float ratio = (float)maxSize / Math.Max(img.Width, img.Height);
-                                newW = (int)(img.Width * ratio);
-                                newH = (int)(img.Height * ratio);
+                                newW = (int)(img.Width * ratio); newH = (int)(img.Height * ratio);
                             }
-
                             string targetDir = customOutputDir;
-                            if (string.IsNullOrEmpty(targetDir)) {
-                                targetDir = Path.Combine(Path.GetDirectoryName(file), "Compressed");
-                            }
+                            if (string.IsNullOrEmpty(targetDir)) targetDir = Path.Combine(Path.GetDirectoryName(file), "Compressed");
                             if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
-
                             string outPath = Path.Combine(targetDir, Path.GetFileNameWithoutExtension(file) + "_comp.jpg");
 
                             using (Bitmap newImg = new Bitmap(newW, newH)) {
@@ -114,9 +109,7 @@ namespace MiniImageStudio {
                     } catch { }
                 }
             });
-
-            lblStatus.Text = "全部處理完成！";
-            lblStatus.ForeColor = Color.SeaGreen;
+            lblStatus.Text = "全部處理完成！"; lblStatus.ForeColor = Color.SeaGreen;
             listFiles.Items.Clear();
         }
     }
