@@ -1,4 +1,4 @@
-/* * 功能：主介面設計 (修改為圖片工具程式，優化選單高度)
+/* * 功能：主介面設計 (上方功能按鍵加上鮮艷底色)
  */
 using System;
 using System.Drawing;
@@ -21,31 +21,21 @@ namespace MiniImageStudio {
         }
 
         private void InitializeComponent() {
-            // 1. 修改視窗標題
-            this.Text = "圖片工具程式";
+            this.Text = "圖片工具程式 - 專業終極版";
             this.Size = new Size(1200, 850);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1000, 700);
             this.BackColor = SystemColors.Control;
 
-            // 增加面板高度為 80，確保按鈕文字不被遮擋
-            menuPanel = new Panel { 
-                Dock = DockStyle.Top, 
-                Height = 80, 
-                BackColor = SystemColors.ControlLight,
-                BorderStyle = BorderStyle.FixedSingle
-            };
-            
+            menuPanel = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = SystemColors.ControlLight, BorderStyle = BorderStyle.FixedSingle };
             contentPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
 
             string[] navNames = { "截圖", "繪製", "拼貼", "壓縮" };
             for (int i = 0; i < navNames.Length; i++) {
-                Button btn = CreateMenuButton(navNames[i], i);
-                menuPanel.Controls.Add(btn);
+                menuPanel.Controls.Add(CreateMenuButton(navNames[i], i));
             }
 
             this.Controls.Add(contentPanel);
-            // 主選單與下方頁面保持舒適距離 15px
             this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 15 }); 
             this.Controls.Add(menuPanel);
 
@@ -53,14 +43,20 @@ namespace MiniImageStudio {
         }
 
         private Button CreateMenuButton(string text, int index) {
+            // 鮮豔顏色陣列：紅、藍、綠、橘
+            Color[] colors = { Color.FromArgb(220, 53, 69), Color.FromArgb(0, 123, 255), Color.FromArgb(40, 167, 69), Color.FromArgb(253, 126, 20) };
+            
             Button btn = new Button {
                 Text = text,
-                Size = new Size(120, 45), // 加大按鈕尺寸
+                Size = new Size(120, 45),
                 Location = new Point(20 + (index * 135), 15),
-                FlatStyle = FlatStyle.Standard,
-                Font = UI_Font,
-                Cursor = Cursors.Hand
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(UI_Font.FontFamily, 12, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                BackColor = colors[index % colors.Length],
+                ForeColor = Color.White
             };
+            btn.FlatAppearance.BorderSize = 0;
 
             btn.Click += (s, e) => {
                 switch (text) {
