@@ -1,6 +1,5 @@
 name: Build MiniImageStudio
 
-# 這裡改為 workflow_dispatch，代表允許從 GitHub 介面手動觸發
 on:
   workflow_dispatch:
 
@@ -15,10 +14,10 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Restore NuGet Packages
-      run: nuget restore MiniImageStudio.sln
+      run: nuget restore MiniImageStudio.csproj
 
-    - name: Build Solution
-      run: msbuild MiniImageStudio.sln /p:Configuration=Release /p:Platform="Any CPU"
+    - name: Build Project
+      run: msbuild MiniImageStudio.csproj /p:Configuration=Release /p:Platform="Any CPU"
 
     - name: Download ILRepack
       run: nuget install ILRepack -Version 2.0.18 -OutputDirectory tools
@@ -26,10 +25,10 @@ jobs:
     - name: Merge to Single EXE
       run: |
         $ilrepack = (Get-ChildItem -Path tools -Filter ILRepack.exe -Recurse).FullName
-        & $ilrepack /out:bin\Release\MiniImageStudio_Portable.exe bin\Release\MiniImageStudio.exe
+        & $ilrepack /out:bin\Release\net472\MiniImageStudio_Portable.exe bin\Release\net472\MiniImageStudio.exe
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: MiniImageStudio-Portable
-        path: bin\Release\MiniImageStudio_Portable.exe
+        path: bin\Release\net472\MiniImageStudio_Portable.exe
