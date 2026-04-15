@@ -1,4 +1,4 @@
-/* * 功能：批次壓縮與縮圖 (支援單獨刪除、左右分割預覽、拖曳上傳、下載資料夾預設)
+/* * 功能：批次壓縮與縮圖 (清單 65%，預覽 35%，新增開啟輸出資料夾功能)
  */
 using System;
 using System.Drawing;
@@ -7,14 +7,17 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Diagnostics; // 用於開啟資料夾
 
 namespace MiniImageStudio {
     public class App_Compress : UserControl {
         private TextBox txtMaxSize;
         private ListBox listFiles;
-        private PictureBox pbPreview; // 預覽圖片框
+        private PictureBox pbPreview; 
         private Label lblStatus, lblOutPath;
+        private SplitContainer splitContainer; 
         private string customOutputDir = "";
+        private bool isSplitterSet = false;
 
         public App_Compress() {
             this.Font = MainForm.UI_Font;
@@ -23,7 +26,6 @@ namespace MiniImageStudio {
         }
 
         private void InitializeUI() {
-            // --- 上方控制面板 ---
             FlowLayoutPanel topPanel = new FlowLayoutPanel { 
                 Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, 
                 Padding = new Padding(5), BackColor = SystemColors.Control 
@@ -36,6 +38,7 @@ namespace MiniImageStudio {
             txtMaxSize = new TextBox { Text = "1024", Width = 70, Margin = new Padding(5, 12, 15, 5) };
             
             Button btnSetFolder = new Button { Text = "設定輸出資料夾", Width = 130, Height = 40, Margin = new Padding(5) };
+            Button btnOpenFolder = new Button { Text = "開啟輸出資料夾", Width = 130, Height = 40, Margin = new Padding(5), BackColor = Color.DarkOrange, ForeColor = Color.White };
             Button btnProcess = new Button { Text = "開始批次處理", Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(5) };
             
             lblStatus = new Label { Text = "等待中...", AutoSize = true, Margin = new Padding(15, 15, 5, 5) };
@@ -44,34 +47,39 @@ namespace MiniImageStudio {
             lblOutPath = new Label { Text = "輸出至: (預設為原資料夾內的 Compressed 子目錄)", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(10, 0, 10, 10) };
             infoPanel.Controls.Add(lblOutPath);
 
-            // --- 左右分割區塊 ---
-            SplitContainer splitContainer = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 350, Margin = new Padding(0, 10, 0, 0) };
+            splitContainer = new SplitContainer { Dock = DockStyle.Fill, Margin = new Padding(0, 10, 0, 0) };
             
-            // 左側：檔案清單
             listFiles = new ListBox { Dock = DockStyle.Fill, ItemHeight = 20, AllowDrop = true };
             listFiles.DragEnter += ListFiles_DragEnter;
             listFiles.DragDrop += ListFiles_DragDrop;
             listFiles.SelectedIndexChanged += ListFiles_SelectedIndexChanged;
-            listFiles.KeyDown += ListFiles_KeyDown; // 支援 Delete 鍵刪除
+            listFiles.KeyDown += ListFiles_KeyDown; 
 
-            // 右側：圖片預覽
             pbPreview = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.Fixed3D };
 
             splitContainer.Panel1.Controls.Add(listFiles);
             splitContainer.Panel2.Controls.Add(pbPreview);
 
-            // --- 事件綁定 ---
             btnAdd.Click += BtnAdd_Click;
             btnRemove.Click += (s, e) => RemoveSelectedFile();
             btnSetFolder.Click += BtnSetFolder_Click;
+            btnOpenFolder.Click += BtnOpenFolder_Click; // 綁定開啟資料夾事件
             btnProcess.Click += async (s, e) => await ProcessImagesAsync();
 
-            topPanel.Controls.AddRange(new Control[] { btnAdd, btnRemove, lblSize, txtMaxSize, btnSetFolder, btnProcess, lblStatus });
+            topPanel.Controls.AddRange(new Control[] { btnAdd, btnRemove, lblSize, txtMaxSize, btnSetFolder, btnOpenFolder, btnProcess, lblStatus });
             
             this.Controls.Add(splitContainer);
-            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 10 }); // 增加一點間距
+            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 10 }); 
             this.Controls.Add(infoPanel);
             this.Controls.Add(topPanel);
+
+            // --- 精準的 65% / 35% 比例計算 ---
+            this.Resize += (s, e) => {
+                if (!isSplitterSet && this.Width > 200) {
+                    splitContainer.SplitterDistance = (int)(this.Width * 0.65); // 設定左邊佔 65%
+                    isSplitterSet = true;
+                }
+            };
         }
 
         private void BtnAdd_Click(object sender, EventArgs e) {
@@ -89,7 +97,6 @@ namespace MiniImageStudio {
             }
         }
 
-        // --- 拖曳事件 ---
         private void ListFiles_DragEnter(object sender, DragEventArgs e) {
             if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
         }
@@ -115,8 +122,6 @@ namespace MiniImageStudio {
 
         private void UpdateStatusAndPath() {
             lblStatus.Text = $"已加入 {listFiles.Items.Count} 張圖片";
-            
-            // 自動將預設存檔路徑設為「下載 (Downloads) / Compressed」
             if (string.IsNullOrEmpty(customOutputDir)) {
                 string downloadsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "Compressed");
                 customOutputDir = downloadsPath;
@@ -125,13 +130,10 @@ namespace MiniImageStudio {
             }
         }
 
-        // --- 單獨刪除功能 ---
         private void RemoveSelectedFile() {
             if (listFiles.SelectedIndex >= 0) {
                 int selectedIndex = listFiles.SelectedIndex;
                 listFiles.Items.RemoveAt(selectedIndex);
-                
-                // 刪除後維持選取狀態
                 if (listFiles.Items.Count > 0) {
                     listFiles.SelectedIndex = Math.Min(selectedIndex, listFiles.Items.Count - 1);
                 } else {
@@ -147,12 +149,10 @@ namespace MiniImageStudio {
             }
         }
 
-        // --- 圖片預覽功能 (無鎖定讀取) ---
         private void ListFiles_SelectedIndexChanged(object sender, EventArgs e) {
             if (listFiles.SelectedItem != null) {
                 string filePath = listFiles.SelectedItem.ToString();
                 try {
-                    // 使用 MemoryStream 讀取，避免鎖死原檔案，這樣才能確保後續能正確覆寫或移動
                     using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read)) {
                         using (MemoryStream ms = new MemoryStream()) {
                             fs.CopyTo(ms);
@@ -183,7 +183,29 @@ namespace MiniImageStudio {
             }
         }
 
-        // --- 批次壓縮處理 ---
+        // --- 開啟輸出資料夾功能 ---
+        private void BtnOpenFolder_Click(object sender, EventArgs e) {
+            string pathToOpen = customOutputDir;
+            
+            // 如果尚未設定路徑，則使用預設的下載資料夾路徑
+            if (string.IsNullOrEmpty(pathToOpen)) {
+                pathToOpen = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "Compressed");
+            }
+            
+            // 如果資料夾還不存在，先自動建立，避免開啟失敗報錯
+            if (!Directory.Exists(pathToOpen)) {
+                try {
+                    Directory.CreateDirectory(pathToOpen);
+                } catch {
+                    MessageBox.Show("無法建立或開啟資料夾路徑！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+            
+            // 呼叫系統檔案總管開啟該路徑
+            Process.Start("explorer.exe", pathToOpen);
+        }
+
         private async Task ProcessImagesAsync() {
             if (listFiles.Items.Count == 0) return;
             if (!int.TryParse(txtMaxSize.Text, out int maxSize)) maxSize = 1024;
