@@ -1,4 +1,4 @@
-/* * 功能：主介面設計 (上方功能按鍵加上鮮艷底色)
+/* * 功能：主介面設計 (改用頁籤 TabControl 方式切換功能)
  */
 using System;
 using System.Drawing;
@@ -6,8 +6,7 @@ using System.Windows.Forms;
 
 namespace MiniImageStudio {
     public class MainForm : Form {
-        private Panel menuPanel;
-        private Panel contentPanel;
+        private TabControl mainTabControl;
         
         private App_Screenshot screenshotControl;
         private App_Drawing drawingControl;
@@ -27,52 +26,42 @@ namespace MiniImageStudio {
             this.MinimumSize = new Size(1000, 700);
             this.BackColor = SystemColors.Control;
 
-            menuPanel = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = SystemColors.ControlLight, BorderStyle = BorderStyle.FixedSingle };
-            contentPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
-
-            string[] navNames = { "截圖", "繪製", "拼貼", "壓縮" };
-            for (int i = 0; i < navNames.Length; i++) {
-                menuPanel.Controls.Add(CreateMenuButton(navNames[i], i));
-            }
-
-            this.Controls.Add(contentPanel);
-            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 15 }); 
-            this.Controls.Add(menuPanel);
-
-            ShowModule(screenshotControl = new App_Screenshot(this));
-        }
-
-        private Button CreateMenuButton(string text, int index) {
-            // 鮮豔顏色陣列：紅、藍、綠、橘
-            Color[] colors = { Color.FromArgb(220, 53, 69), Color.FromArgb(0, 123, 255), Color.FromArgb(40, 167, 69), Color.FromArgb(253, 126, 20) };
-            
-            Button btn = new Button {
-                Text = text,
-                Size = new Size(120, 45),
-                Location = new Point(20 + (index * 135), 15),
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font(UI_Font.FontFamily, 12, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                BackColor = colors[index % colors.Length],
-                ForeColor = Color.White
+            // 建立主要的 TabControl
+            mainTabControl = new TabControl {
+                Dock = DockStyle.Fill,
+                Font = new Font(UI_Font.FontFamily, 12, FontStyle.Bold), // 設定頁籤字體大小
+                ItemSize = new Size(150, 45), // 設定每個頁籤的寬度與高度，讓它像按鈕一樣好按
+                SizeMode = TabSizeMode.Fixed, // 固定頁籤大小
+                Padding = new Point(15, 5)
             };
-            btn.FlatAppearance.BorderSize = 0;
 
-            btn.Click += (s, e) => {
-                switch (text) {
-                    case "截圖": ShowModule(screenshotControl ?? (screenshotControl = new App_Screenshot(this))); break;
-                    case "繪製": ShowModule(drawingControl ?? (drawingControl = new App_Drawing())); break;
-                    case "拼貼": ShowModule(collageControl ?? (collageControl = new App_Collage())); break;
-                    case "壓縮": ShowModule(compressControl ?? (compressControl = new App_Compress())); break;
-                }
-            };
-            return btn;
-        }
+            // 建立各個頁籤分頁 (TabPage)
+            TabPage tabScreenshot = new TabPage("截圖") { BackColor = Color.White };
+            TabPage tabDrawing = new TabPage("繪製") { BackColor = Color.White };
+            TabPage tabCollage = new TabPage("拼貼") { BackColor = Color.White };
+            TabPage tabCompress = new TabPage("壓縮") { BackColor = Color.White };
 
-        private void ShowModule(UserControl module) {
-            contentPanel.Controls.Clear();
-            module.Dock = DockStyle.Fill;
-            contentPanel.Controls.Add(module);
+            // 初始化各個功能模組，並設定 Dock 填滿，然後加入對應的頁籤中
+            screenshotControl = new App_Screenshot(this) { Dock = DockStyle.Fill };
+            tabScreenshot.Controls.Add(screenshotControl);
+
+            drawingControl = new App_Drawing() { Dock = DockStyle.Fill };
+            tabDrawing.Controls.Add(drawingControl);
+
+            collageControl = new App_Collage() { Dock = DockStyle.Fill };
+            tabCollage.Controls.Add(collageControl);
+
+            compressControl = new App_Compress() { Dock = DockStyle.Fill };
+            tabCompress.Controls.Add(compressControl);
+
+            // 將所有分頁加入到 TabControl 裡面
+            mainTabControl.TabPages.Add(tabScreenshot);
+            mainTabControl.TabPages.Add(tabDrawing);
+            mainTabControl.TabPages.Add(tabCollage);
+            mainTabControl.TabPages.Add(tabCompress);
+
+            // 將 TabControl 加入到主視窗
+            this.Controls.Add(mainTabControl);
         }
     }
 }
