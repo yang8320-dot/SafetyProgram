@@ -1,6 +1,4 @@
-/* * 功能：進階向量繪製模組 (Ctrl+Z 返回, Ctrl+S 儲存)
- * 對應選單名稱：繪製
- * 對應資料表名稱：App_Drawing
+/* * 功能：進階向量繪製模組 (雙擊編輯文字、對齊、流式排版、ESC/Delete/Ctrl+S快捷鍵)
  */
 using System;
 using System.Drawing;
@@ -19,6 +17,7 @@ namespace MiniImageStudio {
             public string Text;
             public Font Font;
             public Color BgColor, BorderColor;
+            public string TextAlign; 
             public int Opacity;
             public RectangleF TextRect;
             public bool IsSelected = false;
@@ -48,21 +47,23 @@ namespace MiniImageStudio {
         private List<DrawShape> shapes = new List<DrawShape>();
         private DrawShape selectedShape = null;
         private DrawShape drawingShape = null;
+        private TextBox editBox = null;
+        private DrawShape editingShape = null;
         
         private Color penColor = Color.Red;
-        private string drawMode = "Line";
-        private int penWidth = 3;
+        private string drawMode = "Frame"; 
         
-        private bool isDraggingShape = false;
-        private bool isResizingText = false;
+        private bool isDraggingShape = false, isResizingText = false;
         private Point lastMousePos;
-
         private bool isTextModeActive = false;
-        private string textContent = "請輸入文字";
+        
+        private string textContent = "請輸入文字...";
         private Font textFont = new Font("Microsoft JhengHei UI", 24, FontStyle.Bold);
         private Color textColor = Color.White, textBgColor = Color.Black, textBorderColor = Color.White;
         private int textOpacity = 150;
-        private TextBox txtInput;
+
+        private ComboBox cbMode, cbAlign;
+        private NumericUpDown numPenSize;
 
         public App_Drawing() {
             this.Font = MainForm.UI_Font;
@@ -71,84 +72,98 @@ namespace MiniImageStudio {
         }
 
         private void InitializeUI() {
-            Panel ctrlPanel = new Panel { Dock = DockStyle.Top, Height = 130, BackColor = SystemColors.Control };
-            
-            Button btnLoad = new Button { Text = "載入圖片", Left = 15, Top = 15, Width = 90, Height = 32 };
-            Button btnRotate = new Button { Text = "旋轉圖片", Left = 110, Top = 15, Width = 90, Height = 32 };
-            Button btnPenColor = new Button { Text = "", Left = 205, Top = 15, Width = 50, Height = 32, BackColor = penColor }; 
-            
-            ComboBox cbMode = new ComboBox { Left = 265, Top = 16, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font(this.Font.FontFamily, 12) };
-            cbMode.Items.AddRange(new string[] { "畫線", "畫框", "畫圓" });
-            cbMode.SelectedIndex = 0;
+            FlowLayoutPanel ctrlPanel = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, BackColor = SystemColors.Control };
 
-            ComboBox cbSize = new ComboBox { Left = 365, Top = 16, Width = 80, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font(this.Font.FontFamily, 12) };
-            cbSize.Items.AddRange(new string[] { "細(2pt)", "中(5pt)", "粗(10pt)" });
-            cbSize.SelectedIndex = 0;
+            // 群組 1: 畫布控制
+            GroupBox gb1 = new GroupBox { Text = "畫布", AutoSize = true, Padding = new Padding(5) };
+            FlowLayoutPanel fl1 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            Button btnLoad = new Button { Text = "載入圖片", Width = 90, Height = 32 };
+            Button btnRotate = new Button { Text = "旋轉圖片", Width = 90, Height = 32 };
+            Button btnClear = new Button { Text = "清除全部", Width = 90, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存圖片", Width = 90, Height = 32, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            fl1.Controls.AddRange(new Control[] { btnLoad, btnRotate, btnClear, btnSave });
+            gb1.Controls.Add(fl1);
 
-            Button btnUndo = new Button { Text = "返回", Left = 455, Top = 15, Width = 70, Height = 32 };
-            Button btnClear = new Button { Text = "清除全部", Left = 535, Top = 15, Width = 90, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存圖片", Left = 635, Top = 15, Width = 90, Height = 32, BackColor = Color.SeaGreen, ForeColor = Color.White };
-
-            Button btnInsertText = new Button { Text = "插入文字框", Left = 15, Top = 75, Width = 110, Height = 32, BackColor = Color.SteelBlue, ForeColor = Color.White };
-            txtInput = new TextBox { Left = 135, Top = 80, Width = 150, Text = textContent };
+            // 群組 2: 繪圖工具
+            GroupBox gb2 = new GroupBox { Text = "繪圖工具", AutoSize = true, Padding = new Padding(5) };
+            FlowLayoutPanel fl2 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            cbMode = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font(this.Font.FontFamily, 12), Margin = new Padding(3,5,3,3) };
+            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" });
+            cbMode.SelectedIndex = 1; // 預設畫框
             
-            Button btnFont = new Button { Text = "字體", Left = 295, Top = 75, Width = 60, Height = 32 };
-            Button btnTextColor = new Button { Text = "字色", Left = 360, Top = 75, Width = 60, Height = 32, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Left = 425, Top = 75, Width = 60, Height = 32, BackColor = textBgColor };
-            Button btnBorderColor = new Button { Text = "框色", Left = 490, Top = 75, Width = 60, Height = 32, BackColor = textBorderColor };
-            
-            Label lblOpacity = new Label { Text = "透明度:", Left = 560, Top = 83, AutoSize = true };
-            TrackBar tbOpacity = new TrackBar { Left = 620, Top = 75, Width = 120, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            Label lblSize = new Label { Text = "粗細:", AutoSize = true, Margin = new Padding(3,10,3,3) };
+            numPenSize = new NumericUpDown { Minimum = 1, Maximum = 10, Value = 5, Width = 50, Font = new Font(this.Font.FontFamily, 12), Margin = new Padding(3,5,3,3) };
+            Button btnPenColor = new Button { Width = 32, Height = 32, BackColor = penColor }; 
+            Button btnUndo = new Button { Text = "返回", Width = 70, Height = 32 };
+            fl2.Controls.AddRange(new Control[] { cbMode, lblSize, numPenSize, btnPenColor, btnUndo });
+            gb2.Controls.Add(fl2);
 
+            // 群組 3: 文字工具
+            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", AutoSize = true, Padding = new Padding(5) };
+            FlowLayoutPanel fl3 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            Button btnInsertText = new Button { Text = "插入文字框", Width = 110, Height = 32, BackColor = Color.SteelBlue, ForeColor = Color.White };
+            
+            cbAlign = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3,5,3,3) };
+            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" });
+            cbAlign.SelectedIndex = 0;
+
+            Button btnFont = new Button { Text = "字體", Width = 60, Height = 32 };
+            Button btnTextColor = new Button { Text = "字色", Width = 60, Height = 32, BackColor = textColor };
+            Button btnBgColor = new Button { Text = "底色", Width = 60, Height = 32, BackColor = textBgColor };
+            Button btnBorderColor = new Button { Text = "框色", Width = 60, Height = 32, BackColor = textBorderColor };
+            Label lblOpacity = new Label { Text = "透明度:", AutoSize = true, Margin = new Padding(3,10,3,3) };
+            TrackBar tbOpacity = new TrackBar { Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            fl3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, btnBorderColor, lblOpacity, tbOpacity });
+            gb3.Controls.Add(fl3);
+
+            ctrlPanel.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
+
+            // 事件綁定
             btnLoad.Click += (s, e) => LoadImage();
             btnRotate.Click += (s, e) => RotateCanvas();
-            btnPenColor.Click += (s, e) => ChooseColor(ref penColor, btnPenColor);
-            cbMode.SelectedIndexChanged += (s, e) => { drawMode = cbMode.SelectedIndex == 0 ? "Line" : (cbMode.SelectedIndex == 1 ? "Frame" : "Circle"); };
-            cbSize.SelectedIndexChanged += (s, e) => penWidth = cbSize.SelectedIndex == 0 ? 2 : (cbSize.SelectedIndex == 1 ? 5 : 10);
-            
-            btnUndo.Click += (s, e) => UndoShape();
             btnClear.Click += (s, e) => { shapes.Clear(); if (canvas != null) { canvas.Dispose(); canvas = null; } pb.Invalidate(); };
             btnSave.Click += (s, e) => SaveImage();
 
-            btnInsertText.Click += (s, e) => { isTextModeActive = true; pb.Cursor = Cursors.IBeam; };
-            txtInput.TextChanged += (s, e) => { textContent = txtInput.Text; UpdateSelectedTextProperty(); };
+            cbMode.SelectedIndexChanged += (s, e) => {
+                if (cbMode.SelectedIndex == 0) drawMode = "Select";
+                else if (cbMode.SelectedIndex == 1) drawMode = "Frame";
+                else if (cbMode.SelectedIndex == 2) drawMode = "Line";
+                else drawMode = "Circle";
+            };
+            btnPenColor.Click += (s, e) => ChooseColor(ref penColor, btnPenColor);
+            btnUndo.Click += (s, e) => UndoShape();
+
+            btnInsertText.Click += (s, e) => { isTextModeActive = true; cbMode.SelectedIndex = 0; pb.Cursor = Cursors.Cross; };
+            cbAlign.SelectedIndexChanged += (s, e) => UpdateSelectedTextProperty();
             btnFont.Click += (s, e) => { using (FontDialog fd = new FontDialog { Font = textFont }) { if (fd.ShowDialog() == DialogResult.OK) { textFont = fd.Font; UpdateSelectedTextProperty(); } } };
             btnTextColor.Click += (s, e) => { ChooseColor(ref textColor, btnTextColor); UpdateSelectedTextProperty(); };
             btnBgColor.Click += (s, e) => { ChooseColor(ref textBgColor, btnBgColor); UpdateSelectedTextProperty(); };
             btnBorderColor.Click += (s, e) => { ChooseColor(ref textBorderColor, btnBorderColor); UpdateSelectedTextProperty(); };
             tbOpacity.ValueChanged += (s, e) => { textOpacity = tbOpacity.Value; UpdateSelectedTextProperty(); };
 
-            ctrlPanel.Controls.AddRange(new Control[] { 
-                btnLoad, btnRotate, btnPenColor, cbMode, cbSize, btnUndo, btnClear, btnSave,
-                btnInsertText, txtInput, btnFont, btnTextColor, btnBgColor, btnBorderColor, lblOpacity, tbOpacity
-            });
-
             pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.DarkGray };
             pb.Paint += Pb_Paint;
             pb.MouseDown += Pb_MouseDown;
             pb.MouseMove += Pb_MouseMove;
             pb.MouseUp += Pb_MouseUp;
+            pb.MouseDoubleClick += Pb_MouseDoubleClick;
 
             this.Controls.Add(pb);
-            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 15 });
+            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 10 });
             this.Controls.Add(ctrlPanel);
         }
 
         private void ChooseColor(ref Color target, Button btn) {
-            using (ColorDialog cd = new ColorDialog { Color = target }) {
-                if (cd.ShowDialog() == DialogResult.OK) { target = cd.Color; btn.BackColor = target; pb.Invalidate(); }
-            }
+            using (ColorDialog cd = new ColorDialog { Color = target }) { if (cd.ShowDialog() == DialogResult.OK) { target = cd.Color; btn.BackColor = target; pb.Invalidate(); } }
         }
 
-        private void UndoShape() {
-            if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); pb.Invalidate(); }
-        }
+        private void UndoShape() { CommitTextEdit(); if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); pb.Invalidate(); } }
 
         private void UpdateSelectedTextProperty() {
             if (selectedShape != null && selectedShape.Type == "Text") {
-                selectedShape.Text = textContent; selectedShape.Font = textFont;
-                selectedShape.Color = textColor; selectedShape.BgColor = textBgColor;
-                selectedShape.BorderColor = textBorderColor; selectedShape.Opacity = textOpacity;
+                selectedShape.Font = textFont; selectedShape.Color = textColor;
+                selectedShape.BgColor = textBgColor; selectedShape.BorderColor = textBorderColor;
+                selectedShape.Opacity = textOpacity; selectedShape.TextAlign = cbAlign.SelectedItem.ToString();
                 pb.Invalidate();
             }
         }
@@ -161,6 +176,7 @@ namespace MiniImageStudio {
 
         private void RotateCanvas() {
             if (canvas != null) {
+                CommitTextEdit();
                 int w = canvas.Width, h = canvas.Height;
                 canvas.RotateFlip(RotateFlipType.Rotate90FlipNone);
                 foreach (var s in shapes) {
@@ -176,18 +192,17 @@ namespace MiniImageStudio {
             }
         }
 
-        // --- 修正快捷鍵綁定：Ctrl+Z 返回, Ctrl+S 儲存 ---
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
-            if (keyData == Keys.Delete && !txtInput.Focused) {
-                shapes.RemoveAll(s => s.IsSelected); selectedShape = null; pb.Invalidate();
-                return true;
+            if (keyData == Keys.Escape) {
+                CommitTextEdit(); drawMode = "Select"; cbMode.SelectedIndex = 0;
+                isTextModeActive = false; pb.Cursor = Cursors.Default; pb.Invalidate(); return true;
             }
-            if (keyData == (Keys.Control | Keys.Z)) {
-                UndoShape(); return true;
+            if (keyData == Keys.Delete && editBox == null) {
+                if (selectedShape != null) { shapes.Remove(selectedShape); selectedShape = null; pb.Invalidate(); return true; }
+                if (canvas != null) { canvas.Dispose(); canvas = null; pb.Invalidate(); return true; } // 清除背景
             }
-            if (keyData == (Keys.Control | Keys.S)) {
-                SaveImage(); return true;
-            }
+            if (keyData == (Keys.Control | Keys.Z)) { UndoShape(); return true; }
+            if (keyData == (Keys.Control | Keys.S)) { SaveImage(); return true; }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
@@ -199,10 +214,9 @@ namespace MiniImageStudio {
         }
 
         private Point TranslatePoint(Point p) {
-            Rectangle disp = GetDisplayRect();
-            if (disp.IsEmpty) return p;
-            float scaleX = (float)canvas.Width / disp.Width, scaleY = (float)canvas.Height / disp.Height;
-            return new Point((int)((p.X - disp.X) * scaleX), (int)((p.Y - disp.Y) * scaleY));
+            Rectangle disp = GetDisplayRect(); if (disp.IsEmpty) return p;
+            float sX = (float)canvas.Width / disp.Width, sY = (float)canvas.Height / disp.Height;
+            return new Point((int)((p.X - disp.X) * sX), (int)((p.Y - disp.Y) * sY));
         }
 
         private void DrawShapes(Graphics g) {
@@ -211,8 +225,17 @@ namespace MiniImageStudio {
                 if (s.Type == "Text") {
                     using (SolidBrush bg = new SolidBrush(Color.FromArgb(s.Opacity, s.BgColor))) g.FillRectangle(bg, s.TextRect);
                     using (Pen border = new Pen(s.BorderColor, 3)) g.DrawRectangle(border, s.TextRect.X, s.TextRect.Y, s.TextRect.Width, s.TextRect.Height);
-                    RectangleF textContentRect = new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20);
-                    using (SolidBrush tb = new SolidBrush(s.Color)) g.DrawString(s.Text, s.Font, tb, textContentRect);
+                    
+                    StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Near };
+                    if (s.TextAlign == "置中") sf.Alignment = StringAlignment.Center;
+                    else if (s.TextAlign == "靠右") sf.Alignment = StringAlignment.Far;
+                    else sf.Alignment = StringAlignment.Near;
+
+                    RectangleF tRect = new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20);
+                    // 隱藏正在編輯的文字
+                    if (s != editingShape) {
+                        using (SolidBrush tb = new SolidBrush(s.Color)) g.DrawString(s.Text, s.Font, tb, tRect, sf);
+                    }
                 } else {
                     using (Pen p = new Pen(s.Color, s.PenWidth)) {
                         int x = Math.Min(s.Start.X, s.End.X), y = Math.Min(s.Start.Y, s.End.Y);
@@ -223,13 +246,10 @@ namespace MiniImageStudio {
                     }
                 }
                 if (s.IsSelected) {
-                    using (Pen dash = new Pen(Color.Cyan, 2) { DashStyle = DashStyle.Dash }) {
-                        Rectangle bounds = s.GetBounds(); bounds.Inflate(5, 5); g.DrawRectangle(dash, bounds);
-                    }
+                    using (Pen dash = new Pen(Color.Cyan, 2) { DashStyle = DashStyle.Dash }) { Rectangle bounds = s.GetBounds(); bounds.Inflate(5, 5); g.DrawRectangle(dash, bounds); }
                     if (s.Type == "Text") {
                         RectangleF handle = s.GetResizeHandle();
-                        g.FillRectangle(new SolidBrush(Color.FromArgb(150, Color.Cyan)), handle);
-                        g.DrawRectangle(Pens.DarkBlue, handle.X, handle.Y, handle.Width, handle.Height);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(150, Color.Cyan)), handle); g.DrawRectangle(Pens.DarkBlue, handle.X, handle.Y, handle.Width, handle.Height);
                     }
                 }
             }
@@ -246,7 +266,7 @@ namespace MiniImageStudio {
         }
 
         private void Pb_MouseDown(object sender, MouseEventArgs e) {
-            pb.Focus();
+            pb.Focus(); CommitTextEdit();
             if (canvas == null) return;
             Point imgPt = TranslatePoint(e.Location);
 
@@ -255,60 +275,75 @@ namespace MiniImageStudio {
             }
 
             selectedShape = null;
-            for (int i = shapes.Count - 1; i >= 0; i--) {
-                if (shapes[i].GetBounds().Contains(imgPt)) { selectedShape = shapes[i]; break; }
-            }
-            foreach (var s in shapes) s.IsSelected = (s == selectedShape);
+            for (int i = shapes.Count - 1; i >= 0; i--) { if (shapes[i].GetBounds().Contains(imgPt)) { selectedShape = shapes[i]; break; } }
+            shapes.ForEach(s => s.IsSelected = (s == selectedShape));
 
             if (selectedShape != null) {
                 isDraggingShape = true; lastMousePos = imgPt;
                 if (selectedShape.Type == "Text") {
-                    txtInput.Text = selectedShape.Text; textContent = selectedShape.Text;
                     textFont = selectedShape.Font; textColor = selectedShape.Color;
                     textBgColor = selectedShape.BgColor; textBorderColor = selectedShape.BorderColor;
-                    textOpacity = selectedShape.Opacity;
+                    textOpacity = selectedShape.Opacity; cbAlign.SelectedItem = selectedShape.TextAlign;
                 }
                 pb.Invalidate(); return;
             }
 
             if (isTextModeActive) {
-                var s = new DrawShape { Type = "Text", Text = textContent, Font = textFont, Color = textColor, BgColor = textBgColor, BorderColor = textBorderColor, Opacity = textOpacity, TextRect = new RectangleF(imgPt.X, imgPt.Y, 200, 80), IsSelected = true };
-                shapes.ForEach(x => x.IsSelected = false);
-                shapes.Add(s); selectedShape = s;
-                isTextModeActive = false; pb.Cursor = Cursors.Cross; pb.Invalidate(); return;
+                var s = new DrawShape { Type = "Text", Text = textContent, Font = textFont, Color = textColor, BgColor = textBgColor, BorderColor = textBorderColor, Opacity = textOpacity, TextAlign = cbAlign.SelectedItem.ToString(), TextRect = new RectangleF(imgPt.X, imgPt.Y, 200, 80), IsSelected = true };
+                shapes.ForEach(x => x.IsSelected = false); shapes.Add(s); selectedShape = s;
+                isTextModeActive = false; pb.Cursor = Cursors.Default; pb.Invalidate(); return;
             }
-
-            drawingShape = new DrawShape { Type = drawMode, Color = penColor, PenWidth = penWidth, Start = imgPt, End = imgPt };
-            shapes.Add(drawingShape);
+            if (drawMode != "Select") {
+                drawingShape = new DrawShape { Type = drawMode, Color = penColor, PenWidth = (int)numPenSize.Value, Start = imgPt, End = imgPt };
+                shapes.Add(drawingShape);
+            }
         }
 
         private void Pb_MouseMove(object sender, MouseEventArgs e) {
             Point imgPt = TranslatePoint(e.Location);
-            
-            if (selectedShape != null && selectedShape.Type == "Text" && selectedShape.GetResizeHandle().Contains(imgPt)) {
-                pb.Cursor = Cursors.SizeNWSE;
-            } else if (!isTextModeActive) {
-                pb.Cursor = Cursors.Cross;
-            }
+            if (selectedShape != null && selectedShape.Type == "Text" && selectedShape.GetResizeHandle().Contains(imgPt)) pb.Cursor = Cursors.SizeNWSE;
+            else if (isTextModeActive) pb.Cursor = Cursors.Cross;
+            else pb.Cursor = Cursors.Default;
 
             if (isResizingText && selectedShape != null) {
                 selectedShape.TextRect.Width = Math.Max(50, imgPt.X - selectedShape.TextRect.X);
                 selectedShape.TextRect.Height = Math.Max(30, imgPt.Y - selectedShape.TextRect.Y);
                 pb.Invalidate();
             } else if (isDraggingShape && selectedShape != null) {
-                selectedShape.Move(imgPt.X - lastMousePos.X, imgPt.Y - lastMousePos.Y);
-                lastMousePos = imgPt; pb.Invalidate();
-            } else if (drawingShape != null) {
-                drawingShape.End = imgPt; pb.Invalidate();
+                selectedShape.Move(imgPt.X - lastMousePos.X, imgPt.Y - lastMousePos.Y); lastMousePos = imgPt; pb.Invalidate();
+            } else if (drawingShape != null) { drawingShape.End = imgPt; pb.Invalidate(); }
+        }
+
+        private void Pb_MouseUp(object sender, MouseEventArgs e) { isDraggingShape = false; isResizingText = false; drawingShape = null; }
+
+        private void Pb_MouseDoubleClick(object sender, MouseEventArgs e) {
+            if (selectedShape != null && selectedShape.Type == "Text") ShowEditBox(selectedShape);
+        }
+
+        private void ShowEditBox(DrawShape s) {
+            editingShape = s;
+            editBox = new TextBox { Multiline = true, Text = s.Text, Font = s.Font };
+            if (s.TextAlign == "置中") editBox.TextAlign = HorizontalAlignment.Center;
+            else if (s.TextAlign == "靠右") editBox.TextAlign = HorizontalAlignment.Right;
+            else editBox.TextAlign = HorizontalAlignment.Left;
+
+            Rectangle disp = GetDisplayRect();
+            float sX = (float)disp.Width / canvas.Width, sY = (float)disp.Height / canvas.Height;
+            RectangleF screenRect = new RectangleF(disp.X + (s.TextRect.X + 10) * sX, disp.Y + (s.TextRect.Y + 10) * sY, (s.TextRect.Width - 20) * sX, (s.TextRect.Height - 20) * sY);
+            
+            editBox.Location = Point.Round(screenRect.Location); editBox.Size = Size.Round(screenRect.Size);
+            editBox.LostFocus += (sender, e) => CommitTextEdit();
+            pb.Controls.Add(editBox); editBox.BringToFront(); editBox.Focus(); pb.Invalidate();
+        }
+
+        private void CommitTextEdit() {
+            if (editBox != null && editingShape != null) {
+                editingShape.Text = editBox.Text; pb.Controls.Remove(editBox); editBox.Dispose(); editBox = null; editingShape = null; pb.Invalidate();
             }
         }
 
-        private void Pb_MouseUp(object sender, MouseEventArgs e) {
-            isDraggingShape = false; isResizingText = false; drawingShape = null;
-        }
-
         private void SaveImage() {
-            if (canvas == null) return;
+            CommitTextEdit(); if (canvas == null) return;
             shapes.ForEach(s => s.IsSelected = false); 
             Bitmap finalImg = new Bitmap(canvas.Width, canvas.Height);
             using (Graphics g = Graphics.FromImage(finalImg)) { g.DrawImage(canvas, 0, 0); DrawShapes(g); }
