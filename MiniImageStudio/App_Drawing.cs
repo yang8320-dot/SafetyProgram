@@ -78,6 +78,20 @@ namespace MiniImageStudio {
             InitializeUI();
         }
 
+        // ==========================================
+        // 加入 Ctrl + Z 快捷鍵攔截，執行「返回 (Undo)」動作
+        // ==========================================
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
+            if (keyData == (Keys.Control | Keys.Z)) {
+                if (shapes.Count > 0) {
+                    shapes.RemoveAt(shapes.Count - 1);
+                    pb.Invalidate();
+                }
+                return true; // 標示按鍵已處理
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         private void InitializeUI() {
             FlowLayoutPanel mainFlow = new FlowLayoutPanel { 
                 Dock = DockStyle.Top, 
@@ -105,19 +119,22 @@ namespace MiniImageStudio {
             Button btnUndo = new Button { Text = "返回", Location = new Point(190, 22), Width = 60, Height = 30 };
             gb2.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
 
-            // ================== 群組 3: 文字工具 ==================
-            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(610, 65), Margin = new Padding(5) };
+            // ================== 群組 3: 文字工具 (加寬並優化排版) ==================
+            // 將 GroupBox 寬度增加至 620，拉寬按鈕並調整間距
+            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(620, 65), Margin = new Padding(5) };
             Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
-            cbAlign = new ComboBox { Location = new Point(120, 24), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbAlign = new ComboBox { Location = new Point(120, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
             cbAlign.SelectedIndex = 0;
             
-            Button btnFont = new Button { Text = "字體", Location = new Point(190, 22), Width = 55, Height = 30 };
-            Button btnTextColor = new Button { Text = "字色", Location = new Point(255, 22), Width = 55, Height = 30, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Location = new Point(320, 22), Width = 55, Height = 30, BackColor = textBgColor };
-            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(385, 30), AutoSize = true };
-            TrackBar tbOpacity = new TrackBar { Location = new Point(445, 24), Width = 150, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            // 按鈕寬度由 55 增加到 60，並拉開 X 軸間距
+            Button btnFont = new Button { Text = "字體", Location = new Point(195, 22), Width = 60, Height = 30 };
+            Button btnTextColor = new Button { Text = "字色", Location = new Point(265, 22), Width = 60, Height = 30, BackColor = textColor };
+            Button btnBgColor = new Button { Text = "底色", Location = new Point(335, 22), Width = 60, Height = 30, BackColor = textBgColor };
+            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(405, 30), AutoSize = true };
+            TrackBar tbOpacity = new TrackBar { Location = new Point(465, 24), Width = 140, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            
             gb3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, lblOpacity, tbOpacity });
 
             mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
