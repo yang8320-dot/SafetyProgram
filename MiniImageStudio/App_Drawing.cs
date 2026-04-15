@@ -202,12 +202,40 @@ namespace MiniImageStudio {
             } catch { }
         }
 
-        private Rectangle GetDisplayRect() {
-            if (canvas == null) return Rectangle.Empty;
+private Rectangle GetDisplayRect() {
+            // 加上 pb.Width <= 0 的判斷，防止除以零或產生負數
+            if (canvas == null || pb.Width <= 0 || pb.Height <= 0) return Rectangle.Empty;
+            
             float ratio = Math.Min((float)pb.Width / canvas.Width, (float)pb.Height / canvas.Height);
-            int w = (int)(canvas.Width * ratio);
-            int h = (int)(canvas.Height * ratio);
+            // 加入 Math.Max 保護
+            int w = Math.Max(1, (int)(canvas.Width * ratio));
+            int h = Math.Max(1, (int)(canvas.Height * ratio));
+            
             return new Rectangle((pb.Width - w) / 2, (pb.Height - h) / 2, w, h);
+        }
+
+        private void Pb_Paint(object sender, PaintEventArgs e) {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            if (canvas != null) {
+                Rectangle disp = GetDisplayRect();
+                // 如果計算出的顯示區域無效，就先不要畫，避免崩潰
+                if (disp.Width <= 0 || disp.Height <= 0) return; 
+
+                e.Graphics.DrawImage(canvas, disp);
+                
+                // 處理座標映射
+                Matrix m = new Matrix();
+                m.Translate(disp.X, disp.Y);
+                m.Scale((float)disp.Width / canvas.Width, (float)disp.Height / canvas.Height);
+                e.Graphics.Transform = m;
+                
+                DrawShapes(e.Graphics);
+
+                e.Graphics.ResetTransform();
+            } else {
+                StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                e.Graphics.DrawString("請先載入圖片", this.Font, Brushes.Gray, pb.ClientRectangle, sf);
+            }
         }
 
         private void Pb_Paint(object sender, PaintEventArgs e) {
