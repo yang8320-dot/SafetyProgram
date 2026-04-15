@@ -75,23 +75,26 @@ namespace MiniImageStudio {
                 Padding = new Padding(5)
             };
 
-            // ================== 小框 1：模版與版面 ==================
-            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(580, 65), Margin = new Padding(5) };
+            // ================== 小框 1：模版與版面 (優化排版) ==================
+            // 增加 GroupBox 寬度至 610，讓畫布比例與下拉選單有足夠空間
+            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(610, 65), Margin = new Padding(5) };
             
-            Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(10, 30), AutoSize = true };
-            cbRatio = new ComboBox { Location = new Point(75, 25), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(15, 30), AutoSize = true };
+            // 將 cbRatio 往右移到 90，避開前方的 Label 中文字
+            cbRatio = new ComboBox { Location = new Point(90, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
             cbRatio.Items.AddRange(new string[] { "1:1", "4:3", "3:4", "16:9", "9:16" });
             cbRatio.SelectedIndex = 0;
 
-            cbLayout = new ComboBox { Location = new Point(150, 25), Width = 95, DropDownStyle = ComboBoxStyle.DropDownList };
+            // 後續的控制項全部順應往右推
+            cbLayout = new ComboBox { Location = new Point(165, 24), Width = 95, DropDownStyle = ComboBoxStyle.DropDownList };
             cbLayout.Items.AddRange(new string[] { "上下兩張", "左右兩張", "上1 下2", "左1 右2", "左2 右1" }); 
             cbLayout.SelectedIndex = 0;
             
-            Label lblSpacing = new Label { Text = "間距:", Location = new Point(250, 30), AutoSize = true };
-            tbSpacing = new TrackBar { Location = new Point(290, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
+            Label lblSpacing = new Label { Text = "間距:", Location = new Point(275, 30), AutoSize = true };
+            tbSpacing = new TrackBar { Location = new Point(315, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
             
-            Button btnClearAll = new Button { Text = "全部清除", Location = new Point(390, 22), Width = 80, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(480, 22), Width = 90, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            Button btnClearAll = new Button { Text = "全部清除", Location = new Point(415, 22), Width = 80, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(505, 22), Width = 90, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
             
             gb1.Controls.AddRange(new Control[] { lblRatio, cbRatio, cbLayout, lblSpacing, tbSpacing, btnClearAll, btnSave });
 
@@ -104,8 +107,7 @@ namespace MiniImageStudio {
             Button btnClearFrame = new Button { Text = "刪除圖片", Location = new Point(335, 22), Width = 80, Height = 30 };
             gb2.Controls.AddRange(new Control[] { lblScale, tbScale, lblRotate, tbRotate, btnClearFrame });
 
-            // ================== 小框 3：文字工具 (加寬並優化排版) ==================
-            // 將 GroupBox 寬度由 535 增加至 620，讓所有元素都有呼吸空間
+            // ================== 小框 3：文字工具 ==================
             GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊框可編輯)", Size = new Size(620, 65), Margin = new Padding(5) };
             Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
@@ -113,7 +115,6 @@ namespace MiniImageStudio {
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
             cbAlign.SelectedIndex = 0;
             
-            // 按鈕寬度由 55 增加到 60，並拉開 X 軸間距
             Button btnFont = new Button { Text = "字體", Location = new Point(195, 22), Width = 60, Height = 30 };
             Button btnTextColor = new Button { Text = "字色", Location = new Point(265, 22), Width = 60, Height = 30, BackColor = textColor };
             Button btnBgColor = new Button { Text = "底色", Location = new Point(335, 22), Width = 60, Height = 30, BackColor = textBgColor };
