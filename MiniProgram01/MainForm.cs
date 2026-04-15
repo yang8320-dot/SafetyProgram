@@ -200,7 +200,8 @@ public class MainForm : Form {
         }
     }
 
-    public void SetTabAlert(int tabIndex) {
+    // 修正的方法名稱：AlertTab (供其他模組呼叫)
+    public void AlertTab(int tabIndex) {
         if (tabControl.SelectedIndex != tabIndex) {
             alertTabs.Add(tabIndex);
             if (!flashTimer.Enabled) flashTimer.Start();
@@ -213,7 +214,11 @@ public class MainForm : Form {
     }
 
     // --- 視窗顯示與隱藏 ---
-    public void ShowAppWindow() {
+    // 修正的方法參數：支援傳入 tabIndex 自動切換分頁 (預設為 -1 表示不切換)
+    public void ShowAppWindow(int tabIndex = -1) {
+        if (tabIndex >= 0 && tabIndex < tabControl.TabPages.Count) {
+            tabControl.SelectedIndex = tabIndex;
+        }
         this.Show(); 
         this.WindowState = FormWindowState.Normal; 
         this.Activate(); 
