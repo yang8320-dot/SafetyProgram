@@ -1,4 +1,4 @@
-/* * 功能：批次壓縮與縮圖 (導入流式排版解決重疊問題)
+/* * 功能：批次壓縮與縮圖 (支援單/多筆拖曳上傳，自動切換至下載資料夾)
  */
 using System;
 using System.Drawing;
@@ -22,7 +22,6 @@ namespace MiniImageStudio {
         }
 
         private void InitializeUI() {
-            // 使用自動流式排版，絕對不會重疊
             FlowLayoutPanel topPanel = new FlowLayoutPanel { 
                 Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, 
                 Padding = new Padding(5), BackColor = SystemColors.Control 
@@ -36,7 +35,6 @@ namespace MiniImageStudio {
             
             lblStatus = new Label { Text = "等待中...", AutoSize = true, Margin = new Padding(15, 15, 5, 5) };
             
-            // 第二排資訊
             FlowLayoutPanel infoPanel = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, BackColor = SystemColors.Control };
             lblOutPath = new Label { Text = "輸出至: (預設為原資料夾內的 Compressed 子目錄)", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(10, 0, 10, 10) };
             infoPanel.Controls.Add(lblOutPath);
@@ -47,7 +45,9 @@ namespace MiniImageStudio {
 
             topPanel.Controls.AddRange(new Control[] { btnAdd, lblSize, txtMaxSize, btnSetFolder, btnProcess, lblStatus });
             
-            listFiles = new ListBox { Dock = DockStyle.Fill, ItemHeight = 20 };
+            listFiles = new ListBox { Dock = DockStyle.Fill, ItemHeight = 20, AllowDrop = true }; // 啟用拖曳
+            listFiles.DragEnter += ListFiles_DragEnter;
+            listFiles.DragDrop += ListFiles_DragDrop;
             
             this.Controls.Add(listFiles);
             this.Controls.Add(infoPanel);
@@ -55,13 +55,43 @@ namespace MiniImageStudio {
         }
 
         private void BtnAdd_Click(object sender, EventArgs e) {
-            using (OpenFileDialog ofd = new OpenFileDialog { Multiselect = true, Filter = "Images|*.jpg;*.png;*.jpeg" }) {
+            using (OpenFileDialog ofd = new OpenFileDialog { Multiselect = true, Filter = "Images|*.jpg;*.png;*.jpeg;*.bmp" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     foreach (var file in ofd.FileNames) {
                         if (!listFiles.Items.Contains(file)) listFiles.Items.Add(file);
                     }
                     lblStatus.Text = $"已加入 {listFiles.Items.Count} 張圖片";
                 }
+            }
+        }
+
+        // --- 處理拖曳事件 ---
+        private void ListFiles_DragEnter(object sender, DragEventArgs e) {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
+        }
+
+        private void ListFiles_DragDrop(object sender, DragEventArgs e) {
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            bool hasNewFile = false;
+
+            foreach (string file in files) {
+                string ext = Path.GetExtension(file).ToLower();
+                if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".bmp") {
+                    if (!listFiles.Items.Contains(file)) {
+                        listFiles.Items.Add(file);
+                        hasNewFile = true;
+                    }
+                }
+            }
+
+            if (hasNewFile) {
+                lblStatus.Text = $"已加入 {listFiles.Items.Count} 張圖片";
+                
+                // 拖曳上傳時，自動將預設存檔路徑設為「下載 (Downloads) / Compressed」
+                string downloadsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "Compressed");
+                customOutputDir = downloadsPath;
+                lblOutPath.Text = $"輸出至: {customOutputDir}";
+                lblOutPath.ForeColor = Color.Blue;
             }
         }
 
