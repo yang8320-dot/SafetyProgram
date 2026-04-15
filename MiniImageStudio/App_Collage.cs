@@ -1,4 +1,6 @@
-/* * 功能：拼貼與繪製終極版 (一大四小框群組化排版、修改預設提示字)
+/* * 功能：拼貼與繪製終極版 (完美解決 GroupBox 溢出跑版，內部流式自適應排版)
+ * 對應選單名稱：拼貼
+ * 對應資料表名稱：App_Collage
  */
 using System;
 using System.Drawing;
@@ -51,54 +53,75 @@ namespace MiniImageStudio {
         }
 
         private void InitializeUI() {
-            FlowLayoutPanel mainFlow = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, BackColor = SystemColors.Control };
+            // 最外層的主容器
+            FlowLayoutPanel mainFlow = new FlowLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight, 
+                BackColor = SystemColors.Control,
+                Padding = new Padding(5)
+            };
 
-            GroupBox gb1 = new GroupBox { Text = "模版與版面", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl1 = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
-            cbLayout = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3,5,3,3) };
+            // ================== 小框 1：模版與版面 ==================
+            GroupBox gb1 = new GroupBox { Text = "模版與排版", AutoSize = true, Margin = new Padding(5, 5, 10, 5) };
+            FlowLayoutPanel fl1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(5, 10, 5, 5) };
+            
+            cbLayout = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3, 6, 3, 3) };
             cbLayout.Items.AddRange(new string[] { "上下兩張", "左右兩張", "上1 下2", "左1 右2", "左2 右1" }); cbLayout.SelectedIndex = 0;
-            Label lblSpacing = new Label { Text = "間距:", AutoSize = true, Margin = new Padding(3,8,3,3) };
-            tbSpacing = new TrackBar { Width = 100, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
-            Button btnClearAll = new Button { Text = "全部清除", Width = 90, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存拼貼圖", Width = 100, Height = 32, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            Label lblSpacing = new Label { Text = "間距:", AutoSize = true, Margin = new Padding(10, 10, 0, 3) };
+            tbSpacing = new TrackBar { Width = 100, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None, Margin = new Padding(0, 5, 5, 3) };
+            Button btnClearAll = new Button { Text = "全部清除", Width = 90, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(10, 3, 3, 3) };
+            Button btnSave = new Button { Text = "儲存拼貼圖", Width = 100, Height = 32, BackColor = Color.SeaGreen, ForeColor = Color.White, Margin = new Padding(5, 3, 3, 3) };
+            
             fl1.Controls.AddRange(new Control[] { cbLayout, lblSpacing, tbSpacing, btnClearAll, btnSave });
             gb1.Controls.Add(fl1);
 
-            GroupBox gb2 = new GroupBox { Text = "選取圖片控制", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl2 = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
-            Label lblScale = new Label { Text = "縮放:", AutoSize = true, ForeColor = Color.Blue, Margin = new Padding(3,8,3,3) };
-            tbScale = new TrackBar { Width = 120, Minimum = 10, Maximum = 300, Value = 100, TickStyle = TickStyle.None, Enabled = false };
-            Label lblRotate = new Label { Text = "旋轉:", AutoSize = true, ForeColor = Color.Blue, Margin = new Padding(3,8,3,3) };
-            tbRotate = new TrackBar { Width = 120, Minimum = -180, Maximum = 180, Value = 0, TickStyle = TickStyle.None, Enabled = false };
-            Button btnClearFrame = new Button { Text = "刪除圖片", Width = 80, Height = 32 };
+            // ================== 小框 2：圖片控制 ==================
+            GroupBox gb2 = new GroupBox { Text = "選取圖片控制", AutoSize = true, Margin = new Padding(5, 5, 10, 5) };
+            FlowLayoutPanel fl2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(5, 10, 5, 5) };
+            
+            Label lblScale = new Label { Text = "縮放:", AutoSize = true, ForeColor = Color.Blue, Margin = new Padding(3, 10, 0, 3) };
+            tbScale = new TrackBar { Width = 110, Minimum = 10, Maximum = 300, Value = 100, TickStyle = TickStyle.None, Enabled = false, Margin = new Padding(0, 5, 5, 3) };
+            Label lblRotate = new Label { Text = "旋轉:", AutoSize = true, ForeColor = Color.Blue, Margin = new Padding(5, 10, 0, 3) };
+            tbRotate = new TrackBar { Width = 110, Minimum = -180, Maximum = 180, Value = 0, TickStyle = TickStyle.None, Enabled = false, Margin = new Padding(0, 5, 5, 3) };
+            Button btnClearFrame = new Button { Text = "刪除圖片", Width = 90, Height = 32, Margin = new Padding(10, 3, 3, 3) };
+            
             fl2.Controls.AddRange(new Control[] { lblScale, tbScale, lblRotate, tbRotate, btnClearFrame });
             gb2.Controls.Add(fl2);
 
-            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊框可編輯)", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl3 = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
-            Button btnInsertText = new Button { Text = "插入文字框", Width = 100, Height = 32, BackColor = Color.SteelBlue, ForeColor = Color.White };
-            cbAlign = new ComboBox { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3,5,3,3) };
+            // ================== 小框 3：文字工具 ==================
+            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊框可編輯)", AutoSize = true, Margin = new Padding(5, 5, 10, 5) };
+            FlowLayoutPanel fl3 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(5, 10, 5, 5) };
+            
+            Button btnInsertText = new Button { Text = "插入文字框", Width = 100, Height = 32, BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(3, 3, 5, 3) };
+            cbAlign = new ComboBox { Width = 65, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3, 6, 3, 3) };
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); cbAlign.SelectedIndex = 0;
-            Button btnFont = new Button { Text = "字體", Width = 55, Height = 32 };
-            Button btnTextColor = new Button { Text = "字色", Width = 55, Height = 32, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Width = 55, Height = 32, BackColor = textBgColor };
-            Label lblOpacity = new Label { Text = "透明度:", AutoSize = true, Margin = new Padding(3,8,3,3) };
-            TrackBar tbOpacity = new TrackBar { Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            Button btnFont = new Button { Text = "字體", Width = 55, Height = 32, Margin = new Padding(5, 3, 3, 3) };
+            Button btnTextColor = new Button { Text = "字色", Width = 55, Height = 32, BackColor = textColor, Margin = new Padding(3, 3, 3, 3) };
+            Button btnBgColor = new Button { Text = "底色", Width = 55, Height = 32, BackColor = textBgColor, Margin = new Padding(3, 3, 3, 3) };
+            Label lblOpacity = new Label { Text = "透明度:", AutoSize = true, Margin = new Padding(10, 10, 0, 3) };
+            TrackBar tbOpacity = new TrackBar { Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None, Margin = new Padding(0, 5, 3, 3) };
+            
             fl3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, lblOpacity, tbOpacity });
             gb3.Controls.Add(fl3);
 
-            GroupBox gb4 = new GroupBox { Text = "繪圖工具", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl4 = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
-            cbMode = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3,5,3,3) };
+            // ================== 小框 4：繪圖工具 ==================
+            GroupBox gb4 = new GroupBox { Text = "繪圖工具", AutoSize = true, Margin = new Padding(5, 5, 10, 5) };
+            FlowLayoutPanel fl4 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(5, 10, 5, 5) };
+            
+            cbMode = new ComboBox { Width = 75, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3, 6, 3, 3) };
             cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); cbMode.SelectedIndex = 0;
-            numPenSize = new NumericUpDown { Minimum = 1, Maximum = 10, Value = 5, Width = 50, Margin = new Padding(3,5,3,3) };
-            Button btnPenColor = new Button { Width = 32, Height = 32, BackColor = penColor };
-            Button btnUndo = new Button { Text = "返回", Width = 70, Height = 32 };
+            numPenSize = new NumericUpDown { Minimum = 1, Maximum = 10, Value = 5, Width = 50, Margin = new Padding(5, 6, 3, 3) };
+            Button btnPenColor = new Button { Width = 32, Height = 32, BackColor = penColor, Margin = new Padding(5, 3, 3, 3) };
+            Button btnUndo = new Button { Text = "返回", Width = 70, Height = 32, Margin = new Padding(5, 3, 3, 3) };
+            
             fl4.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
             gb4.Controls.Add(fl4);
 
             mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3, gb4 });
 
+            // --- 綁定事件 ---
             cbLayout.SelectedIndexChanged += (s, e) => LoadTemplate(cbLayout.SelectedIndex);
             tbSpacing.ValueChanged += (s, e) => { spacing = tbSpacing.Value; pb.Invalidate(); };
             btnSave.Click += (s, e) => SaveImage();
@@ -128,6 +151,7 @@ namespace MiniImageStudio {
             btnPenColor.Click += (s, e) => ChooseColor(ref penColor, btnPenColor);
             btnUndo.Click += (s, e) => UndoShape();
 
+            // --- 繪圖區 ---
             pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AllowDrop = true };
             pb.Paint += Pb_Paint;
             pb.MouseDown += Pb_MouseDown;
@@ -235,7 +259,6 @@ namespace MiniImageStudio {
                     e.Graphics.Transform = m; e.Graphics.DrawImage(frames[i].Img, Point.Empty); e.Graphics.ResetTransform();
                 } else {
                     using(StringFormat sf = new StringFormat{Alignment=StringAlignment.Center, LineAlignment=StringAlignment.Center}) {
-                        // 更新了您指定的文字
                         e.Graphics.DrawString("請點選插入圖片 或 拖曳上傳圖片", MainForm.UI_Font, Brushes.Gray, drawRect, sf);
                     }
                 }
