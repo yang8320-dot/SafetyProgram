@@ -19,6 +19,11 @@ namespace MiniImageStudio {
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
+        // 新增 ShowWindow API 來強制還原被最小化的視窗
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        private const int SW_RESTORE = 9;
+
         // 宣告 Mutex 防止重複執行 (使用唯一的 GUID)
         static Mutex mutex = new Mutex(true, "{MiniImageStudio-Pro-Unique-Instance}");
 
@@ -38,7 +43,8 @@ namespace MiniImageStudio {
                 // 注意：這裡的標題必須與 MainForm.Text 完全一致
                 IntPtr hwnd = FindWindow(null, "圖片工具程式 - 專業終極版");
                 if (hwnd != IntPtr.Zero) {
-                    SetForegroundWindow(hwnd);
+                    ShowWindow(hwnd, SW_RESTORE); // 強制還原最小化的視窗
+                    SetForegroundWindow(hwnd);    // 帶到最上層
                 }
             }
         }
