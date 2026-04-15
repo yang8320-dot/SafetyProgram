@@ -1,4 +1,4 @@
-/* * 功能：拼貼與繪製終極版 (完美解決 GroupBox 下方間距過大 Bug，採用緊湊固定高度排版)
+/* * 功能：拼貼與繪製終極版 (完美解決間距問題、支援 Ctrl+Z)
  * 對應選單名稱：拼貼
  * 對應資料表名稱：App_Collage
  */
@@ -53,7 +53,7 @@ namespace MiniImageStudio {
         }
 
         // ==========================================
-        // 加入 Ctrl + Z 快捷鍵攔截，執行「返回 (Undo)」動作
+        // 攔截 Ctrl + Z 快捷鍵
         // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
             if (keyData == (Keys.Control | Keys.Z)) {
@@ -61,7 +61,7 @@ namespace MiniImageStudio {
                     shapes.RemoveAt(shapes.Count - 1);
                     pb.Invalidate();
                 }
-                return true; // 標示按鍵已處理
+                return true; 
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
@@ -75,26 +75,26 @@ namespace MiniImageStudio {
                 Padding = new Padding(5)
             };
 
-            // ================== 小框 1：模版與版面 (優化排版) ==================
-            // 增加 GroupBox 寬度至 610，讓畫布比例與下拉選單有足夠空間
-            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(610, 65), Margin = new Padding(5) };
+            // ================== 小框 1：模版與版面 (徹底解決重疊) ==================
+            // 外框加寬到 640，確保所有控制項都有寬裕的空間
+            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(640, 65), Margin = new Padding(5) };
             
             Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(15, 30), AutoSize = true };
-            // 將 cbRatio 往右移到 90，避開前方的 Label 中文字
-            cbRatio = new ComboBox { Location = new Point(90, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
+            // 將 cbRatio 往右移動到 105，確保跟「畫布比例:」文字完美分開
+            cbRatio = new ComboBox { Location = new Point(105, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
             cbRatio.Items.AddRange(new string[] { "1:1", "4:3", "3:4", "16:9", "9:16" });
             cbRatio.SelectedIndex = 0;
 
-            // 後續的控制項全部順應往右推
-            cbLayout = new ComboBox { Location = new Point(165, 24), Width = 95, DropDownStyle = ComboBoxStyle.DropDownList };
+            // 隨之把後面的所有元件都往右順延推開
+            cbLayout = new ComboBox { Location = new Point(185, 24), Width = 95, DropDownStyle = ComboBoxStyle.DropDownList };
             cbLayout.Items.AddRange(new string[] { "上下兩張", "左右兩張", "上1 下2", "左1 右2", "左2 右1" }); 
             cbLayout.SelectedIndex = 0;
             
-            Label lblSpacing = new Label { Text = "間距:", Location = new Point(275, 30), AutoSize = true };
-            tbSpacing = new TrackBar { Location = new Point(315, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
+            Label lblSpacing = new Label { Text = "間距:", Location = new Point(290, 30), AutoSize = true };
+            tbSpacing = new TrackBar { Location = new Point(335, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
             
-            Button btnClearAll = new Button { Text = "全部清除", Location = new Point(415, 22), Width = 80, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(505, 22), Width = 90, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            Button btnClearAll = new Button { Text = "全部清除", Location = new Point(435, 22), Width = 80, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存拼貼", Location = new Point(525, 22), Width = 95, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
             
             gb1.Controls.AddRange(new Control[] { lblRatio, cbRatio, cbLayout, lblSpacing, tbSpacing, btnClearAll, btnSave });
 
@@ -226,7 +226,6 @@ namespace MiniImageStudio {
             pb.Invalidate();
         }
 
-        // 讀取並套用選擇的畫布比例 (已加入防呆機制，避免算出 0 或負數)
         private Rectangle GetCanvasRect() {
             int targetWidth = Math.Max(1, pb.Width - 40);
             int targetHeight = Math.Max(1, pb.Height - 40);
@@ -321,6 +320,9 @@ namespace MiniImageStudio {
         }
 
         private void Pb_MouseDown(object sender, MouseEventArgs e) {
+            // 【關鍵修正】強制讓 UserControl 取得焦點，以確保 Ctrl+Z 能夠正常攔截！
+            this.Focus(); 
+
             CommitTextEdit();
             lastMousePos = e.Location;
             
