@@ -1,265 +1,429 @@
-/* * 功能：進階拼貼模組 (5種樣板、自訂浮動文字框)
+/* * 功能：進階互動式拼貼模組 (支援拖曳載入、獨立縮放/旋轉、間距調整、自訂文字)
  * 對應選單名稱：拼貼
- * 對應資料庫名稱：HistoryDB
  * 對應資料表名稱：App_Collage
  */
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging; // 已補上此命名空間
+using System.Drawing.Imaging;
+using System.IO;
 using System.Windows.Forms;
+using System.Collections.Generic;
 
 namespace MiniImageStudio {
     public class App_Collage : UserControl {
+        // --- 核心資料結構：獨立圖框 ---
+        private class CollageFrame {
+            public RectangleF NormalizedRect; // 0.0 ~ 1.0 的相對比例位置
+            public Image Img = null;
+            public float Scale = 1.0f;
+            public float Angle = 0f;
+            public float OffsetX = 0f;
+            public float OffsetY = 0f;
+        }
+
         private PictureBox pb;
-        private Image[] loadedImages = new Image[3];
-        private Bitmap baseCollage; // 底圖拼貼
+        private List<CollageFrame> frames = new List<CollageFrame>();
+        private int activeFrameIndex = -1; // 目前選取的框格
+        private int spacing = 5; // 圖與圖之間的間距
+        private int baseCanvasSize = 1500; // 輸出與運算用的高解析度畫布基準
 
-        // UI 控制項
+        // --- UI 控制項 ---
         private ComboBox cbLayout;
-        private TextBox txtContent;
-        private TrackBar tbOpacity;
-        private Button btnTextColor, btnBgColor, btnBorderColor;
+        private TrackBar tbSpacing, tbScale, tbRotate;
+        private Label lblActiveFrame;
 
-        // 文字框屬性
-        private string overlayText = "點擊此處拖曳文字";
+        // --- 文字框設定 ---
+        private bool isTextModeActive = false;
+        private string textContent = "拖曳此文字";
+        private Font textFont = new Font("Microsoft JhengHei UI", 36, FontStyle.Bold);
         private Color textColor = Color.White;
-        private Color bgColor = Color.Black;
-        private Color borderColor = Color.White;
-        private int bgOpacity = 128; // 0-255
+        private Color textBgColor = Color.Black;
+        private Color textBorderColor = Color.White;
+        private int textOpacity = 150;
+        private RectangleF textRect = new RectangleF(50, 50, 250, 80);
         
-        // 拖曳狀態
-        private RectangleF textRect = new RectangleF(20, 20, 250, 60);
+        // --- 互動狀態 ---
         private bool isDraggingText = false;
+        private bool isPanningImage = false;
         private PointF dragOffset;
+        private Point lastMousePos;
 
         public App_Collage() {
             this.Font = MainForm.UI_Font;
             this.Padding = new Padding(10);
             InitializeUI();
+            LoadTemplate(0); // 預設載入第一個模版
         }
 
         private void InitializeUI() {
-            // --- 頂部面板：圖片與版型 ---
-            Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = SystemColors.Control };
+            // 控制面板分為三排，總高度 150
+            Panel ctrlPanel = new Panel { Dock = DockStyle.Top, Height = 150, BackColor = SystemColors.Control };
             
-            Button btnLoad1 = new Button { Text = "載入圖1", Left = 10, Top = 10, Width = 70 };
-            Button btnLoad2 = new Button { Text = "載入圖2", Left = 85, Top = 10, Width = 70 };
-            Button btnLoad3 = new Button { Text = "載入圖3", Left = 160, Top = 10, Width = 70 };
-            
-            cbLayout = new ComboBox { Left = 240, Top = 12, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
-            cbLayout.Items.AddRange(new string[] {
-                "1. 上下 (2圖)", 
-                "2. 左右 (2圖)", 
-                "3. 上1 下2 (3圖)", 
-                "4. 左1 右2 (3圖)", 
-                "5. 左2 右1 (3圖)"
-            });
+            // ================== 第一排 (Top: 10) 模版與全域設定 ==================
+            Label lblLayout = new Label { Text = "選擇模版:", Left = 15, Top = 15, AutoSize = true };
+            cbLayout = new ComboBox { Left = 95, Top = 10, Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbLayout.Items.AddRange(new string[] { "1. 上下兩張", "2. 左右兩張", "3. 上1 下2", "4. 左1 右2", "5. 左2 右1" });
             cbLayout.SelectedIndex = 0;
 
-            Button btnGenerate = new Button { Text = "產生底圖", Left = 430, Top = 10, Width = 80, BackColor = Color.SteelBlue, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存拼貼", Left = 520, Top = 10, Width = 80, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            Label lblSpacing = new Label { Text = "間距:", Left = 270, Top = 15, AutoSize = true };
+            tbSpacing = new TrackBar { Left = 320, Top = 10, Width = 120, Minimum = 0, Maximum = 50, Value = spacing, TickStyle = TickStyle.None };
 
-            btnLoad1.Click += (s, e) => LoadImage(0);
-            btnLoad2.Click += (s, e) => LoadImage(1);
-            btnLoad3.Click += (s, e) => LoadImage(2);
-            btnGenerate.Click += (s, e) => GenerateBaseCollage();
+            Button btnSave = new Button { Text = "儲存拼貼圖", Left = 460, Top = 10, Width = 120, Height = 35, BackColor = Color.SeaGreen, ForeColor = Color.White };
+
+            // ================== 第二排 (Top: 55) 獨立圖片控制 ==================
+            lblActiveFrame = new Label { Text = "選取狀態: 請點擊下方框格", Left = 15, Top = 60, AutoSize = true, ForeColor = Color.Blue };
+            
+            Label lblScale = new Label { Text = "縮放:", Left = 220, Top = 60, AutoSize = true };
+            tbScale = new TrackBar { Left = 265, Top = 55, Width = 100, Minimum = 10, Maximum = 300, Value = 100, TickStyle = TickStyle.None, Enabled = false };
+            
+            Label lblRotate = new Label { Text = "旋轉:", Left = 380, Top = 60, AutoSize = true };
+            tbRotate = new TrackBar { Left = 425, Top = 55, Width = 100, Minimum = -180, Maximum = 180, Value = 0, TickStyle = TickStyle.None, Enabled = false };
+
+            Button btnClearFrame = new Button { Text = "清除選取圖片", Left = 540, Top = 55, Width = 110, Height = 30 };
+
+            // ================== 第三排 (Top: 100) 插入文字控制 ==================
+            Button btnInsertText = new Button { Text = "插入文字", Left = 15, Top = 100, Width = 90, Height = 35, BackColor = Color.SteelBlue, ForeColor = Color.White };
+            TextBox txtInput = new TextBox { Left = 115, Top = 105, Width = 130, Text = textContent };
+            
+            Button btnFont = new Button { Text = "字體", Left = 255, Top = 100, Width = 55, Height = 35 };
+            Button btnTextColor = new Button { Text = "字色", Left = 315, Top = 100, Width = 55, Height = 35, BackColor = textColor };
+            Button btnBgColor = new Button { Text = "底色", Left = 375, Top = 100, Width = 55, Height = 35, BackColor = textBgColor };
+            
+            Label lblOpacity = new Label { Text = "透明度:", Left = 440, Top = 110, AutoSize = true };
+            TrackBar tbOpacity = new TrackBar { Left = 500, Top = 100, Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+
+            // --- 綁定事件 ---
+            cbLayout.SelectedIndexChanged += (s, e) => LoadTemplate(cbLayout.SelectedIndex);
+            tbSpacing.ValueChanged += (s, e) => { spacing = tbSpacing.Value; pb.Invalidate(); };
             btnSave.Click += (s, e) => SaveImage();
 
-            topPanel.Controls.AddRange(new Control[] { btnLoad1, btnLoad2, btnLoad3, cbLayout, btnGenerate, btnSave });
+            tbScale.ValueChanged += (s, e) => { if (activeFrameIndex >= 0) { frames[activeFrameIndex].Scale = tbScale.Value / 100f; pb.Invalidate(); } };
+            tbRotate.ValueChanged += (s, e) => { if (activeFrameIndex >= 0) { frames[activeFrameIndex].Angle = tbRotate.Value; pb.Invalidate(); } };
+            btnClearFrame.Click += (s, e) => {
+                if (activeFrameIndex >= 0 && frames[activeFrameIndex].Img != null) {
+                    frames[activeFrameIndex].Img.Dispose();
+                    frames[activeFrameIndex].Img = null;
+                    pb.Invalidate();
+                }
+            };
 
-            // --- 底部面板：進階文字設定 ---
-            Panel bottomPanel = new Panel { Dock = DockStyle.Bottom, Height = 60, BackColor = SystemColors.ControlLight };
-            
-            Label lblText = new Label { Text = "文字內容:", Left = 10, Top = 20, AutoSize = true };
-            txtContent = new TextBox { Left = 80, Top = 15, Width = 150, Text = overlayText };
-            txtContent.TextChanged += (s, e) => { overlayText = txtContent.Text; pb.Invalidate(); };
-
-            btnTextColor = new Button { Text = "字色", Left = 240, Top = 15, Width = 50, BackColor = textColor };
-            btnBgColor = new Button { Text = "底色", Left = 295, Top = 15, Width = 50, BackColor = bgColor };
-            btnBorderColor = new Button { Text = "框色", Left = 350, Top = 15, Width = 50, BackColor = borderColor };
-            
-            Label lblOpacity = new Label { Text = "透明度:", Left = 410, Top = 20, AutoSize = true };
-            tbOpacity = new TrackBar { Left = 460, Top = 10, Width = 120, Minimum = 0, Maximum = 255, Value = bgOpacity, TickStyle = TickStyle.None };
-            tbOpacity.ValueChanged += (s, e) => { bgOpacity = tbOpacity.Value; pb.Invalidate(); };
-
+            btnInsertText.Click += (s, e) => { isTextModeActive = true; pb.Invalidate(); };
+            txtInput.TextChanged += (s, e) => { textContent = txtInput.Text; if (isTextModeActive) pb.Invalidate(); };
+            btnFont.Click += (s, e) => { using (FontDialog fd = new FontDialog { Font = textFont }) { if (fd.ShowDialog() == DialogResult.OK) { textFont = fd.Font; pb.Invalidate(); } } };
             btnTextColor.Click += (s, e) => ChooseColor(ref textColor, btnTextColor);
-            btnBgColor.Click += (s, e) => ChooseColor(ref bgColor, btnBgColor);
-            btnBorderColor.Click += (s, e) => ChooseColor(ref borderColor, btnBorderColor);
+            btnBgColor.Click += (s, e) => ChooseColor(ref textBgColor, btnBgColor);
+            tbOpacity.ValueChanged += (s, e) => { textOpacity = tbOpacity.Value; pb.Invalidate(); };
 
-            bottomPanel.Controls.AddRange(new Control[] { lblText, txtContent, btnTextColor, btnBgColor, btnBorderColor, lblOpacity, tbOpacity });
+            ctrlPanel.Controls.AddRange(new Control[] { 
+                lblLayout, cbLayout, lblSpacing, tbSpacing, btnSave,
+                lblActiveFrame, lblScale, tbScale, lblRotate, tbRotate, btnClearFrame,
+                btnInsertText, txtInput, btnFont, btnTextColor, btnBgColor, lblOpacity, tbOpacity
+            });
 
             // --- 圖片預覽區 ---
-            pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.DarkGray, Cursor = Cursors.Hand };
+            pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, Cursor = Cursors.Cross, AllowDrop = true };
             pb.Paint += Pb_Paint;
             pb.MouseDown += Pb_MouseDown;
             pb.MouseMove += Pb_MouseMove;
             pb.MouseUp += Pb_MouseUp;
+            pb.DragEnter += Pb_DragEnter;
+            pb.DragDrop += Pb_DragDrop;
 
             this.Controls.Add(pb);
-            this.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 10 });
-            this.Controls.Add(bottomPanel);
-            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 10 });
-            this.Controls.Add(topPanel);
+            this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 15 });
+            this.Controls.Add(ctrlPanel);
         }
 
-        private void ChooseColor(ref Color targetColor, Button btn) {
-            using (ColorDialog cd = new ColorDialog { Color = targetColor }) {
-                if (cd.ShowDialog() == DialogResult.OK) {
-                    targetColor = cd.Color;
-                    btn.BackColor = targetColor;
-                    pb.Invalidate();
-                }
+        private void ChooseColor(ref Color target, Button btn) {
+            using (ColorDialog cd = new ColorDialog { Color = target }) {
+                if (cd.ShowDialog() == DialogResult.OK) { target = cd.Color; btn.BackColor = target; pb.Invalidate(); }
             }
         }
 
-        private void LoadImage(int index) {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Images|*.jpg;*.png" }) {
-                if (ofd.ShowDialog() == DialogResult.OK) {
-                    if (loadedImages[index] != null) loadedImages[index].Dispose();
-                    loadedImages[index] = Image.FromFile(ofd.FileName);
-                    MessageBox.Show($"圖 {index + 1} 載入成功！");
-                }
+        // ================== 模版與佈局引擎 ==================
+        private void LoadTemplate(int index) {
+            // 保留舊圖片
+            List<Image> oldImages = new List<Image>();
+            foreach (var f in frames) if (f.Img != null) oldImages.Add(f.Img);
+
+            frames.Clear();
+            activeFrameIndex = -1;
+            UpdateActiveFrameUI();
+
+            if (index == 0) { // 上下
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 1, 0.5f) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 1, 0.5f) });
+            } else if (index == 1) { // 左右
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 1) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 1) });
+            } else if (index == 2) { // 上1下2
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 1, 0.5f) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 0.5f, 0.5f) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0.5f, 0.5f, 0.5f) });
+            } else if (index == 3) { // 左1右2
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 1) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 0.5f) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0.5f, 0.5f, 0.5f) });
+            } else if (index == 4) { // 左2右1
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 0.5f) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 0.5f, 0.5f) });
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 1) });
+            }
+
+            // 恢復舊圖片
+            for (int i = 0; i < Math.Min(oldImages.Count, frames.Count); i++) {
+                frames[i].Img = oldImages[i];
+                ResetFrameTransform(frames[i]);
+            }
+            pb.Invalidate();
+        }
+
+        private void ResetFrameTransform(CollageFrame frame) {
+            frame.Scale = 1.0f; frame.Angle = 0f; frame.OffsetX = 0f; frame.OffsetY = 0f;
+            if (frame.Img != null) {
+                // 自動計算初始等比例縮放以填滿框格
+                RectangleF actualRect = GetActualFrameRect(frame, baseCanvasSize, baseCanvasSize);
+                float ratio = Math.Max(actualRect.Width / frame.Img.Width, actualRect.Height / frame.Img.Height);
+                frame.Scale = ratio;
             }
         }
 
-        private void GenerateBaseCollage() {
-            int W = 1200, H = 1200; 
-            baseCollage = new Bitmap(W, H);
-
-            using (Graphics g = Graphics.FromImage(baseCollage)) {
-                g.Clear(Color.White);
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-
-                int mode = cbLayout.SelectedIndex;
-                Rectangle[] rects = new Rectangle[3];
-
-                if (mode == 0) { 
-                    rects[0] = new Rectangle(0, 0, W, H / 2);
-                    rects[1] = new Rectangle(0, H / 2, W, H / 2);
-                } else if (mode == 1) { 
-                    rects[0] = new Rectangle(0, 0, W / 2, H);
-                    rects[1] = new Rectangle(W / 2, 0, W / 2, H);
-                } else if (mode == 2) { 
-                    rects[0] = new Rectangle(0, 0, W, H / 2);
-                    rects[1] = new Rectangle(0, H / 2, W / 2, H / 2);
-                    rects[2] = new Rectangle(W / 2, H / 2, W / 2, H / 2);
-                } else if (mode == 3) { 
-                    rects[0] = new Rectangle(0, 0, W / 2, H);
-                    rects[1] = new Rectangle(W / 2, 0, W / 2, H / 2);
-                    rects[2] = new Rectangle(W / 2, H / 2, W / 2, H / 2);
-                } else if (mode == 4) { 
-                    rects[0] = new Rectangle(0, 0, W / 2, H / 2);
-                    rects[1] = new Rectangle(0, H / 2, W / 2, H / 2);
-                    rects[2] = new Rectangle(W / 2, 0, W / 2, H);
-                }
-
-                for (int i = 0; i < 3; i++) {
-                    if (loadedImages[i] != null && i < rects.Length && rects[i].Width > 0) {
-                        DrawImageZoomed(g, loadedImages[i], rects[i]);
-                    }
-                }
-            }
-            pb.Invalidate(); 
-        }
-
-        private void DrawImageZoomed(Graphics g, Image img, Rectangle destRect) {
-            float ratio = Math.Max((float)destRect.Width / img.Width, (float)destRect.Height / img.Height);
-            int newW = (int)(img.Width * ratio);
-            int newH = (int)(img.Height * ratio);
-            int x = destRect.X + (destRect.Width - newW) / 2;
-            int y = destRect.Y + (destRect.Height - newH) / 2;
-            
-            g.SetClip(destRect); 
-            g.DrawImage(img, x, y, newW, newH);
-            g.ResetClip();
-            g.DrawRectangle(Pens.White, destRect); 
-        }
-
-        private void Pb_Paint(object sender, PaintEventArgs e) {
-            if (baseCollage != null) {
-                e.Graphics.DrawImage(baseCollage, GetDisplayRect());
-            }
-
-            if (string.IsNullOrEmpty(overlayText)) return;
-            
-            using (Font f = new Font("Microsoft JhengHei UI", 24, FontStyle.Bold)) {
-                SizeF size = e.Graphics.MeasureString(overlayText, f);
-                textRect.Width = size.Width + 20;
-                textRect.Height = size.Height + 20;
-
-                using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(bgOpacity, bgColor))) {
-                    e.Graphics.FillRectangle(bgBrush, textRect);
-                }
-                using (Pen borderPen = new Pen(borderColor, 3)) {
-                    e.Graphics.DrawRectangle(borderPen, textRect.X, textRect.Y, textRect.Width, textRect.Height);
-                }
-                using (SolidBrush textBrush = new SolidBrush(textColor)) {
-                    e.Graphics.DrawString(overlayText, f, textBrush, textRect.X + 10, textRect.Y + 10);
-                }
-            }
-        }
-
+        // ================== 座標轉換與渲染核心 ==================
         private Rectangle GetDisplayRect() {
-            if (baseCollage == null) return Rectangle.Empty;
-            float ratio = Math.Min((float)pb.Width / baseCollage.Width, (float)pb.Height / baseCollage.Height);
-            int w = (int)(baseCollage.Width * ratio);
-            int h = (int)(baseCollage.Height * ratio);
+            float ratio = Math.Min((float)pb.Width / baseCanvasSize, (float)pb.Height / baseCanvasSize);
+            int w = (int)(baseCanvasSize * ratio);
+            int h = (int)(baseCanvasSize * ratio);
             return new Rectangle((pb.Width - w) / 2, (pb.Height - h) / 2, w, h);
         }
 
+        private RectangleF GetActualFrameRect(CollageFrame frame, int W, int H) {
+            float x = frame.NormalizedRect.X * W + spacing;
+            float y = frame.NormalizedRect.Y * H + spacing;
+            float w = frame.NormalizedRect.Width * W - (spacing * 2);
+            float h = frame.NormalizedRect.Height * H - (spacing * 2);
+            return new RectangleF(x, y, w, h);
+        }
+
+        private void Pb_Paint(object sender, PaintEventArgs e) {
+            Rectangle dispRect = GetDisplayRect();
+            e.Graphics.FillRectangle(Brushes.White, dispRect); // 畫布底色
+
+            float scaleX = (float)dispRect.Width / baseCanvasSize;
+            float scaleY = (float)dispRect.Height / baseCanvasSize;
+
+            for (int i = 0; i < frames.Count; i++) {
+                var frame = frames[i];
+                RectangleF highResRect = GetActualFrameRect(frame, baseCanvasSize, baseCanvasSize);
+                
+                // 轉換為 PictureBox 實際顯示座標
+                RectangleF drawRect = new RectangleF(
+                    dispRect.X + highResRect.X * scaleX,
+                    dispRect.Y + highResRect.Y * scaleY,
+                    highResRect.Width * scaleX,
+                    highResRect.Height * scaleY
+                );
+
+                e.Graphics.SetClip(drawRect);
+
+                if (frame.Img != null) {
+                    e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    Matrix m = new Matrix();
+                    
+                    // 矩陣核心：移至框格中心 -> 套用平移 -> 旋轉 -> 縮放 -> 退回圖片中心
+                    PointF center = new PointF(drawRect.X + drawRect.Width / 2 + (frame.OffsetX * scaleX), 
+                                               drawRect.Y + drawRect.Height / 2 + (frame.OffsetY * scaleY));
+                    m.Translate(center.X, center.Y);
+                    m.Rotate(frame.Angle);
+                    m.Scale(frame.Scale * scaleX, frame.Scale * scaleY);
+                    m.Translate(-frame.Img.Width / 2f, -frame.Img.Height / 2f);
+                    
+                    e.Graphics.Transform = m;
+                    e.Graphics.DrawImage(frame.Img, Point.Empty);
+                    e.Graphics.ResetTransform();
+                } else {
+                    // 空框格提示
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }) {
+                        e.Graphics.DrawString("點擊或拖曳圖片至此", MainForm.UI_Font, Brushes.Gray, drawRect, sf);
+                    }
+                }
+                e.Graphics.ResetClip();
+
+                // 畫框線 (若為選取狀態則畫粗紅線)
+                using (Pen borderPen = new Pen(i == activeFrameIndex ? Color.Red : Color.LightGray, i == activeFrameIndex ? 3 : 1)) {
+                    e.Graphics.DrawRectangle(borderPen, drawRect.X, drawRect.Y, drawRect.Width, drawRect.Height);
+                }
+            }
+
+            // --- 繪製文字框 ---
+            if (isTextModeActive && !string.IsNullOrEmpty(textContent)) {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                SizeF size = e.Graphics.MeasureString(textContent, textFont);
+                textRect.Width = size.Width + 20;
+                textRect.Height = size.Height + 20;
+
+                using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(textOpacity, textBgColor))) { e.Graphics.FillRectangle(bgBrush, textRect); }
+                using (Pen borderPen = new Pen(textBorderColor, 3)) { e.Graphics.DrawRectangle(borderPen, textRect.X, textRect.Y, textRect.Width, textRect.Height); }
+                using (SolidBrush tBrush = new SolidBrush(textColor)) { e.Graphics.DrawString(textContent, textFont, tBrush, textRect.X + 10, textRect.Y + 10); }
+            }
+        }
+
+        // ================== 滑鼠互動與拖曳 ==================
+        private int GetFrameIndexAtPoint(Point p) {
+            Rectangle dispRect = GetDisplayRect();
+            float scaleX = (float)baseCanvasSize / dispRect.Width;
+            float scaleY = (float)baseCanvasSize / dispRect.Height;
+            
+            float x = (p.X - dispRect.X) * scaleX;
+            float y = (p.Y - dispRect.Y) * scaleY;
+
+            for (int i = 0; i < frames.Count; i++) {
+                RectangleF rect = GetActualFrameRect(frames[i], baseCanvasSize, baseCanvasSize);
+                if (rect.Contains(x, y)) return i;
+            }
+            return -1;
+        }
+
         private void Pb_MouseDown(object sender, MouseEventArgs e) {
-            if (textRect.Contains(e.Location)) {
+            if (isTextModeActive && textRect.Contains(e.Location)) {
                 isDraggingText = true;
                 dragOffset = new PointF(e.X - textRect.X, e.Y - textRect.Y);
+                return;
+            }
+
+            int clickedIndex = GetFrameIndexAtPoint(e.Location);
+            if (clickedIndex >= 0) {
+                activeFrameIndex = clickedIndex;
+                UpdateActiveFrameUI();
+                pb.Invalidate();
+
+                if (frames[clickedIndex].Img == null) {
+                    using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Images|*.jpg;*.png;*.bmp" }) {
+                        if (ofd.ShowDialog() == DialogResult.OK) {
+                            frames[clickedIndex].Img = Image.FromFile(ofd.FileName);
+                            ResetFrameTransform(frames[clickedIndex]);
+                            pb.Invalidate();
+                        }
+                    }
+                } else {
+                    isPanningImage = true;
+                    lastMousePos = e.Location;
+                }
+            } else {
+                activeFrameIndex = -1;
+                UpdateActiveFrameUI();
+                pb.Invalidate();
+            }
+        }
+
+        private void UpdateActiveFrameUI() {
+            if (activeFrameIndex >= 0) {
+                lblActiveFrame.Text = $"目前選取: 框格 {activeFrameIndex + 1}";
+                tbScale.Enabled = true; tbRotate.Enabled = true;
+                tbScale.Value = (int)(frames[activeFrameIndex].Scale * 100);
+                tbRotate.Value = (int)frames[activeFrameIndex].Angle;
+            } else {
+                lblActiveFrame.Text = "選取狀態: 請點擊下方框格";
+                tbScale.Enabled = false; tbRotate.Enabled = false;
+                tbScale.Value = 100; tbRotate.Value = 0;
             }
         }
 
         private void Pb_MouseMove(object sender, MouseEventArgs e) {
             if (isDraggingText) {
-                textRect.X = e.X - dragOffset.X;
-                textRect.Y = e.Y - dragOffset.Y;
+                textRect.X = e.X - dragOffset.X; textRect.Y = e.Y - dragOffset.Y;
+                pb.Invalidate();
+            } else if (isPanningImage && activeFrameIndex >= 0) {
+                Rectangle dispRect = GetDisplayRect();
+                float scaleRatio = (float)baseCanvasSize / dispRect.Width;
+                
+                // 根據滑鼠移動距離更新圖片偏移量
+                frames[activeFrameIndex].OffsetX += (e.X - lastMousePos.X) * scaleRatio;
+                frames[activeFrameIndex].OffsetY += (e.Y - lastMousePos.Y) * scaleRatio;
+                lastMousePos = e.Location;
                 pb.Invalidate();
             }
         }
 
         private void Pb_MouseUp(object sender, MouseEventArgs e) {
             isDraggingText = false;
+            isPanningImage = false;
         }
 
+        // --- 支援拖曳圖片進入視窗 ---
+        private void Pb_DragEnter(object sender, DragEventArgs e) {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
+        }
+
+        private void Pb_DragDrop(object sender, DragEventArgs e) {
+            Point clientPoint = pb.PointToClient(new Point(e.X, e.Y));
+            int dropIndex = GetFrameIndexAtPoint(clientPoint);
+            
+            if (dropIndex >= 0) {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length > 0 && (files[0].ToLower().EndsWith(".jpg") || files[0].ToLower().EndsWith(".png"))) {
+                    if (frames[dropIndex].Img != null) frames[dropIndex].Img.Dispose();
+                    frames[dropIndex].Img = Image.FromFile(files[0]);
+                    ResetFrameTransform(frames[dropIndex]);
+                    activeFrameIndex = dropIndex;
+                    UpdateActiveFrameUI();
+                    pb.Invalidate();
+                }
+            }
+        }
+
+        // ================== 高解析度儲存 ==================
         private void SaveImage() {
-            if (baseCollage == null) return;
+            Bitmap finalImg = new Bitmap(baseCanvasSize, baseCanvasSize);
+            using (Graphics g = Graphics.FromImage(finalImg)) {
+                g.FillRectangle(Brushes.White, 0, 0, baseCanvasSize, baseCanvasSize);
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
-            Bitmap finalImage = new Bitmap(baseCollage.Width, baseCollage.Height);
-            using (Graphics g = Graphics.FromImage(finalImage)) {
-                g.DrawImage(baseCollage, 0, 0);
-
-                Rectangle dispRect = GetDisplayRect();
-                float scaleX = (float)baseCollage.Width / dispRect.Width;
-                float scaleY = (float)baseCollage.Height / dispRect.Height;
-                
-                float actualX = (textRect.X - dispRect.X) * scaleX;
-                float actualY = (textRect.Y - dispRect.Y) * scaleY;
-                float actualW = textRect.Width * scaleX;
-                float actualH = textRect.Height * scaleY;
-
-                using (Font f = new Font("Microsoft JhengHei UI", 24 * scaleY, FontStyle.Bold)) {
-                    using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(bgOpacity, bgColor))) {
-                        g.FillRectangle(bgBrush, actualX, actualY, actualW, actualH);
+                foreach (var frame in frames) {
+                    RectangleF highResRect = GetActualFrameRect(frame, baseCanvasSize, baseCanvasSize);
+                    g.SetClip(highResRect);
+                    
+                    if (frame.Img != null) {
+                        Matrix m = new Matrix();
+                        PointF center = new PointF(highResRect.X + highResRect.Width / 2 + frame.OffsetX, 
+                                                   highResRect.Y + highResRect.Height / 2 + frame.OffsetY);
+                        m.Translate(center.X, center.Y);
+                        m.Rotate(frame.Angle);
+                        m.Scale(frame.Scale, frame.Scale);
+                        m.Translate(-frame.Img.Width / 2f, -frame.Img.Height / 2f);
+                        
+                        g.Transform = m;
+                        g.DrawImage(frame.Img, Point.Empty);
+                        g.ResetTransform();
                     }
-                    using (Pen borderPen = new Pen(borderColor, 3 * scaleX)) {
-                        g.DrawRectangle(borderPen, actualX, actualY, actualW, actualH);
-                    }
-                    using (SolidBrush textBrush = new SolidBrush(textColor)) {
-                        g.DrawString(overlayText, f, textBrush, actualX + (10 * scaleX), actualY + (10 * scaleY));
+                    g.ResetClip();
+                }
+
+                if (isTextModeActive && !string.IsNullOrEmpty(textContent)) {
+                    Rectangle dispRect = GetDisplayRect();
+                    float scaleX = (float)baseCanvasSize / dispRect.Width;
+                    float scaleY = (float)baseCanvasSize / dispRect.Height;
+                    
+                    float actualX = (textRect.X - dispRect.X) * scaleX;
+                    float actualY = (textRect.Y - dispRect.Y) * scaleY;
+                    float actualW = textRect.Width * scaleX;
+                    float actualH = textRect.Height * scaleY;
+
+                    using (Font f = new Font(textFont.FontFamily, textFont.Size * scaleY, textFont.Style)) {
+                        using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(textOpacity, textBgColor))) { g.FillRectangle(bgBrush, actualX, actualY, actualW, actualH); }
+                        using (Pen borderPen = new Pen(textBorderColor, 3 * scaleX)) { g.DrawRectangle(borderPen, actualX, actualY, actualW, actualH); }
+                        using (SolidBrush tBrush = new SolidBrush(textColor)) { g.DrawString(textContent, f, tBrush, actualX + (10 * scaleX), actualY + (10 * scaleY)); }
                     }
                 }
             }
 
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "JPEG|*.jpg", FileName = "Collage_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
-                    finalImage.Save(sfd.FileName, ImageFormat.Jpeg); // 這裡就不會再報錯了！
-                    MessageBox.Show("拼貼儲存成功！");
+                    EncoderParameters ep = new EncoderParameters(1);
+                    ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 95L); // 高畫質儲存
+                    ImageCodecInfo codec = ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
+                    finalImg.Save(sfd.FileName, codec, ep);
+                    MessageBox.Show("高解析度拼貼圖已成功儲存！");
                 }
             }
         }
