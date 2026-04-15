@@ -30,7 +30,6 @@ namespace MiniImageStudio {
         private float div1 = 0.5f, div2 = 0.5f;
         private int activeDivider = 0; 
 
-        // 新增 cbRatio 宣告
         private ComboBox cbRatio, cbLayout, cbAlign, cbMode;
         private TrackBar tbSpacing, tbScale, tbRotate;
         private NumericUpDown numPenSize;
@@ -63,7 +62,6 @@ namespace MiniImageStudio {
             };
 
             // ================== 小框 1：模版與版面 ==================
-            // 加寬以容納畫布比例選單
             GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(580, 65), Margin = new Padding(5) };
             
             Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(10, 30), AutoSize = true };
@@ -96,7 +94,6 @@ namespace MiniImageStudio {
             GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊框可編輯)", Size = new Size(535, 65), Margin = new Padding(5) };
             Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
-            // 【修正對齊】將 cbAlign 的 Y 座標由 26 改為 24
             cbAlign = new ComboBox { Location = new Point(120, 24), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
             cbAlign.SelectedIndex = 0;
@@ -138,22 +135,13 @@ namespace MiniImageStudio {
             btnSave.Click += (s, e) => SaveImage();
             
             tbScale.ValueChanged += (s, e) => { 
-                if (activeFrameIndex >= 0) { 
-                    frames[activeFrameIndex].Scale = tbScale.Value / 100f; 
-                    pb.Invalidate(); 
-                } 
+                if (activeFrameIndex >= 0) { frames[activeFrameIndex].Scale = tbScale.Value / 100f; pb.Invalidate(); } 
             };
             tbRotate.ValueChanged += (s, e) => { 
-                if (activeFrameIndex >= 0) { 
-                    frames[activeFrameIndex].Angle = tbRotate.Value; 
-                    pb.Invalidate(); 
-                } 
+                if (activeFrameIndex >= 0) { frames[activeFrameIndex].Angle = tbRotate.Value; pb.Invalidate(); } 
             };
             btnClearFrame.Click += (s, e) => { 
-                if (activeFrameIndex >= 0) { 
-                    frames[activeFrameIndex].Img = null; 
-                    pb.Invalidate(); 
-                } 
+                if (activeFrameIndex >= 0) { frames[activeFrameIndex].Img = null; pb.Invalidate(); } 
             };
             
             btnInsertText.Click += (s, e) => { 
@@ -220,9 +208,8 @@ namespace MiniImageStudio {
             pb.Invalidate();
         }
 
-        // 讀取並套用選擇的畫布比例 (已加入防崩潰保護)
+        // 讀取並套用選擇的畫布比例 (已加入防呆機制，避免算出 0 或負數)
         private Rectangle GetCanvasRect() {
-            // 加入 Math.Max，確保當視窗極小或尚未載入時，長寬至少為 1，防止算出負數
             int targetWidth = Math.Max(1, pb.Width - 40);
             int targetHeight = Math.Max(1, pb.Height - 40);
             
