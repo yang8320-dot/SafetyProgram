@@ -64,21 +64,22 @@ namespace MiniImageStudio {
 
             // ================== 小框 1：模版與版面 ==================
             // 加寬以容納畫布比例選單
-            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(600, 65), Margin = new Padding(5) };
+            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(580, 65), Margin = new Padding(5) };
             
             Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(10, 30), AutoSize = true };
             cbRatio = new ComboBox { Location = new Point(75, 25), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
             cbRatio.Items.AddRange(new string[] { "1:1", "4:3", "3:4", "16:9", "9:16" });
-            cbRatio.SelectedIndex = 0; // 預設 1:1
+            cbRatio.SelectedIndex = 0;
 
             cbLayout = new ComboBox { Location = new Point(150, 25), Width = 95, DropDownStyle = ComboBoxStyle.DropDownList };
-            cbLayout.Items.AddRange(new string[] { "上下兩張", "左右兩張", "上1 下2", "左1 右2", "左2 右1" }); cbLayout.SelectedIndex = 0;
+            cbLayout.Items.AddRange(new string[] { "上下兩張", "左右兩張", "上1 下2", "左1 右2", "左2 右1" }); 
+            cbLayout.SelectedIndex = 0;
             
-            Label lblSpacing = new Label { Text = "間距:", Location = new Point(255, 30), AutoSize = true };
-            tbSpacing = new TrackBar { Location = new Point(295, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
+            Label lblSpacing = new Label { Text = "間距:", Location = new Point(250, 30), AutoSize = true };
+            tbSpacing = new TrackBar { Location = new Point(290, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
             
             Button btnClearAll = new Button { Text = "全部清除", Location = new Point(390, 22), Width = 80, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(480, 22), Width = 100, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(480, 22), Width = 90, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
             
             gb1.Controls.AddRange(new Control[] { lblRatio, cbRatio, cbLayout, lblSpacing, tbSpacing, btnClearAll, btnSave });
 
@@ -97,7 +98,8 @@ namespace MiniImageStudio {
             
             // 【修正對齊】將 cbAlign 的 Y 座標由 26 改為 24
             cbAlign = new ComboBox { Location = new Point(120, 24), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
-            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); cbAlign.SelectedIndex = 0;
+            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
+            cbAlign.SelectedIndex = 0;
             
             Button btnFont = new Button { Text = "字體", Location = new Point(190, 22), Width = 55, Height = 30 };
             Button btnTextColor = new Button { Text = "字色", Location = new Point(255, 22), Width = 55, Height = 30, BackColor = textColor };
@@ -109,7 +111,8 @@ namespace MiniImageStudio {
             // ================== 小框 4：繪圖工具 ==================
             GroupBox gb4 = new GroupBox { Text = "繪圖工具", Size = new Size(270, 65), Margin = new Padding(5) };
             cbMode = new ComboBox { Location = new Point(15, 26), Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
-            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); cbMode.SelectedIndex = 0;
+            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); 
+            cbMode.SelectedIndex = 0;
             numPenSize = new NumericUpDown { Location = new Point(95, 26), Minimum = 1, Maximum = 10, Value = 5, Width = 45 };
             Button btnPenColor = new Button { Location = new Point(150, 24), Width = 30, Height = 28, BackColor = penColor };
             Button btnUndo = new Button { Text = "返回", Location = new Point(190, 22), Width = 65, Height = 30 };
@@ -134,17 +137,48 @@ namespace MiniImageStudio {
             tbSpacing.ValueChanged += (s, e) => { spacing = tbSpacing.Value; pb.Invalidate(); };
             btnSave.Click += (s, e) => SaveImage();
             
-            tbScale.ValueChanged += (s, e) => { if (activeFrameIndex >= 0) { frames[activeFrameIndex].Scale = tbScale.Value / 100f; pb.Invalidate(); } };
-            tbRotate.ValueChanged += (s, e) => { if (activeFrameIndex >= 0) { frames[activeFrameIndex].Angle = tbRotate.Value; pb.Invalidate(); } };
-            btnClearFrame.Click += (s, e) => { if (activeFrameIndex >= 0) { frames[activeFrameIndex].Img = null; pb.Invalidate(); } };
+            tbScale.ValueChanged += (s, e) => { 
+                if (activeFrameIndex >= 0) { 
+                    frames[activeFrameIndex].Scale = tbScale.Value / 100f; 
+                    pb.Invalidate(); 
+                } 
+            };
+            tbRotate.ValueChanged += (s, e) => { 
+                if (activeFrameIndex >= 0) { 
+                    frames[activeFrameIndex].Angle = tbRotate.Value; 
+                    pb.Invalidate(); 
+                } 
+            };
+            btnClearFrame.Click += (s, e) => { 
+                if (activeFrameIndex >= 0) { 
+                    frames[activeFrameIndex].Img = null; 
+                    pb.Invalidate(); 
+                } 
+            };
             
             btnInsertText.Click += (s, e) => { 
-                shapes.Add(new App_Drawing.DrawShape { Type = "Text", Text = textContent, Font = textFont, Color = textColor, BgColor = textBgColor, TextAlign = cbAlign.SelectedItem.ToString(), Opacity = tbOpacity.Value, TextRect = new RectangleF(pb.Width/2 - 100, pb.Height/2 - 50, 200, 100) });
+                shapes.Add(new App_Drawing.DrawShape { 
+                    Type = "Text", Text = textContent, Font = textFont, Color = textColor, 
+                    BgColor = textBgColor, TextAlign = cbAlign.SelectedItem.ToString(), 
+                    Opacity = tbOpacity.Value, TextRect = new RectangleF(pb.Width/2 - 100, pb.Height/2 - 50, 200, 100) 
+                });
                 pb.Invalidate();
             };
-            btnFont.Click += (s, e) => { using (FontDialog fd = new FontDialog { Font = textFont }) if (fd.ShowDialog() == DialogResult.OK) textFont = fd.Font; };
-            btnTextColor.Click += (s, e) => { using (ColorDialog cd = new ColorDialog { Color = textColor }) if (cd.ShowDialog() == DialogResult.OK) { textColor = cd.Color; btnTextColor.BackColor = textColor; } };
-            btnBgColor.Click += (s, e) => { using (ColorDialog cd = new ColorDialog { Color = textBgColor }) if (cd.ShowDialog() == DialogResult.OK) { textBgColor = cd.Color; btnBgColor.BackColor = textBgColor; } };
+            btnFont.Click += (s, e) => { 
+                using (FontDialog fd = new FontDialog { Font = textFont }) {
+                    if (fd.ShowDialog() == DialogResult.OK) textFont = fd.Font; 
+                }
+            };
+            btnTextColor.Click += (s, e) => { 
+                using (ColorDialog cd = new ColorDialog { Color = textColor }) {
+                    if (cd.ShowDialog() == DialogResult.OK) { textColor = cd.Color; btnTextColor.BackColor = textColor; } 
+                }
+            };
+            btnBgColor.Click += (s, e) => { 
+                using (ColorDialog cd = new ColorDialog { Color = textBgColor }) {
+                    if (cd.ShowDialog() == DialogResult.OK) { textBgColor = cd.Color; btnBgColor.BackColor = textBgColor; } 
+                }
+            };
             
             cbMode.SelectedIndexChanged += (s, e) => {
                 if (cbMode.SelectedItem.ToString() == "選取") drawMode = "Select";
@@ -152,17 +186,37 @@ namespace MiniImageStudio {
                 else if (cbMode.SelectedItem.ToString() == "畫線") drawMode = "Line";
                 else if (cbMode.SelectedItem.ToString() == "畫圓") drawMode = "Circle";
             };
-            btnPenColor.Click += (s, e) => { using (ColorDialog cd = new ColorDialog { Color = penColor }) if (cd.ShowDialog() == DialogResult.OK) { penColor = cd.Color; btnPenColor.BackColor = penColor; } };
-            btnUndo.Click += (s, e) => { if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); pb.Invalidate(); } };
+            btnPenColor.Click += (s, e) => { 
+                using (ColorDialog cd = new ColorDialog { Color = penColor }) {
+                    if (cd.ShowDialog() == DialogResult.OK) { penColor = cd.Color; btnPenColor.BackColor = penColor; } 
+                }
+            };
+            btnUndo.Click += (s, e) => { 
+                if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); pb.Invalidate(); } 
+            };
         }
 
         private void LoadTemplate(int index) {
             frames.Clear();
-            if (index == 0) { frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 1, 0.5f) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 1, 0.5f) }); }
-            else if (index == 1) { frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 1) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 1) }); }
-            else if (index == 2) { frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 1, 0.5f) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 0.5f, 0.5f) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0.5f, 0.5f, 0.5f) }); }
-            else if (index == 3) { frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 1) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 0.5f) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0.5f, 0.5f, 0.5f) }); }
-            else if (index == 4) { frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 0.5f) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 0.5f, 0.5f) }); frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 1) }); }
+            if (index == 0) { 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 1, 0.5f) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 1, 0.5f) }); 
+            } else if (index == 1) { 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 1) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 1) }); 
+            } else if (index == 2) { 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 1, 0.5f) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 0.5f, 0.5f) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0.5f, 0.5f, 0.5f) }); 
+            } else if (index == 3) { 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 1) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 0.5f) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0.5f, 0.5f, 0.5f) }); 
+            } else if (index == 4) { 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0, 0.5f, 0.5f) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0, 0.5f, 0.5f, 0.5f) }); 
+                frames.Add(new CollageFrame { NormalizedRect = new RectangleF(0.5f, 0, 0.5f, 1) }); 
+            }
             pb.Invalidate();
         }
 
@@ -223,14 +277,23 @@ namespace MiniImageStudio {
 
             foreach (var s in shapes) {
                 if (s.Type == "Text") {
-                    using (SolidBrush bg = new SolidBrush(Color.FromArgb(s.Opacity, s.BgColor)))
+                    using (SolidBrush bg = new SolidBrush(Color.FromArgb(s.Opacity, s.BgColor))) {
                         e.Graphics.FillRectangle(bg, s.TextRect);
+                    }
                     StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Near };
-                    if (s.TextAlign == "置中") sf.Alignment = StringAlignment.Center; else if (s.TextAlign == "靠右") sf.Alignment = StringAlignment.Far; else sf.Alignment = StringAlignment.Near;
-                    using (SolidBrush tb = new SolidBrush(s.Color)) e.Graphics.DrawString(s.Text, s.Font, tb, new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20), sf);
+                    if (s.TextAlign == "置中") sf.Alignment = StringAlignment.Center; 
+                    else if (s.TextAlign == "靠右") sf.Alignment = StringAlignment.Far; 
+                    else sf.Alignment = StringAlignment.Near;
+
+                    using (SolidBrush tb = new SolidBrush(s.Color)) {
+                        e.Graphics.DrawString(s.Text, s.Font, tb, new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20), sf);
+                    }
                 } else {
                     using (Pen p = new Pen(s.Color, s.PenWidth)) {
-                        int x = Math.Min(s.Start.X, s.End.X), y = Math.Min(s.Start.Y, s.End.Y), w = Math.Abs(s.Start.X - s.End.X), h = Math.Abs(s.Start.Y - s.End.Y);
+                        int x = Math.Min(s.Start.X, s.End.X);
+                        int y = Math.Min(s.Start.Y, s.End.Y);
+                        int w = Math.Abs(s.Start.X - s.End.X);
+                        int h = Math.Abs(s.Start.Y - s.End.Y);
                         if (s.Type == "Line") e.Graphics.DrawLine(p, s.Start, s.End);
                         else if (s.Type == "Frame") e.Graphics.DrawRectangle(p, x, y, w, h);
                         else if (s.Type == "Circle") e.Graphics.DrawEllipse(p, x, y, w, h);
@@ -240,7 +303,10 @@ namespace MiniImageStudio {
 
             if (drawingShape != null) {
                 using (Pen p = new Pen(drawingShape.Color, drawingShape.PenWidth)) {
-                    int x = Math.Min(drawingShape.Start.X, drawingShape.End.X), y = Math.Min(drawingShape.Start.Y, drawingShape.End.Y), w = Math.Abs(drawingShape.Start.X - drawingShape.End.X), h = Math.Abs(drawingShape.Start.Y - drawingShape.End.Y);
+                    int x = Math.Min(drawingShape.Start.X, drawingShape.End.X);
+                    int y = Math.Min(drawingShape.Start.Y, drawingShape.End.Y);
+                    int w = Math.Abs(drawingShape.Start.X - drawingShape.End.X);
+                    int h = Math.Abs(drawingShape.Start.Y - drawingShape.End.Y);
                     if (drawingShape.Type == "Line") e.Graphics.DrawLine(p, drawingShape.Start, drawingShape.End);
                     else if (drawingShape.Type == "Frame") e.Graphics.DrawRectangle(p, x, y, w, h);
                     else if (drawingShape.Type == "Circle") e.Graphics.DrawEllipse(p, x, y, w, h);
@@ -254,7 +320,10 @@ namespace MiniImageStudio {
             
             if (drawMode == "Select") {
                 selectedShape = shapes.LastOrDefault(s => s.GetBounds().Contains(e.Location));
-                if (selectedShape != null) { isDraggingShape = true; return; }
+                if (selectedShape != null) { 
+                    isDraggingShape = true; 
+                    return; 
+                }
 
                 Rectangle canvasRect = GetCanvasRect();
                 for (int i = 0; i < frames.Count; i++) {
@@ -266,7 +335,8 @@ namespace MiniImageStudio {
                             }
                         } else {
                             isPanningImage = true;
-                            tbScale.Enabled = true; tbRotate.Enabled = true;
+                            tbScale.Enabled = true; 
+                            tbRotate.Enabled = true;
                             tbScale.Value = (int)(frames[i].Scale * 100);
                             tbRotate.Value = (int)frames[i].Angle;
                         }
@@ -275,7 +345,8 @@ namespace MiniImageStudio {
                     }
                 }
                 activeFrameIndex = -1;
-                tbScale.Enabled = false; tbRotate.Enabled = false;
+                tbScale.Enabled = false; 
+                tbRotate.Enabled = false;
                 pb.Invalidate();
             } else {
                 drawingShape = new App_Drawing.DrawShape { Type = drawMode, Color = penColor, PenWidth = (int)numPenSize.Value, Start = e.Location, End = e.Location };
@@ -313,7 +384,10 @@ namespace MiniImageStudio {
             var shape = shapes.LastOrDefault(s => s.Type == "Text" && s.GetBounds().Contains(pt));
             if (shape != null) {
                 editingShape = shape;
-                editBox = new TextBox { Multiline = true, Text = shape.Text, Font = shape.Font, Location = Point.Round(shape.TextRect.Location), Size = Size.Round(shape.TextRect.Size) };
+                editBox = new TextBox { 
+                    Multiline = true, Text = shape.Text, Font = shape.Font, 
+                    Location = Point.Round(shape.TextRect.Location), Size = Size.Round(shape.TextRect.Size) 
+                };
                 editBox.LostFocus += (s2, e2) => CommitTextEdit();
                 pb.Controls.Add(editBox);
                 editBox.BringToFront();
