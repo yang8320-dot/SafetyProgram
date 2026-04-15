@@ -178,3 +178,226 @@ public class MainForm : Form {
         }
         File.WriteAllLines(pathConfigFile, lines);
     }
+    // --- 原本的 Tab 繪製與提醒閃爍邏輯 ---
+    private void TabControl_DrawItem(object sender, DrawItemEventArgs e) {
+        TabPage page = tabControl.TabPages[e.Index];
+        bool isSelected = e.Index == tabControl.SelectedIndex;
+        bool isAlert = alertTabs.Contains(e.Index);
+
+        Color backColor = isSelected ? Color.White : BgColor;
+        Color textColor = isSelected ? Color.Black : Color.Gray;
+
+        if (isAlert && flashState && !isSelected) {
+            backColor = Color.FromArgb(255, 200, 200); 
+            textColor = Color.Red;
+        }
+
+        using (SolidBrush bgBrush = new SolidBrush(backColor)) { e.Graphics.FillRectangle(bgBrush, e.Bounds); }
+        using (SolidBrush textBrush = new SolidBrush(textColor)) {
+            StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            e.Graphics.DrawString(page.Text, e.Font, textBrush, e.Bounds, sf);
+        }
+    }
+
+    public void SetTabAlert(int tabIndex) {
+        if (tabControl.SelectedIndex != tabIndex) {
+            alertTabs.Add(tabIndex);
+            if (!flashTimer.Enabled) flashTimer.Start();
+        }
+    }
+
+    public void ClearTabAlert(int tabIndex) {
+        alertTabs.Remove(tabIndex);
+        tabControl.Invalidate();
+    }
+
+    // --- 視窗顯示與隱藏 ---
+    public void ShowAppWindow() {
+        this.Show(); 
+        this.WindowState = FormWindowState.Normal; 
+        this.Activate(); 
+    }
+
+    private void HideAppWindow() { 
+        this.Hide(); 
+    }
+
+    // --- 開機自動啟動邏輯 ---
+    private void ToggleStartup(object sender, EventArgs e) {
+        MenuItem item = sender as MenuItem;
+        bool newState = !item.Checked;
+        SetRunOnStartup(newState);
+        item.Checked = newState;
+    }
+
+    private bool IsRunOnStartup() {
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false)) {
+            return key?.GetValue(appName) != null;
+        }
+    }
+
+    private void SetRunOnStartup(bool enable) {
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true)) {
+            if (enable) key.SetValue(appName, Application.ExecutablePath);
+            else key.DeleteValue(appName, false);
+        }
+    }
+
+    // --- 攔截全域熱鍵事件 ---
+    protected override void WndProc(ref Message m) {
+        if (m.Msg == WM_HOTKEY) {
+            int id = m.WParam.ToInt32();
+            if (id == HOTKEY_ID) { 
+                // Ctrl+1: 喚醒主視窗
+                ShowAppWindow();
+            } else { 
+                // 其他 ID (包含 Ctrl+2, Ctrl+3, Ctrl+9)
+                LaunchExternalApp(id);
+            }
+        }
+        base.WndProc(ref m);
+    }
+
+    // --- 執行外部程式邏輯 ---
+    private void LaunchExternalApp(int hotkeyId) {
+        if (hotkeyPaths.TryGetValue(hotkeyId, out string path) && !string.IsNullOrWhiteSpace(path)) {
+            try {
+                if (File.Exists(path)) {
+                    Process.Start(new ProcessStartInfo() { FileName = path, UseShellExecute = true });
+                } else {
+                    MessageBox.Show($"找不到程式：\n{path}\n\n請確認路徑是否正確。", "執行失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            } catch (Exception ex) {
+                MessageBox.Show($"啟動程式時發生錯誤：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        } else {
+            MessageBox.Show("尚未設定此快捷鍵的程式路徑！\n請對常駐圖示點擊右鍵 ->「快捷鍵程式設定」中設定。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    // --- 開啟路徑設定視窗 ---
+    private void OpenPathSettingsWindow() {
+        using (var form = new HotkeyPathSettingsForm(hotkeyPaths, this)) {
+            form.ShowDialog();
+        }
+    }
+
+    // --- 攔截視窗關閉與縮小事件 ---
+    protected override void OnFormClosing(FormClosingEventArgs e) {
+        if (e.CloseReason == CloseReason.UserClosing) { 
+            e.Cancel = true; 
+            HideAppWindow(); // 點擊 X 時只隱藏，不關閉
+        } 
+        base.OnFormClosing(e);
+    }
+
+    protected override void OnResize(EventArgs e) {
+        if (this.WindowState == FormWindowState.Minimized) { HideAppWindow(); } 
+        base.OnResize(e);
+    }
+
+    protected override void Dispose(bool disposing) {
+        if (disposing) {
+            // 程式結束前釋放熱鍵資源
+            UnregisterHotKey(this.Handle, HOTKEY_ID);
+            UnregisterHotKey(this.Handle, HOTKEY_IMAGE_ID);
+            UnregisterHotKey(this.Handle, HOTKEY_SAFETY_ID);
+            UnregisterHotKey(this.Handle, HOTKEY_GTASK_ID);
+            if (trayIcon != null) { trayIcon.Visible = false; trayIcon.Dispose(); }
+            if (flashTimer != null) { flashTimer.Dispose(); }
+        }
+        base.Dispose(disposing);
+    }
+}
+
+// =======================================================
+// 新增的設定視窗類別 (與 MainForm 放在同一個檔案底部即可)
+// =======================================================
+public class HotkeyPathSettingsForm : Form {
+    private Dictionary<int, string> currentPaths;
+    private Dictionary<int, TextBox> textboxes = new Dictionary<int, TextBox>();
+    private MainForm parentForm;
+
+    public HotkeyPathSettingsForm(Dictionary<int, string> paths, MainForm parent) {
+        this.currentPaths = new Dictionary<int, string>(paths);
+        this.parentForm = parent;
+
+        this.Text = "快捷鍵程式路徑設定";
+        this.Width = 550;
+        this.Height = 350;
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.FormBorderStyle = FormBorderStyle.FixedDialog;
+        this.MaximizeBox = false;
+
+        InitializeUI();
+    }
+
+    private void InitializeUI() {
+        FlowLayoutPanel panel = new FlowLayoutPanel() {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            Padding = new Padding(20),
+            AutoScroll = true
+        };
+
+        // 建立各快捷鍵的輸入區塊 (對應 ID)
+        AddPathSettingUI(panel, 9001, "Ctrl + 2 (圖片小工具):");
+        AddPathSettingUI(panel, 9002, "Ctrl + 3 (Safety System):");
+        AddPathSettingUI(panel, 9008, "Ctrl + 9 (G-Task):");
+
+        // 底部按鈕區塊
+        Panel bottomPanel = new Panel() { Dock = DockStyle.Bottom, Height = 60 };
+        Button btnSave = new Button() { Text = "儲存設定", Width = 100, Height = 35, Left = 160, Top = 10 };
+        Button btnCancel = new Button() { Text = "取消", Width = 100, Height = 35, Left = 270, Top = 10 };
+
+        btnSave.Click += BtnSave_Click;
+        btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
+
+        bottomPanel.Controls.Add(btnSave);
+        bottomPanel.Controls.Add(btnCancel);
+
+        this.Controls.Add(panel);
+        this.Controls.Add(bottomPanel);
+    }
+
+    private void AddPathSettingUI(FlowLayoutPanel parent, int id, string labelText) {
+        Panel row = new Panel() { Width = 480, Height = 55, Margin = new Padding(0, 5, 0, 5) };
+        
+        Label lbl = new Label() { Text = labelText, AutoSize = true, Location = new Point(5, 5), Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold) };
+        
+        TextBox txt = new TextBox() { 
+            Width = 380, 
+            Location = new Point(5, 25), 
+            Text = currentPaths.ContainsKey(id) ? currentPaths[id] : "" 
+        };
+        
+        // 瀏覽檔案按鈕
+        Button btnBrowse = new Button() { Text = "瀏覽...", Width = 70, Height = 25, Location = new Point(390, 24) };
+        btnBrowse.Click += (s, e) => {
+            using (OpenFileDialog ofd = new OpenFileDialog() { Filter = "執行檔 (*.exe)|*.exe|所有檔案 (*.*)|*.*" }) {
+                if (ofd.ShowDialog() == DialogResult.OK) {
+                    txt.Text = ofd.FileName;
+                }
+            }
+        };
+
+        textboxes[id] = txt;
+        
+        row.Controls.Add(lbl);
+        row.Controls.Add(txt);
+        row.Controls.Add(btnBrowse);
+        parent.Controls.Add(row);
+    }
+
+    private void BtnSave_Click(object sender, EventArgs e) {
+        // 將 TextBox 的值寫回 Dictionary
+        foreach (var kvp in textboxes) {
+            currentPaths[kvp.Key] = kvp.Value.Text;
+        }
+        // 呼叫 MainForm 的儲存方法
+        parentForm.SavePathSettings(currentPaths);
+        MessageBox.Show("快捷鍵路徑設定已儲存！\n下次啟動時將自動載入。", "設定成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        this.DialogResult = DialogResult.OK;
+        this.Close();
+    }
+}
