@@ -1,4 +1,4 @@
-/* * 功能：進階向量繪製模組 (完美緊湊排版、支援拖曳上傳、預設提示文字)
+/* * 功能：進階向量繪製模組 (完美緊湊排版、支援拖曳上傳、修正快捷鍵焦點問題)
  */
 using System;
 using System.Drawing;
@@ -79,7 +79,7 @@ namespace MiniImageStudio {
         }
 
         // ==========================================
-        // 加入 Ctrl + Z 快捷鍵攔截，執行「返回 (Undo)」動作
+        // 攔截 Ctrl + Z 快捷鍵
         // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
             if (keyData == (Keys.Control | Keys.Z)) {
@@ -87,7 +87,7 @@ namespace MiniImageStudio {
                     shapes.RemoveAt(shapes.Count - 1);
                     pb.Invalidate();
                 }
-                return true; // 標示按鍵已處理
+                return true; 
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
@@ -101,7 +101,6 @@ namespace MiniImageStudio {
                 Padding = new Padding(5)
             };
 
-            // ================== 群組 1: 畫布控制 ==================
             GroupBox gb1 = new GroupBox { Text = "畫布", Size = new Size(390, 65), Margin = new Padding(5) };
             Button btnLoad = new Button { Text = "載入圖片", Location = new Point(15, 22), Width = 85, Height = 30 };
             Button btnRotate = new Button { Text = "旋轉圖片", Location = new Point(105, 22), Width = 85, Height = 30 };
@@ -109,18 +108,15 @@ namespace MiniImageStudio {
             Button btnSave = new Button { Text = "儲存圖片", Location = new Point(285, 22), Width = 85, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
             gb1.Controls.AddRange(new Control[] { btnLoad, btnRotate, btnClear, btnSave });
 
-            // ================== 群組 2: 繪圖工具 ==================
             GroupBox gb2 = new GroupBox { Text = "繪圖工具", Size = new Size(265, 65), Margin = new Padding(5) };
             cbMode = new ComboBox { Location = new Point(15, 26), Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
             cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); 
-            cbMode.SelectedIndex = 1; // 預設畫框
+            cbMode.SelectedIndex = 1; 
             numPenSize = new NumericUpDown { Location = new Point(95, 26), Minimum = 1, Maximum = 10, Value = 5, Width = 45 };
             Button btnPenColor = new Button { Location = new Point(150, 24), Width = 30, Height = 28, BackColor = penColor }; 
             Button btnUndo = new Button { Text = "返回", Location = new Point(190, 22), Width = 60, Height = 30 };
             gb2.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
 
-            // ================== 群組 3: 文字工具 (加寬並優化排版) ==================
-            // 將 GroupBox 寬度增加至 620，拉寬按鈕並調整間距
             GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(620, 65), Margin = new Padding(5) };
             Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
@@ -128,7 +124,6 @@ namespace MiniImageStudio {
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
             cbAlign.SelectedIndex = 0;
             
-            // 按鈕寬度由 55 增加到 60，並拉開 X 軸間距
             Button btnFont = new Button { Text = "字體", Location = new Point(195, 22), Width = 60, Height = 30 };
             Button btnTextColor = new Button { Text = "字色", Location = new Point(265, 22), Width = 60, Height = 30, BackColor = textColor };
             Button btnBgColor = new Button { Text = "底色", Location = new Point(335, 22), Width = 60, Height = 30, BackColor = textBgColor };
@@ -146,7 +141,6 @@ namespace MiniImageStudio {
             pb.MouseUp += Pb_MouseUp;
             pb.DoubleClick += Pb_DoubleClick;
             
-            // 支援拖曳圖片
             pb.DragEnter += (s, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; };
             pb.DragDrop += (s, e) => {
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
@@ -156,7 +150,6 @@ namespace MiniImageStudio {
             this.Controls.Add(pb);
             this.Controls.Add(mainFlow);
 
-            // 事件綁定
             btnLoad.Click += (s, e) => {
                 using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp" }) {
                     if (ofd.ShowDialog() == DialogResult.OK) LoadImageToCanvas(ofd.FileName);
@@ -218,7 +211,6 @@ namespace MiniImageStudio {
             } catch { }
         }
 
-        // 讀取並防呆的畫布顯示區域計算
         private Rectangle GetDisplayRect() {
             if (canvas == null || pb.Width <= 0 || pb.Height <= 0) return Rectangle.Empty;
             
@@ -233,12 +225,10 @@ namespace MiniImageStudio {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             if (canvas != null) {
                 Rectangle disp = GetDisplayRect();
-                // 如果計算出的顯示區域無效，就先不要畫，避免崩潰
                 if (disp.Width <= 0 || disp.Height <= 0) return; 
 
                 e.Graphics.DrawImage(canvas, disp);
                 
-                // 處理座標映射
                 Matrix m = new Matrix();
                 m.Translate(disp.X, disp.Y);
                 m.Scale((float)disp.Width / canvas.Width, (float)disp.Height / canvas.Height);
@@ -269,10 +259,8 @@ namespace MiniImageStudio {
                     }
                 } else {
                     using (Pen p = new Pen(s.Color, s.PenWidth)) {
-                        int x = Math.Min(s.Start.X, s.End.X);
-                        int y = Math.Min(s.Start.Y, s.End.Y);
-                        int w = Math.Abs(s.Start.X - s.End.X);
-                        int h = Math.Abs(s.Start.Y - s.End.Y);
+                        int x = Math.Min(s.Start.X, s.End.X), y = Math.Min(s.Start.Y, s.End.Y);
+                        int w = Math.Abs(s.Start.X - s.End.X), h = Math.Abs(s.Start.Y - s.End.Y);
                         if (s.Type == "Line") g.DrawLine(p, s.Start, s.End);
                         else if (s.Type == "Frame") g.DrawRectangle(p, x, y, w, h);
                         else if (s.Type == "Circle") g.DrawEllipse(p, x, y, w, h);
@@ -282,10 +270,8 @@ namespace MiniImageStudio {
 
             if (drawingShape != null) {
                 using (Pen p = new Pen(drawingShape.Color, drawingShape.PenWidth)) {
-                    int x = Math.Min(drawingShape.Start.X, drawingShape.End.X);
-                    int y = Math.Min(drawingShape.Start.Y, drawingShape.End.Y);
-                    int w = Math.Abs(drawingShape.Start.X - drawingShape.End.X);
-                    int h = Math.Abs(drawingShape.Start.Y - drawingShape.End.Y);
+                    int x = Math.Min(drawingShape.Start.X, drawingShape.End.X), y = Math.Min(drawingShape.Start.Y, drawingShape.End.Y);
+                    int w = Math.Abs(drawingShape.Start.X - drawingShape.End.X), h = Math.Abs(drawingShape.Start.Y - drawingShape.End.Y);
                     if (drawingShape.Type == "Line") g.DrawLine(p, drawingShape.Start, drawingShape.End);
                     else if (drawingShape.Type == "Frame") g.DrawRectangle(p, x, y, w, h);
                     else if (drawingShape.Type == "Circle") g.DrawEllipse(p, x, y, w, h);
@@ -302,6 +288,9 @@ namespace MiniImageStudio {
         }
 
         private void Pb_MouseDown(object sender, MouseEventArgs e) {
+            // 【關鍵修正】強制讓 UserControl 取得焦點，以確保 Ctrl+Z 能夠正常攔截！
+            this.Focus(); 
+
             CommitTextEdit();
             if (canvas == null) return;
             Point cPt = ScreenToCanvas(e.Location);
