@@ -220,7 +220,6 @@ namespace MiniImageStudio {
             pb.Invalidate();
         }
 
-        // 讀取並套用選擇的畫布比例
         // 讀取並套用選擇的畫布比例 (已加入防崩潰保護)
         private Rectangle GetCanvasRect() {
             // 加入 Math.Max，確保當視窗極小或尚未載入時，長寬至少為 1，防止算出負數
