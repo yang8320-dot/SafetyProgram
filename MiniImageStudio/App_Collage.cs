@@ -6,6 +6,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging; // 已補上此命名空間
 using System.Windows.Forms;
 
 namespace MiniImageStudio {
@@ -123,7 +124,6 @@ namespace MiniImageStudio {
         }
 
         private void GenerateBaseCollage() {
-            // 基礎畫布大小 (可依需求擴充為動態計算，此處示範固定高解析度畫布)
             int W = 1200, H = 1200; 
             baseCollage = new Bitmap(W, H);
 
@@ -134,35 +134,33 @@ namespace MiniImageStudio {
                 int mode = cbLayout.SelectedIndex;
                 Rectangle[] rects = new Rectangle[3];
 
-                // 排版算法
-                if (mode == 0) { // 上下
+                if (mode == 0) { 
                     rects[0] = new Rectangle(0, 0, W, H / 2);
                     rects[1] = new Rectangle(0, H / 2, W, H / 2);
-                } else if (mode == 1) { // 左右
+                } else if (mode == 1) { 
                     rects[0] = new Rectangle(0, 0, W / 2, H);
                     rects[1] = new Rectangle(W / 2, 0, W / 2, H);
-                } else if (mode == 2) { // 上1下2
+                } else if (mode == 2) { 
                     rects[0] = new Rectangle(0, 0, W, H / 2);
                     rects[1] = new Rectangle(0, H / 2, W / 2, H / 2);
                     rects[2] = new Rectangle(W / 2, H / 2, W / 2, H / 2);
-                } else if (mode == 3) { // 左1右2
+                } else if (mode == 3) { 
                     rects[0] = new Rectangle(0, 0, W / 2, H);
                     rects[1] = new Rectangle(W / 2, 0, W / 2, H / 2);
                     rects[2] = new Rectangle(W / 2, H / 2, W / 2, H / 2);
-                } else if (mode == 4) { // 左2右1
+                } else if (mode == 4) { 
                     rects[0] = new Rectangle(0, 0, W / 2, H / 2);
                     rects[1] = new Rectangle(0, H / 2, W / 2, H / 2);
                     rects[2] = new Rectangle(W / 2, 0, W / 2, H);
                 }
 
-                // 將圖片繪製到對應區塊 (使用 Zoom 模式裁剪)
                 for (int i = 0; i < 3; i++) {
                     if (loadedImages[i] != null && i < rects.Length && rects[i].Width > 0) {
                         DrawImageZoomed(g, loadedImages[i], rects[i]);
                     }
                 }
             }
-            pb.Invalidate(); // 觸發重繪
+            pb.Invalidate(); 
         }
 
         private void DrawImageZoomed(Graphics g, Image img, Rectangle destRect) {
@@ -172,20 +170,17 @@ namespace MiniImageStudio {
             int x = destRect.X + (destRect.Width - newW) / 2;
             int y = destRect.Y + (destRect.Height - newH) / 2;
             
-            g.SetClip(destRect); // 限制繪製範圍不超過框格
+            g.SetClip(destRect); 
             g.DrawImage(img, x, y, newW, newH);
             g.ResetClip();
-            g.DrawRectangle(Pens.White, destRect); // 格線
+            g.DrawRectangle(Pens.White, destRect); 
         }
 
-        // --- 拖曳與渲染文字 ---
         private void Pb_Paint(object sender, PaintEventArgs e) {
-            // 1. 畫底圖 (依比例縮放適應 PictureBox)
             if (baseCollage != null) {
                 e.Graphics.DrawImage(baseCollage, GetDisplayRect());
             }
 
-            // 2. 畫文字框 (覆蓋在上層)
             if (string.IsNullOrEmpty(overlayText)) return;
             
             using (Font f = new Font("Microsoft JhengHei UI", 24, FontStyle.Bold)) {
@@ -193,15 +188,12 @@ namespace MiniImageStudio {
                 textRect.Width = size.Width + 20;
                 textRect.Height = size.Height + 20;
 
-                // 半透明底色
                 using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(bgOpacity, bgColor))) {
                     e.Graphics.FillRectangle(bgBrush, textRect);
                 }
-                // 外框
                 using (Pen borderPen = new Pen(borderColor, 3)) {
                     e.Graphics.DrawRectangle(borderPen, textRect.X, textRect.Y, textRect.Width, textRect.Height);
                 }
-                // 文字
                 using (SolidBrush textBrush = new SolidBrush(textColor)) {
                     e.Graphics.DrawString(overlayText, f, textBrush, textRect.X + 10, textRect.Y + 10);
                 }
@@ -238,12 +230,10 @@ namespace MiniImageStudio {
         private void SaveImage() {
             if (baseCollage == null) return;
 
-            // 建立最終輸出的高解析度圖片
             Bitmap finalImage = new Bitmap(baseCollage.Width, baseCollage.Height);
             using (Graphics g = Graphics.FromImage(finalImage)) {
                 g.DrawImage(baseCollage, 0, 0);
 
-                // 將畫面上的文字座標，換算回高解析度底圖的座標
                 Rectangle dispRect = GetDisplayRect();
                 float scaleX = (float)baseCollage.Width / dispRect.Width;
                 float scaleY = (float)baseCollage.Height / dispRect.Height;
@@ -268,7 +258,7 @@ namespace MiniImageStudio {
 
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "JPEG|*.jpg", FileName = "Collage_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
-                    finalImage.Save(sfd.FileName, ImageFormat.Jpeg);
+                    finalImage.Save(sfd.FileName, ImageFormat.Jpeg); // 這裡就不會再報錯了！
                     MessageBox.Show("拼貼儲存成功！");
                 }
             }
