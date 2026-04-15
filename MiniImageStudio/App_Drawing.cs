@@ -1,4 +1,4 @@
-/* * 功能：進階向量繪製模組 (完美緊湊排版、支援拖曳上傳、修正快捷鍵焦點問題)
+/* * 功能：進階向量繪製模組 (按鈕加寬20px、完美緊湊排版、修復清除事件與Ctrl+Z)
  */
 using System;
 using System.Drawing;
@@ -78,9 +78,6 @@ namespace MiniImageStudio {
             InitializeUI();
         }
 
-        // ==========================================
-        // 攔截 Ctrl + Z 快捷鍵
-        // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
             if (keyData == (Keys.Control | Keys.Z)) {
                 if (shapes.Count > 0) {
@@ -101,35 +98,42 @@ namespace MiniImageStudio {
                 Padding = new Padding(5)
             };
 
-            GroupBox gb1 = new GroupBox { Text = "畫布", Size = new Size(390, 65), Margin = new Padding(5) };
-            Button btnLoad = new Button { Text = "載入圖片", Location = new Point(15, 22), Width = 85, Height = 30 };
-            Button btnRotate = new Button { Text = "旋轉圖片", Location = new Point(105, 22), Width = 85, Height = 30 };
-            Button btnClear = new Button { Text = "清除全部", Location = new Point(195, 22), Width = 85, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存圖片", Location = new Point(285, 22), Width = 85, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            // ================== 群組 1: 畫布控制 ==================
+            GroupBox gb1 = new GroupBox { Text = "畫布", Size = new Size(480, 65), Margin = new Padding(5) };
+            
+            // 按鈕各加寬 20
+            Button btnLoad = new Button { Text = "載入圖片", Location = new Point(15, 22), Width = 105, Height = 30 };
+            Button btnRotate = new Button { Text = "旋轉圖片", Location = new Point(130, 22), Width = 105, Height = 30 };
+            Button btnClear = new Button { Text = "清除全部", Location = new Point(245, 22), Width = 105, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存圖片", Location = new Point(360, 22), Width = 105, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
             gb1.Controls.AddRange(new Control[] { btnLoad, btnRotate, btnClear, btnSave });
 
-            GroupBox gb2 = new GroupBox { Text = "繪圖工具", Size = new Size(265, 65), Margin = new Padding(5) };
+            // ================== 群組 2: 繪圖工具 ==================
+            GroupBox gb2 = new GroupBox { Text = "繪圖工具", Size = new Size(305, 65), Margin = new Padding(5) };
             cbMode = new ComboBox { Location = new Point(15, 26), Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
             cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); 
             cbMode.SelectedIndex = 1; 
             numPenSize = new NumericUpDown { Location = new Point(95, 26), Minimum = 1, Maximum = 10, Value = 5, Width = 45 };
-            Button btnPenColor = new Button { Location = new Point(150, 24), Width = 30, Height = 28, BackColor = penColor }; 
-            Button btnUndo = new Button { Text = "返回", Location = new Point(190, 22), Width = 60, Height = 30 };
+            
+            // 按鈕各加寬 20
+            Button btnPenColor = new Button { Location = new Point(150, 24), Width = 50, Height = 28, BackColor = penColor }; 
+            Button btnUndo = new Button { Text = "返回", Location = new Point(210, 22), Width = 80, Height = 30 };
             gb2.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
 
-            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(620, 65), Margin = new Padding(5) };
-            Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
+            // ================== 群組 3: 文字工具 ==================
+            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(700, 65), Margin = new Padding(5) };
+            // 按鈕各加寬 20
+            Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 115, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
-            cbAlign = new ComboBox { Location = new Point(120, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbAlign = new ComboBox { Location = new Point(140, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
             cbAlign.SelectedIndex = 0;
             
-            Button btnFont = new Button { Text = "字體", Location = new Point(195, 22), Width = 60, Height = 30 };
-            Button btnTextColor = new Button { Text = "字色", Location = new Point(265, 22), Width = 60, Height = 30, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Location = new Point(335, 22), Width = 60, Height = 30, BackColor = textBgColor };
-            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(405, 30), AutoSize = true };
-            TrackBar tbOpacity = new TrackBar { Location = new Point(465, 24), Width = 140, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
-            
+            Button btnFont = new Button { Text = "字體", Location = new Point(215, 22), Width = 80, Height = 30 };
+            Button btnTextColor = new Button { Text = "字色", Location = new Point(305, 22), Width = 80, Height = 30, BackColor = textColor };
+            Button btnBgColor = new Button { Text = "底色", Location = new Point(395, 22), Width = 80, Height = 30, BackColor = textBgColor };
+            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(485, 30), AutoSize = true };
+            TrackBar tbOpacity = new TrackBar { Location = new Point(545, 24), Width = 140, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
             gb3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, lblOpacity, tbOpacity });
 
             mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
@@ -156,7 +160,13 @@ namespace MiniImageStudio {
                 }
             };
             btnRotate.Click += (s, e) => { if (canvas != null) { canvas.RotateFlip(RotateFlipType.Rotate90FlipNone); pb.Invalidate(); } };
-            btnClear.Click += (s, e) => { shapes.Clear(); pb.Invalidate(); };
+            
+            // 【修復】清除按鈕：清空圖形清單並移除底圖
+            btnClear.Click += (s, e) => { 
+                shapes.Clear(); 
+                canvas = null;
+                pb.Invalidate(); 
+            };
             btnSave.Click += (s, e) => SaveImage();
             
             cbMode.SelectedIndexChanged += (s, e) => {
@@ -288,7 +298,6 @@ namespace MiniImageStudio {
         }
 
         private void Pb_MouseDown(object sender, MouseEventArgs e) {
-            // 【關鍵修正】強制讓 UserControl 取得焦點，以確保 Ctrl+Z 能夠正常攔截！
             this.Focus(); 
 
             CommitTextEdit();
