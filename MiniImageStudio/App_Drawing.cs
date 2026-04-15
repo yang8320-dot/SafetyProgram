@@ -6,7 +6,6 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace MiniImageStudio {
     public class App_Drawing : UserControl {
@@ -34,8 +33,12 @@ namespace MiniImageStudio {
             }
 
             public void Move(int dx, int dy) {
-                if (Type == "Text") { TextRect.X += dx; TextRect.Y += dy; } 
-                else { Start.X += dx; Start.Y += dy; End.X += dx; End.Y += dy; }
+                if (Type == "Text") { 
+                    TextRect.X += dx; 
+                    TextRect.Y += dy; 
+                } else { 
+                    Start.X += dx; Start.Y += dy; End.X += dx; End.Y += dy; 
+                }
             }
             
             public RectangleF GetResizeHandle() {
@@ -93,25 +96,27 @@ namespace MiniImageStudio {
             // ================== 群組 2: 繪圖工具 ==================
             GroupBox gb2 = new GroupBox { Text = "繪圖工具", Size = new Size(265, 65), Margin = new Padding(5) };
             cbMode = new ComboBox { Location = new Point(15, 26), Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
-            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); cbMode.SelectedIndex = 1; // 預設畫框
+            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); 
+            cbMode.SelectedIndex = 1; // 預設畫框
             numPenSize = new NumericUpDown { Location = new Point(95, 26), Minimum = 1, Maximum = 10, Value = 5, Width = 45 };
             Button btnPenColor = new Button { Location = new Point(150, 24), Width = 30, Height = 28, BackColor = penColor }; 
             Button btnUndo = new Button { Text = "返回", Location = new Point(190, 22), Width = 60, Height = 30 };
             gb2.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
 
             // ================== 群組 3: 文字工具 ==================
-            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(540, 65), Margin = new Padding(5) };
+            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(610, 65), Margin = new Padding(5) };
             Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
             // 【修正對齊】將 cbAlign 的 Y 座標由 26 改為 24
-            cbAlign = new ComboBox { Location = new Point(115, 24), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
-            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); cbAlign.SelectedIndex = 0;
+            cbAlign = new ComboBox { Location = new Point(120, 24), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
+            cbAlign.SelectedIndex = 0;
             
-            Button btnFont = new Button { Text = "字體", Location = new Point(180, 22), Width = 55, Height = 30 };
-            Button btnTextColor = new Button { Text = "字色", Location = new Point(245, 22), Width = 55, Height = 30, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Location = new Point(310, 22), Width = 55, Height = 30, BackColor = textBgColor };
-            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(375, 30), AutoSize = true };
-            TrackBar tbOpacity = new TrackBar { Location = new Point(425, 24), Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            Button btnFont = new Button { Text = "字體", Location = new Point(190, 22), Width = 55, Height = 30 };
+            Button btnTextColor = new Button { Text = "字色", Location = new Point(255, 22), Width = 55, Height = 30, BackColor = textColor };
+            Button btnBgColor = new Button { Text = "底色", Location = new Point(320, 22), Width = 55, Height = 30, BackColor = textBgColor };
+            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(385, 30), AutoSize = true };
+            TrackBar tbOpacity = new TrackBar { Location = new Point(445, 24), Width = 150, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
             gb3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, lblOpacity, tbOpacity });
 
             mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
@@ -149,23 +154,47 @@ namespace MiniImageStudio {
                 else if (cbMode.SelectedItem.ToString() == "畫線") drawMode = "Line";
                 else if (cbMode.SelectedItem.ToString() == "畫圓") drawMode = "Circle";
             };
-            btnPenColor.Click += (s, e) => { using (ColorDialog cd = new ColorDialog { Color = penColor }) if (cd.ShowDialog() == DialogResult.OK) { penColor = cd.Color; btnPenColor.BackColor = penColor; } };
-            btnUndo.Click += (s, e) => { if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); pb.Invalidate(); } };
+            btnPenColor.Click += (s, e) => { 
+                using (ColorDialog cd = new ColorDialog { Color = penColor }) {
+                    if (cd.ShowDialog() == DialogResult.OK) { penColor = cd.Color; btnPenColor.BackColor = penColor; } 
+                }
+            };
+            btnUndo.Click += (s, e) => { 
+                if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); pb.Invalidate(); } 
+            };
 
             btnInsertText.Click += (s, e) => { 
-                shapes.Add(new DrawShape { Type = "Text", Text = textContent, Font = textFont, Color = textColor, BgColor = textBgColor, TextAlign = cbAlign.SelectedItem.ToString(), Opacity = tbOpacity.Value, TextRect = new RectangleF(50, 50, 200, 100) });
+                shapes.Add(new DrawShape { 
+                    Type = "Text", Text = textContent, Font = textFont, Color = textColor, 
+                    BgColor = textBgColor, TextAlign = cbAlign.SelectedItem.ToString(), Opacity = tbOpacity.Value, 
+                    TextRect = new RectangleF(50, 50, 200, 100) 
+                });
                 pb.Invalidate();
             };
-            btnFont.Click += (s, e) => { using (FontDialog fd = new FontDialog { Font = textFont }) if (fd.ShowDialog() == DialogResult.OK) textFont = fd.Font; };
-            btnTextColor.Click += (s, e) => { using (ColorDialog cd = new ColorDialog { Color = textColor }) if (cd.ShowDialog() == DialogResult.OK) { textColor = cd.Color; btnTextColor.BackColor = textColor; } };
-            btnBgColor.Click += (s, e) => { using (ColorDialog cd = new ColorDialog { Color = textBgColor }) if (cd.ShowDialog() == DialogResult.OK) { textBgColor = cd.Color; btnBgColor.BackColor = textBgColor; } };
+            btnFont.Click += (s, e) => { 
+                using (FontDialog fd = new FontDialog { Font = textFont }) {
+                    if (fd.ShowDialog() == DialogResult.OK) textFont = fd.Font; 
+                }
+            };
+            btnTextColor.Click += (s, e) => { 
+                using (ColorDialog cd = new ColorDialog { Color = textColor }) {
+                    if (cd.ShowDialog() == DialogResult.OK) { textColor = cd.Color; btnTextColor.BackColor = textColor; } 
+                }
+            };
+            btnBgColor.Click += (s, e) => { 
+                using (ColorDialog cd = new ColorDialog { Color = textBgColor }) {
+                    if (cd.ShowDialog() == DialogResult.OK) { textBgColor = cd.Color; btnBgColor.BackColor = textBgColor; } 
+                }
+            };
         }
 
         private void LoadImageToCanvas(string filePath) {
             try {
                 Image img = Image.FromFile(filePath);
                 canvas = new Bitmap(img.Width, img.Height);
-                using (Graphics g = Graphics.FromImage(canvas)) { g.DrawImage(img, 0, 0); }
+                using (Graphics g = Graphics.FromImage(canvas)) { 
+                    g.DrawImage(img, 0, 0); 
+                }
                 img.Dispose();
                 pb.Invalidate();
             } catch { }
@@ -203,14 +232,23 @@ namespace MiniImageStudio {
         private void DrawShapes(Graphics g) {
             foreach (var s in shapes) {
                 if (s.Type == "Text") {
-                    using (SolidBrush bg = new SolidBrush(Color.FromArgb(s.Opacity, s.BgColor)))
+                    using (SolidBrush bg = new SolidBrush(Color.FromArgb(s.Opacity, s.BgColor))) {
                         g.FillRectangle(bg, s.TextRect);
+                    }
                     StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Near };
-                    if (s.TextAlign == "置中") sf.Alignment = StringAlignment.Center; else if (s.TextAlign == "靠右") sf.Alignment = StringAlignment.Far; else sf.Alignment = StringAlignment.Near;
-                    using (SolidBrush tb = new SolidBrush(s.Color)) g.DrawString(s.Text, s.Font, tb, new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20), sf);
+                    if (s.TextAlign == "置中") sf.Alignment = StringAlignment.Center; 
+                    else if (s.TextAlign == "靠右") sf.Alignment = StringAlignment.Far; 
+                    else sf.Alignment = StringAlignment.Near;
+                    
+                    using (SolidBrush tb = new SolidBrush(s.Color)) {
+                        g.DrawString(s.Text, s.Font, tb, new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20), sf);
+                    }
                 } else {
                     using (Pen p = new Pen(s.Color, s.PenWidth)) {
-                        int x = Math.Min(s.Start.X, s.End.X), y = Math.Min(s.Start.Y, s.End.Y), w = Math.Abs(s.Start.X - s.End.X), h = Math.Abs(s.Start.Y - s.End.Y);
+                        int x = Math.Min(s.Start.X, s.End.X);
+                        int y = Math.Min(s.Start.Y, s.End.Y);
+                        int w = Math.Abs(s.Start.X - s.End.X);
+                        int h = Math.Abs(s.Start.Y - s.End.Y);
                         if (s.Type == "Line") g.DrawLine(p, s.Start, s.End);
                         else if (s.Type == "Frame") g.DrawRectangle(p, x, y, w, h);
                         else if (s.Type == "Circle") g.DrawEllipse(p, x, y, w, h);
@@ -220,7 +258,10 @@ namespace MiniImageStudio {
 
             if (drawingShape != null) {
                 using (Pen p = new Pen(drawingShape.Color, drawingShape.PenWidth)) {
-                    int x = Math.Min(drawingShape.Start.X, drawingShape.End.X), y = Math.Min(drawingShape.Start.Y, drawingShape.End.Y), w = Math.Abs(drawingShape.Start.X - drawingShape.End.X), h = Math.Abs(drawingShape.Start.Y - drawingShape.End.Y);
+                    int x = Math.Min(drawingShape.Start.X, drawingShape.End.X);
+                    int y = Math.Min(drawingShape.Start.Y, drawingShape.End.Y);
+                    int w = Math.Abs(drawingShape.Start.X - drawingShape.End.X);
+                    int h = Math.Abs(drawingShape.Start.Y - drawingShape.End.Y);
                     if (drawingShape.Type == "Line") g.DrawLine(p, drawingShape.Start, drawingShape.End);
                     else if (drawingShape.Type == "Frame") g.DrawRectangle(p, x, y, w, h);
                     else if (drawingShape.Type == "Circle") g.DrawEllipse(p, x, y, w, h);
@@ -283,7 +324,10 @@ namespace MiniImageStudio {
                 float sX = (float)disp.Width / canvas.Width, sY = (float)disp.Height / canvas.Height;
                 RectangleF screenRect = new RectangleF(disp.X + (shape.TextRect.X + 10) * sX, disp.Y + (shape.TextRect.Y + 10) * sY, (shape.TextRect.Width - 20) * sX, (shape.TextRect.Height - 20) * sY);
                 
-                editBox = new TextBox { Multiline = true, Text = shape.Text, Font = shape.Font, Location = Point.Round(screenRect.Location), Size = Size.Round(screenRect.Size) };
+                editBox = new TextBox { 
+                    Multiline = true, Text = shape.Text, Font = shape.Font, 
+                    Location = Point.Round(screenRect.Location), Size = Size.Round(screenRect.Size) 
+                };
                 editBox.LostFocus += (s2, e2) => CommitTextEdit();
                 pb.Controls.Add(editBox);
                 editBox.BringToFront();
@@ -307,7 +351,10 @@ namespace MiniImageStudio {
             if (canvas == null) return;
             shapes.ForEach(s => s.IsSelected = false); 
             Bitmap finalImg = new Bitmap(canvas.Width, canvas.Height);
-            using (Graphics g = Graphics.FromImage(finalImg)) { g.DrawImage(canvas, 0, 0); DrawShapes(g); }
+            using (Graphics g = Graphics.FromImage(finalImg)) { 
+                g.DrawImage(canvas, 0, 0); 
+                DrawShapes(g); 
+            }
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "JPEG|*.jpg", FileName = "Drawing_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     EncoderParameters ep = new EncoderParameters(1);
