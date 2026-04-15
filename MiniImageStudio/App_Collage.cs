@@ -221,11 +221,13 @@ namespace MiniImageStudio {
         }
 
         // 讀取並套用選擇的畫布比例
+        // 讀取並套用選擇的畫布比例 (已加入防崩潰保護)
         private Rectangle GetCanvasRect() {
-            int targetWidth = pb.Width - 40;
-            int targetHeight = pb.Height - 40;
+            // 加入 Math.Max，確保當視窗極小或尚未載入時，長寬至少為 1，防止算出負數
+            int targetWidth = Math.Max(1, pb.Width - 40);
+            int targetHeight = Math.Max(1, pb.Height - 40);
             
-            string ratioStr = cbRatio != null ? cbRatio.SelectedItem.ToString() : "1:1";
+            string ratioStr = cbRatio != null && cbRatio.SelectedItem != null ? cbRatio.SelectedItem.ToString() : "1:1";
             float ratio = 1.0f;
             if (ratioStr == "4:3") ratio = 4.0f / 3.0f;
             else if (ratioStr == "3:4") ratio = 3.0f / 4.0f;
@@ -233,9 +235,9 @@ namespace MiniImageStudio {
             else if (ratioStr == "9:16") ratio = 9.0f / 16.0f;
 
             if (targetWidth / (float)targetHeight > ratio) {
-                targetWidth = (int)(targetHeight * ratio);
+                targetWidth = Math.Max(1, (int)(targetHeight * ratio));
             } else {
-                targetHeight = (int)(targetWidth / ratio);
+                targetHeight = Math.Max(1, (int)(targetWidth / ratio));
             }
 
             return new Rectangle((pb.Width - targetWidth) / 2, (pb.Height - targetHeight) / 2, targetWidth, targetHeight);
