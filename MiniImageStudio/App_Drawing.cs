@@ -3,11 +3,11 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging; // 修正缺少此命名空間導致的 EncoderParameters 錯誤
+using System.Drawing.Imaging; 
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq; // 修正缺少此命名空間導致的 .First() 錯誤
+using System.Linq; 
 
 namespace MiniImageStudio {
     public class App_Drawing : UserControl {
@@ -109,7 +109,6 @@ namespace MiniImageStudio {
             GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(610, 65), Margin = new Padding(5) };
             Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
             
-            // 【修正對齊】將 cbAlign 的 Y 座標由 26 改為 24
             cbAlign = new ComboBox { Location = new Point(120, 24), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
             cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); 
             cbAlign.SelectedIndex = 0;
@@ -202,12 +201,11 @@ namespace MiniImageStudio {
             } catch { }
         }
 
-private Rectangle GetDisplayRect() {
-            // 加上 pb.Width <= 0 的判斷，防止除以零或產生負數
+        // 讀取並防呆的畫布顯示區域計算
+        private Rectangle GetDisplayRect() {
             if (canvas == null || pb.Width <= 0 || pb.Height <= 0) return Rectangle.Empty;
             
             float ratio = Math.Min((float)pb.Width / canvas.Width, (float)pb.Height / canvas.Height);
-            // 加入 Math.Max 保護
             int w = Math.Max(1, (int)(canvas.Width * ratio));
             int h = Math.Max(1, (int)(canvas.Height * ratio));
             
@@ -221,27 +219,6 @@ private Rectangle GetDisplayRect() {
                 // 如果計算出的顯示區域無效，就先不要畫，避免崩潰
                 if (disp.Width <= 0 || disp.Height <= 0) return; 
 
-                e.Graphics.DrawImage(canvas, disp);
-                
-                // 處理座標映射
-                Matrix m = new Matrix();
-                m.Translate(disp.X, disp.Y);
-                m.Scale((float)disp.Width / canvas.Width, (float)disp.Height / canvas.Height);
-                e.Graphics.Transform = m;
-                
-                DrawShapes(e.Graphics);
-
-                e.Graphics.ResetTransform();
-            } else {
-                StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                e.Graphics.DrawString("請先載入圖片", this.Font, Brushes.Gray, pb.ClientRectangle, sf);
-            }
-        }
-
-        private void Pb_Paint(object sender, PaintEventArgs e) {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            if (canvas != null) {
-                Rectangle disp = GetDisplayRect();
                 e.Graphics.DrawImage(canvas, disp);
                 
                 // 處理座標映射
