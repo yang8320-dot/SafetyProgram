@@ -3,9 +3,11 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging; // 修正缺少此命名空間導致的 EncoderParameters 錯誤
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq; // 修正缺少此命名空間導致的 .First() 錯誤
 
 namespace MiniImageStudio {
     public class App_Drawing : UserControl {
