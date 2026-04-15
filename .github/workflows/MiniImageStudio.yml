@@ -14,21 +14,25 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Restore NuGet Packages
-      run: nuget restore MiniImageStudio.csproj
+      # 加上子資料夾路徑：MiniImageStudio/
+      run: nuget restore MiniImageStudio/MiniImageStudio.csproj
 
     - name: Build Project
-      run: msbuild MiniImageStudio.csproj /p:Configuration=Release /p:Platform="Any CPU"
+      # 加上子資料夾路徑：MiniImageStudio/
+      run: msbuild MiniImageStudio/MiniImageStudio.csproj /p:Configuration=Release /p:Platform="Any CPU"
 
     - name: Download ILRepack
       run: nuget install ILRepack -Version 2.0.18 -OutputDirectory tools
 
     - name: Merge to Single EXE
+      # 編譯出來的檔案也會在這個子資料夾的 bin 裡面，所以這裡也加上 MiniImageStudio\
       run: |
         $ilrepack = (Get-ChildItem -Path tools -Filter ILRepack.exe -Recurse).FullName
-        & $ilrepack /out:bin\Release\net472\MiniImageStudio_Portable.exe bin\Release\net472\MiniImageStudio.exe
+        & $ilrepack /out:MiniImageStudio\bin\Release\net472\MiniImageStudio_Portable.exe MiniImageStudio\bin\Release\net472\MiniImageStudio.exe
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: MiniImageStudio-Portable
-        path: bin\Release\net472\MiniImageStudio_Portable.exe
+        # 上傳路徑也加上 MiniImageStudio\
+        path: MiniImageStudio\bin\Release\net472\MiniImageStudio_Portable.exe
