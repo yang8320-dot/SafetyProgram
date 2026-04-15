@@ -1,10 +1,11 @@
-/* * 功能：進階向量繪製模組 (雙擊編輯文字、對齊、流式排版、ESC/Delete/Ctrl+S快捷鍵)
+/* * 功能：進階向量繪製模組 (完美緊湊排版、支援拖曳上傳、預設提示文字)
  */
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Collections.Generic;
+using System.IO;
 
 namespace MiniImageStudio {
     public class App_Drawing : UserControl {
@@ -72,51 +73,47 @@ namespace MiniImageStudio {
         }
 
         private void InitializeUI() {
-            FlowLayoutPanel ctrlPanel = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, BackColor = SystemColors.Control };
+            // 最外層容器：負責讓三個小框自動換行
+            FlowLayoutPanel mainFlow = new FlowLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                FlowDirection = FlowDirection.LeftToRight, 
+                BackColor = SystemColors.Control,
+                Padding = new Padding(5)
+            };
 
-            // 群組 1: 畫布控制
-            GroupBox gb1 = new GroupBox { Text = "畫布", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl1 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
-            Button btnLoad = new Button { Text = "載入圖片", Width = 90, Height = 32 };
-            Button btnRotate = new Button { Text = "旋轉圖片", Width = 90, Height = 32 };
-            Button btnClear = new Button { Text = "清除全部", Width = 90, Height = 32, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存圖片", Width = 90, Height = 32, BackColor = Color.SeaGreen, ForeColor = Color.White };
-            fl1.Controls.AddRange(new Control[] { btnLoad, btnRotate, btnClear, btnSave });
-            gb1.Controls.Add(fl1);
+            // ================== 群組 1: 畫布控制 ==================
+            // 強制設定高度為 65，徹底消滅下方過大間隙
+            GroupBox gb1 = new GroupBox { Text = "畫布", Size = new Size(390, 65), Margin = new Padding(5) };
+            Button btnLoad = new Button { Text = "載入圖片", Location = new Point(15, 22), Width = 85, Height = 30 };
+            Button btnRotate = new Button { Text = "旋轉圖片", Location = new Point(105, 22), Width = 85, Height = 30 };
+            Button btnClear = new Button { Text = "清除全部", Location = new Point(195, 22), Width = 85, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存圖片", Location = new Point(285, 22), Width = 85, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            gb1.Controls.AddRange(new Control[] { btnLoad, btnRotate, btnClear, btnSave });
 
-            // 群組 2: 繪圖工具
-            GroupBox gb2 = new GroupBox { Text = "繪圖工具", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl2 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
-            cbMode = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font(this.Font.FontFamily, 12), Margin = new Padding(3,5,3,3) };
-            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" });
-            cbMode.SelectedIndex = 1; // 預設畫框
-            
-            Label lblSize = new Label { Text = "粗細:", AutoSize = true, Margin = new Padding(3,10,3,3) };
-            numPenSize = new NumericUpDown { Minimum = 1, Maximum = 10, Value = 5, Width = 50, Font = new Font(this.Font.FontFamily, 12), Margin = new Padding(3,5,3,3) };
-            Button btnPenColor = new Button { Width = 32, Height = 32, BackColor = penColor }; 
-            Button btnUndo = new Button { Text = "返回", Width = 70, Height = 32 };
-            fl2.Controls.AddRange(new Control[] { cbMode, lblSize, numPenSize, btnPenColor, btnUndo });
-            gb2.Controls.Add(fl2);
+            // ================== 群組 2: 繪圖工具 ==================
+            GroupBox gb2 = new GroupBox { Text = "繪圖工具", Size = new Size(265, 65), Margin = new Padding(5) };
+            cbMode = new ComboBox { Location = new Point(15, 26), Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); cbMode.SelectedIndex = 1; // 預設畫框
+            numPenSize = new NumericUpDown { Location = new Point(95, 26), Minimum = 1, Maximum = 10, Value = 5, Width = 45 };
+            Button btnPenColor = new Button { Location = new Point(150, 24), Width = 30, Height = 28, BackColor = penColor }; 
+            Button btnUndo = new Button { Text = "返回", Location = new Point(190, 22), Width = 60, Height = 30 };
+            gb2.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
 
-            // 群組 3: 文字工具
-            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", AutoSize = true, Padding = new Padding(5) };
-            FlowLayoutPanel fl3 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
-            Button btnInsertText = new Button { Text = "插入文字框", Width = 110, Height = 32, BackColor = Color.SteelBlue, ForeColor = Color.White };
-            
-            cbAlign = new ComboBox { Width = 70, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(3,5,3,3) };
-            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" });
-            cbAlign.SelectedIndex = 0;
+            // ================== 群組 3: 文字工具 ==================
+            GroupBox gb3 = new GroupBox { Text = "文字工具 (雙擊文字框可編輯)", Size = new Size(610, 65), Margin = new Padding(5) };
+            Button btnInsertText = new Button { Text = "插入文字框", Location = new Point(15, 22), Width = 95, Height = 30, BackColor = Color.SteelBlue, ForeColor = Color.White };
+            cbAlign = new ComboBox { Location = new Point(115, 26), Width = 60, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbAlign.Items.AddRange(new string[] { "靠左", "置中", "靠右" }); cbAlign.SelectedIndex = 0;
+            Button btnFont = new Button { Text = "字體", Location = new Point(185, 22), Width = 55, Height = 30 };
+            Button btnTextColor = new Button { Text = "字色", Location = new Point(245, 22), Width = 55, Height = 30, BackColor = textColor };
+            Button btnBgColor = new Button { Text = "底色", Location = new Point(305, 22), Width = 55, Height = 30, BackColor = textBgColor };
+            Button btnBorderColor = new Button { Text = "框色", Location = new Point(365, 22), Width = 55, Height = 30, BackColor = textBorderColor };
+            Label lblOpacity = new Label { Text = "透明度:", Location = new Point(430, 30), AutoSize = true };
+            TrackBar tbOpacity = new TrackBar { Location = new Point(490, 24), Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            gb3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, btnBorderColor, lblOpacity, tbOpacity });
 
-            Button btnFont = new Button { Text = "字體", Width = 60, Height = 32 };
-            Button btnTextColor = new Button { Text = "字色", Width = 60, Height = 32, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Width = 60, Height = 32, BackColor = textBgColor };
-            Button btnBorderColor = new Button { Text = "框色", Width = 60, Height = 32, BackColor = textBorderColor };
-            Label lblOpacity = new Label { Text = "透明度:", AutoSize = true, Margin = new Padding(3,10,3,3) };
-            TrackBar tbOpacity = new TrackBar { Width = 100, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
-            fl3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, btnBorderColor, lblOpacity, tbOpacity });
-            gb3.Controls.Add(fl3);
-
-            ctrlPanel.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
+            mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
 
             // 事件綁定
             btnLoad.Click += (s, e) => LoadImage();
@@ -141,16 +138,21 @@ namespace MiniImageStudio {
             btnBorderColor.Click += (s, e) => { ChooseColor(ref textBorderColor, btnBorderColor); UpdateSelectedTextProperty(); };
             tbOpacity.ValueChanged += (s, e) => { textOpacity = tbOpacity.Value; UpdateSelectedTextProperty(); };
 
-            pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.DarkGray };
+            // 畫布 PictureBox (支援拖曳)
+            pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.DarkGray, AllowDrop = true };
             pb.Paint += Pb_Paint;
             pb.MouseDown += Pb_MouseDown;
             pb.MouseMove += Pb_MouseMove;
             pb.MouseUp += Pb_MouseUp;
             pb.MouseDoubleClick += Pb_MouseDoubleClick;
+            
+            // 加入拖曳事件
+            pb.DragEnter += (s, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; };
+            pb.DragDrop += Pb_DragDrop;
 
             this.Controls.Add(pb);
             this.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 10 });
-            this.Controls.Add(ctrlPanel);
+            this.Controls.Add(mainFlow);
         }
 
         private void ChooseColor(ref Color target, Button btn) {
@@ -169,8 +171,28 @@ namespace MiniImageStudio {
         }
 
         private void LoadImage() {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Image|*.jpg;*.png;*.bmp" }) {
-                if (ofd.ShowDialog() == DialogResult.OK) { canvas = new Bitmap(ofd.FileName); shapes.Clear(); pb.Invalidate(); }
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Image|*.jpg;*.png;*.bmp;*.jpeg" }) {
+                if (ofd.ShowDialog() == DialogResult.OK) { 
+                    if (canvas != null) canvas.Dispose();
+                    canvas = new Bitmap(ofd.FileName); 
+                    shapes.Clear(); 
+                    pb.Invalidate(); 
+                }
+            }
+        }
+
+        // 處理拖曳放開的檔案
+        private void Pb_DragDrop(object sender, DragEventArgs e) {
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (files.Length > 0) {
+                string ext = Path.GetExtension(files[0]).ToLower();
+                if (ext == ".jpg" || ext == ".png" || ext == ".bmp" || ext == ".jpeg") {
+                    CommitTextEdit();
+                    if (canvas != null) canvas.Dispose();
+                    canvas = new Bitmap(files[0]);
+                    shapes.Clear();
+                    pb.Invalidate();
+                }
             }
         }
 
@@ -199,7 +221,7 @@ namespace MiniImageStudio {
             }
             if (keyData == Keys.Delete && editBox == null) {
                 if (selectedShape != null) { shapes.Remove(selectedShape); selectedShape = null; pb.Invalidate(); return true; }
-                if (canvas != null) { canvas.Dispose(); canvas = null; pb.Invalidate(); return true; } // 清除背景
+                if (canvas != null) { canvas.Dispose(); canvas = null; pb.Invalidate(); return true; } 
             }
             if (keyData == (Keys.Control | Keys.Z)) { UndoShape(); return true; }
             if (keyData == (Keys.Control | Keys.S)) { SaveImage(); return true; }
@@ -232,7 +254,6 @@ namespace MiniImageStudio {
                     else sf.Alignment = StringAlignment.Near;
 
                     RectangleF tRect = new RectangleF(s.TextRect.X + 10, s.TextRect.Y + 10, s.TextRect.Width - 20, s.TextRect.Height - 20);
-                    // 隱藏正在編輯的文字
                     if (s != editingShape) {
                         using (SolidBrush tb = new SolidBrush(s.Color)) g.DrawString(s.Text, s.Font, tb, tRect, sf);
                     }
@@ -256,12 +277,17 @@ namespace MiniImageStudio {
         }
 
         private void Pb_Paint(object sender, PaintEventArgs e) {
-            Rectangle disp = GetDisplayRect();
             if (canvas != null) {
+                Rectangle disp = GetDisplayRect();
                 e.Graphics.DrawImage(canvas, disp);
                 float sX = (float)disp.Width / canvas.Width, sY = (float)disp.Height / canvas.Height;
                 Matrix m = new Matrix(); m.Translate(disp.X, disp.Y); m.Scale(sX, sY);
                 e.Graphics.Transform = m; DrawShapes(e.Graphics); e.Graphics.ResetTransform();
+            } else {
+                // 沒有圖片時顯示提示文字
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }) {
+                    e.Graphics.DrawString("請載入圖片 或將照片拖曳上傳圖片", new Font(MainForm.UI_Font.FontFamily, 16, FontStyle.Regular), Brushes.LightGray, pb.ClientRectangle, sf);
+                }
             }
         }
 
@@ -300,7 +326,9 @@ namespace MiniImageStudio {
         }
 
         private void Pb_MouseMove(object sender, MouseEventArgs e) {
+            if (canvas == null) return;
             Point imgPt = TranslatePoint(e.Location);
+            
             if (selectedShape != null && selectedShape.Type == "Text" && selectedShape.GetResizeHandle().Contains(imgPt)) pb.Cursor = Cursors.SizeNWSE;
             else if (isTextModeActive) pb.Cursor = Cursors.Cross;
             else pb.Cursor = Cursors.Default;
@@ -347,7 +375,7 @@ namespace MiniImageStudio {
             shapes.ForEach(s => s.IsSelected = false); 
             Bitmap finalImg = new Bitmap(canvas.Width, canvas.Height);
             using (Graphics g = Graphics.FromImage(finalImg)) { g.DrawImage(canvas, 0, 0); DrawShapes(g); }
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "JPEG|*.jpg" }) {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "JPEG|*.jpg", FileName = "Drawing_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) { finalImg.Save(sfd.FileName, System.Drawing.Imaging.ImageFormat.Jpeg); MessageBox.Show("儲存成功！"); }
             }
         }
