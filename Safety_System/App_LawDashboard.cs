@@ -15,14 +15,14 @@ namespace Safety_System
     public class App_LawDashboard
     {
         private const string DbName = "法規";
-        private readonly string[] _tableNames = { "環保法規", "職安衛法規", "其它法規" };
         
-        // 記憶體快取 (優化效能)
+        // 🟢 將「消防法規」納入系統掃描陣列中
+        private readonly string[] _tableNames = { "環保法規", "職安衛法規", "消防法規", "其它法規" };
+        
         private DataTable _dtAllLaws;
         private DataTable _dtDirectoryLaws; 
         private List<string> _errorLogs = new List<string>();
         
-        // UI 控制項
         private ComboBox _cboCategory;
         private ComboBox _cboYearlyCategory; 
         private ComboBox _cboYearlyYear;     
@@ -45,12 +45,12 @@ namespace Safety_System
                 Padding = new Padding(20) 
             };
 
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框1: 年度法令總鑑別表
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框2: 統計摘要
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 框3: 目錄清單
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
 
             // ==========================================
-            // 大框 1：年度法令總鑑別表 (高度放大 1.5 倍)
+            // 大框 1：年度法令總鑑別表
             // ==========================================
             GroupBox box1 = CreateDataBox("📌 年度法令總鑑別表查詢", 525); 
             
@@ -88,7 +88,6 @@ namespace Safety_System
             _cboYearlyYear.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
             _cboYearlyApplicability.SelectedIndexChanged += (s, e) => { FilterYearlyLaws(); };
 
-            // 🟢 修正排版：依序交錯加入 (標籤 -> 選單 -> 標籤 -> 選單)
             pnlAction1.Controls.Add(lblCboCat1);
             pnlAction1.Controls.Add(_cboYearlyCategory);
             pnlAction1.Controls.Add(lblCboYear1);
@@ -159,9 +158,8 @@ namespace Safety_System
             pnlAction3.Controls.Add(btnSaveDir);
 
             _dgvCategoryLaws = CreateStandardGrid();
-            _dgvCategoryLaws.ReadOnly = false; // 允許編輯，後續在 Populate 中鎖定個別欄位
+            _dgvCategoryLaws.ReadOnly = false; 
             
-            // 自動帶入今天日期功能
             _dgvCategoryLaws.CellClick += DgvCategoryLaws_CellClick;
 
             box3.Controls.Add(_dgvCategoryLaws);
@@ -170,7 +168,6 @@ namespace Safety_System
             _dgvCategoryLaws.BringToFront();
             mainPanel.Controls.Add(box3, 0, 2);
 
-            // 提示標籤
             _lblLoading = new Label 
             {
                 Text = "資料大量運算中，請稍候...",
@@ -183,15 +180,11 @@ namespace Safety_System
             mainPanel.Controls.Add(_lblLoading);
             _lblLoading.BringToFront();
 
-            // 觸發非同步載入
             LoadDashboardDataAsync();
 
             return mainPanel;
         }
 
-        // ==========================================
-        // 效能優化核心：非同步背景載入與運算
-        // ==========================================
         private async void LoadDashboardDataAsync()
         {
             DataTable dtStats = null;
@@ -202,7 +195,6 @@ namespace Safety_System
                 {
                     _errorLogs.Clear();
                     LoadAndMergeData();
-                    // 載入完整的法規目錄一覽表，包含 Id 與 再次確認日期
                     _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
                     dtStats = BuildStatsData();
                 } 
@@ -234,9 +226,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // UI 元件工廠
-        // ==========================================
         private GroupBox CreateDataBox(string title, int minHeight)
         {
             return new GroupBox 
@@ -250,7 +239,6 @@ namespace Safety_System
             };
         }
 
-        // 使用 FlowLayoutPanel 解決按鈕與選單擠壓重疊的問題
         private FlowLayoutPanel CreateActionFlowPanel(string exText, string pdfText, Action exClick, Action pdfClick)
         {
             FlowLayoutPanel p = new FlowLayoutPanel 
@@ -325,9 +313,6 @@ namespace Safety_System
                 null, dgv, new object[] { true });
         }
 
-        // ==========================================
-        // 資料庫讀取與處理
-        // ==========================================
         private void LoadAndMergeData()
         {
             _dtAllLaws = new DataTable();
@@ -377,7 +362,6 @@ namespace Safety_System
             return ""; 
         }
 
-        // 根據下拉選單過濾年度法規，新增「適用性」過濾邏輯
         private void FilterYearlyLaws()
         {
             if (_cboYearlyCategory.SelectedItem == null || 
@@ -427,7 +411,6 @@ namespace Safety_System
                     if (apply == "適用") hasApplicable = true;
                 }
 
-                // 決定該法規的最終適用性
                 string finalApply = hasApplicable ? "適用" : firstApply;
 
                 if (applicability != "全部" && finalApply != applicability) {
@@ -526,9 +509,6 @@ namespace Safety_System
             _dgvStats.ClearSelection();
         }
 
-        // ==========================================
-        // 目錄表邏輯 (結合編輯儲存功能)
-        // ==========================================
         private void FilterCategoryLaws()
         {
             if (_cboCategory.SelectedItem == null || _dtDirectoryLaws == null) return;
@@ -609,9 +589,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 匯出功能 (Excel / PDF)
-        // ==========================================
         private void ExportToExcel(DataGridView dgv, string title)
         {
             if (dgv.Rows.Count == 0) 
