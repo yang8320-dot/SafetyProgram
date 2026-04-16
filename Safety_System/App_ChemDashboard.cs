@@ -17,41 +17,38 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 設定檔路徑
+        // 記憶設定檔路徑
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Visibility.txt");
-        
-        // 記憶欄位顯示狀態
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
         public Control GetView()
         {
-            LoadVisibilitySettings(); // 載入記憶的設定
+            LoadVisibilitySettings(); // 啟動時先載入偏好設定
 
             TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), RowCount = 2 };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 第一行：功能按鈕區
+            // 第一行：功能按鈕區 (導出與設定)
             FlowLayoutPanel pnlAction = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
             
-            Button btnPdf = new Button { Text = "📤 導出清冊 PDF", Size = new Size(180, 40), BackColor = Color.DarkCyan, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnPdf = new Button { Text = "📤 導出清冊 PDF", Size = new Size(200, 40), BackColor = Color.DarkCyan, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnPdf.Click += (s, e) => ExportToPdf();
 
-            // 🟢 新增：設定顯示欄位按鈕
-            Button btnSettings = new Button { Text = "⚙️ 設定顯示欄位", Size = new Size(180, 40), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            Button btnSettings = new Button { Text = "⚙️ 設定顯示欄位", Size = new Size(200, 40), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnSettings.Click += (s, e) => OpenColumnSettings();
 
             pnlAction.Controls.Add(btnPdf);
             pnlAction.Controls.Add(btnSettings);
             mainLayout.Controls.Add(pnlAction, 0, 0);
 
-            // 第二大框
+            // 第二大框：包含標題區與數據區
             GroupBox boxMain = new GroupBox { Text = "📋 化學品管理綜合看板", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Padding = new Padding(15) };
             TableLayoutPanel innerTable = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1 };
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 100F)); 
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 100F)); // 小框1: 標題
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  // 小框2: 數據
 
-            // 小框 1：標題區
+            // 小框 1：企業標題與報表名稱
             Panel pnlTitle = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(240, 245, 250), Margin = new Padding(0,0,0,15) };
             pnlTitle.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTitle.ClientRectangle, Color.SteelBlue, ButtonBorderStyle.Solid);
             
@@ -60,7 +57,7 @@ namespace Safety_System
             pnlTitle.Controls.Add(lblSubTitle);
             pnlTitle.Controls.Add(lblCompany);
 
-            // 小框 2：SDS 數據表格
+            // 小框 2：數據顯示區 (SDS 資料表)
             GroupBox boxGrid = new GroupBox { Text = "SDS 安全資料表庫存清單", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
             _dgvSDS = new DataGridView { 
                 Dock = DockStyle.Fill, 
@@ -90,24 +87,31 @@ namespace Safety_System
 
         private void LoadData()
         {
-            DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
-            _dgvSDS.DataSource = dt;
-            ApplyVisibility(); // 套用顯示/隱藏邏輯
+            try
+            {
+                DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
+                if (dt != null)
+                {
+                    _dgvSDS.DataSource = dt;
+                    ApplyVisibility();
+                }
+            }
+            catch { _dgvSDS.DataSource = null; } // 找不到資料表時防空處理
         }
 
         private void ApplyVisibility()
         {
+            if (_dgvSDS.Columns.Count == 0) return;
             foreach (DataGridViewColumn col in _dgvSDS.Columns)
             {
                 if (col.Name == "Id") { col.Visible = false; continue; }
-                
-                // 根據記憶字典決定顯示與否，若字典沒資料則預設顯示 (除了附件)
                 if (_columnVisibility.ContainsKey(col.Name))
                 {
                     col.Visible = _columnVisibility[col.Name];
                 }
                 else
                 {
+                    // 預設排除「附件檔案」路徑字串顯示
                     col.Visible = (col.Name != "附件檔案");
                 }
             }
@@ -115,46 +119,37 @@ namespace Safety_System
 
         private void OpenColumnSettings()
         {
-            // 取得目前資料庫所有欄位
             List<string> allCols = DataManager.GetColumnNames(DbName, TableName);
-
-            using (Form f = new Form())
+            if (allCols == null || allCols.Count == 0)
             {
-                f.Text = "設定顯示欄位";
-                f.Size = new Size(350, 500);
-                f.StartPosition = FormStartPosition.CenterParent;
-                f.FormBorderStyle = FormBorderStyle.FixedDialog;
-                f.MaximizeBox = false; f.MinimizeBox = false;
+                MessageBox.Show("目前找不到資料表，請確認資料庫是否已初始化。", "提示");
+                return;
+            }
 
-                Label lbl = new Label { Text = "請勾選欲顯示在看板上的欄位：", Dock = DockStyle.Top, Height = 40, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-                
-                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+            using (Form f = new Form { Text = "⚙️ 設定看板顯示欄位", Size = new Size(350, 520), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                Label lbl = new Label { Text = "請勾選欲在看板顯示的數據項目：", Dock = DockStyle.Top, Height = 40, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 11F), BorderStyle = BorderStyle.None, BackColor = Color.WhiteSmoke };
                 
                 foreach (var colName in allCols)
                 {
                     if (colName == "Id") continue;
-                    bool isChecked = true; // 預設勾選
-                    if (_columnVisibility.ContainsKey(colName)) isChecked = _columnVisibility[colName];
-                    else if (colName == "附件檔案") isChecked = false; // 附件預設不顯在看板
-
+                    bool isChecked = _columnVisibility.ContainsKey(colName) ? _columnVisibility[colName] : (colName != "附件檔案");
                     clb.Items.Add(colName, isChecked);
                 }
 
-                Button btnSave = new Button { Text = "💾 儲存並套用", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand };
-                btnSave.Click += (s, e) => {
+                Button btnOk = new Button { Text = "💾 儲存設定並套用", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnOk.Click += (s, e) => {
                     _columnVisibility.Clear();
-                    for (int i = 0; i < clb.Items.Count; i++)
-                    {
-                        _columnVisibility[clb.Items[i].ToString()] = clb.GetItemChecked(i);
-                    }
+                    for (int i = 0; i < clb.Items.Count; i++) _columnVisibility[clb.Items[i].ToString()] = clb.GetItemChecked(i);
                     SaveVisibilitySettings();
                     ApplyVisibility();
-                    f.Close();
+                    f.DialogResult = DialogResult.OK;
                 };
 
                 f.Controls.Add(clb);
                 f.Controls.Add(lbl);
-                f.Controls.Add(btnSave);
+                f.Controls.Add(btnOk);
                 f.ShowDialog();
             }
         }
@@ -170,10 +165,7 @@ namespace Safety_System
                     foreach (var line in lines)
                     {
                         var parts = line.Split('|');
-                        if (parts.Length == 2)
-                        {
-                            _columnVisibility[parts[0]] = parts[1] == "1";
-                        }
+                        if (parts.Length == 2) _columnVisibility[parts[0]] = (parts[1] == "1");
                     }
                 }
                 catch { }
@@ -184,11 +176,7 @@ namespace Safety_System
         {
             try
             {
-                List<string> lines = new List<string>();
-                foreach (var kvp in _columnVisibility)
-                {
-                    lines.Add($"{kvp.Key}|{(kvp.Value ? "1" : "0")}");
-                }
+                List<string> lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToList();
                 File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
             }
             catch { }
@@ -196,56 +184,72 @@ namespace Safety_System
 
         private void ExportToPdf()
         {
-            if (_dgvSDS.Rows.Count == 0) return;
+            if (_dgvSDS.Rows.Count == 0) { MessageBox.Show("無資料可供導出。"); return; }
 
             PrintDocument pd = new PrintDocument();
-            pd.DefaultPageSettings.Landscape = true;
+            pd.DefaultPageSettings.Landscape = true; // A4 橫向
             pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
+            
             int rowIndex = 0;
-
             pd.PrintPage += (s, e) => {
                 Graphics g = e.Graphics;
+                Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
+                Font fSub = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold);
+                Font fBody = new Font("Microsoft JhengHei UI", 9F);
+                Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
+                
                 float x = e.MarginBounds.Left;
                 float y = e.MarginBounds.Top;
 
-                g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), Brushes.MidnightBlue, x, y);
+                // 報表標題區
+                g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.MidnightBlue, x, y);
+                y += 40;
+                g.DrawString("化學品清單一覽表 (SDS)", fSub, Brushes.Black, x, y);
                 y += 35;
-                g.DrawString("化學品清單一覽表 (SDS)", new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Brushes.Black, x, y);
+                g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}", fBody, Brushes.Gray, x, y);
                 y += 30;
-                g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", new Font("Microsoft JhengHei UI", 10F), Brushes.Gray, x, y);
-                y += 25;
 
-                // 🟢 只抓取目前「可見」的欄位進行 PDF 列印
+                // 篩選出目前在看板上「被勾選為顯示」的欄位
                 var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList();
+                if (visCols.Count == 0) return;
+
                 float totalW = visCols.Sum(c => c.Width);
                 float scale = e.MarginBounds.Width / totalW;
-                if (scale > 1) scale = 1;
+                if (scale > 1.2f) scale = 1.2f; // 防止過度拉大
 
+                // 畫表格標頭
                 float currX = x;
+                float rowH = 30;
                 foreach (var col in visCols) {
-                    RectangleF rect = new RectangleF(currX, y, col.Width * scale, 30);
+                    RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
                     g.FillRectangle(Brushes.DimGray, rect);
                     g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                    g.DrawString(col.HeaderText, new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold), Brushes.White, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                    g.DrawString(col.HeaderText, fHead, Brushes.White, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
                     currX += col.Width * scale;
                 }
-                y += 30;
+                y += rowH;
 
+                // 畫表格內容 (含分頁邏輯)
                 while (rowIndex < _dgvSDS.Rows.Count) {
                     currX = x;
                     foreach (var col in visCols) {
-                        RectangleF rect = new RectangleF(currX, y, col.Width * scale, 30);
+                        RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
                         g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
                         string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
-                        g.DrawString(val, new Font("Microsoft JhengHei UI", 9F), Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center });
+                        g.DrawString(val, fBody, Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center });
                         currX += col.Width * scale;
                     }
-                    y += 30;
+                    y += rowH;
                     rowIndex++;
-                    if (y + 30 > e.MarginBounds.Bottom) { e.HasMorePages = true; return; }
+
+                    // A4 分頁高度檢查
+                    if (y + rowH > e.MarginBounds.Bottom) {
+                        e.HasMorePages = true;
+                        return;
+                    }
                 }
                 e.HasMorePages = false;
-                rowIndex = 0;
+                rowIndex = 0; 
             };
 
             PrintPreviewDialog ppd = new PrintPreviewDialog { Document = pd, Width = 1024, Height = 768, WindowState = FormWindowState.Maximized };
