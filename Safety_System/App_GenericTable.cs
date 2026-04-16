@@ -39,10 +39,21 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 🟢 完整的結構定義清單
+        // 🟢 完整的結構定義清單 (包含新增的 MinorInjury 與 TargetManagement)
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            // 🟢 產能及廢棄物申報月表 (名稱更新與水站月表)
+            // ISO 14001
+            { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 安全管理 (包含新增的 MinorInjury)
+            { "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SafetyInspection", "[日期] TEXT, [巡檢區域] TEXT, [檢查項目] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善措施] TEXT, [負責人] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "MinorInjury", "[日期] TEXT, [姓名] TEXT, [單位] TEXT, [發生經過] TEXT, [處置方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 產能及廢棄物申報月表
             { "Waste_IL", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [丁基膠MT] TEXT, [結構膠MT] TEXT, [鋁條MT] TEXT, [乾燥劑MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_LM", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [PVB膜MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_CR", "[年月] TEXT, [鍍膜加不良MT] TEXT, [鍍膜生產量MT] TEXT, [除膜生產加不良MT] TEXT, [除膜成品產量MT] TEXT, [靶材MT] TEXT, [隔離粉MT] TEXT, [氧化鈰MT] TEXT, [噴砂底板成品鋁MT] TEXT, [噴砂底板成品其他MT] TEXT, [氧化鋁砂金鋼砂MT] TEXT, [D1099MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -51,17 +62,17 @@ namespace Safety_System
             { "Waste_ML", "[年月] TEXT, [甲醇MT] TEXT, [乙醇MT] TEXT, [潤滑油MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_Water", "[年月] TEXT, [D0902MT] TEXT, [D0201MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 ESG績效管理
+            // ESG績效管理
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 空污申報紀錄
+            // 空污申報紀錄
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 其他原含有「月份」的表單，全部改為「年月」
+            // 其他月報
             { "HazardStats", "[年月] TEXT, [品項] TEXT, [單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjuryReport", "[年月] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 以下保留原狀
+            // 以下保留原狀
             { "ChemRegulations", "[類別] TEXT, [公告日期] TEXT, [法規名稱] TEXT, [法規內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CAS No] TEXT, [檢測週期] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [管制濃度] TEXT, [分級運作量] TEXT, [管制行為] TEXT, [定期申報頻率] TEXT, [毒性分類] TEXT, [記錄] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [防火負責人職稱] TEXT, [火源責任人] TEXT, [火源責任人職稱] TEXT, [責任代理人] TEXT, [責任代理人職稱] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -78,11 +89,6 @@ namespace Safety_System
             { "TCLP", "[日期] TEXT, [樣品名稱] TEXT, [總鉛] TEXT, [鏓鉻] TEXT, [鏓銅] TEXT, [鏓鋇] TEXT, [總鎘] TEXT, [總硒] TEXT, [六價鉻] TEXT, [總汞] TEXT, [總砷] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "SafetyInspection", "[日期] TEXT, [巡檢區域] TEXT, [檢查項目] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善措施] TEXT, [負責人] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
@@ -93,13 +99,30 @@ namespace Safety_System
             _chineseTitle = chineseTitle;
         }
 
+        // 🟢 取得目標資料夾名稱 (依據日期、年月、年度智慧判斷)
+        private string GetExpectedFolderName(string rowDateStr)
+        {
+            if (string.IsNullOrWhiteSpace(rowDateStr)) return DateTime.Now.ToString("yyyy-MM");
+            
+            if (_timeMode == TimeMode.Year) 
+            {
+                if (rowDateStr.Length >= 4) return rowDateStr.Substring(0, 4);
+            }
+            else 
+            {
+                // 日期 (yyyy-MM-dd) 與 年月 (yyyy-MM) 皆取前 7 碼 (yyyy-MM)
+                if (rowDateStr.Length >= 7) return rowDateStr.Substring(0, 7);
+            }
+            return DateTime.Now.ToString("yyyy-MM");
+        }
+
         public Control GetView()
         {
             string schema = _schemaMap.ContainsKey(_tableName) ? _schemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
-            // 🟢 自動資料庫升級：將舊的「月份」重新命名為「年月」
+            // 自動資料庫升級：將舊的「月份」重新命名為「年月」
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             if (columns.Contains("月份")) 
             {
@@ -111,7 +134,7 @@ namespace Safety_System
                 catch { }
             }
 
-            // 🟢 智慧判斷優先順序：日期 > 年月 > 年度
+            // 智慧判斷優先順序：日期 > 年月 > 年度
             if (columns.Contains("日期")) 
             { 
                 _timeMode = TimeMode.Date; 
@@ -221,7 +244,7 @@ namespace Safety_System
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
             };
 
-            // 🟢 動態隱藏不必要的下拉選單
+            // 動態隱藏不必要的下拉選單
             Label lblSY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblSM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblSD = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
@@ -428,8 +451,12 @@ namespace Safety_System
                 {
                     string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
                     
+                    // 🟢 傳入當前列的日期，讓 AttachmentForm 知道要存去哪個資料夾
+                    string rowDateStr = _dgv[_dateColumnName, e.RowIndex].Value?.ToString() ?? "";
+                    string targetFolder = GetExpectedFolderName(rowDateStr);
+
                     // 呼叫全新的四區塊多檔附件視窗
-                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, path => DeletePhysicalFile(path, e.RowIndex))) 
+                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, targetFolder, path => DeletePhysicalFile(path, e.RowIndex))) 
                     {
                         if (frm.ShowDialog() == DialogResult.OK) 
                         {
@@ -441,10 +468,30 @@ namespace Safety_System
             }
         }
 
+        // 🟢 檢查資料庫是否還有其他紀錄綁定這個檔案 (防誤刪)
+        private bool IsFileUsedInDatabase(string relativePath)
+        {
+            try 
+            {
+                DataTable dt = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                foreach (DataRow row in dt.Rows) 
+                {
+                    string val = row["附件檔案"]?.ToString();
+                    if (!string.IsNullOrEmpty(val) && val.Contains(relativePath)) 
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            } 
+            catch { return true; } // 若查詢出錯，保守起見回傳 true 防止誤刪
+        }
+
         private void DeletePhysicalFile(string relativePath, int currentRowIndex) 
         {
             if (string.IsNullOrWhiteSpace(relativePath)) return;
             
+            // 1. 檢查 UI Grid 中是否有其他列參照此檔案 (處理 user copy/paste 但尚未存檔的情況)
             bool isUsedByOthers = false;
             foreach (DataGridViewRow row in _dgv.Rows) 
             {
@@ -465,6 +512,13 @@ namespace Safety_System
                 }
             }
             
+            // 2. 檢查資料庫是否有其他紀錄參照 (共用檔案防呆)
+            if (!isUsedByOthers && IsFileUsedInDatabase(relativePath)) 
+            {
+                isUsedByOthers = true;
+            }
+            
+            // 若被共用，則只刪除關聯字串，不刪除實體檔
             if (isUsedByOthers) return;
             
             try 
@@ -498,6 +552,7 @@ namespace Safety_System
             if (_dgv.Columns.Contains("Id")) 
             {
                 _dgv.Columns["Id"].ReadOnly = true;
+                _dgv.Columns["Id"].Visible = false; // 🟢 隱藏 ID
             }
             
             if (_dgv.Columns.Contains(_dateColumnName)) 
@@ -525,6 +580,64 @@ namespace Safety_System
         // 原有核心邏輯區 (讀取/存檔/匯出/匯入/貼上)
         // ==========================================
 
+        // 🟢 處理使用者改了日期後，同步搬移實體檔案，並更新路徑
+        private void SyncAttachmentPaths(DataTable dt) 
+        {
+            foreach (DataRow row in dt.Rows) 
+            {
+                if (row.RowState == DataRowState.Deleted) continue;
+                string attachStr = row["附件檔案"]?.ToString();
+                if (string.IsNullOrEmpty(attachStr)) continue;
+
+                string rowDateStr = row[_dateColumnName]?.ToString() ?? "";
+                string targetFolder = GetExpectedFolderName(rowDateStr); 
+
+                string[] paths = attachStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                bool changed = false;
+                
+                for (int i = 0; i < paths.Length; i++) 
+                {
+                    string oldRelPath = paths[i].Replace("\\", "/");
+                    string fileName = Path.GetFileName(oldRelPath);
+                    string oldDir = Path.GetDirectoryName(oldRelPath).Replace("\\", "/");
+
+                    string expectedRelDir = $"附件/{_dbName}/{_tableName}/{targetFolder}";
+
+                    // 若路徑資料夾不同，代表日期被修改了，進行實體檔案移動
+                    if (!oldDir.Equals(expectedRelDir, StringComparison.OrdinalIgnoreCase)) 
+                    {
+                        string oldAbsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, oldRelPath);
+                        string newAbsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expectedRelDir);
+                        if (!Directory.Exists(newAbsDir)) Directory.CreateDirectory(newAbsDir);
+
+                        string newAbsPath = Path.Combine(newAbsDir, fileName);
+                        
+                        // 處理檔名衝突
+                        int counter = 1;
+                        string baseName = Path.GetFileNameWithoutExtension(fileName);
+                        string ext = Path.GetExtension(fileName);
+                        while (File.Exists(newAbsPath) && oldAbsPath != newAbsPath) 
+                        {
+                            fileName = $"{baseName}_{counter++}{ext}";
+                            newAbsPath = Path.Combine(newAbsDir, fileName);
+                        }
+
+                        if (File.Exists(oldAbsPath)) 
+                        {
+                            File.Move(oldAbsPath, newAbsPath);
+                            paths[i] = $"{expectedRelDir}/{fileName}";
+                            changed = true;
+                        }
+                    }
+                }
+                
+                if (changed) 
+                {
+                    row["附件檔案"] = string.Join("|", paths);
+                }
+            }
+        }
+
         private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
@@ -532,13 +645,14 @@ namespace Safety_System
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
                 _dgv.EndEdit(); 
                 SaveColumnOrder(); 
-                SetUIState(false, "資料庫寫入中，請稍候...", Color.Orange);
+                SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
                 
                 DataTable dt = (DataTable)_dgv.DataSource;
                 bool success = false;
                 
                 await Task.Run(() => { 
                     EnforceDateFormat(dt); 
+                    SyncAttachmentPaths(dt); // 🟢 儲存前先同步檢查並搬移實體檔案
                     success = DataManager.BulkSaveTable(_dbName, _tableName, dt); 
                 });
                 
@@ -841,14 +955,15 @@ namespace Safety_System
         {
             public string FinalPathsString { get; private set; }
             private List<string> _paths = new List<string>();
-            private string _dbName, _tableName;
+            private string _dbName, _tableName, _targetFolder;
             private Action<string> _deleteAction;
             private FlowLayoutPanel _flpList;
 
-            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, Action<string> deleteAction) 
+            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, string targetFolder, Action<string> deleteAction) 
             {
                 _dbName = dbName; 
                 _tableName = tableName; 
+                _targetFolder = targetFolder; // 🟢 依據傳入的動態目標資料夾
                 _deleteAction = deleteAction;
                 
                 if (!string.IsNullOrEmpty(currentRelPathStr)) 
@@ -930,14 +1045,12 @@ namespace Safety_System
                     Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                     Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    // 🟢 [修改] 調整按鈕寬度，以容納三個按鈕
                     Button bOpen = new Button { Text = "開啟", Width = 80, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                     bOpen.Click += (s, e) => { 
                         try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
                         catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
                     };
 
-                    // 🟢 [新增] 下載/另存新檔按鈕
                     Button bDownload = new Button { Text = "下載", Width = 80, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDownload.Click += (s, e) => {
                         try 
@@ -981,10 +1094,9 @@ namespace Safety_System
                     };
                     
                     pItem.Controls.Add(lName); 
-                    // 🟢 注意加入的順序會影響 Dock.Right 的排列 (越晚加的越靠右)
-                    pItem.Controls.Add(bDel);       // 最右邊：刪除
-                    pItem.Controls.Add(bDownload);  // 中間：下載
-                    pItem.Controls.Add(bOpen);      // 左邊：開啟
+                    pItem.Controls.Add(bDel);       
+                    pItem.Controls.Add(bDownload);  
+                    pItem.Controls.Add(bOpen);      
                     
                     _flpList.Controls.Add(pItem);
                 }
@@ -1002,37 +1114,7 @@ namespace Safety_System
             {
                 if (sourceFiles.Length == 0) return;
                 
-                string datePart = DateTime.Now.ToString("yyyy-MM");
-                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
+                // 🟢 使用動態指派的 targetFolder (例如 "2023-10" 或 "2023")
+                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
                 
                 if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
-                
-                foreach (string src in sourceFiles) 
-                {
-                    try 
-                    {
-                        string ext = Path.GetExtension(src); 
-                        string baseName = Path.GetFileNameWithoutExtension(src);
-                        string destName = baseName + ext; 
-                        string destPath = Path.Combine(destDir, destName);
-                        
-                        int count = 1; 
-                        while (File.Exists(destPath)) 
-                        { 
-                            destName = $"{baseName}_{count++}{ext}"; 
-                            destPath = Path.Combine(destDir, destName); 
-                        }
-                        
-                        File.Copy(src, destPath); 
-                        _paths.Add(Path.Combine("附件", _dbName, _tableName, datePart, destName));
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); 
-                    }
-                }
-                RefreshListUI();
-            }
-        }
-    }
-}
