@@ -13,7 +13,7 @@ namespace Safety_System
         private NumericUpDown _numKeepCount;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
-        // 🟢 加入 MinorInjury 到 Safety，加入 ISO14001
+        // 🟢 加入 MinorInjury 到 Safety，加入 FireSelfInspection 到 Fire，加入 ISO14001
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury", "MinorInjury" } },
             { "Chemical", new[] { "ChemRegulations", "SDS_Inventory" } },
@@ -21,7 +21,7 @@ namespace Safety_System
             { "Air", new[] { "AirPollution" } },
             { "Water", new[] { "DischargeData", "WaterMeterReadings", "WaterChemicals", "WaterVolume", "WaterUsageDaily" } },
             { "Waste", new[] { "WasteMonthly", "Waste_IL", "Waste_LM", "Waste_CR", "Waste_T", "Waste_GCTE", "Waste_ML", "Waste_Water" } },
-            { "Fire", new[] { "FireResponsible", "HazardStats", "FireEquip", "fire_check_stats" } },
+            { "Fire", new[] { "FireResponsible", "HazardStats", "FireEquip", "FireSelfInspection" } },
             { "TestData", new[] { "CoolingWaterSelf", "CoolingWaterVendor", "DrinkingWater", "EnvMonitor", "IndustrialZoneTest", "OtherTests", "SoilGasTest", "TCLP", "WastewaterPeriodic", "WastewaterSelfTest", "WaterMeterCalibration" } },
             { "教育訓練", new[] { "訓練時數" } },
             { "法規", new[] { "環保法規", "職安衛法規", "其它法規" } },
