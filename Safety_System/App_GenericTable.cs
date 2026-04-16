@@ -28,6 +28,11 @@ namespace Safety_System
         private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;
         private Label _lblStatus;     
 
+        // 🟢 新增：查詢資料控制項
+        private ComboBox _cboSearchColumn;
+        private TextBox _txtSearchKeyword;
+        private Button _btnAdvancedSearch;
+
         private bool _isFirstLoad = true;
         
         private readonly string _dbName; 
@@ -62,6 +67,7 @@ namespace Safety_System
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [防火負責人職稱] TEXT, [火源責任人] TEXT, [火源責任人職稱] TEXT, [責任代理人] TEXT, [責任代理人職稱] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "FireSelfInspection", "[日期] TEXT, [單位] TEXT, [檢查人] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" }, // 🟢 新增消防自主檢查表
             { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastewaterPeriodic", "[日期] TEXT, [申報季別] TEXT, [排放水量] TEXT, [COD] TEXT, [SS] TEXT, [BOD] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -74,8 +80,7 @@ namespace Safety_System
             { "TCLP", "[日期] TEXT, [樣品名稱] TEXT, [總鉛] TEXT, [鏓鉻] TEXT, [鏓銅] TEXT, [鏓鋇] TEXT, [總鎘] TEXT, [總硒] TEXT, [六價鉻] TEXT, [總汞] TEXT, [總砷] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-			{ "fire_check_stats", "[日期] TEXT, [年月] TEXT, [單位] TEXT, [日常火源] TEXT, [日常火源備註] TEXT, [消防設備] TEXT, [消防設備備註] TEXT, [防火避難設施] TEXT, [防火避難設施備註] TEXT, [附件檔案] TEXT, [備註] TEXT" }
+            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
         public App_GenericTable(string dbName, string tableName, string chineseTitle)
@@ -349,8 +354,24 @@ namespace Safety_System
             
             rowAdv2.Controls.AddRange(new Control[] { new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, txtLimit, bLimitRead });
             
+            // 🟢 新增：條件搜尋列 (rowAdv3)
+            FlowLayoutPanel rowAdv3 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
+            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+            _txtSearchKeyword = new TextBox { Width = 180 };
+            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
+            
+            rowAdv3.Controls.AddRange(new Control[] { 
+                new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 
+                _cboSearchColumn, 
+                new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }, 
+                _txtSearchKeyword, 
+                _btnAdvancedSearch 
+            });
+
             flpAdv.Controls.Add(rowAdv1); 
             flpAdv.Controls.Add(rowAdv2);
+            flpAdv.Controls.Add(rowAdv3); // 🟢 加入搜尋列
             _boxAdvanced.Controls.Add(flpAdv);
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
@@ -388,6 +409,7 @@ namespace Safety_System
             _btnSave.Enabled = isEnabled; 
             _btnImport.Enabled = isEnabled; 
             _btnExport.Enabled = isEnabled;
+            _btnAdvancedSearch.Enabled = isEnabled; // 🟢 控制搜尋按鈕狀態
             
             _lblStatus.Text = statusText; 
             _lblStatus.ForeColor = statusColor;
@@ -582,25 +604,60 @@ namespace Safety_System
             
             string sDate = GetDateString(_cboStartYear, _cboStartMonth, _cboStartDay);
             string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
-            
+
             await Task.Run(() => {
                 if (_isFirstLoad) 
-                { 
-                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30); 
-                    _isFirstLoad = false; 
+                {
+                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
+                    _isFirstLoad = false;
                 } 
                 else 
-                { 
-                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate); 
+                {
+                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
                 }
-                EnforceDateFormats(dt); 
+                EnforceDateFormats(dt);
             });
-            
-            _dgv.DataSource = dt; 
-            ApplyGridStyles(); 
-            UpdateCboColumns(); 
+
+            _dgv.DataSource = dt;
+            ApplyGridStyles();
+            UpdateCboColumns();
             RestoreColumnOrder();
+
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
+        }
+
+        // 🟢 新增：進階條件搜尋邏輯
+        private async Task ExecuteAdvancedSearchAsync()
+        {
+            SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
+            
+            string searchCol = _cboSearchColumn.SelectedItem?.ToString();
+            string keyword = _txtSearchKeyword.Text;
+
+            DataTable resultDt = null;
+
+            await Task.Run(() => {
+                // 取出整張表資料
+                DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                DataView dv = allData.DefaultView;
+
+                if (!string.IsNullOrEmpty(searchCol) && !string.IsNullOrWhiteSpace(keyword)) 
+                {
+                    // 使用單引號取代避免 SQL Injection
+                    dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+                }
+                
+                // 依照 ID 降序排列 (最新在上面)
+                dv.Sort = "Id DESC"; 
+                
+                resultDt = dv.ToTable(); 
+                EnforceDateFormats(resultDt);
+            });
+
+            _dgv.DataSource = resultDt;
+            ApplyGridStyles();
+            RestoreColumnOrder();
+            SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆符合條件資料", Color.Green);
         }
 
         private string GetDateString(ComboBox y, ComboBox m, ComboBox d) 
@@ -613,13 +670,33 @@ namespace Safety_System
 
         private void UpdateCboColumns() 
         {
+            string currentSearchSel = _cboSearchColumn.SelectedItem?.ToString();
+            
             _cboColumns.Items.Clear();
+            _cboSearchColumn.Items.Clear();
+            _cboSearchColumn.Items.Add(""); // 允許空選項
+
             foreach (DataGridViewColumn c in _dgv.Columns) 
             {
                 if (c.Name != "Id" && c.Name != _dateColumnName) 
                 {
                     _cboColumns.Items.Add(c.Name);
                 }
+                
+                if (c.Name != "Id") 
+                {
+                    _cboSearchColumn.Items.Add(c.Name);
+                }
+            }
+
+            // 還原先前的選擇
+            if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn.Items.Contains(currentSearchSel)) 
+            {
+                _cboSearchColumn.SelectedItem = currentSearchSel;
+            } 
+            else if (_cboSearchColumn.Items.Count > 0) 
+            {
+                _cboSearchColumn.SelectedIndex = 0;
             }
         }
 
