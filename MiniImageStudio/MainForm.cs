@@ -1,4 +1,4 @@
-/* * 功能：主介面設計 (改用頁籤 TabControl 方式切換功能，高寬加50px)
+/* * 功能：主介面設計 (頁籤採用一般字體，縮減上方版面)
  */
 using System;
 using System.Drawing;
@@ -13,6 +13,7 @@ namespace MiniImageStudio {
         private App_Collage collageControl;
         private App_Compress compressControl;
 
+        // 共用標準字型
         public static Font UI_Font = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular);
 
         public MainForm() {
@@ -21,7 +22,6 @@ namespace MiniImageStudio {
 
         private void InitializeComponent() {
             this.Text = "圖片工具程式 - 專業終極版";
-            // 【修正】寬、高各加 50px
             this.Size = new Size(1250, 900);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1050, 750);
@@ -30,10 +30,10 @@ namespace MiniImageStudio {
             // 建立主要的 TabControl
             mainTabControl = new TabControl {
                 Dock = DockStyle.Fill,
-                Font = new Font(UI_Font.FontFamily, 12, FontStyle.Bold), 
-                ItemSize = new Size(150, 45), 
+                Font = UI_Font, // 【修正】採用一般字體
+                ItemSize = new Size(100, 32), // 【修正】縮減頁籤的寬度與高度
                 SizeMode = TabSizeMode.Fixed, 
-                Padding = new Point(15, 5)
+                Padding = new Point(10, 5)
             };
 
             // 建立各個頁籤分頁 (TabPage)
