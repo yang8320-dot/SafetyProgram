@@ -86,15 +86,16 @@ namespace Safety_System
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
+            // 🟢 工安選單名稱修正與重新排序，並新增「輕傷事件」
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("虛驚事件管理", () => new App_GenericTable("Safety", "NearMiss", "虛驚事件管理").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("巡檢記錄管理", () => new App_GenericTable("Safety", "SafetyInspection", "巡檢記錄管理").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("安全觀察紀錄", () => new App_GenericTable("Safety", "SafetyObservation", "安全觀察紀錄").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("交通意外紀錄", () => new App_GenericTable("Safety", "TrafficInjury", "交通意外紀錄").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("工傷事件管理", () => new App_GenericTable("Safety", "WorkInjury", "工傷事件管理").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_GenericTable("Safety", "SafetyInspection", "巡檢記錄管理").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_GenericTable("Safety", "WorkInjury", "工傷事件管理").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("輕傷事件", () => new App_GenericTable("Safety", "MinorInjury", "輕傷事件管理").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("交通意外", () => new App_GenericTable("Safety", "TrafficInjury", "交通意外紀錄").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("虛驚事件", () => new App_GenericTable("Safety", "NearMiss", "虛驚事件管理").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("安全觀察", () => new App_GenericTable("Safety", "SafetyObservation", "安全觀察紀錄").GetView()));
 
-            // 🟢 化學品選單 (排序在工安旁邊)
             var menuChemical = new ToolStripMenuItem("化學品");
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
             menuChemical.DropDownItems.Add(CreateItem("化學品快查", () => new App_ChemQuickSearch().GetView()));
@@ -118,7 +119,6 @@ namespace Safety_System
             menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_Water_Generic("Water", "DischargeData", "【月】納管排放數據").GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_Water_Generic("Water", "WaterVolume", "【月】自來水用量統計").GetView()));
 
-            // 🟢 修改：產能及廢棄物申報月表
             var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("產能及廢棄物看板", () => new App_WasteDashboard().GetView()));
             menuWaste.DropDownItems.Add(CreateItem("複層月表", () => new App_GenericTable("Waste", "Waste_IL", "複層月表").GetView()));
@@ -153,18 +153,20 @@ namespace Safety_System
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
             menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_GenericTable("教育訓練", "訓練時數", "教育訓練時數").GetView()));
 
-            // ================== 法規 ==================
             var menuLaw = new ToolStripMenuItem("法規");
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
 
-            // 🟢 新增：ESG (精準放在 法規 後面)
             var menuESG = new ToolStripMenuItem("ESG");
-            // 綁定剛建立的專屬 ESG 看板
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_GenericTable("ESG", "ESG_Performance", "ESG績效管理").GetView()));
+
+            // 🟢 新增：ISO14001 選單 (位於 ESG 後)
+            var menuISO = new ToolStripMenuItem("ISO14001");
+            menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
+            menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
 
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
@@ -181,10 +183,10 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 將選單加入主視窗，確認 menuESG 的位置在 menuLaw 和 menuSettings 中間
+            // 🟢 將選單加入主視窗
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
-                menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuSettings 
+                menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, menuSettings 
             });
         }
 
