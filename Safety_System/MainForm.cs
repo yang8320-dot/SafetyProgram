@@ -17,7 +17,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v6.0 - 全面 Generic 共用模組化)";
+            this.Text = "工安系統看板 (v6.1 - 全面 Generic 共用模組化)";
             
             // 設定初始視窗為最大化
             this.WindowState = FormWindowState.Maximized;
@@ -29,7 +29,7 @@ namespace Safety_System
             
             DataManager.LoadConfig();
             
-            // 🟢 啟動時自動檢查是否需要執行備份
+            // 啟動時自動檢查是否需要執行備份
             BackupManager.RunAutoBackup();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
@@ -49,7 +49,7 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
-        // 🟢 支援全局 Ctrl+S 快捷存檔
+        // 支援全局 Ctrl+S 快捷存檔
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == (Keys.Control | Keys.S))
@@ -76,7 +76,7 @@ namespace Safety_System
             return null;
         }
 
-        // 🟢 建立主選單 (已全面導入 App_GenericTable)
+        // 建立主選單
         private void BuildMenu()
         {
             var menuHome = new ToolStripMenuItem("頁首");
@@ -86,7 +86,6 @@ namespace Safety_System
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
-            // 🟢 工安選單名稱修正與重新排序，並新增「輕傷事件」
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
             menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_GenericTable("Safety", "SafetyInspection", "巡檢記錄管理").GetView()));
@@ -129,13 +128,13 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("物料月表", () => new App_GenericTable("Waste", "Waste_ML", "物料月表").GetView()));
             menuWaste.DropDownItems.Add(CreateItem("水站月表", () => new App_GenericTable("Waste", "Waste_Water", "水站月表").GetView()));
 
+            // 🟢 [消防] 選單：新增「各單位消防自主檢查表」
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_GenericTable("Fire", "FireResponsible", "火源責任人管理").GetView()));
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_GenericTable("Fire", "HazardStats", "公共危險物統計").GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_GenericTable("Fire", "FireEquip", "消防設備巡檢").GetView()));
-			//新增消防消防自主檢查統計表20260416
-			menuFire.DropDownItems.Add(CreateItem("各單位消防自主檢查統計表", () => new App_GenericTable("Fire", "fire_check_stats", "各單位消防自主檢查統計表").GetView()));
+            menuFire.DropDownItems.Add(CreateItem("各單位消防自主檢查表", () => new App_GenericTable("Fire", "FireSelfInspection", "各單位消防自主檢查表").GetView()));
 
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
@@ -165,47 +164,36 @@ namespace Safety_System
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_GenericTable("ESG", "ESG_Performance", "ESG績效管理").GetView()));
 
-            // 🟢 新增：ISO14001 選單 (位於 ESG 後)
             var menuISO = new ToolStripMenuItem("ISO14001");
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
             menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
 
-	
-			var menuSettings = new ToolStripMenuItem("設定");
-			menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
+            var menuSettings = new ToolStripMenuItem("設定");
+            menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
+            
+            var dbConfigItem = new ToolStripMenuItem("資料庫設定");
+            dbConfigItem.Click += (s, e) => {
+                try {
+                    if (AuthManager.VerifyAdmin()) { LoadModule(new App_DbConfig().GetView()); } 
+                    else { MessageBox.Show("密碼錯誤或權限不足，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                } catch (Exception ex) {
+                    MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(dbConfigItem);
 
-			var dbConfigItem = new ToolStripMenuItem("資料庫設定");
-			dbConfigItem.Click += (s, e) => {
-				try {
-					if (AuthManager.VerifyAdmin()) { LoadModule(new App_DbConfig().GetView()); } 
-					else { MessageBox.Show("密碼錯誤或權限不足，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
-				} catch (Exception ex) {
-					MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-				}
-			};
-			menuSettings.DropDownItems.Add(dbConfigItem);
+            // 🟢 [新增] 附件檔案空間清理選單
+            var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
+            cleanupItem.Click += (s, e) => {
+                try {
+                    if (AuthManager.VerifyAdmin("執行空間清理需要管理者權限，請輸入密碼：")) { LoadModule(new App_AttachmentCleanup().GetView()); } 
+                } catch (Exception ex) {
+                    MessageBox.Show($"無法載入清理模組：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(cleanupItem);
 
-			// ==========================================
-			// 🟢 [新增] 附件檔案空間清理入口
-			// ==========================================
-			var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
-			cleanupItem.Click += (s, e) => {
-				try {
-					if (AuthManager.VerifyAdmin("執行空間清理需要管理者權限，請輸入密碼：")) { 
-						LoadModule(new App_AttachmentCleanup().GetView()); 
-					} 
-					else { 
-						MessageBox.Show("密碼錯誤或權限不足，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); 
-					}
-				} catch (Exception ex) {
-					MessageBox.Show($"無法載入清理模組：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-				}
-			};
-			menuSettings.DropDownItems.Add(cleanupItem);
-			// ==========================================
-			//ADDEND
-
-            // 🟢 將選單加入主視窗
+            // 將所有選單加入主視窗
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, menuSettings 
