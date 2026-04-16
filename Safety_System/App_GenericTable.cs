@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_Water_Generic.cs ///
+/// FILE: Safety_System/App_GenericTable.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -12,10 +12,9 @@ using OfficeOpenXml;
 
 namespace Safety_System
 {
-    public class App_Water_Generic
+    public class App_GenericTable
     {
-        // 🟢 定義時間模式：日期 (年月日)、年月 (隱藏日)
-        private enum TimeMode { Date, YearMonth }
+        private enum TimeMode { Date, YearMonth, Year }
         private TimeMode _timeMode = TimeMode.Date;
 
         private DataGridView _dgv;
@@ -26,9 +25,8 @@ namespace Safety_System
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
         
-        private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;     
-
-        private Label _lblStatus;
+        private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;
+        private Label _lblStatus;     
 
         private bool _isFirstLoad = true;
         
@@ -40,28 +38,63 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 水資源五大表預設結構
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
-            { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "DischargeData", "[年月] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "WaterVolume", "[年月] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [附件檔案] TEXT, [備註] TEXT" }
+            { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SafetyInspection", "[日期] TEXT, [巡檢區域] TEXT, [檢查項目] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善措施] TEXT, [負責人] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "MinorInjury", "[日期] TEXT, [姓名] TEXT, [單位] TEXT, [發生經過] TEXT, [處置方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_IL", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [丁基膠MT] TEXT, [結構膠MT] TEXT, [鋁條MT] TEXT, [乾燥劑MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_LM", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [PVB膜MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_CR", "[年月] TEXT, [鍍膜加不良MT] TEXT, [鍍膜生產量MT] TEXT, [除膜生產加不良MT] TEXT, [除膜成品產量MT] TEXT, [靶材MT] TEXT, [隔離粉MT] TEXT, [氧化鈰MT] TEXT, [噴砂底板成品鋁MT] TEXT, [噴砂底板成品其他MT] TEXT, [氧化鋁砂金鋼砂MT] TEXT, [D1099MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_T", "[年月] TEXT, [強化生產加不良MT] TEXT, [強化生產量] TEXT, [砂布輪MT] TEXT, [砂帶MT] TEXT, [印刷生產加不良MT] TEXT, [印刷生產量MT] TEXT, [油墨MT] TEXT, [網板清洗劑MT] TEXT, [D1599MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_GCTE", "[年月] TEXT, [切片生產加不良MT] TEXT, [切片生產量MT] TEXT, [磨邊生產量不良MT] TEXT, [砂布輪砂輪片MT] TEXT, [鑽孔生產加不良MT] TEXT, [鑽孔生產量MT] TEXT, [] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_ML", "[年月] TEXT, [甲醇MT] TEXT, [乙醇MT] TEXT, [潤滑油MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "Waste_Water", "[年月] TEXT, [D0902MT] TEXT, [D0201MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "HazardStats", "[年月] TEXT, [品項] TEXT, [單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WorkInjuryReport", "[年月] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ChemRegulations", "[類別] TEXT, [公告日期] TEXT, [法規名稱] TEXT, [法規內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CAS No] TEXT, [檢測週期] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [管制濃度] TEXT, [分級運作量] TEXT, [管制行為] TEXT, [定期申報頻率] TEXT, [毒性分類] TEXT, [記錄] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學品名稱] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [SDS版本日期] TEXT, [存放地點] TEXT, [最大儲存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [防火負責人職稱] TEXT, [火源責任人] TEXT, [火源責任人職稱] TEXT, [責任代理人] TEXT, [責任代理人職稱] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WastewaterPeriodic", "[日期] TEXT, [申報季別] TEXT, [排放水量] TEXT, [COD] TEXT, [SS] TEXT, [BOD] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "DrinkingWater", "[日期] TEXT, [採樣點位置] TEXT, [大腸桿菌群] TEXT, [總菌落數] TEXT, [鉛] TEXT, [濁度] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "IndustrialZoneTest", "[日期] TEXT, [採樣點位置] TEXT, [水溫] TEXT, [pH值] TEXT, [COD] TEXT, [SS] TEXT, [重金屬] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SoilGasTest", "[日期] TEXT, [採樣井編號] TEXT, [測漏氣體濃度] TEXT, [甲烷] TEXT, [二氧化碳] TEXT, [氧氣] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WastewaterSelfTest", "[日期] TEXT, [採樣時間] TEXT, [採樣位置] TEXT, [pH值] TEXT, [COD] TEXT, [SS] TEXT, [透視度] TEXT, [檢驗人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "CoolingWaterVendor", "[日期] TEXT, [廠商名稱] TEXT, [水溫] TEXT, [pH值] TEXT, [導電度] TEXT, [濁度] TEXT, [總鐵] TEXT, [銅離子] TEXT, [添加藥劑] TEXT, [檢驗結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "CoolingWaterSelf", "[日期] TEXT, [水溫] TEXT, [pH值] TEXT, [導電度] TEXT, [濁度] TEXT, [總鐵] TEXT, [銅離子] TEXT, [檢驗人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "TCLP", "[日期] TEXT, [樣品名稱] TEXT, [總鉛] TEXT, [鏓鉻] TEXT, [鏓銅] TEXT, [鏓鋇] TEXT, [總鎘] TEXT, [總硒] TEXT, [六價鉻] TEXT, [總汞] TEXT, [總砷] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
-        public App_Water_Generic(string dbName, string tableName, string chineseTitle)
+        public App_GenericTable(string dbName, string tableName, string chineseTitle)
         {
             _dbName = dbName;
             _tableName = tableName;
             _chineseTitle = chineseTitle;
         }
 
-        // 🟢 取得目標資料夾名稱 (依據日期、年月智慧判斷)
         private string GetExpectedFolderName(string rowDateStr)
         {
             if (string.IsNullOrWhiteSpace(rowDateStr)) return DateTime.Now.ToString("yyyy-MM");
-            if (rowDateStr.Length >= 7) return rowDateStr.Substring(0, 7);
+            if (_timeMode == TimeMode.Year) 
+            {
+                if (rowDateStr.Length >= 4) return rowDateStr.Substring(0, 4);
+            }
+            else 
+            {
+                if (rowDateStr.Length >= 7) return rowDateStr.Substring(0, 7);
+            }
             return DateTime.Now.ToString("yyyy-MM");
         }
 
@@ -72,13 +105,12 @@ namespace Safety_System
             DataManager.InitTable(_dbName, _tableName, createSql);
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
-            
             if (columns.Contains("月份")) 
             {
                 try 
                 {
                     DataManager.RenameColumn(_dbName, _tableName, "月份", "年月");
-                    columns = DataManager.GetColumnNames(_dbName, _tableName); 
+                    columns = DataManager.GetColumnNames(_dbName, _tableName);
                 } 
                 catch { }
             }
@@ -87,12 +119,16 @@ namespace Safety_System
             { 
                 _timeMode = TimeMode.Date; 
                 _dateColumnName = "日期"; 
-                if (!columns.Contains("星期")) DataManager.AddColumn(_dbName, _tableName, "星期");
             }
             else if (columns.Contains("年月")) 
             { 
                 _timeMode = TimeMode.YearMonth; 
                 _dateColumnName = "年月"; 
+            }
+            else if (columns.Contains("年度")) 
+            { 
+                _timeMode = TimeMode.Year; 
+                _dateColumnName = "年度"; 
             }
             else 
             {
@@ -111,9 +147,18 @@ namespace Safety_System
                         _dateColumnName = altDate; 
                     }
                     else 
-                    { 
-                        _timeMode = TimeMode.Date; 
-                        _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id"; 
+                    {
+                        altDate = columns.FirstOrDefault(c => c.Contains("年度"));
+                        if (altDate != null) 
+                        { 
+                            _timeMode = TimeMode.Year; 
+                            _dateColumnName = altDate; 
+                        }
+                        else 
+                        { 
+                            _timeMode = TimeMode.Date; 
+                            _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id"; 
+                        }
                     }
                 }
             }
@@ -150,7 +195,7 @@ namespace Safety_System
                 _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            if (_timeMode == TimeMode.YearMonth) 
+            if (_timeMode == TimeMode.YearMonth || _timeMode == TimeMode.Year) 
             {
                 SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-6));
             }
@@ -191,6 +236,13 @@ namespace Safety_System
             {
                 _cboStartDay.Visible = false; lblSD.Visible = false;
                 _cboEndDay.Visible = false; lblED.Visible = false;
+            } 
+            else if (_timeMode == TimeMode.Year) 
+            {
+                _cboStartDay.Visible = false; lblSD.Visible = false;
+                _cboEndDay.Visible = false; lblED.Visible = false;
+                _cboStartMonth.Visible = false; lblSM.Visible = false;
+                _cboEndMonth.Visible = false; lblEM.Visible = false;
             }
 
             row1.Controls.AddRange(new Control[] {
@@ -287,7 +339,7 @@ namespace Safety_System
                         EnforceDateFormats(dt);
                     });
                     _dgv.DataSource = dt; 
-                    ApplyGridStyles(); 
+                    ApplyGridStyles();
                     RestoreColumnOrder();
                     SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
                 } 
@@ -324,7 +376,7 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            _ = LoadGridDataAsync(); 
+            _ = LoadGridDataAsync();
             return main;
         }
 
@@ -344,13 +396,14 @@ namespace Safety_System
             if (_dgv.Columns.Contains("Id")) 
             {
                 _dgv.Columns["Id"].ReadOnly = true;
-                _dgv.Columns["Id"].Visible = false; // 🟢 隱藏 ID
+                _dgv.Columns["Id"].Visible = false;
             }
             
             if (_dgv.Columns.Contains(_dateColumnName)) 
             {
                 string fmt = "yyyy-MM-dd";
                 if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
+                else if (_timeMode == TimeMode.Year) fmt = "yyyy";
                 
                 _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
             }
@@ -367,9 +420,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 多檔案附件專用事件與清理機制
-        // ==========================================
         private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e) 
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0) 
@@ -403,7 +453,6 @@ namespace Safety_System
                 {
                     string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
                     
-                    // 🟢 傳入當前列的日期，讓 AttachmentForm 知道要存去哪個資料夾
                     string rowDateStr = _dgv[_dateColumnName, e.RowIndex].Value?.ToString() ?? "";
                     string targetFolder = GetExpectedFolderName(rowDateStr);
 
@@ -419,7 +468,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 檢查資料庫是否還有其他紀錄綁定這個檔案 (防誤刪)
         private bool IsFileUsedInDatabase(string relativePath)
         {
             try 
@@ -462,7 +510,6 @@ namespace Safety_System
                 }
             }
             
-            // 2. 檢查資料庫是否有其他紀錄參照
             if (!isUsedByOthers && IsFileUsedInDatabase(relativePath)) 
             {
                 isUsedByOthers = true;
@@ -496,15 +543,13 @@ namespace Safety_System
             catch { }
         }
 
-        // ==========================================
-        // 🟢 資料庫與日期操作邏輯
-        // ==========================================
         private void EnforceDateFormats(DataTable dt) 
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
             
             string format = "yyyy-MM-dd";
             if (_timeMode == TimeMode.YearMonth) format = "yyyy-MM";
+            else if (_timeMode == TimeMode.Year) format = "yyyy";
             
             foreach (DataRow row in dt.Rows) 
             {
@@ -515,6 +560,11 @@ namespace Safety_System
                 if (!string.IsNullOrWhiteSpace(val)) 
                 {
                     val = val.Replace("/", "-");
+                    if (_timeMode == TimeMode.Year && val.Length == 4 && int.TryParse(val, out _)) 
+                    {
+                        row[_dateColumnName] = val; 
+                        continue;
+                    }
                     if (DateTime.TryParse(val, out DateTime d)) 
                     {
                         row[_dateColumnName] = d.ToString(format);
@@ -530,30 +580,30 @@ namespace Safety_System
             
             string sDate = GetDateString(_cboStartYear, _cboStartMonth, _cboStartDay);
             string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
-
+            
             await Task.Run(() => {
                 if (_isFirstLoad) 
-                {
-                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
-                    _isFirstLoad = false;
+                { 
+                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30); 
+                    _isFirstLoad = false; 
                 } 
                 else 
-                {
-                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
+                { 
+                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate); 
                 }
-                EnforceDateFormats(dt);
+                EnforceDateFormats(dt); 
             });
-
-            _dgv.DataSource = dt;
-            ApplyGridStyles();
-            UpdateCboColumns();
+            
+            _dgv.DataSource = dt; 
+            ApplyGridStyles(); 
+            UpdateCboColumns(); 
             RestoreColumnOrder();
-
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
         private string GetDateString(ComboBox y, ComboBox m, ComboBox d) 
         {
+            if (_timeMode == TimeMode.Year) return y.SelectedItem.ToString();
             if (_timeMode == TimeMode.YearMonth) return $"{y.SelectedItem}-{m.SelectedItem}";
             
             return $"{y.SelectedItem}-{m.SelectedItem}-{d.SelectedItem}";
@@ -574,7 +624,7 @@ namespace Safety_System
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) 
         {
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
-            m.SelectedItem = date.Month.ToString("D2");
+            m.SelectedItem = date.Month.ToString("D2"); 
             d.SelectedItem = date.Day.ToString("D2");
         }
 
@@ -605,7 +655,6 @@ namespace Safety_System
             catch { } 
         }
 
-        // 🟢 同步搬移實體檔案，並更新路徑
         private void SyncAttachmentPaths(DataTable dt) 
         {
             foreach (DataRow row in dt.Rows) 
@@ -630,6 +679,39 @@ namespace Safety_System
 
                     if (!oldDir.Equals(expectedRelDir, StringComparison.OrdinalIgnoreCase)) 
                     {
+                        bool usedByOthersInGrid = false;
+                        foreach(DataRow r in dt.Rows) {
+                            if (r == row || r.RowState == DataRowState.Deleted) continue;
+                            string otherAttach = r["附件檔案"]?.ToString();
+                            if (!string.IsNullOrEmpty(otherAttach) && otherAttach.Contains(oldRelPath)) {
+                                usedByOthersInGrid = true;
+                                break;
+                            }
+                        }
+
+                        bool usedByOthersInDb = false;
+                        int currentRowId = -1;
+                        if (dt.Columns.Contains("Id") && row["Id"] != DBNull.Value) {
+                            int.TryParse(row["Id"].ToString(), out currentRowId);
+                        }
+
+                        try {
+                            DataTable dbDt = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                            foreach (DataRow dbRow in dbDt.Rows) {
+                                int dbId = Convert.ToInt32(dbRow["Id"]);
+                                if (dbId == currentRowId) continue;
+                                string dbAttach = dbRow["附件檔案"]?.ToString();
+                                if (!string.IsNullOrEmpty(dbAttach) && dbAttach.Contains(oldRelPath)) {
+                                    usedByOthersInDb = true;
+                                    break;
+                                }
+                            }
+                        } catch { }
+
+                        if (usedByOthersInGrid || usedByOthersInDb) {
+                            continue; 
+                        }
+
                         string oldAbsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, oldRelPath);
                         string newAbsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expectedRelDir);
                         if (!Directory.Exists(newAbsDir)) Directory.CreateDirectory(newAbsDir);
@@ -666,39 +748,38 @@ namespace Safety_System
             try 
             {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                _dgv.EndEdit();
-                SaveColumnOrder();
-                
+                _dgv.EndEdit(); 
+                SaveColumnOrder(); 
                 SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
-
+                
                 DataTable dt = (DataTable)_dgv.DataSource;
                 bool success = false;
                 
-                await Task.Run(() => {
+                await Task.Run(() => { 
                     EnforceDateFormats(dt); 
-                    SyncAttachmentPaths(dt); // 🟢 儲存前先同步檢查並搬移實體檔案
-                    success = DataManager.BulkSaveTable(_dbName, _tableName, dt);
+                    SyncAttachmentPaths(dt);
+                    success = DataManager.BulkSaveTable(_dbName, _tableName, dt); 
                 });
-
+                
                 if (success) 
-                {
-                    SetUIState(true, "資料儲存成功！", Color.Green);
-                    MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadGridDataAsync();
+                { 
+                    SetUIState(true, "資料儲存成功！", Color.Green); 
+                    MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                    await LoadGridDataAsync(); 
                 } 
                 else 
-                {
-                    SetUIState(true, "資料儲存失敗", Color.Red);
+                { 
+                    SetUIState(true, "資料儲存失敗", Color.Red); 
                 }
             } 
             catch (Exception ex) 
-            {
-                SetUIState(true, "儲存異常", Color.Red);
-                MessageBox.Show("儲存異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            { 
+                SetUIState(true, "儲存異常", Color.Red); 
+                MessageBox.Show("儲存異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
             }
             finally 
-            {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            { 
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
             }
         }
 
@@ -712,17 +793,17 @@ namespace Safety_System
                     {
                         DataTable dt = (DataTable)_dgv.DataSource;
                         if (sfd.FilterIndex == 1) 
-                        {
+                        { 
                             using (ExcelPackage p = new ExcelPackage()) 
-                            {
+                            { 
                                 var ws = p.Workbook.Worksheets.Add("Data"); 
                                 ws.Cells["A1"].LoadFromDataTable(dt, true); 
-                                p.SaveAs(new FileInfo(sfd.FileName));
-                            }
+                                p.SaveAs(new FileInfo(sfd.FileName)); 
+                            } 
                         } 
                         else 
                         {
-                            StringBuilder sb = new StringBuilder();
+                            StringBuilder sb = new StringBuilder(); 
                             sb.AppendLine(string.Join(",", dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName)));
                             
                             foreach (DataRow r in dt.Rows) 
@@ -750,22 +831,20 @@ namespace Safety_System
                     try 
                     {
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                        SetUIState(false, "Excel 解析與水資源差值運算中，請稍候...", Color.Orange);
+                        SetUIState(false, "Excel 解析與背景運算中，請稍候...", Color.Orange);
 
-                        DataTable originalDt = (DataTable)_dgv.DataSource;
+                        DataTable dt = (DataTable)_dgv.DataSource;
                         _dgv.DataSource = null; 
                         
-                        DataTable newBoundDt = null;
-
                         await Task.Run(() => {
                             using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
                             {
                                 ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
                                 if (ws == null || ws.Dimension == null) return;
-
-                                int rowCount = ws.Dimension.Rows;
+                                
+                                int rowCount = ws.Dimension.Rows; 
                                 int colCount = ws.Dimension.Columns;
-
+                                
                                 string[] headers = new string[colCount];
                                 for (int c = 1; c <= colCount; c++) 
                                 {
@@ -773,151 +852,37 @@ namespace Safety_System
                                 }
 
                                 _calcHelper?.BeginBulkUpdate();
-
-                                DataTable excelDt = originalDt.Clone();
-                                DateTime? minImportDate = null;
-                                DateTime? maxImportDate = null;
                                 
-                                string dateFormat = "yyyy-MM-dd";
-                                if (_timeMode == TimeMode.YearMonth) dateFormat = "yyyy-MM";
-
                                 for (int r = 2; r <= rowCount; r++) 
                                 {
-                                    DataRow nr = excelDt.NewRow();
+                                    DataRow nr = dt.NewRow(); 
                                     bool hasData = false;
-
+                                    
                                     for (int c = 1; c <= colCount; c++) 
                                     {
-                                        string cn = headers[c - 1];
+                                        string cn = headers[c - 1]; 
                                         string val = ws.Cells[r, c].Text.Trim(); 
-
-                                        if (excelDt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) 
+                                        
+                                        if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) 
                                         {
-                                            nr[cn] = val;
+                                            nr[cn] = val; 
                                             hasData = true;
-                                            
-                                            if (cn == _dateColumnName) 
-                                            {
-                                                string dStr = val.Replace("/", "-");
-                                                if (DateTime.TryParse(dStr, out DateTime d)) 
-                                                {
-                                                    nr[cn] = d.ToString(dateFormat);
-                                                    if (minImportDate == null || d < minImportDate) minImportDate = d;
-                                                    if (maxImportDate == null || d > maxImportDate) maxImportDate = d;
-                                                }
-                                            }
                                         }
                                     }
-                                    if (hasData) excelDt.Rows.Add(nr);
+                                    if (hasData) dt.Rows.Add(nr);
                                 }
-
-                                if (excelDt.Rows.Count == 0) return;
-
-                                DataTable allDbData = DataManager.GetTableData(_dbName, _tableName, "", "", ""); 
-
-                                if (minImportDate.HasValue) 
-                                {
-                                    string minDateStr = minImportDate.Value.ToString(dateFormat);
-                                    
-                                    var baselineRow = allDbData.Rows.Cast<DataRow>()
-                                        .Where(row => string.Compare(row[_dateColumnName]?.ToString(), minDateStr) < 0)
-                                        .OrderByDescending(row => row[_dateColumnName]?.ToString())
-                                        .FirstOrDefault();
-                                    
-                                    if (baselineRow != null) 
-                                    {
-                                        bool exists = false;
-                                        string baseId = baselineRow["Id"].ToString();
-                                        foreach(DataRow existing in originalDt.Rows) 
-                                        {
-                                            if (existing.RowState != DataRowState.Deleted && existing["Id"].ToString() == baseId) 
-                                            {
-                                                exists = true; 
-                                                break;
-                                            }
-                                        }
-                                        if (!exists) originalDt.ImportRow(baselineRow);
-                                    }
-                                }
-
-                                if (maxImportDate.HasValue) 
-                                {
-                                    string maxDateStr = maxImportDate.Value.ToString(dateFormat);
-                                    
-                                    var futureRow = allDbData.Rows.Cast<DataRow>()
-                                        .Where(row => string.Compare(row[_dateColumnName]?.ToString(), maxDateStr) > 0)
-                                        .OrderBy(row => row[_dateColumnName]?.ToString())
-                                        .FirstOrDefault();
-                                    
-                                    if (futureRow != null) 
-                                    {
-                                        bool exists = false;
-                                        string futId = futureRow["Id"].ToString();
-                                        foreach(DataRow existing in originalDt.Rows) 
-                                        {
-                                            if (existing.RowState != DataRowState.Deleted && existing["Id"].ToString() == futId) 
-                                            {
-                                                exists = true; 
-                                                break;
-                                            }
-                                        }
-                                        if (!exists) originalDt.ImportRow(futureRow);
-                                    }
-                                }
-
-                                foreach(DataRow r in excelDt.Rows) 
-                                {
-                                    string importDate = r[_dateColumnName]?.ToString();
-                                    if(string.IsNullOrEmpty(importDate)) continue;
-
-                                    DataRow existingRow = originalDt.Rows.Cast<DataRow>()
-                                        .FirstOrDefault(row => row.RowState != DataRowState.Deleted && row[_dateColumnName]?.ToString() == importDate);
-                                    
-                                    if (existingRow != null) 
-                                    {
-                                        foreach(DataColumn col in excelDt.Columns) 
-                                        {
-                                            string colName = col.ColumnName;
-                                            if (colName == "Id" || colName == _dateColumnName) continue;
-                                            
-                                            if (r[colName] != DBNull.Value && !string.IsNullOrEmpty(r[colName].ToString())) 
-                                            {
-                                                if (existingRow[colName].ToString() != r[colName].ToString()) 
-                                                {
-                                                    existingRow[colName] = r[colName]; 
-                                                }
-                                            }
-                                        }
-                                    } 
-                                    else 
-                                    {
-                                        originalDt.ImportRow(r);
-                                    }
-                                }
-
-                                originalDt.DefaultView.Sort = $"{_dateColumnName} ASC";
-                                newBoundDt = originalDt.DefaultView.ToTable(); 
-
-                                _calcHelper?.RecalculateTable(newBoundDt); 
-                                _calcHelper?.EndBulkUpdate();
-                                EnforceDateFormats(newBoundDt); 
+                                
+                                _calcHelper?.RecalculateTable(dt); 
+                                _calcHelper?.EndBulkUpdate(); 
+                                EnforceDateFormats(dt);
                             }
                         });
-
-                        if (newBoundDt != null) 
-                        {
-                            _dgv.DataSource = newBoundDt; 
-                        } 
-                        else 
-                        {
-                            _dgv.DataSource = originalDt;
-                        }
                         
-                        ApplyGridStyles();
+                        _dgv.DataSource = dt; 
+                        ApplyGridStyles(); 
                         RestoreColumnOrder();
-
-                        SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{((DataTable)_dgv.DataSource).Rows.Count}", Color.Green);
-                        MessageBox.Show("Excel 匯入成功！\n系統已自動撈取接軌數據計算差值，並合併重複日期。\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
+                        MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) 
                     { 
@@ -925,8 +890,8 @@ namespace Safety_System
                         MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     } 
                     finally 
-                    {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    { 
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
                     }
                 }
             }
@@ -964,9 +929,8 @@ namespace Safety_System
                         }
                         r++;
                     }
-                    
-                    _calcHelper?.RecalculateTable(dt);
-                    _calcHelper?.EndBulkUpdate();
+                    _calcHelper?.RecalculateTable(dt); 
+                    _calcHelper?.EndBulkUpdate(); 
                     EnforceDateFormats(dt); 
                     _dgv.Refresh();
                 } 
@@ -977,9 +941,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 全新四區塊：多檔附件管理視窗
-        // ==========================================
         private class AttachmentForm : Form
         {
             public string FinalPathsString { get; private set; }
@@ -992,7 +953,7 @@ namespace Safety_System
             {
                 _dbName = dbName; 
                 _tableName = tableName; 
-                _targetFolder = targetFolder; // 🟢 依據傳入的動態目標資料夾
+                _targetFolder = targetFolder; 
                 _deleteAction = deleteAction;
                 
                 if (!string.IsNullOrEmpty(currentRelPathStr)) 
@@ -1118,62 +1079,4 @@ namespace Safety_System
                         { 
                             _deleteAction(path); 
                             _paths.Remove(path); 
-                            RefreshListUI(); 
-                        } 
-                    };
-                    
-                    pItem.Controls.Add(lName); 
-                    pItem.Controls.Add(bDel);       
-                    pItem.Controls.Add(bDownload);  
-                    pItem.Controls.Add(bOpen);      
-                    
-                    _flpList.Controls.Add(pItem);
-                }
-            }
-
-            private void SelectFiles() 
-            {
-                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Multiselect = true, Filter = "所有檔案 (*.*)|*.*" }) 
-                {
-                    if (ofd.ShowDialog() == DialogResult.OK) ProcessUpload(ofd.FileNames);
-                }
-            }
-
-            private void ProcessUpload(string[] sourceFiles) 
-            {
-                if (sourceFiles.Length == 0) return;
-                
-                // 🟢 使用動態指派的 targetFolder
-                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
-                
-                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
-                
-                foreach (string src in sourceFiles) 
-                {
-                    try 
-                    {
-                        string ext = Path.GetExtension(src); 
-                        string baseName = Path.GetFileNameWithoutExtension(src);
-                        string destName = baseName + ext; 
-                        string destPath = Path.Combine(destDir, destName);
-                        
-                        int count = 1; 
-                        while (File.Exists(destPath)) 
-                        { 
-                            destName = $"{baseName}_{count++}{ext}"; 
-                            destPath = Path.Combine(destDir, destName); 
-                        }
-                        
-                        File.Copy(src, destPath); 
-                        _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); 
-                    }
-                }
-                RefreshListUI();
-            }
-        }
-    }
-}
+                            RefreshListUI();
