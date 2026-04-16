@@ -14,7 +14,6 @@ namespace Safety_System
 {
     public class App_Water_Generic
     {
-        // 🟢 定義時間模式：日期 (年月日)、年月 (隱藏日)
         private enum TimeMode { Date, YearMonth }
         private TimeMode _timeMode = TimeMode.Date;
 
@@ -28,6 +27,11 @@ namespace Safety_System
         
         private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;     
 
+        // 🟢 新增：查詢資料控制項
+        private ComboBox _cboSearchColumn;
+        private TextBox _txtSearchKeyword;
+        private Button _btnAdvancedSearch;
+
         private Label _lblStatus;
 
         private bool _isFirstLoad = true;
@@ -40,7 +44,6 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 水資源五大表預設結構
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
             { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -57,7 +60,6 @@ namespace Safety_System
             _chineseTitle = chineseTitle;
         }
 
-        // 🟢 取得目標資料夾名稱 (依據日期、年月智慧判斷)
         private string GetExpectedFolderName(string rowDateStr)
         {
             if (string.IsNullOrWhiteSpace(rowDateStr)) return DateTime.Now.ToString("yyyy-MM");
@@ -295,8 +297,24 @@ namespace Safety_System
             
             rowAdv2.Controls.AddRange(new Control[] { new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, txtLimit, bLimitRead });
             
+            // 🟢 新增：條件搜尋列 (rowAdv3)
+            FlowLayoutPanel rowAdv3 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
+            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+            _txtSearchKeyword = new TextBox { Width = 180 };
+            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
+            
+            rowAdv3.Controls.AddRange(new Control[] { 
+                new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 
+                _cboSearchColumn, 
+                new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }, 
+                _txtSearchKeyword, 
+                _btnAdvancedSearch 
+            });
+
             flpAdv.Controls.Add(rowAdv1); 
             flpAdv.Controls.Add(rowAdv2);
+            flpAdv.Controls.Add(rowAdv3); // 🟢 加入搜尋列
             _boxAdvanced.Controls.Add(flpAdv);
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
@@ -334,6 +352,7 @@ namespace Safety_System
             _btnSave.Enabled = isEnabled; 
             _btnImport.Enabled = isEnabled; 
             _btnExport.Enabled = isEnabled;
+            _btnAdvancedSearch.Enabled = isEnabled; // 🟢 控制搜尋按鈕狀態
             
             _lblStatus.Text = statusText; 
             _lblStatus.ForeColor = statusColor;
@@ -344,7 +363,7 @@ namespace Safety_System
             if (_dgv.Columns.Contains("Id")) 
             {
                 _dgv.Columns["Id"].ReadOnly = true;
-                _dgv.Columns["Id"].Visible = false; // 🟢 隱藏 ID
+                _dgv.Columns["Id"].Visible = false;
             }
             
             if (_dgv.Columns.Contains(_dateColumnName)) 
@@ -367,9 +386,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 多檔案附件專用事件與清理機制
-        // ==========================================
         private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e) 
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0) 
@@ -403,7 +419,6 @@ namespace Safety_System
                 {
                     string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
                     
-                    // 🟢 傳入當前列的日期，讓 AttachmentForm 知道要存去哪個資料夾
                     string rowDateStr = _dgv[_dateColumnName, e.RowIndex].Value?.ToString() ?? "";
                     string targetFolder = GetExpectedFolderName(rowDateStr);
 
@@ -419,7 +434,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 檢查資料庫是否還有其他紀錄綁定這個檔案 (防誤刪)
         private bool IsFileUsedInDatabase(string relativePath)
         {
             try 
@@ -462,7 +476,6 @@ namespace Safety_System
                 }
             }
             
-            // 2. 檢查資料庫是否有其他紀錄參照
             if (!isUsedByOthers && IsFileUsedInDatabase(relativePath)) 
             {
                 isUsedByOthers = true;
@@ -496,9 +509,6 @@ namespace Safety_System
             catch { }
         }
 
-        // ==========================================
-        // 🟢 資料庫與日期操作邏輯
-        // ==========================================
         private void EnforceDateFormats(DataTable dt) 
         {
             if (dt == null || !dt.Columns.Contains(_dateColumnName)) return;
@@ -552,6 +562,37 @@ namespace Safety_System
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
+        // 🟢 新增：進階條件搜尋邏輯
+        private async Task ExecuteAdvancedSearchAsync()
+        {
+            SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
+            
+            string searchCol = _cboSearchColumn.SelectedItem?.ToString();
+            string keyword = _txtSearchKeyword.Text;
+
+            DataTable resultDt = null;
+
+            await Task.Run(() => {
+                DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                DataView dv = allData.DefaultView;
+
+                if (!string.IsNullOrEmpty(searchCol) && !string.IsNullOrWhiteSpace(keyword)) 
+                {
+                    dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+                }
+                
+                dv.Sort = "Id DESC"; 
+                
+                resultDt = dv.ToTable(); 
+                EnforceDateFormats(resultDt);
+            });
+
+            _dgv.DataSource = resultDt;
+            ApplyGridStyles();
+            RestoreColumnOrder();
+            SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆符合條件資料", Color.Green);
+        }
+
         private string GetDateString(ComboBox y, ComboBox m, ComboBox d) 
         {
             if (_timeMode == TimeMode.YearMonth) return $"{y.SelectedItem}-{m.SelectedItem}";
@@ -561,13 +602,32 @@ namespace Safety_System
 
         private void UpdateCboColumns() 
         {
+            string currentSearchSel = _cboSearchColumn.SelectedItem?.ToString();
+            
             _cboColumns.Items.Clear();
+            _cboSearchColumn.Items.Clear();
+            _cboSearchColumn.Items.Add(""); 
+
             foreach (DataGridViewColumn c in _dgv.Columns) 
             {
                 if (c.Name != "Id" && c.Name != _dateColumnName) 
                 {
                     _cboColumns.Items.Add(c.Name);
                 }
+                
+                if (c.Name != "Id") 
+                {
+                    _cboSearchColumn.Items.Add(c.Name);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn.Items.Contains(currentSearchSel)) 
+            {
+                _cboSearchColumn.SelectedItem = currentSearchSel;
+            } 
+            else if (_cboSearchColumn.Items.Count > 0) 
+            {
+                _cboSearchColumn.SelectedIndex = 0;
             }
         }
 
@@ -605,7 +665,6 @@ namespace Safety_System
             catch { } 
         }
 
-        // 🟢 同步搬移實體檔案，並更新路徑
         private void SyncAttachmentPaths(DataTable dt) 
         {
             foreach (DataRow row in dt.Rows) 
@@ -630,6 +689,39 @@ namespace Safety_System
 
                     if (!oldDir.Equals(expectedRelDir, StringComparison.OrdinalIgnoreCase)) 
                     {
+                        bool usedByOthersInGrid = false;
+                        foreach(DataRow r in dt.Rows) {
+                            if (r == row || r.RowState == DataRowState.Deleted) continue;
+                            string otherAttach = r["附件檔案"]?.ToString();
+                            if (!string.IsNullOrEmpty(otherAttach) && otherAttach.Contains(oldRelPath)) {
+                                usedByOthersInGrid = true;
+                                break;
+                            }
+                        }
+
+                        bool usedByOthersInDb = false;
+                        int currentRowId = -1;
+                        if (dt.Columns.Contains("Id") && row["Id"] != DBNull.Value) {
+                            int.TryParse(row["Id"].ToString(), out currentRowId);
+                        }
+
+                        try {
+                            DataTable dbDt = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                            foreach (DataRow dbRow in dbDt.Rows) {
+                                int dbId = Convert.ToInt32(dbRow["Id"]);
+                                if (dbId == currentRowId) continue;
+                                string dbAttach = dbRow["附件檔案"]?.ToString();
+                                if (!string.IsNullOrEmpty(dbAttach) && dbAttach.Contains(oldRelPath)) {
+                                    usedByOthersInDb = true;
+                                    break;
+                                }
+                            }
+                        } catch { }
+
+                        if (usedByOthersInGrid || usedByOthersInDb) {
+                            continue; 
+                        }
+
                         string oldAbsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, oldRelPath);
                         string newAbsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expectedRelDir);
                         if (!Directory.Exists(newAbsDir)) Directory.CreateDirectory(newAbsDir);
@@ -676,7 +768,7 @@ namespace Safety_System
                 
                 await Task.Run(() => {
                     EnforceDateFormats(dt); 
-                    SyncAttachmentPaths(dt); // 🟢 儲存前先同步檢查並搬移實體檔案
+                    SyncAttachmentPaths(dt); 
                     success = DataManager.BulkSaveTable(_dbName, _tableName, dt);
                 });
 
@@ -977,9 +1069,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 全新四區塊：多檔附件管理視窗
-        // ==========================================
         private class AttachmentForm : Form
         {
             public string FinalPathsString { get; private set; }
@@ -992,7 +1081,7 @@ namespace Safety_System
             {
                 _dbName = dbName; 
                 _tableName = tableName; 
-                _targetFolder = targetFolder; // 🟢 依據傳入的動態目標資料夾
+                _targetFolder = targetFolder; 
                 _deleteAction = deleteAction;
                 
                 if (!string.IsNullOrEmpty(currentRelPathStr)) 
@@ -1143,7 +1232,6 @@ namespace Safety_System
             {
                 if (sourceFiles.Length == 0) return;
                 
-                // 🟢 使用動態指派的 targetFolder
                 string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
                 
                 if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
