@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Printing; // 🟢 補回此關鍵引用
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -74,7 +75,7 @@ namespace Safety_System
             boxMain.Controls.Add(innerTable);
             mainLayout.Controls.Add(boxMain, 0, 1);
 
-            ExecuteSearch(); // 初始載入
+            ExecuteSearch(); 
             return mainLayout;
         }
 
@@ -83,7 +84,7 @@ namespace Safety_System
             Panel p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = Color.White };
             p.Paint += (s, e) => {
                 ControlPaint.DrawBorder(e.Graphics, p.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-                e.Graphics.FillRectangle(new SolidBrush(borderColor), 0, 0, 5, p.Height); // 左側色條
+                e.Graphics.FillRectangle(new SolidBrush(borderColor), 0, 0, 5, p.Height); 
             };
             return p;
         }
@@ -94,6 +95,7 @@ namespace Safety_System
             string casKey = _txtCAS.Text.Trim();
 
             DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
+            if (dt == null) return;
             DataView dv = dt.DefaultView;
             
             List<string> filters = new List<string>();
@@ -104,7 +106,6 @@ namespace Safety_System
             
             DataTable filteredDt = dv.ToTable();
 
-            // 🟢 動態隱藏邏輯：若該欄位在結果中全部為空，則隱藏
             _dgvResult.DataSource = filteredDt;
             
             if (_dgvResult.Columns.Contains("Id")) _dgvResult.Columns["Id"].Visible = false;
@@ -142,19 +143,16 @@ namespace Safety_System
                 float x = e.MarginBounds.Left;
                 float y = e.MarginBounds.Top;
 
-                // 標題與日期
                 g.DrawString("化學品法規快查分析報表", fTitle, Brushes.Black, x, y);
                 y += 40;
                 g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm} | 台灣玻璃工業股份有限公司-彰濱廠", fBody, Brushes.Gray, x, y);
                 y += 30;
 
-                // 計算可見欄位
                 var visCols = _dgvResult.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList();
                 float totalW = visCols.Sum(c => c.Width);
                 float scale = e.MarginBounds.Width / totalW;
                 if (scale > 1) scale = 1;
 
-                // 畫表頭
                 float currX = x;
                 float rowH = 30;
                 foreach (var col in visCols) {
@@ -166,7 +164,6 @@ namespace Safety_System
                 }
                 y += rowH;
 
-                // 畫內容
                 while (rowIndex < _dgvResult.Rows.Count) {
                     currX = x;
                     foreach (var col in visCols) {
