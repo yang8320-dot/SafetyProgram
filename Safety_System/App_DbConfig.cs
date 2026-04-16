@@ -13,17 +13,20 @@ namespace Safety_System
         private NumericUpDown _numKeepCount;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
+        // 🟢 加入 MinorInjury 到 Safety，加入 ISO14001
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
-            { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury" } },
+            { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury", "MinorInjury" } },
             { "Chemical", new[] { "ChemRegulations", "SDS_Inventory" } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
             { "Air", new[] { "AirPollution" } },
             { "Water", new[] { "DischargeData", "WaterMeterReadings", "WaterChemicals", "WaterVolume", "WaterUsageDaily" } },
-            { "Waste", new[] { "WasteMonthly" } },
+            { "Waste", new[] { "WasteMonthly", "Waste_IL", "Waste_LM", "Waste_CR", "Waste_T", "Waste_GCTE", "Waste_ML", "Waste_Water" } },
             { "Fire", new[] { "FireResponsible", "HazardStats", "FireEquip" } },
             { "TestData", new[] { "CoolingWaterSelf", "CoolingWaterVendor", "DrinkingWater", "EnvMonitor", "IndustrialZoneTest", "OtherTests", "SoilGasTest", "TCLP", "WastewaterPeriodic", "WastewaterSelfTest", "WaterMeterCalibration" } },
             { "教育訓練", new[] { "訓練時數" } },
-            { "法規", new[] { "環保法規", "職安衛法規", "其它法規" } }
+            { "法規", new[] { "環保法規", "職安衛法規", "其它法規" } },
+            { "ESG", new[] { "ESG_Performance" } },
+            { "ISO14001", new[] { "TargetManagement" } } 
         };
 
         public Control GetView()
@@ -66,7 +69,6 @@ namespace Safety_System
 
             BackupManager.LoadConfig();
 
-            // 🟢 將 Label 寬度考慮進去，TextBox 的 X 座標往右推到 200，寬度縮減為 430 避免撞到右邊按鈕
             Label lblB1 = new Label { Text = "備份存放路徑:", Location = new Point(30, 50), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtBackupPath = new TextBox { Location = new Point(200, 47), Width = 430, ReadOnly = true, Text = BackupManager.BackupPath, Font = new Font("Microsoft JhengHei UI", 12F) };
             
@@ -77,7 +79,6 @@ namespace Safety_System
                 }
             };
 
-            // 🟢 NumericUpDown 往右推到 200，後面的文字也跟著往右推到 290
             Label lblB2 = new Label { Text = "保留舊備份份數:", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _numKeepCount = new NumericUpDown { Location = new Point(200, 98), Width = 80, Minimum = 1, Maximum = 100, Value = BackupManager.KeepCount, Font = new Font("Microsoft JhengHei UI", 12F) };
             Label lblB3 = new Label { Text = "份 (建議保留 4 份，約一個月)", Location = new Point(290, 100), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -103,7 +104,6 @@ namespace Safety_System
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 320, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 30, 0, 0);
 
-            // 🟢 順便將這裡的 ComboBox X 座標微調到 160，確保在不同螢幕下不會重疊
             Label lblDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboDb = new ComboBox { Location = new Point(160, 58), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
