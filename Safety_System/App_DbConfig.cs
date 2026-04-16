@@ -13,7 +13,7 @@ namespace Safety_System
         private NumericUpDown _numKeepCount;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
-        // 🟢 加入 MinorInjury 到 Safety，加入 FireSelfInspection 到 Fire，加入 ISO14001
+        // 🟢 將 消防法規 加入法規群組中
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury", "MinorInjury" } },
             { "Chemical", new[] { "ChemRegulations", "SDS_Inventory" } },
@@ -24,7 +24,7 @@ namespace Safety_System
             { "Fire", new[] { "FireResponsible", "HazardStats", "FireEquip", "FireSelfInspection" } },
             { "TestData", new[] { "CoolingWaterSelf", "CoolingWaterVendor", "DrinkingWater", "EnvMonitor", "IndustrialZoneTest", "OtherTests", "SoilGasTest", "TCLP", "WastewaterPeriodic", "WastewaterSelfTest", "WaterMeterCalibration" } },
             { "教育訓練", new[] { "訓練時數" } },
-            { "法規", new[] { "環保法規", "職安衛法規", "其它法規" } },
+            { "法規", new[] { "環保法規", "職安衛法規", "消防法規", "其它法規" } }, 
             { "ESG", new[] { "ESG_Performance" } },
             { "ISO14001", new[] { "TargetManagement" } } 
         };
@@ -124,7 +124,6 @@ namespace Safety_System
             Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
-            // 依序反著加進去 (Dock.Top 特性)
             main.Controls.Add(boxKeys);
             main.Controls.Add(spacer1);
             main.Controls.Add(boxBackup);
