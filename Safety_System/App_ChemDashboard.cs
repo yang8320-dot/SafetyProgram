@@ -178,11 +178,16 @@ namespace Safety_System
         /// </summary>
         private void ApplyVisibility()
         {
-            if (_dgvSDS.Columns.Count == 0) return;
+            if (_dgvSDS.DataSource == null || _dgvSDS.Columns.Count == 0) return;
+            
             foreach (DataGridViewColumn col in _dgvSDS.Columns)
             {
                 // 固定隱藏 Id 欄位
-                if (col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)) { col.Visible = false; continue; }
+                if (col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)) 
+                { 
+                    col.Visible = false; 
+                    continue; 
+                }
                 
                 if (_columnVisibility.ContainsKey(col.Name))
                 {
@@ -217,7 +222,8 @@ namespace Safety_System
                     f.Size = new Size(380, 550);
                     f.StartPosition = FormStartPosition.CenterParent;
                     f.FormBorderStyle = FormBorderStyle.FixedDialog;
-                    f.MaximizeBox = false; f.MinimizeBox = false;
+                    f.MaximizeBox = false; 
+                    f.MinimizeBox = false;
                     f.BackColor = Color.White;
 
                     Label lbl = new Label { 
@@ -352,4 +358,70 @@ namespace Safety_System
 
                 g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.MidnightBlue, x, y);
                 y += 40;
-                g.DrawString("化學品清單一覽表 (SDS)", fSub, Brushes.Black,
+                g.DrawString("化學品清單一覽表 (SDS)", fSub, Brushes.Black, x, y);
+                y += 35;
+                g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}", fBody, Brushes.Gray, x, y);
+                y += 30;
+
+                // B. 過濾出當前「看板可見」的欄位
+                var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList();
+                if (visCols.Count == 0) return;
+
+                // 計算比例縮放，確保寬度自適應 A4
+                float totalGridWidth = visCols.Sum(c => c.Width);
+                float scale = e.MarginBounds.Width / totalGridWidth;
+                if (scale > 1.2f) scale = 1.2f; // 防止過度拉伸
+
+                // C. 繪製表格 Header
+                float currX = x;
+                float rowH = 32;
+                foreach (var col in visCols)
+                {
+                    RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
+                    g.FillRectangle(Brushes.DimGray, rect);
+                    g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                    g.DrawString(col.HeaderText, fHead, Brushes.White, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                    currX += col.Width * scale;
+                }
+                y += rowH;
+
+                // D. 繪製表格內容 (含自動分頁判斷)
+                while (rowIndex < _dgvSDS.Rows.Count)
+                {
+                    currX = x;
+                    foreach (var col in visCols)
+                    {
+                        RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
+                        g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                        string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
+                        g.DrawString(val, fBody, Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center });
+                        currX += col.Width * scale;
+                    }
+                    y += rowH;
+                    rowIndex++;
+
+                    // 檢查是否超過頁面底部邊界
+                    if (y + rowH > e.MarginBounds.Bottom)
+                    {
+                        e.HasMorePages = true;
+                        return;
+                    }
+                }
+                
+                // 列印完畢
+                e.HasMorePages = false;
+                rowIndex = 0; 
+            };
+
+            // 開啟列印預覽視窗
+            PrintPreviewDialog ppd = new PrintPreviewDialog { 
+                Document = pd, 
+                Width = 1024, 
+                Height = 768, 
+                WindowState = FormWindowState.Maximized,
+                UseAntiAlias = true
+            };
+            ppd.ShowDialog();
+        }
+    }
+}
