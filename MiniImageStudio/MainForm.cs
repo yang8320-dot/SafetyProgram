@@ -21,7 +21,7 @@ namespace MiniImageStudio {
         }
 
         private void InitializeComponent() {
-            this.Text = "圖片工具程式 - 專業終極版";
+            this.Text = "圖片工具程式";
             this.Size = new Size(1250, 900);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1050, 750);
