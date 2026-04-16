@@ -87,6 +87,7 @@ namespace Safety_System
         private string GetExpectedFolderName(string rowDateStr)
         {
             if (string.IsNullOrWhiteSpace(rowDateStr)) return DateTime.Now.ToString("yyyy-MM");
+            
             if (_timeMode == TimeMode.Year) 
             {
                 if (rowDateStr.Length >= 4) return rowDateStr.Substring(0, 4);
@@ -339,7 +340,7 @@ namespace Safety_System
                         EnforceDateFormats(dt);
                     });
                     _dgv.DataSource = dt; 
-                    ApplyGridStyles();
+                    ApplyGridStyles(); 
                     RestoreColumnOrder();
                     SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
                 } 
@@ -376,7 +377,7 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            _ = LoadGridDataAsync();
+            _ = LoadGridDataAsync(); 
             return main;
         }
 
@@ -1079,4 +1080,61 @@ namespace Safety_System
                         { 
                             _deleteAction(path); 
                             _paths.Remove(path); 
-                            RefreshListUI();
+                            RefreshListUI(); 
+                        } 
+                    };
+                    
+                    pItem.Controls.Add(lName); 
+                    pItem.Controls.Add(bDel);       
+                    pItem.Controls.Add(bDownload);  
+                    pItem.Controls.Add(bOpen);      
+                    
+                    _flpList.Controls.Add(pItem);
+                }
+            }
+
+            private void SelectFiles() 
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Multiselect = true, Filter = "所有檔案 (*.*)|*.*" }) 
+                {
+                    if (ofd.ShowDialog() == DialogResult.OK) ProcessUpload(ofd.FileNames);
+                }
+            }
+
+            private void ProcessUpload(string[] sourceFiles) 
+            {
+                if (sourceFiles.Length == 0) return;
+                
+                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
+                
+                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+                
+                foreach (string src in sourceFiles) 
+                {
+                    try 
+                    {
+                        string ext = Path.GetExtension(src); 
+                        string baseName = Path.GetFileNameWithoutExtension(src);
+                        string destName = baseName + ext; 
+                        string destPath = Path.Combine(destDir, destName);
+                        
+                        int count = 1; 
+                        while (File.Exists(destPath)) 
+                        { 
+                            destName = $"{baseName}_{count++}{ext}"; 
+                            destPath = Path.Combine(destDir, destName); 
+                        }
+                        
+                        File.Copy(src, destPath); 
+                        _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); 
+                    }
+                }
+                RefreshListUI();
+            }
+        }
+    }
+}
