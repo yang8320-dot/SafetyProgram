@@ -1,4 +1,4 @@
-/* * 功能：拼貼與繪製終極版 (支援縮放控制點、ESC切換、Delete刪除)
+/* * 功能：拼貼與繪製終極版 (恢復拖曳插入圖片、徹底修正排版擠壓問題)
  * 對應選單名稱：拼貼
  * 對應資料表名稱：App_Collage
  */
@@ -51,11 +51,7 @@ namespace MiniImageStudio {
             LoadTemplate(0); 
         }
 
-        // ==========================================
-        // 攔截 Ctrl+Z, ESC, Delete 快捷鍵
-        // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
-            // 如果正在輸入文字，不要攔截快捷鍵
             if (editBox != null && editBox.Focused) return base.ProcessCmdKey(ref msg, keyData);
 
             if (keyData == (Keys.Control | Keys.Z)) {
@@ -67,7 +63,7 @@ namespace MiniImageStudio {
                 return true; 
             }
             else if (keyData == Keys.Escape) {
-                cbMode.SelectedIndex = 0; // 切換為 "選取"
+                cbMode.SelectedIndex = 0; 
                 return true;
             }
             else if (keyData == Keys.Delete) {
@@ -90,21 +86,22 @@ namespace MiniImageStudio {
                 Padding = new Padding(5)
             };
 
-            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(660, 65), Margin = new Padding(5) };
-            Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(15, 30), AutoSize = true };
-            cbRatio = new ComboBox { Location = new Point(90, 24), Width = 65, DropDownStyle = ComboBoxStyle.DropDownList };
+            // 【修正】排版徹底拉開，重新計算座標，確保不重疊
+            GroupBox gb1 = new GroupBox { Text = "模版與排版", Size = new Size(690, 65), Margin = new Padding(5) };
+            Label lblRatio = new Label { Text = "畫布比例:", Location = new Point(10, 30), AutoSize = true };
+            cbRatio = new ComboBox { Location = new Point(95, 24), Width = 70, DropDownStyle = ComboBoxStyle.DropDownList };
             cbRatio.Items.AddRange(new string[] { "1:1", "4:3", "3:4", "16:9", "9:16" });
             cbRatio.SelectedIndex = 0;
 
-            cbLayout = new ComboBox { Location = new Point(165, 24), Width = 95, DropDownStyle = ComboBoxStyle.DropDownList };
+            cbLayout = new ComboBox { Location = new Point(175, 24), Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
             cbLayout.Items.AddRange(new string[] { "上下兩張", "左右兩張", "上1 下2", "左1 右2", "左2 右1" }); 
             cbLayout.SelectedIndex = 0;
             
-            Label lblSpacing = new Label { Text = "間距:", Location = new Point(270, 30), AutoSize = true };
-            tbSpacing = new TrackBar { Location = new Point(315, 24), Width = 90, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
+            Label lblSpacing = new Label { Text = "間距:", Location = new Point(285, 30), AutoSize = true };
+            tbSpacing = new TrackBar { Location = new Point(335, 24), Width = 100, Minimum = 0, Maximum = 100, Value = spacing, TickStyle = TickStyle.None };
             
-            Button btnClearAll = new Button { Text = "全部清除", Location = new Point(415, 22), Width = 100, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
-            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(525, 22), Width = 115, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
+            Button btnClearAll = new Button { Text = "全部清除", Location = new Point(445, 22), Width = 100, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button btnSave = new Button { Text = "儲存拼貼圖", Location = new Point(555, 22), Width = 115, Height = 30, BackColor = Color.SeaGreen, ForeColor = Color.White };
             
             gb1.Controls.AddRange(new Control[] { lblRatio, cbRatio, cbLayout, lblSpacing, tbSpacing, btnClearAll, btnSave });
 
@@ -142,12 +139,45 @@ namespace MiniImageStudio {
 
             mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3, gb4 });
 
-            pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.DarkGray, Cursor = Cursors.Default };
+            // 【修正】開啟拖曳功能
+            pb = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.DarkGray, Cursor = Cursors.Default, AllowDrop = true };
             pb.Paint += Pb_Paint;
             pb.MouseDown += Pb_MouseDown;
             pb.MouseMove += Pb_MouseMove;
             pb.MouseUp += Pb_MouseUp;
             pb.DoubleClick += Pb_DoubleClick;
+
+            // 【修正】加入拖曳圖片進入畫布的事件
+            pb.DragEnter += (s, e) => {
+                if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
+            };
+
+            // 【修正】加入放下圖片時，自動尋找滑鼠所在的格子並載入
+            pb.DragDrop += (s, e) => {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length > 0) {
+                    Point pt = pb.PointToClient(new Point(e.X, e.Y));
+                    Rectangle canvasRect = GetCanvasRect();
+                    for (int i = 0; i < frames.Count; i++) {
+                        if (GetFrameRect(frames[i], canvasRect).Contains(pt)) {
+                            try {
+                                frames[i].Img = Image.FromFile(files[0]);
+                                frames[i].Scale = 1.0f;
+                                frames[i].Angle = 0f;
+                                frames[i].OffsetX = 0f;
+                                frames[i].OffsetY = 0f;
+                                activeFrameIndex = i;
+                                tbScale.Enabled = true;
+                                tbRotate.Enabled = true;
+                                tbScale.Value = 100;
+                                tbRotate.Value = 0;
+                                pb.Invalidate();
+                            } catch { }
+                            return; // 放入格子後就結束
+                        }
+                    }
+                }
+            };
 
             this.Controls.Add(pb);
             this.Controls.Add(mainFlow);
@@ -181,7 +211,7 @@ namespace MiniImageStudio {
                     BgColor = textBgColor, TextAlign = cbAlign.SelectedItem.ToString(), 
                     Opacity = tbOpacity.Value, TextRect = new RectangleF(pb.Width/2 - 100, pb.Height/2 - 50, 200, 100) 
                 });
-                cbMode.SelectedIndex = 0; // 自動切換為選取
+                cbMode.SelectedIndex = 0; 
                 pb.Invalidate();
             };
             btnFont.Click += (s, e) => { 
@@ -287,7 +317,7 @@ namespace MiniImageStudio {
                 } else {
                     e.Graphics.FillRectangle(Brushes.LightGray, rect);
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("點擊加入圖片", this.Font, Brushes.Gray, rect, sf);
+                    e.Graphics.DrawString("拖曳加入圖片", this.Font, Brushes.Gray, rect, sf);
                 }
                 if (i == activeFrameIndex) {
                     e.Graphics.DrawRectangle(Pens.Blue, Rectangle.Round(rect));
@@ -332,7 +362,6 @@ namespace MiniImageStudio {
                 }
             }
 
-            // 【新增】畫出選取框與縮放控制點
             if (selectedShape != null && drawMode == "Select") {
                 Rectangle bounds = selectedShape.GetBounds();
                 RectangleF handle = selectedShape.GetResizeHandle();
@@ -351,7 +380,6 @@ namespace MiniImageStudio {
             lastMousePos = e.Location;
             
             if (drawMode == "Select") {
-                // 【新增】優先判斷是否點擊在縮放控制點上
                 if (selectedShape != null && selectedShape.GetResizeHandle().Contains(e.Location)) {
                     isResizingShape = true;
                     return;
@@ -360,7 +388,7 @@ namespace MiniImageStudio {
                 selectedShape = shapes.LastOrDefault(s => s.GetBounds().Contains(e.Location));
                 if (selectedShape != null) { 
                     isDraggingShape = true; 
-                    activeFrameIndex = -1; // 點擊到形狀時，取消背景圖的選取框
+                    activeFrameIndex = -1; 
                     tbScale.Enabled = false; 
                     tbRotate.Enabled = false;
                     pb.Invalidate();
@@ -422,9 +450,9 @@ namespace MiniImageStudio {
             isPanningImage = false;
             if (drawingShape != null) {
                 shapes.Add(drawingShape);
-                selectedShape = drawingShape; // 畫完自動選取
+                selectedShape = drawingShape; 
                 drawingShape = null;
-                cbMode.SelectedIndex = 0; // 自動切換為選取模式
+                cbMode.SelectedIndex = 0; 
                 pb.Invalidate();
             }
         }
@@ -458,7 +486,7 @@ namespace MiniImageStudio {
 
         private void SaveImage() {
             CommitTextEdit();
-            selectedShape = null; // 存檔前取消選取框
+            selectedShape = null; 
             Rectangle canvasRect = GetCanvasRect();
             Bitmap bmp = new Bitmap(canvasRect.Width, canvasRect.Height);
             using (Graphics g = Graphics.FromImage(bmp)) {
