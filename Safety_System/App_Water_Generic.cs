@@ -27,7 +27,6 @@ namespace Safety_System
         
         private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;     
 
-        // 🟢 新增：查詢資料控制項
         private ComboBox _cboSearchColumn;
         private TextBox _txtSearchKeyword;
         private Button _btnAdvancedSearch;
@@ -163,19 +162,19 @@ namespace Safety_System
             
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
+            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
             _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
 
-            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.Click += BtnSave_Click; 
             
-            _btnExport = new Button { Text = "📤 匯出Excel", Size = new Size(130, 35) }; 
+            _btnExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) }; 
             _btnExport.Click += BtnExport_Click;
 
-            _btnImport = new Button { Text = "📥 匯入Excel", Size = new Size(130, 35) }; 
+            _btnImport = new Button { Text = "📥 匯入Excel", Size = new Size(150, 35) }; 
             _btnImport.Click += BtnImportExcel_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(130, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
@@ -209,7 +208,7 @@ namespace Safety_System
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true };
             _txtNewColName = new TextBox { Width = 150 };
             
-            Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35) };
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) };
             bAdd.Click += async (s, e) => { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
                 { 
@@ -222,7 +221,7 @@ namespace Safety_System
             _cboColumns = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList }; 
             _txtRenameCol = new TextBox { Width = 120 };
             
-            Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35) };
+            Button bRen = new Button { Text = "修改名稱", Size = new Size(120, 35) };
             bRen.Click += async (s, e) => { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
                 { 
@@ -232,7 +231,7 @@ namespace Safety_System
                 } 
             };
             
-            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
+            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
             bDelCol.Click += async (s, e) => { 
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
                 { 
@@ -244,7 +243,7 @@ namespace Safety_System
                 } 
             };
             
-            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             bDelRow.Click += async (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
                                        .Select(c => c.OwningRow)
@@ -276,9 +275,10 @@ namespace Safety_System
 
             rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
             
-            FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
+            // 🟢 將「條件搜尋」整併到「讀取指定筆數」的同一行 (rowAdv2)
+            FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0), WrapContents = false };
             TextBox txtLimit = new TextBox { Width = 100, Text = "100" };
-            Button bLimitRead = new Button { Text = "讀取指定筆數", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            Button bLimitRead = new Button { Text = "讀取指定筆數", Size = new Size(140, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             bLimitRead.Click += async (s, e) => { 
                 if (int.TryParse(txtLimit.Text, out int l)) 
                 { 
@@ -294,27 +294,20 @@ namespace Safety_System
                     SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
                 } 
             };
-            
-            rowAdv2.Controls.AddRange(new Control[] { new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, txtLimit, bLimitRead });
-            
-            // 🟢 新增：條件搜尋列 (rowAdv3)
-            FlowLayoutPanel rowAdv3 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
+
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
             _txtSearchKeyword = new TextBox { Width = 180 };
-            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
+            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(140, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
             _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
             
-            rowAdv3.Controls.AddRange(new Control[] { 
-                new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 
-                _cboSearchColumn, 
-                new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }, 
-                _txtSearchKeyword, 
-                _btnAdvancedSearch 
+            rowAdv2.Controls.AddRange(new Control[] { 
+                new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, txtLimit, bLimitRead,
+                new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(40, 8, 0, 0) }, _cboSearchColumn, 
+                new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }, _txtSearchKeyword, _btnAdvancedSearch 
             });
-
+            
             flpAdv.Controls.Add(rowAdv1); 
             flpAdv.Controls.Add(rowAdv2);
-            flpAdv.Controls.Add(rowAdv3); // 🟢 加入搜尋列
             _boxAdvanced.Controls.Add(flpAdv);
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
@@ -352,7 +345,7 @@ namespace Safety_System
             _btnSave.Enabled = isEnabled; 
             _btnImport.Enabled = isEnabled; 
             _btnExport.Enabled = isEnabled;
-            _btnAdvancedSearch.Enabled = isEnabled; // 🟢 控制搜尋按鈕狀態
+            _btnAdvancedSearch.Enabled = isEnabled;
             
             _lblStatus.Text = statusText; 
             _lblStatus.ForeColor = statusColor;
@@ -562,7 +555,6 @@ namespace Safety_System
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
-        // 🟢 新增：進階條件搜尋邏輯
         private async Task ExecuteAdvancedSearchAsync()
         {
             SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
@@ -1163,13 +1155,13 @@ namespace Safety_System
                     Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                     Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    Button bOpen = new Button { Text = "開啟", Width = 80, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+                    Button bOpen = new Button { Text = "開啟", Width = 100, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                     bOpen.Click += (s, e) => { 
                         try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
                         catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
                     };
 
-                    Button bDownload = new Button { Text = "下載", Width = 80, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                    Button bDownload = new Button { Text = "下載", Width = 100, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDownload.Click += (s, e) => {
                         try 
                         {
@@ -1201,7 +1193,7 @@ namespace Safety_System
                         }
                     };
                     
-                    Button bDel = new Button { Text = "刪除", Width = 80, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
+                    Button bDel = new Button { Text = "刪除", Width = 100, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDel.Click += (s, e) => { 
                         if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
                         { 
