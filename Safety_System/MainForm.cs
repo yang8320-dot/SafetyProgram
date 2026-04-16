@@ -17,7 +17,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v6.1 - 全面 Generic 共用模組化)";
+            this.Text = "工安系統看板 (v1.94)";
             
             // 設定初始視窗為最大化
             this.WindowState = FormWindowState.Maximized;
@@ -79,7 +79,7 @@ namespace Safety_System
         // 建立主選單
         private void BuildMenu()
         {
-            var menuHome = new ToolStripMenuItem("頁首");
+            var menuHome = new ToolStripMenuItem("首頁");
             menuHome.Click += (s, e) => LoadWelcomeScreen();
 
             var menuReports = new ToolStripMenuItem("報表");
