@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -162,6 +164,7 @@ namespace Safety_System
             
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
+            // 🟢 按鍵寬度 +20px
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
             _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
 
@@ -305,7 +308,7 @@ namespace Safety_System
                 new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(40, 8, 0, 0) }, _cboSearchColumn, 
                 new Label { Text = "關鍵字(包含):", AutoSize = true, Margin = new Padding(15, 8, 0, 0) }, _txtSearchKeyword, _btnAdvancedSearch 
             });
-            
+
             flpAdv.Controls.Add(rowAdv1); 
             flpAdv.Controls.Add(rowAdv2);
             _boxAdvanced.Controls.Add(flpAdv);
@@ -1224,35 +1227,121 @@ namespace Safety_System
             {
                 if (sourceFiles.Length == 0) return;
                 
-                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
-                
-                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
-                
-                foreach (string src in sourceFiles) 
+                using (ImageCompressionHelper compressor = new ImageCompressionHelper())
                 {
-                    try 
+                    string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
+                    
+                    if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+                    
+                    foreach (string src in sourceFiles) 
                     {
-                        string ext = Path.GetExtension(src); 
-                        string baseName = Path.GetFileNameWithoutExtension(src);
-                        string destName = baseName + ext; 
-                        string destPath = Path.Combine(destDir, destName);
-                        
-                        int count = 1; 
-                        while (File.Exists(destPath)) 
+                        try 
+                        {
+                            string ext = Path.GetExtension(src); 
+                            string baseName = Path.GetFileNameWithoutExtension(src);
+                            string destName = baseName + ext; 
+                            string destPath = Path.Combine(destDir, destName);
+                            
+                            int count = 1; 
+                            while (File.Exists(destPath)) 
+                            { 
+                                destName = $"{baseName}_{count++}{ext}"; 
+                                destPath = Path.Combine(destDir, destName); 
+                            }
+                            
+                            // 呼叫智慧壓縮處理
+                            compressor.ProcessAndSave(src, destPath);
+                            
+                            _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
+                        } 
+                        catch (Exception ex) 
                         { 
-                            destName = $"{baseName}_{count++}{ext}"; 
-                            destPath = Path.Combine(destDir, destName); 
+                            MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); 
                         }
-                        
-                        File.Copy(src, destPath); 
-                        _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); 
                     }
                 }
                 RefreshListUI();
+            }
+        }
+
+        // 🟢 圖片高品質壓縮獨立模組 (資源安全封裝)
+        private class ImageCompressionHelper : IDisposable
+        {
+            private readonly string[] _imageExts = { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
+            private ImageCodecInfo _jpgEncoder;
+            private EncoderParameters _encoderParams;
+
+            public ImageCompressionHelper()
+            {
+                _jpgEncoder = GetEncoder(ImageFormat.Jpeg);
+                _encoderParams = new EncoderParameters(1);
+                _encoderParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 100L); // 100% 最高畫質
+            }
+
+            public void ProcessAndSave(string srcPath, string destPath)
+            {
+                string ext = Path.GetExtension(srcPath).ToLower();
+
+                // 若非圖片則直接複製
+                if (!_imageExts.Contains(ext))
+                {
+                    File.Copy(srcPath, destPath);
+                    return;
+                }
+
+                using (Image originalImg = Image.FromFile(srcPath))
+                {
+                    int maxSide = 1024;
+                    int origWidth = originalImg.Width;
+                    int origHeight = originalImg.Height;
+
+                    // 若長邊大於 1024 才進行壓縮
+                    if (origWidth > maxSide || origHeight > maxSide)
+                    {
+                        float ratio = Math.Min((float)maxSide / origWidth, (float)maxSide / origHeight);
+                        int newWidth = (int)(origWidth * ratio);
+                        int newHeight = (int)(origHeight * ratio);
+
+                        using (Bitmap resizedImg = new Bitmap(newWidth, newHeight))
+                        {
+                            using (Graphics g = Graphics.FromImage(resizedImg))
+                            {
+                                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                                g.SmoothingMode = SmoothingMode.HighQuality;
+                                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                                g.CompositingQuality = CompositingQuality.HighQuality;
+                                
+                                g.DrawImage(originalImg, 0, 0, newWidth, newHeight);
+                            }
+
+                            // JPEG/JPG 採用高質量參數存檔
+                            if ((ext == ".jpg" || ext == ".jpeg") && _jpgEncoder != null)
+                            {
+                                resizedImg.Save(destPath, _jpgEncoder, _encoderParams);
+                            }
+                            else
+                            {
+                                resizedImg.Save(destPath, originalImg.RawFormat);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 原圖已經小於等於 1024，直接複製
+                        File.Copy(srcPath, destPath);
+                    }
+                }
+            }
+
+            private ImageCodecInfo GetEncoder(ImageFormat format)
+            {
+                ImageCodecInfo[] codecs = ImageCodecInfo.GetImageEncoders();
+                return codecs.FirstOrDefault(codec => codec.FormatID == format.Guid);
+            }
+
+            public void Dispose()
+            {
+                _encoderParams?.Dispose();
             }
         }
     }
