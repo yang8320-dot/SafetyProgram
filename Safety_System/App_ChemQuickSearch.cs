@@ -3,7 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
-using System.Drawing.Printing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -14,7 +15,6 @@ namespace Safety_System
     {
         private DataGridView _dgvResult;
         private TextBox _txtName, _txtCAS;
-        private Label _lblStatus;
         private const string DbName = "Chemical";
         private const string TableName = "ChemRegulations";
 
