@@ -17,7 +17,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v1.94)";
+            this.Text = "工安系統看板 (v6.2 - 全面 Generic 共用模組化)";
             
             // 設定初始視窗為最大化
             this.WindowState = FormWindowState.Maximized;
@@ -128,7 +128,6 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_GenericTable("Waste", "Waste_ML", "【月】物料月表").GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_GenericTable("Waste", "Waste_Water", "【月】水站月表").GetView()));
 
-            // 🟢 [消防] 選單：新增「各單位消防自主檢查表」
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_GenericTable("Fire", "FireResponsible", "火源責任人管理").GetView()));
@@ -158,6 +157,8 @@ namespace Safety_System
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
+            // 🟢 新增：消防法規
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
 
             var menuESG = new ToolStripMenuItem("ESG");
@@ -182,7 +183,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 [新增] 附件檔案空間清理選單
             var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
             cleanupItem.Click += (s, e) => {
                 try {
@@ -193,7 +193,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
-            // 將所有選單加入主視窗
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, menuSettings 
