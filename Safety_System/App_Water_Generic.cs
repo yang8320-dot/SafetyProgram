@@ -40,14 +40,12 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 🟢 水資源五大表預設結構 (月報表已修正為[年月])
+        // 水資源五大表預設結構
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
             { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            
-            // 🟢 月報表強制改為年月
             { "DischargeData", "[年月] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterVolume", "[年月] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
@@ -59,6 +57,14 @@ namespace Safety_System
             _chineseTitle = chineseTitle;
         }
 
+        // 🟢 取得目標資料夾名稱 (依據日期、年月智慧判斷)
+        private string GetExpectedFolderName(string rowDateStr)
+        {
+            if (string.IsNullOrWhiteSpace(rowDateStr)) return DateTime.Now.ToString("yyyy-MM");
+            if (rowDateStr.Length >= 7) return rowDateStr.Substring(0, 7);
+            return DateTime.Now.ToString("yyyy-MM");
+        }
+
         public Control GetView()
         {
             string schema = _schemaMap.ContainsKey(_tableName) ? _schemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
@@ -67,7 +73,6 @@ namespace Safety_System
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             
-            // 🟢 自動資料庫升級：將舊的「月份」重新命名為「年月」
             if (columns.Contains("月份")) 
             {
                 try 
@@ -78,7 +83,6 @@ namespace Safety_System
                 catch { }
             }
 
-            // 🟢 智慧判斷優先順序：日期 > 年月
             if (columns.Contains("日期")) 
             { 
                 _timeMode = TimeMode.Date; 
@@ -175,7 +179,6 @@ namespace Safety_System
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
             };
 
-            // 🟢 動態隱藏下拉選單 (針對年月模式隱藏日)
             Label lblSY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblSM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblSD = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
@@ -336,8 +339,36 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
+        private void ApplyGridStyles() 
+        {
+            if (_dgv.Columns.Contains("Id")) 
+            {
+                _dgv.Columns["Id"].ReadOnly = true;
+                _dgv.Columns["Id"].Visible = false; // 🟢 隱藏 ID
+            }
+            
+            if (_dgv.Columns.Contains(_dateColumnName)) 
+            {
+                string fmt = "yyyy-MM-dd";
+                if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
+                
+                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
+            }
+            
+            foreach (DataGridViewColumn col in _dgv.Columns) 
+            {
+                if (col.Name.Contains("附件檔案")) 
+                {
+                    col.ReadOnly = true; 
+                    col.DefaultCellStyle.ForeColor = Color.Blue;
+                    col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
+                    col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                }
+            }
+        }
+
         // ==========================================
-        // 🟢 附件檔案專用事件與清理機制 (多檔案支援)
+        // 🟢 多檔案附件專用事件與清理機制
         // ==========================================
         private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e) 
         {
@@ -372,7 +403,11 @@ namespace Safety_System
                 {
                     string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString();
                     
-                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, path => DeletePhysicalFile(path, e.RowIndex))) 
+                    // 🟢 傳入當前列的日期，讓 AttachmentForm 知道要存去哪個資料夾
+                    string rowDateStr = _dgv[_dateColumnName, e.RowIndex].Value?.ToString() ?? "";
+                    string targetFolder = GetExpectedFolderName(rowDateStr);
+
+                    using (var frm = new AttachmentForm(currentVal, _dbName, _tableName, targetFolder, path => DeletePhysicalFile(path, e.RowIndex))) 
                     {
                         if (frm.ShowDialog() == DialogResult.OK) 
                         {
@@ -382,6 +417,25 @@ namespace Safety_System
                     }
                 }
             }
+        }
+
+        // 🟢 檢查資料庫是否還有其他紀錄綁定這個檔案 (防誤刪)
+        private bool IsFileUsedInDatabase(string relativePath)
+        {
+            try 
+            {
+                DataTable dt = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                foreach (DataRow row in dt.Rows) 
+                {
+                    string val = row["附件檔案"]?.ToString();
+                    if (!string.IsNullOrEmpty(val) && val.Contains(relativePath)) 
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            } 
+            catch { return true; } 
         }
 
         private void DeletePhysicalFile(string relativePath, int currentRowIndex) 
@@ -406,6 +460,12 @@ namespace Safety_System
                         }
                     }
                 }
+            }
+            
+            // 2. 檢查資料庫是否有其他紀錄參照
+            if (!isUsedByOthers && IsFileUsedInDatabase(relativePath)) 
+            {
+                isUsedByOthers = true;
             }
             
             if (isUsedByOthers) return;
@@ -434,33 +494,6 @@ namespace Safety_System
                 }
             } 
             catch { }
-        }
-
-        private void ApplyGridStyles() 
-        {
-            if (_dgv.Columns.Contains("Id")) 
-            {
-                _dgv.Columns["Id"].ReadOnly = true;
-            }
-            
-            if (_dgv.Columns.Contains(_dateColumnName)) 
-            {
-                string fmt = "yyyy-MM-dd";
-                if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
-                
-                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
-            }
-            
-            foreach (DataGridViewColumn col in _dgv.Columns) 
-            {
-                if (col.Name.Contains("附件檔案")) 
-                {
-                    col.ReadOnly = true; 
-                    col.DefaultCellStyle.ForeColor = Color.Blue;
-                    col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
-                    col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                }
-            }
         }
 
         // ==========================================
@@ -572,6 +605,62 @@ namespace Safety_System
             catch { } 
         }
 
+        // 🟢 同步搬移實體檔案，並更新路徑
+        private void SyncAttachmentPaths(DataTable dt) 
+        {
+            foreach (DataRow row in dt.Rows) 
+            {
+                if (row.RowState == DataRowState.Deleted) continue;
+                string attachStr = row["附件檔案"]?.ToString();
+                if (string.IsNullOrEmpty(attachStr)) continue;
+
+                string rowDateStr = row[_dateColumnName]?.ToString() ?? "";
+                string targetFolder = GetExpectedFolderName(rowDateStr); 
+
+                string[] paths = attachStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                bool changed = false;
+                
+                for (int i = 0; i < paths.Length; i++) 
+                {
+                    string oldRelPath = paths[i].Replace("\\", "/");
+                    string fileName = Path.GetFileName(oldRelPath);
+                    string oldDir = Path.GetDirectoryName(oldRelPath).Replace("\\", "/");
+
+                    string expectedRelDir = $"附件/{_dbName}/{_tableName}/{targetFolder}";
+
+                    if (!oldDir.Equals(expectedRelDir, StringComparison.OrdinalIgnoreCase)) 
+                    {
+                        string oldAbsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, oldRelPath);
+                        string newAbsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expectedRelDir);
+                        if (!Directory.Exists(newAbsDir)) Directory.CreateDirectory(newAbsDir);
+
+                        string newAbsPath = Path.Combine(newAbsDir, fileName);
+                        
+                        int counter = 1;
+                        string baseName = Path.GetFileNameWithoutExtension(fileName);
+                        string ext = Path.GetExtension(fileName);
+                        while (File.Exists(newAbsPath) && oldAbsPath != newAbsPath) 
+                        {
+                            fileName = $"{baseName}_{counter++}{ext}";
+                            newAbsPath = Path.Combine(newAbsDir, fileName);
+                        }
+
+                        if (File.Exists(oldAbsPath)) 
+                        {
+                            File.Move(oldAbsPath, newAbsPath);
+                            paths[i] = $"{expectedRelDir}/{fileName}";
+                            changed = true;
+                        }
+                    }
+                }
+                
+                if (changed) 
+                {
+                    row["附件檔案"] = string.Join("|", paths);
+                }
+            }
+        }
+
         private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
@@ -580,13 +669,14 @@ namespace Safety_System
                 _dgv.EndEdit();
                 SaveColumnOrder();
                 
-                SetUIState(false, "資料庫寫入中，請稍候...", Color.Orange);
+                SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
 
                 DataTable dt = (DataTable)_dgv.DataSource;
                 bool success = false;
                 
                 await Task.Run(() => {
                     EnforceDateFormats(dt); 
+                    SyncAttachmentPaths(dt); // 🟢 儲存前先同步檢查並搬移實體檔案
                     success = DataManager.BulkSaveTable(_dbName, _tableName, dt);
                 });
 
@@ -894,14 +984,15 @@ namespace Safety_System
         {
             public string FinalPathsString { get; private set; }
             private List<string> _paths = new List<string>();
-            private string _dbName, _tableName;
+            private string _dbName, _tableName, _targetFolder;
             private Action<string> _deleteAction;
             private FlowLayoutPanel _flpList;
 
-            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, Action<string> deleteAction) 
+            public AttachmentForm(string currentRelPathStr, string dbName, string tableName, string targetFolder, Action<string> deleteAction) 
             {
                 _dbName = dbName; 
                 _tableName = tableName; 
+                _targetFolder = targetFolder; // 🟢 依據傳入的動態目標資料夾
                 _deleteAction = deleteAction;
                 
                 if (!string.IsNullOrEmpty(currentRelPathStr)) 
@@ -983,14 +1074,12 @@ namespace Safety_System
                     Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                     Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    // 🟢 [修改] 調整按鈕寬度，以容納三個按鈕
                     Button bOpen = new Button { Text = "開啟", Width = 80, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                     bOpen.Click += (s, e) => { 
                         try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
                         catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
                     };
 
-                    // 🟢 [新增] 下載/另存新檔按鈕
                     Button bDownload = new Button { Text = "下載", Width = 80, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                     bDownload.Click += (s, e) => {
                         try 
@@ -1034,10 +1123,9 @@ namespace Safety_System
                     };
                     
                     pItem.Controls.Add(lName); 
-                    // 🟢 注意加入的順序會影響 Dock.Right 的排列 (越晚加的越靠右)
-                    pItem.Controls.Add(bDel);       // 最右邊：刪除
-                    pItem.Controls.Add(bDownload);  // 中間：下載
-                    pItem.Controls.Add(bOpen);      // 左邊：開啟
+                    pItem.Controls.Add(bDel);       
+                    pItem.Controls.Add(bDownload);  
+                    pItem.Controls.Add(bOpen);      
                     
                     _flpList.Controls.Add(pItem);
                 }
@@ -1055,8 +1143,8 @@ namespace Safety_System
             {
                 if (sourceFiles.Length == 0) return;
                 
-                string datePart = DateTime.Now.ToString("yyyy-MM");
-                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, datePart);
+                // 🟢 使用動態指派的 targetFolder
+                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
                 
                 if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
                 
@@ -1077,7 +1165,7 @@ namespace Safety_System
                         }
                         
                         File.Copy(src, destPath); 
-                        _paths.Add(Path.Combine("附件", _dbName, _tableName, datePart, destName));
+                        _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
                     } 
                     catch (Exception ex) 
                     { 
