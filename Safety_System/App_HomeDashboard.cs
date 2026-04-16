@@ -45,27 +45,29 @@ namespace Safety_System
             // 2. 快捷按鈕容器：流式排版 (FlowLayoutPanel)
             _flp = new FlowLayoutPanel
             {
-                Dock = DockStyle.Top,      // 使用 Top 配合 AutoSize 實現垂直延伸
+                Dock = DockStyle.Top,      
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 BackColor = Color.Transparent,
-                WrapContents = true,        // 關鍵：允許自動換行
+                WrapContents = true,        
                 Padding = new Padding(0, 20, 0, 50)
             };
 
             // 監聽主容器 Resize 事件，讓排列面板的寬度永遠跟隨視窗
             _main.Resize += (s, e) => {
-                // 扣除捲軸預留寬度，確保內容不會產生水平捲軸
                 _flp.Width = _main.ClientSize.Width - _main.Padding.Left - _main.Padding.Right;
             };
 
             // ========================================================
-            // 註冊 12 個看板入口 (11 模組 + 1 說明)
+            // 註冊 12 個看板入口 (新增 ISO14001, 刪除操作說明)
             // ========================================================
             _flp.Controls.Add(CreateShortcut("🛡️ 工安看板", "零災害天數、虛驚、工傷統計摘要", Color.SteelBlue, () => new App_SafetyDashboard().GetView()));
             _flp.Controls.Add(CreateShortcut("🧪 化學品看板", "SDS清冊、化學品管制與風險警示", Color.DarkCyan, () => new App_ChemDashboard().GetView()));
             _flp.Controls.Add(CreateShortcut("🏥 護理看板", "職場健康、活動促進與職災申報統計", Color.PaleVioletRed, () => new App_NursingDashboard().GetView()));
-            _flp.Controls.Add(CreateShortcut("☁️ 空污看板", "空氣污染防治監測與排放數據總覽", Color.LightSteelBlue, () => new App_AirDashboard().GetView()));
+            
+            // 🟢 將空污看板顏色調亮為 DeepSkyBlue
+            _flp.Controls.Add(CreateShortcut("☁️ 空污看板", "空氣污染防治監測與排放數據總覽", Color.DeepSkyBlue, () => new App_AirDashboard().GetView()));
+            
             _flp.Controls.Add(CreateShortcut("💧 水資源看板", "水情摘要、用水量與YoY差異分析", Color.Teal, () => new App_WaterDashboard().GetView()));
             _flp.Controls.Add(CreateShortcut("♻️ 廢棄物看板", "產能月表、廢棄物清運與減量趨勢", Color.SeaGreen, () => new App_WasteDashboard().GetView()));
             _flp.Controls.Add(CreateShortcut("🔥 消防看板", "消防設備巡檢狀態與火源責任人管理", Color.IndianRed, () => new App_FireDashboard().GetView()));
@@ -73,7 +75,9 @@ namespace Safety_System
             _flp.Controls.Add(CreateShortcut("🎓 訓練看板", "訓練時數統計、證照管理與績效評估", Color.Goldenrod, () => new App_EduDashboard().GetView()));
             _flp.Controls.Add(CreateShortcut("⚖️ 法規看板", "法規鑑別統計、更新進度與分析", Color.SlateGray, () => new App_LawDashboard().GetView()));
             _flp.Controls.Add(CreateShortcut("🌱 ESG看板", "永續發展績效、能源節約與碳排管理", Color.DarkOliveGreen, () => new App_ESGDashboard().GetView()));
-            _flp.Controls.Add(CreateShortcut("⚙️ 操作說明", "系統操作導覽、快捷鍵與密碼提示", Color.MediumPurple, () => new App_Instruction().GetView()));
+            
+            // 🟢 新增 ISO14001，取代原本的「操作說明」
+            _flp.Controls.Add(CreateShortcut("📐 ISO看板", "環境管理目標、稽核計畫與績效指標", Color.MidnightBlue, () => new App_ISODashboard().GetView()));
 
             _main.Controls.Add(_flp);
             _main.Controls.Add(headerPnl);
