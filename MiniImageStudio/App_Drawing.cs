@@ -1,4 +1,4 @@
-/* * 功能：進階向量繪製模組 (加入縮放控制點、ESC切換選取、Delete刪除、文字框不變形)
+/* * 功能：進階向量繪製模組 (支援選取物件後即時變更字體、顏色、對齊等屬性)
  */
 using System;
 using System.Drawing;
@@ -43,7 +43,6 @@ namespace MiniImageStudio {
                 }
             }
             
-            // 【新增】取得縮放控制點的位置 (固定在右下角)
             public RectangleF GetResizeHandle() {
                 if (Type == "Text") return new RectangleF(TextRect.Right - 7, TextRect.Bottom - 7, 15, 15);
                 if (Type == "Line") return new RectangleF(End.X - 7, End.Y - 7, 15, 15);
@@ -52,10 +51,8 @@ namespace MiniImageStudio {
                 return new RectangleF(maxX - 7, maxY - 7, 15, 15);
             }
 
-            // 【新增】改變大小邏輯
             public void Resize(int dx, int dy) {
                 if (Type == "Text") {
-                    // 文字框只改變邊界，不拉伸字體
                     TextRect.Width = Math.Max(30, TextRect.Width + dx);
                     TextRect.Height = Math.Max(30, TextRect.Height + dy);
                 } else if (Type == "Line") {
@@ -93,6 +90,8 @@ namespace MiniImageStudio {
 
         private ComboBox cbMode, cbAlign;
         private NumericUpDown numPenSize;
+        private Button btnTextColor, btnBgColor, btnPenColor;
+        private TrackBar tbOpacity;
 
         public App_Drawing() {
             this.Font = MainForm.UI_Font;
@@ -100,11 +99,7 @@ namespace MiniImageStudio {
             InitializeUI();
         }
 
-        // ==========================================
-        // 攔截 Ctrl+Z, ESC, Delete 快捷鍵
-        // ==========================================
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
-            // 如果正在輸入文字，不要攔截快捷鍵
             if (editBox != null && editBox.Focused) return base.ProcessCmdKey(ref msg, keyData);
 
             if (keyData == (Keys.Control | Keys.Z)) {
@@ -116,7 +111,7 @@ namespace MiniImageStudio {
                 return true; 
             }
             else if (keyData == Keys.Escape) {
-                cbMode.SelectedIndex = 0; // 切換為 "選取"
+                cbMode.SelectedIndex = 0; 
                 return true;
             }
             else if (keyData == Keys.Delete) {
@@ -132,11 +127,8 @@ namespace MiniImageStudio {
 
         private void InitializeUI() {
             FlowLayoutPanel mainFlow = new FlowLayoutPanel { 
-                Dock = DockStyle.Top, 
-                AutoSize = true, 
-                FlowDirection = FlowDirection.LeftToRight, 
-                BackColor = SystemColors.Control,
-                Padding = new Padding(5)
+                Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, 
+                BackColor = SystemColors.Control, Padding = new Padding(5)
             };
 
             GroupBox gb1 = new GroupBox { Text = "畫布", Size = new Size(480, 65), Margin = new Padding(5) };
@@ -151,7 +143,7 @@ namespace MiniImageStudio {
             cbMode.Items.AddRange(new string[] { "選取", "畫框", "畫線", "畫圓" }); 
             cbMode.SelectedIndex = 1; 
             numPenSize = new NumericUpDown { Location = new Point(95, 26), Minimum = 1, Maximum = 10, Value = 5, Width = 45 };
-            Button btnPenColor = new Button { Location = new Point(150, 24), Width = 50, Height = 28, BackColor = penColor }; 
+            btnPenColor = new Button { Location = new Point(150, 24), Width = 50, Height = 28, BackColor = penColor }; 
             Button btnUndo = new Button { Text = "返回", Location = new Point(210, 22), Width = 80, Height = 30 };
             gb2.Controls.AddRange(new Control[] { cbMode, numPenSize, btnPenColor, btnUndo });
 
@@ -163,10 +155,10 @@ namespace MiniImageStudio {
             cbAlign.SelectedIndex = 0;
             
             Button btnFont = new Button { Text = "字體", Location = new Point(215, 22), Width = 80, Height = 30 };
-            Button btnTextColor = new Button { Text = "字色", Location = new Point(305, 22), Width = 80, Height = 30, BackColor = textColor };
-            Button btnBgColor = new Button { Text = "底色", Location = new Point(395, 22), Width = 80, Height = 30, BackColor = textBgColor };
+            btnTextColor = new Button { Text = "字色", Location = new Point(305, 22), Width = 80, Height = 30, BackColor = textColor };
+            btnBgColor = new Button { Text = "底色", Location = new Point(395, 22), Width = 80, Height = 30, BackColor = textBgColor };
             Label lblOpacity = new Label { Text = "透明度:", Location = new Point(485, 30), AutoSize = true };
-            TrackBar tbOpacity = new TrackBar { Location = new Point(545, 24), Width = 140, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
+            tbOpacity = new TrackBar { Location = new Point(545, 24), Width = 140, Minimum = 0, Maximum = 255, Value = textOpacity, TickStyle = TickStyle.None };
             gb3.Controls.AddRange(new Control[] { btnInsertText, cbAlign, btnFont, btnTextColor, btnBgColor, lblOpacity, tbOpacity });
 
             mainFlow.Controls.AddRange(new Control[] { gb1, gb2, gb3 });
@@ -196,6 +188,7 @@ namespace MiniImageStudio {
             btnClear.Click += (s, e) => { shapes.Clear(); canvas = null; pb.Invalidate(); };
             btnSave.Click += (s, e) => SaveImage();
             
+            // 【即時更新】畫筆與圖形相關事件
             cbMode.SelectedIndexChanged += (s, e) => {
                 if (cbMode.SelectedItem.ToString() == "選取") drawMode = "Select";
                 else if (cbMode.SelectedItem.ToString() == "畫框") drawMode = "Frame";
@@ -204,35 +197,80 @@ namespace MiniImageStudio {
             };
             btnPenColor.Click += (s, e) => { 
                 using (ColorDialog cd = new ColorDialog { Color = penColor }) {
-                    if (cd.ShowDialog() == DialogResult.OK) { penColor = cd.Color; btnPenColor.BackColor = penColor; } 
+                    if (cd.ShowDialog() == DialogResult.OK) { 
+                        penColor = cd.Color; btnPenColor.BackColor = penColor; 
+                        if (selectedShape != null && selectedShape.Type != "Text") {
+                            selectedShape.Color = penColor;
+                            pb.Invalidate();
+                        }
+                    } 
+                }
+            };
+            numPenSize.ValueChanged += (s, e) => {
+                if (selectedShape != null && selectedShape.Type != "Text") {
+                    selectedShape.PenWidth = (int)numPenSize.Value;
+                    pb.Invalidate();
                 }
             };
             btnUndo.Click += (s, e) => { 
                 if (shapes.Count > 0) { shapes.RemoveAt(shapes.Count - 1); selectedShape = null; pb.Invalidate(); } 
             };
 
+            // 【即時更新】文字框相關事件
             btnInsertText.Click += (s, e) => { 
                 shapes.Add(new DrawShape { 
                     Type = "Text", Text = textContent, Font = textFont, Color = textColor, 
                     BgColor = textBgColor, TextAlign = cbAlign.SelectedItem.ToString(), Opacity = tbOpacity.Value, 
                     TextRect = new RectangleF(50, 50, 200, 100) 
                 });
+                selectedShape = shapes.Last(); // 自動選取新建的文字框
                 cbMode.SelectedIndex = 0; // 自動切換為選取
                 pb.Invalidate();
             };
+            cbAlign.SelectedIndexChanged += (s, e) => {
+                if (selectedShape != null && selectedShape.Type == "Text") {
+                    selectedShape.TextAlign = cbAlign.SelectedItem.ToString();
+                    pb.Invalidate();
+                }
+            };
+            tbOpacity.ValueChanged += (s, e) => {
+                textOpacity = tbOpacity.Value;
+                if (selectedShape != null && selectedShape.Type == "Text") {
+                    selectedShape.Opacity = textOpacity;
+                    pb.Invalidate();
+                }
+            };
             btnFont.Click += (s, e) => { 
                 using (FontDialog fd = new FontDialog { Font = textFont }) {
-                    if (fd.ShowDialog() == DialogResult.OK) textFont = fd.Font; 
+                    if (fd.ShowDialog() == DialogResult.OK) { 
+                        textFont = fd.Font; 
+                        if (selectedShape != null && selectedShape.Type == "Text") {
+                            selectedShape.Font = textFont;
+                            pb.Invalidate();
+                        }
+                    } 
                 }
             };
             btnTextColor.Click += (s, e) => { 
                 using (ColorDialog cd = new ColorDialog { Color = textColor }) {
-                    if (cd.ShowDialog() == DialogResult.OK) { textColor = cd.Color; btnTextColor.BackColor = textColor; } 
+                    if (cd.ShowDialog() == DialogResult.OK) { 
+                        textColor = cd.Color; btnTextColor.BackColor = textColor; 
+                        if (selectedShape != null && selectedShape.Type == "Text") {
+                            selectedShape.Color = textColor;
+                            pb.Invalidate();
+                        }
+                    } 
                 }
             };
             btnBgColor.Click += (s, e) => { 
                 using (ColorDialog cd = new ColorDialog { Color = textBgColor }) {
-                    if (cd.ShowDialog() == DialogResult.OK) { textBgColor = cd.Color; btnBgColor.BackColor = textBgColor; } 
+                    if (cd.ShowDialog() == DialogResult.OK) { 
+                        textBgColor = cd.Color; btnBgColor.BackColor = textBgColor; 
+                        if (selectedShape != null && selectedShape.Type == "Text") {
+                            selectedShape.BgColor = textBgColor;
+                            pb.Invalidate();
+                        }
+                    } 
                 }
             };
         }
@@ -312,7 +350,6 @@ namespace MiniImageStudio {
                 }
             }
 
-            // 【新增】畫出選取框與縮放控制點
             if (selectedShape != null && drawMode == "Select") {
                 Rectangle bounds = selectedShape.GetBounds();
                 RectangleF handle = selectedShape.GetResizeHandle();
@@ -341,16 +378,26 @@ namespace MiniImageStudio {
             lastMousePos = cPt;
 
             if (drawMode == "Select") {
-                // 【新增】優先判斷是否點擊在縮放控制點上
                 if (selectedShape != null && selectedShape.GetResizeHandle().Contains(cPt)) {
                     isResizingShape = true;
                     return;
                 }
 
-                // 若非控制點，則判斷是否點擊到某個圖形
                 selectedShape = shapes.LastOrDefault(s => s.GetBounds().Contains(cPt));
                 if (selectedShape != null) {
                     isDraggingShape = true;
+                    
+                    // 【面板同步】選取物件後，自動把上方面板切換為該物件的屬性
+                    if (selectedShape.Type == "Text") {
+                        cbAlign.SelectedItem = selectedShape.TextAlign;
+                        textFont = selectedShape.Font;
+                        textColor = selectedShape.Color; btnTextColor.BackColor = textColor;
+                        textBgColor = selectedShape.BgColor; btnBgColor.BackColor = textBgColor;
+                        tbOpacity.Value = selectedShape.Opacity;
+                    } else {
+                        penColor = selectedShape.Color; btnPenColor.BackColor = penColor;
+                        numPenSize.Value = selectedShape.PenWidth;
+                    }
                 }
                 pb.Invalidate();
             } else {
@@ -364,7 +411,6 @@ namespace MiniImageStudio {
             Point cPt = ScreenToCanvas(e.Location);
 
             if (isResizingShape && selectedShape != null) {
-                // 【新增】執行縮放大小
                 selectedShape.Resize(cPt.X - lastMousePos.X, cPt.Y - lastMousePos.Y);
                 lastMousePos = cPt;
                 pb.Invalidate();
@@ -383,9 +429,9 @@ namespace MiniImageStudio {
             isResizingShape = false;
             if (drawingShape != null) {
                 shapes.Add(drawingShape);
-                selectedShape = drawingShape; // 畫完自動選取
+                selectedShape = drawingShape; 
                 drawingShape = null;
-                cbMode.SelectedIndex = 0; // 自動切換為選取模式
+                cbMode.SelectedIndex = 0; 
                 pb.Invalidate();
             }
         }
@@ -425,7 +471,7 @@ namespace MiniImageStudio {
         private void SaveImage() {
             CommitTextEdit(); 
             if (canvas == null) return;
-            selectedShape = null; // 存檔前取消選取框
+            selectedShape = null; 
             Bitmap finalImg = new Bitmap(canvas.Width, canvas.Height);
             using (Graphics g = Graphics.FromImage(finalImg)) { 
                 g.DrawImage(canvas, 0, 0); 
