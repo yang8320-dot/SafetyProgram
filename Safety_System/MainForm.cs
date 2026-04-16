@@ -120,13 +120,13 @@ namespace Safety_System
 
             var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("產能及廢棄物看板", () => new App_WasteDashboard().GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】複層月表", () => new App_GenericTable("Waste", "Waste_IL", "複層月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】膠合月表", () => new App_GenericTable("Waste", "Waste_LM", "膠合月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】鍍板月表", () => new App_GenericTable("Waste", "Waste_CR", "鍍板月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】強化月表", () => new App_GenericTable("Waste", "Waste_T", "強化月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】切磨月表", () => new App_GenericTable("Waste", "Waste_GCTE", "切磨月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_GenericTable("Waste", "Waste_ML", "物料月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_GenericTable("Waste", "Waste_Water", "水站月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】複層月表", () => new App_GenericTable("Waste", "Waste_IL", "【月】複層月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】膠合月表", () => new App_GenericTable("Waste", "Waste_LM", "【月】膠合月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】鍍板月表", () => new App_GenericTable("Waste", "Waste_CR", "【月】鍍板月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】強化月表", () => new App_GenericTable("Waste", "Waste_T", "【月】強化月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】切磨月表", () => new App_GenericTable("Waste", "Waste_GCTE", "【月】切磨月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_GenericTable("Waste", "Waste_ML", "【月】物料月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_GenericTable("Waste", "Waste_Water", "【月】水站月表").GetView()));
 
             // 🟢 [消防] 選單：新增「各單位消防自主檢查表」
             var menuFire = new ToolStripMenuItem("消防");
