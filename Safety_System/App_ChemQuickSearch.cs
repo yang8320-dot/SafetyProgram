@@ -41,7 +41,7 @@ namespace Safety_System
             innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 90F));  
             innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 小框 1：標題文字
+            // 小框 1：標題
             Panel sub1 = CreateSubBox("化學品快查分析", Color.Teal);
             Label lblMainTitle = new Label { Text = "🧬 化學品法規要求與成分快查分析", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.Teal };
             sub1.Controls.Add(lblMainTitle);
@@ -96,9 +96,9 @@ namespace Safety_System
                 string nameKey = _txtName.Text.Trim();
                 string casKey = _txtCAS.Text.Trim();
 
+                // 若資料庫尚未初始化，DataManager 會回傳空 DataTable 或擲出例外
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
                 
-                // 🟢 防呆：如果資料表不存在或沒資料，則結束處理
                 if (dt == null || dt.Columns.Count == 0)
                 {
                     _dgvResult.DataSource = null;
@@ -117,7 +117,6 @@ namespace Safety_System
                 
                 if (_dgvResult.Columns.Contains("Id")) _dgvResult.Columns["Id"].Visible = false;
 
-                // 🟢 動態隱藏邏輯
                 foreach (DataGridViewColumn col in _dgvResult.Columns)
                 {
                     bool hasData = false;
@@ -132,12 +131,16 @@ namespace Safety_System
                     col.Visible = hasData;
                 }
             }
-            catch { _dgvResult.DataSource = null; }
+            catch { _dgvResult.DataSource = null; } // 發生任何錯誤時，保持表格為空但不跳錯
         }
 
         private void ExportToPdf()
         {
-            if (_dgvResult.Rows.Count == 0) { MessageBox.Show("無搜尋結果可匯出。"); return; }
+            if (_dgvResult.DataSource == null || _dgvResult.Rows.Count == 0) 
+            { 
+                MessageBox.Show("目前暫無搜尋結果可供導出。"); 
+                return; 
+            }
 
             PrintDocument pd = new PrintDocument();
             pd.DefaultPageSettings.Landscape = true;
