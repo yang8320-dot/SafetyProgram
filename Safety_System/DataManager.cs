@@ -92,7 +92,7 @@ namespace Safety_System
                                 List<string> whereClauses = new List<string>();
                                 foreach (var k in activeKeys) {
                                     string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "");
-                                    // 🟢 使用 IFNULL 完美解決 Excel 匯入時 空字串與 NULL 不等價 造成的防呆失效問題
+                                    // 使用 IFNULL 完美解決 Excel 匯入時 空字串與 NULL 不等價 造成的防呆失效問題
                                     whereClauses.Add($"IFNULL([{k}], '') = IFNULL(@{safeKey}, '')");
                                 }
 
@@ -101,8 +101,8 @@ namespace Safety_System
                                 using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
                                     foreach (var k in activeKeys) {
                                         string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "");
-                                        // 🟢 自動去除頭尾空白 (Trim)，防止隱藏空白字元導致判斷失敗
-                                        object val = row[k] != DBNull.Value ? row[k].ToString().Trim() : DBNull.Value;
+                                        // 🟢 加入 (object) 強制轉型，解決 C# 7.3 編譯錯誤
+                                        object val = row[k] != DBNull.Value ? (object)row[k].ToString().Trim() : DBNull.Value;
                                         cmdCheck.Parameters.AddWithValue("@" + safeKey, val);
                                     }
                                     
@@ -125,7 +125,8 @@ namespace Safety_System
                                         
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
-                                        object val = row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value;
+                                        // 🟢 加入 (object) 強制轉型
+                                        object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
                                         cmd.Parameters.AddWithValue("@" + safeParamName, val);
                                     }
                                     cmd.CommandText = sql + string.Join(", ", sqlParts) + " WHERE Id=" + targetId;
@@ -138,7 +139,8 @@ namespace Safety_System
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         colNames.Add($"[{col.ColumnName}]");
                                         paramNames.Add($"@{safeParamName}");
-                                        object val = row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value;
+                                        // 🟢 加入 (object) 強制轉型
+                                        object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
                                         cmd.Parameters.AddWithValue("@" + safeParamName, val);
                                     }
                                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", colNames)}) VALUES ({string.Join(", ", paramNames)})";
@@ -239,7 +241,8 @@ namespace Safety_System
                         if (col.ColumnName == "Id") continue;
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         sets.Add($"[{col.ColumnName}]=@{safeParamName}");
-                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value);
+                        // 🟢 加入 (object) 強制轉型
+                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
                     }
                     cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sets)} WHERE Id=" + row["Id"];
                 } else {
@@ -250,7 +253,8 @@ namespace Safety_System
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         c.Add($"[{col.ColumnName}]"); 
                         v.Add($"@{safeParamName}");
-                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value);
+                        // 🟢 加入 (object) 強制轉型
+                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
                     }
                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
                 }
@@ -274,7 +278,6 @@ namespace Safety_System
             using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] DROP COLUMN [{colName}]", conn)) { cmd.ExecuteNonQuery(); }
         });
 
-        // 🟢 新增：永久刪除整張資料表
         public static void DropTable(string dbName, string tableName) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand($"DROP TABLE IF EXISTS [{tableName}]", conn)) { cmd.ExecuteNonQuery(); }
         });
