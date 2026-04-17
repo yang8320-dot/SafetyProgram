@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_ChemQuickSearch.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -29,6 +30,7 @@ namespace Safety_System
             public DataGridView Dgv;
         }
 
+        // 🟢 嚴格依照需求：配置 12 個表的欄位對應與附註文字
         private List<ChemTableInfo> _tableInfos = new List<ChemTableInfo> {
             new ChemTableInfo { TableName="EnvTesting", Title="1. 環測項目", NameSearchCol="中文名稱", CasSearchCol="CASNO", ExtraNotice="" },
             new ChemTableInfo { TableName="ExposureLimits", Title="2. 勞工暴露容許濃度", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
@@ -91,9 +93,9 @@ namespace Safety_System
             innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             // 【小框 1】：標題文字
-            Panel sub1 = CreateSubBox("化學品快查分析", Color.Teal);
+            Panel sub1 = CreateSubBox(Color.Teal);
             Label lblMainTitle = new Label { 
-                Text = "🧬 化學品法規要求與成分快查分析系統", 
+                Text = "🧬 化學品法規符核度查詢系統", // 🟢 依需求變更名稱
                 Dock = DockStyle.Fill, 
                 TextAlign = ContentAlignment.MiddleCenter, 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
@@ -102,22 +104,24 @@ namespace Safety_System
             sub1.Controls.Add(lblMainTitle);
 
             // 【小框 2】：名稱查詢
-            Panel sub2 = CreateSubBox("按名稱檢索", Color.FromArgb(45, 62, 80));
+            Panel sub2 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl1 = new Label { Text = "化學品名稱關鍵字：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _txtName = new TextBox { Location = new Point(200, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 13F) };
+            // 🟢 X座標由 200 改為 220，避免重疊並增加間隔
+            _txtName = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 13F) };
             _txtName.TextChanged += (s, e) => ExecuteSearch(); 
             sub2.Controls.AddRange(new Control[] { lbl1, _txtName });
 
             // 【小框 3】：CAS 查詢
-            Panel sub3 = CreateSubBox("按 CAS No 檢索", Color.FromArgb(45, 62, 80));
+            Panel sub3 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl2 = new Label { Text = "CAS No. 編號：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _txtCAS = new TextBox { Location = new Point(200, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 13F) };
+            // 🟢 X座標由 200 改為 220，對齊上方
+            _txtCAS = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 13F) };
             _txtCAS.TextChanged += (s, e) => ExecuteSearch(); 
             sub3.Controls.AddRange(new Control[] { lbl2, _txtCAS });
 
             // 【小框 4】：檢索結果容器 (放置 12 個小框)
             GroupBox sub4 = new GroupBox { 
-                Text = "📊 檢索結果明細 (無資料之分類會自動隱藏)", 
+                Text = "📊 檢索結果明細 (查無資料之法規表單將自動隱藏)", 
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
                 Margin = new Padding(0, 10, 0, 0) 
@@ -188,9 +192,10 @@ namespace Safety_System
             return mainLayout;
         }
 
-        private Panel CreateSubBox(string title, Color accentColor)
+        // 🟢 取消白底：改為 Color.Transparent
+        private Panel CreateSubBox(Color accentColor)
         {
-            Panel p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = Color.White };
+            Panel p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = Color.Transparent };
             p.Paint += (s, e) => {
                 ControlPaint.DrawBorder(e.Graphics, p.ClientRectangle, Color.FromArgb(220, 220, 220), ButtonBorderStyle.Solid);
                 using (SolidBrush brush = new SolidBrush(accentColor)) {
@@ -205,10 +210,15 @@ namespace Safety_System
             string nameKey = _txtName.Text.Trim();
             string casKey = _txtCAS.Text.Trim();
 
+            // 🟢 優化：暫停 UI 繪製，防止輸入文字時因頻繁刷新畫面導致卡頓或無反應
+            _flpResultsContainer.SuspendLayout();
+
             foreach (var info in _tableInfos) {
                 try {
                     DataTable dt = DataManager.GetTableData(DbName, info.TableName, "", "", "");
-                    if (dt == null || dt.Columns.Count == 0) {
+                    
+                    // 若資料表不存在或全空
+                    if (dt == null || dt.Columns.Count == 0 || dt.Rows.Count == 0) {
                         info.GBox.Visible = false;
                         info.Dgv.DataSource = null;
                         continue;
@@ -217,6 +227,7 @@ namespace Safety_System
                     DataView dv = dt.DefaultView;
                     List<string> filters = new List<string>();
                     
+                    // 根據各別指定的欄位進行過濾
                     if (!string.IsNullOrEmpty(nameKey) && dt.Columns.Contains(info.NameSearchCol)) 
                         filters.Add($"[{info.NameSearchCol}] LIKE '%{nameKey.Replace("'", "''")}%'");
                     
@@ -225,14 +236,17 @@ namespace Safety_System
 
                     if (filters.Count > 0) 
                         dv.RowFilter = string.Join(" AND ", filters);
+                    else
+                        dv.RowFilter = ""; // 無關鍵字時顯示全資料
                     
                     DataTable resultTable = dv.ToTable();
 
+                    // 有篩選出資料時才顯示
                     if (resultTable.Rows.Count > 0) {
                         info.Dgv.DataSource = resultTable;
                         if (info.Dgv.Columns.Contains("Id")) info.Dgv.Columns["Id"].Visible = false;
 
-                        // 動態隱藏空白欄位
+                        // 動態隱藏內容完全空白的欄位，節省版面
                         foreach (DataGridViewColumn col in info.Dgv.Columns) {
                             if (col.Name == "Id") continue;
                             bool hasData = false;
@@ -254,6 +268,9 @@ namespace Safety_System
                     info.GBox.Visible = false;
                 }
             }
+
+            // 🟢 恢復 UI 佈局，一次性繪製完成
+            _flpResultsContainer.ResumeLayout(true);
         }
 
         private void ExportToPdf()
@@ -283,7 +300,7 @@ namespace Safety_System
                 float y = e.MarginBounds.Top;
 
                 // 報表總表頭
-                g.DrawString("化學品法規快查分析報表", fTitle, Brushes.DarkSlateGray, x, y);
+                g.DrawString("化學品法規符核度分析報表", fTitle, Brushes.DarkSlateGray, x, y);
                 y += 40;
                 g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   台灣玻璃彰濱廠", fBody, Brushes.Gray, x, y);
                 y += 35;
