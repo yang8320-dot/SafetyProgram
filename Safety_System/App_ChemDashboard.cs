@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_ChemDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -96,18 +95,21 @@ namespace Safety_System
                 BackColor = Color.FromArgb(240, 245, 250), 
                 Margin = new Padding(0, 0, 0, 15) 
             };
-            pnlTitle.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTitle.ClientRectangle, Color.SteelBlue, ButtonBorderStyle.Solid);
+            pnlTitle.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTitle.ClientRectangle, Color.LightSkyBlue, ButtonBorderStyle.Solid);
             
+            // 🟢 標題改成淺藍色 (SteelBlue)
             Label lblCompany = new Label { 
                 Text = "台灣玻璃工業股份有限公司 - 彰濱廠", 
                 Dock = DockStyle.Top, 
                 Height = 45, 
                 TextAlign = ContentAlignment.MiddleCenter, 
                 Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), 
-                ForeColor = Color.MidnightBlue 
+                ForeColor = Color.SteelBlue 
             };
+            
+            // 🟢 變更副標題文字
             Label lblSubTitle = new Label { 
-                Text = "化學品清單一覽表 (SDS 定期追蹤管理)", 
+                Text = "化學品清單一覽表", 
                 Dock = DockStyle.Fill, 
                 TextAlign = ContentAlignment.MiddleCenter, 
                 Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
@@ -146,7 +148,7 @@ namespace Safety_System
             boxMain.Controls.Add(innerTable);
             mainLayout.Controls.Add(boxMain, 0, 1);
 
-            // 5. 嘗試讀取資料 (即使資料庫尚未建立也不會當機)
+            // 5. 嘗試讀取資料
             LoadData();
 
             return mainLayout;
@@ -182,7 +184,7 @@ namespace Safety_System
             
             foreach (DataGridViewColumn col in _dgvSDS.Columns)
             {
-                // 固定隱藏 Id 欄位
+                // 🟢 固定隱藏 Id 欄位
                 if (col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)) 
                 { 
                     col.Visible = false; 
@@ -349,6 +351,7 @@ namespace Safety_System
                 Graphics g = e.Graphics;
                 float x = e.MarginBounds.Left;
                 float y = e.MarginBounds.Top;
+                float pageWidth = e.MarginBounds.Width;
 
                 // A. 繪製報表標頭
                 Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
@@ -356,11 +359,27 @@ namespace Safety_System
                 Font fBody = new Font("Microsoft JhengHei UI", 9F);
                 Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-                g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.MidnightBlue, x, y);
+                // 用於文字置中的格式
+                StringFormat sfCenter = new StringFormat();
+                sfCenter.Alignment = StringAlignment.Center;
+                sfCenter.LineAlignment = StringAlignment.Center;
+
+                // 🟢 大標與小標置中列印
+                string mainTitle = "台灣玻璃工業股份有限公司 - 彰濱廠";
+                string subTitle = "化學品清單一覽表";
+                string pageInfo = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}";
+
+                // 繪製置中標題
+                RectangleF rectMainTitle = new RectangleF(x, y, pageWidth, 40);
+                g.DrawString(mainTitle, fTitle, Brushes.MidnightBlue, rectMainTitle, sfCenter);
                 y += 40;
-                g.DrawString("化學品清單一覽表 (SDS)", fSub, Brushes.Black, x, y);
+
+                RectangleF rectSubTitle = new RectangleF(x, y, pageWidth, 35);
+                g.DrawString(subTitle, fSubTitle, Brushes.Black, rectSubTitle, sfCenter);
                 y += 35;
-                g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}", fBody, Brushes.Gray, x, y);
+
+                RectangleF rectPageInfo = new RectangleF(x, y, pageWidth, 30);
+                g.DrawString(pageInfo, fBody, Brushes.Gray, rectPageInfo, sfCenter);
                 y += 30;
 
                 // B. 過濾出當前「看板可見」的欄位
@@ -380,12 +399,16 @@ namespace Safety_System
                     RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
                     g.FillRectangle(Brushes.DimGray, rect);
                     g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                    g.DrawString(col.HeaderText, fHead, Brushes.White, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                    g.DrawString(col.HeaderText, fHead, Brushes.White, rect, sfCenter);
                     currX += col.Width * scale;
                 }
                 y += rowH;
 
                 // D. 繪製表格內容 (含自動分頁判斷)
+                StringFormat sfBody = new StringFormat();
+                sfBody.Alignment = StringAlignment.Near;
+                sfBody.LineAlignment = StringAlignment.Center;
+
                 while (rowIndex < _dgvSDS.Rows.Count)
                 {
                     currX = x;
@@ -394,7 +417,7 @@ namespace Safety_System
                         RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
                         g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
                         string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
-                        g.DrawString(val, fBody, Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center });
+                        g.DrawString(val, fBody, Brushes.Black, rect, sfBody);
                         currX += col.Width * scale;
                     }
                     y += rowH;
