@@ -180,7 +180,7 @@ namespace Safety_System
             Label lblDelTable = new Label { Text = "選擇資料表:", Location = new Point(360, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboDelTable = new ComboBox { Location = new Point(480, 98), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Button btnExecuteDelete = new Button { Text = "⚠️ 執行永久刪除", Location = new Point(730, 95), Size = new Size(180, 40), BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnExecuteDelete = new Button { Text = "⚠️ 執行永久刪除", Location = new Point(760, 95), Size = new Size(180, 40), BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnExecuteDelete.Click += BtnExecuteDelete_Click;
 
             boxDelete.Controls.AddRange(new Control[] { lblDelDesc, lblDelDb, _cboDelDb, lblDelTable, _cboDelTable, btnExecuteDelete });
