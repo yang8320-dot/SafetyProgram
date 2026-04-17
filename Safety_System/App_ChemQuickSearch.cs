@@ -24,6 +24,23 @@ namespace Safety_System
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemQuickSearch_Visibility.txt");
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
+        // 🟢 加入 12 張表的結構，確保系統未初始化時能預先建表，避免設定欄位時找不到表
+        private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
+        {
+            { "EnvTesting", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [中文名稱] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ExposureLimits", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [種類] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CASNO] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ToxicSubstances", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [種類] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CASNO] TEXT, [管制濃度百分比] TEXT, [分級運作量kg] TEXT, [毒性分類] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ConcernedChem", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CASNO] TEXT, [管制濃度百分比] TEXT, [管制行為] TEXT, [具有危害性之關注化學物質註記] TEXT, [分級運作量kg] TEXT, [定期申報頻率] TEXT, [毒性分類] TEXT, [包裝容器規定] TEXT, [記錄] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "PriorityMgmtChem", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [CASNO] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ControlledChem", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CASNO] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SpecificChem", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [類別] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "OrganicSolvents", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [類別] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WorkerHealthProtect", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [中文名稱] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "PublicHazardous", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [分類] TEXT, [名稱] TEXT, [種類] TEXT, [分級] TEXT, [管制量] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "AirPollutionEmerg", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [CASNO] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "FactoryHazardous", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [名稱] TEXT, [種類] TEXT, [管制量] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" }
+        };
+
         private class ChemTableInfo {
             public string TableName;
             public string Title;
@@ -53,6 +70,13 @@ namespace Safety_System
 
         public Control GetView()
         {
+            // 🟢 強制預先建表，防止首次執行時設定選單抓不到欄位
+            foreach (var info in _tableInfos) {
+                if (_schemaMap.ContainsKey(info.TableName)) {
+                    DataManager.InitTable(DbName, info.TableName, $"CREATE TABLE IF NOT EXISTS [{info.TableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {_schemaMap[info.TableName]});");
+                }
+            }
+
             LoadVisibilitySettings();
 
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
@@ -64,7 +88,6 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // --- 第一行：功能按鈕區 ---
             FlowLayoutPanel pnlAction = new FlowLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 AutoSize = true, 
@@ -119,7 +142,6 @@ namespace Safety_System
             pnlAction.Controls.AddRange(new Control[] { btnPdf, _btnSettings, _btnSearch, _lblStatus });
             mainLayout.Controls.Add(pnlAction, 0, 0);
 
-            // --- 第二行：主查詢區與結果區 ---
             GroupBox boxMain = new GroupBox { 
                 Text = "🔍 化學品法規符核度查詢", 
                 Dock = DockStyle.Fill, 
@@ -129,10 +151,9 @@ namespace Safety_System
             };
             
             TableLayoutPanel innerTable = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1 };
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));  // 查詢條件區
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  // 結果區
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));  
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  
 
-            // 【查詢條件區】：合併在同一行
             Panel pnlSearch = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
             pnlSearch.Paint += (s, e) => {
                 ControlPaint.DrawBorder(e.Graphics, pnlSearch.ClientRectangle, Color.FromArgb(200, 200, 200), ButtonBorderStyle.Solid);
@@ -155,7 +176,6 @@ namespace Safety_System
             pnlSearch.Controls.Add(flpSearch);
             innerTable.Controls.Add(pnlSearch, 0, 0);
 
-            // 【檢索結果區】
             GroupBox sub4 = new GroupBox { 
                 Text = "📊 檢索結果明細 (查無資料之分類將自動隱藏)", 
                 Dock = DockStyle.Fill, 
@@ -178,15 +198,14 @@ namespace Safety_System
                 }
             };
             
-            // 初始化 12 個資料表
             foreach (var info in _tableInfos) {
                 info.GBox = new GroupBox {
                     Text = info.Title + (string.IsNullOrEmpty(info.ExtraNotice) ? "" : " - " + info.ExtraNotice),
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                     ForeColor = string.IsNullOrEmpty(info.ExtraNotice) ? Color.DarkSlateBlue : Color.Crimson,
                     AutoSize = false, 
-                    Margin = new Padding(0, 0, 0, 10), // 🟢 間隔都在底部
-                    Padding = new Padding(5, 30, 5, 10), // 🟢 頂部預留給標題，底部留白 10px
+                    Margin = new Padding(0, 0, 0, 10), 
+                    Padding = new Padding(5, 30, 5, 10), 
                     Visible = false 
                 };
 
@@ -197,14 +216,13 @@ namespace Safety_System
                     ReadOnly = true, 
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, 
                     RowHeadersVisible = false,
-                    BorderStyle = BorderStyle.FixedSingle,
+                    BorderStyle = BorderStyle.None, // 🟢 移除外框，減少高度計算誤差
                     ScrollBars = ScrollBars.None, 
                     Font = new Font("Microsoft JhengHei UI", 11F),
-                    // 🟢 確保欄位填滿、內容可換行
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                     AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells
                 };
-                info.Dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // 🟢 允許文字斷行
+                info.Dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
                 
                 info.Dgv.EnableHeadersVisualStyles = false;
                 info.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 62, 80);
@@ -261,13 +279,11 @@ namespace Safety_System
                             dv.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "1=0";
                             info.ResultData = dv.ToTable();
 
-                            // 判斷該顯示哪些欄位 (排除沒資料的，以及使用者設定不顯示的)
                             info.VisibleColumns = new List<string>();
                             if (info.ResultData.Rows.Count > 0) {
                                 foreach (DataColumn col in info.ResultData.Columns) {
                                     if (col.ColumnName == "Id") continue;
                                     
-                                    // 檢查使用者設定
                                     string dictKey = $"{info.TableName}_{col.ColumnName}";
                                     if (_columnVisibility.ContainsKey(dictKey) && !_columnVisibility[dictKey]) continue;
 
@@ -301,16 +317,16 @@ namespace Safety_System
                         col.Visible = info.VisibleColumns.Contains(col.Name);
                     }
 
-                    // 確保寬度與自動換行重算
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 30;
                     info.Dgv.AutoResizeRows(); 
 
-                    // 🟢 動態精準高度運算：標題高(30) + 表頭高(40) + 各列實際高度 + 底部留白(10px)
+                    // 🟢 完美高度修正：加入 25px 的底部緩衝，確保最後一列文字及底線完整顯示
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight;
                     foreach(DataGridViewRow r in info.Dgv.Rows) {
                         exactGridHeight += r.Height;
                     }
-                    info.GBox.Height = 30 + exactGridHeight + 10; 
+                    // 公式: 頂部Padding(30) + 表格內容高度 + 底部緩衝(25)
+                    info.GBox.Height = info.GBox.Padding.Top + exactGridHeight + 25; 
                     
                     info.Dgv.ClearSelection();
                     info.GBox.Visible = true;
@@ -335,7 +351,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 欄位顯示設定系統
+        // 欄位顯示設定系統
         // ==========================================
         private void LoadVisibilitySettings()
         {
@@ -383,7 +399,6 @@ namespace Safety_System
                 Button btnSave = new Button { Text = "💾 儲存並關閉", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
                 f.Controls.Add(btnSave);
 
-                // 選擇分類時載入欄位
                 lbTables.SelectedIndexChanged += (s, e) => {
                     if (lbTables.SelectedIndex < 0) return;
                     clbCols.Items.Clear();
@@ -393,12 +408,11 @@ namespace Safety_System
                     foreach (var c in cols) {
                         if (c == "Id") continue;
                         string key = $"{tblName}_{c}";
-                        bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : true; // 預設為全開
+                        bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : true; 
                         clbCols.Items.Add(c, isChecked);
                     }
                 };
 
-                // 勾選變更即時存入字典
                 clbCols.ItemCheck += (s, e) => {
                     if (lbTables.SelectedIndex < 0) return;
                     string tblName = _tableInfos[lbTables.SelectedIndex].TableName;
@@ -414,14 +428,13 @@ namespace Safety_System
                 if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
 
                 if (f.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(_txtName.Text)) {
-                    // 若已有關鍵字，儲存設定後自動重新查詢套用
                     _btnSearch.PerformClick();
                 }
             }
         }
 
         // ==========================================
-        // 🟢 PDF 導出系統 (直式, 支援動態斷行與分頁)
+        // PDF 導出系統
         // ==========================================
         private void ExportToPdf()
         {
@@ -431,7 +444,6 @@ namespace Safety_System
             }
 
             PrintDocument pd = new PrintDocument();
-            // 🟢 改為直式 PDF
             pd.DefaultPageSettings.Landscape = false; 
             pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
             
@@ -448,7 +460,6 @@ namespace Safety_System
                 float x = e.MarginBounds.Left;
                 float y = e.MarginBounds.Top;
 
-                // 第一頁與換頁時的總表頭
                 g.DrawString("化學品法規符核度查詢報表", fTitle, Brushes.Black, x, y);
                 y += 35;
                 g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   台灣玻璃彰濱廠", fBody, Brushes.Gray, x, y);
@@ -460,14 +471,12 @@ namespace Safety_System
                     
                     if (visCols.Count == 0) { currentTableIndex++; continue; }
 
-                    // 計算各欄位分配的寬度 (填滿頁面)
                     float totalW = visCols.Sum(c => c.Width);
                     float[] colWidths = new float[visCols.Count];
                     for (int i = 0; i < visCols.Count; i++) {
                         colWidths[i] = (visCols[i].Width / totalW) * e.MarginBounds.Width;
                     }
 
-                    // 畫子表標題和表頭
                     if (currentRowIndex == 0) {
                         if (y + 80 > e.MarginBounds.Bottom) { e.HasMorePages = true; return; }
                         
@@ -485,11 +494,9 @@ namespace Safety_System
                         y += 35;
                     }
 
-                    // 畫資料列 (支援文字換行動態高度)
                     StringFormat fmtWrap = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
                     
                     while (currentRowIndex < info.ResultData.Rows.Count) {
-                        // 計算本列需要的最大高度
                         float maxRowHeight = 30; 
                         for (int i = 0; i < visCols.Count; i++) {
                             string val = info.Dgv[visCols[i].Index, currentRowIndex].Value?.ToString() ?? "";
@@ -497,7 +504,6 @@ namespace Safety_System
                             if (sSize.Height + 10 > maxRowHeight) maxRowHeight = sSize.Height + 10;
                         }
 
-                        // 檢查換頁
                         if (y + maxRowHeight > e.MarginBounds.Bottom) { 
                             e.HasMorePages = true; 
                             return; 
@@ -509,7 +515,6 @@ namespace Safety_System
                             g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
                             string val = info.Dgv[visCols[i].Index, currentRowIndex].Value?.ToString() ?? "";
                             
-                            // 稍微內縮避免貼齊邊線
                             RectangleF textRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
                             g.DrawString(val, fBody, Brushes.Black, textRect, fmtWrap);
                             
@@ -519,7 +524,6 @@ namespace Safety_System
                         currentRowIndex++;
                     }
                     
-                    // 該表印完
                     y += 20; 
                     currentTableIndex++; 
                     currentRowIndex = 0;
