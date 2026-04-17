@@ -1,4 +1,3 @@
-/// FILE: Safety_System/DataManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -59,7 +58,7 @@ namespace Safety_System
             }
         }
 
-        // 🚀 [核心新增] 極速批次儲存方法 (支援事務處理，並修正含空格之欄位名稱問題)
+        // 🚀 極速批次儲存方法 (支援事務處理，並修正含空格之欄位名稱問題)
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt)
         {
             try {
@@ -82,7 +81,6 @@ namespace Safety_System
                             int existingId = -1;
                             // 判斷重複邏輯
                             if (!string.IsNullOrEmpty(keys.col1) && dt.Columns.Contains(keys.col1)) {
-                                // 參數化查詢：將鍵值名稱轉換為安全的參數名 (去除空白與括號)
                                 string safeKey1 = keys.col1.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                 string qCheck = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @{safeKey1}";
                                 
@@ -115,7 +113,6 @@ namespace Safety_System
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id") continue;
                                         
-                                        // 🟢 安全參數轉換：移除欄位名中的空白與括號，避免 SQL 語法錯誤 (例如: CAS No)
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
                                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
@@ -127,7 +124,6 @@ namespace Safety_System
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id") continue;
                                         
-                                        // 🟢 安全參數轉換
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         colNames.Add($"[{col.ColumnName}]");
                                         paramNames.Add($"@{safeParamName}");
@@ -211,11 +207,9 @@ namespace Safety_System
 
         public static bool ValidateAndSaveTable(string dbName, string tableName, DataTable dt)
         {
-            // 批次寫入模式下直接使用 BulkSaveTable
             return BulkSaveTable(dbName, tableName, dt);
         }
 
-        // 單筆寫入保留 (同步修正空格參數防呆)
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             ExecuteWithRetry(dbName, conn => {
@@ -226,7 +220,6 @@ namespace Safety_System
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
                         
-                        // 🟢 安全參數轉換
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         sets.Add($"[{col.ColumnName}]=@{safeParamName}");
                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
