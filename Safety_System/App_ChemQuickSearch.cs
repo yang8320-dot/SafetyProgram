@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -14,10 +16,13 @@ namespace Safety_System
         private TextBox _txtName;
         private TextBox _txtCAS;
         private Button _btnSearch;
+        private Button _btnSettings;
         private Label _lblStatus;
         private FlowLayoutPanel _flpResultsContainer; 
         
         private const string DbName = "Chemical";
+        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemQuickSearch_Visibility.txt");
+        private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
         private class ChemTableInfo {
             public string TableName;
@@ -48,6 +53,8 @@ namespace Safety_System
 
         public Control GetView()
         {
+            LoadVisibilitySettings();
+
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 Padding = new Padding(20), 
@@ -57,7 +64,7 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 🟢 優化：水平對齊功能列的按鈕與文字
+            // --- 第一行：功能按鈕區 ---
             FlowLayoutPanel pnlAction = new FlowLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 AutoSize = true, 
@@ -66,16 +73,28 @@ namespace Safety_System
             };
             
             Button btnPdf = new Button { 
-                Text = "📄 導出分析 PDF", 
-                Size = new Size(180, 40), 
+                Text = "📄 導出PDF", 
+                Size = new Size(130, 40), 
                 BackColor = Color.IndianRed, 
                 ForeColor = Color.White, 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(0, 5, 10, 5) // 統一上下邊界
+                Margin = new Padding(0, 5, 10, 5)
             };
             btnPdf.Click += (s, e) => ExportToPdf();
+
+            _btnSettings = new Button {
+                Text = "⚙️ 顯示欄位設定",
+                Size = new Size(180, 40),
+                BackColor = Color.LightSlateGray,
+                ForeColor = Color.White,
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(0, 5, 10, 5)
+            };
+            _btnSettings.Click += (s, e) => OpenSettingsDialog();
 
             _btnSearch = new Button {
                 Text = "🚀 開始執行交叉檢索",
@@ -85,7 +104,7 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(5, 5, 15, 5) // 統一上下邊界
+                Margin = new Padding(5, 5, 15, 5) 
             };
             _btnSearch.Click += async (s, e) => await ExecuteSearchAsync();
 
@@ -94,16 +113,15 @@ namespace Safety_System
                 ForeColor = Color.DimGray,
                 Font = new Font("Microsoft JhengHei UI", 11F),
                 AutoSize = true,
-                Margin = new Padding(0, 15, 0, 0) // 下沉對齊按鈕文字的基準線
+                Margin = new Padding(0, 15, 0, 0) 
             };
 
-            pnlAction.Controls.Add(btnPdf);
-            pnlAction.Controls.Add(_btnSearch);
-            pnlAction.Controls.Add(_lblStatus);
+            pnlAction.Controls.AddRange(new Control[] { btnPdf, _btnSettings, _btnSearch, _lblStatus });
             mainLayout.Controls.Add(pnlAction, 0, 0);
 
+            // --- 第二行：主查詢區與結果區 ---
             GroupBox boxMain = new GroupBox { 
-                Text = "🔍 化學品法規快查中心", 
+                Text = "🔍 化學品法規符核度查詢", 
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
                 ForeColor = Color.DarkCyan, 
@@ -111,45 +129,33 @@ namespace Safety_System
             };
             
             TableLayoutPanel innerTable = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1 };
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));  
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 85F));  
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 85F));  
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));  // 查詢條件區
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  // 結果區
 
-            Panel sub1 = CreateSubBox(Color.Teal);
-            Label lblMainTitle = new Label { 
-                Text = "🧬 化學品法規符核度查詢系統", 
-                Dock = DockStyle.Fill, 
-                TextAlign = ContentAlignment.MiddleCenter, 
-                Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), 
-                ForeColor = Color.Teal 
-            };
-            sub1.Controls.Add(lblMainTitle);
-
-            Panel sub2 = CreateSubBox(Color.FromArgb(45, 62, 80));
-            Label lbl1 = new Label { Text = "化學品名稱關鍵字：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _txtName = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
-            // 🟢 新增 Enter 鍵觸發查詢
-            _txtName.KeyDown += async (s, e) => {
-                if (e.KeyCode == Keys.Enter) {
-                    e.Handled = true; e.SuppressKeyPress = true; // 消除系統提示音
-                    await ExecuteSearchAsync();
+            // 【查詢條件區】：合併在同一行
+            Panel pnlSearch = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+            pnlSearch.Paint += (s, e) => {
+                ControlPaint.DrawBorder(e.Graphics, pnlSearch.ClientRectangle, Color.FromArgb(200, 200, 200), ButtonBorderStyle.Solid);
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(45, 62, 80))) {
+                    e.Graphics.FillRectangle(brush, 0, 0, 6, pnlSearch.Height); 
                 }
             };
-            sub2.Controls.AddRange(new Control[] { lbl1, _txtName });
 
-            Panel sub3 = CreateSubBox(Color.FromArgb(45, 62, 80));
-            Label lbl2 = new Label { Text = "CAS No. 編號：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _txtCAS = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
-            // 🟢 新增 Enter 鍵觸發查詢
-            _txtCAS.KeyDown += async (s, e) => {
-                if (e.KeyCode == Keys.Enter) {
-                    e.Handled = true; e.SuppressKeyPress = true;
-                    await ExecuteSearchAsync();
-                }
-            };
-            sub3.Controls.AddRange(new Control[] { lbl2, _txtCAS });
+            FlowLayoutPanel flpSearch = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(15, 18, 15, 15) };
+            
+            Label lbl1 = new Label { Text = "化學品名稱關鍵字：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 5, 5, 0) };
+            _txtName = new TextBox { Width = 250, Font = new Font("Microsoft JhengHei UI", 13F) };
+            _txtName.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.Handled = true; e.SuppressKeyPress = true; await ExecuteSearchAsync(); } };
+            
+            Label lbl2 = new Label { Text = "CAS No. 編號：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(40, 5, 5, 0) };
+            _txtCAS = new TextBox { Width = 200, Font = new Font("Microsoft JhengHei UI", 13F) };
+            _txtCAS.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.Handled = true; e.SuppressKeyPress = true; await ExecuteSearchAsync(); } };
 
+            flpSearch.Controls.AddRange(new Control[] { lbl1, _txtName, lbl2, _txtCAS });
+            pnlSearch.Controls.Add(flpSearch);
+            innerTable.Controls.Add(pnlSearch, 0, 0);
+
+            // 【檢索結果區】
             GroupBox sub4 = new GroupBox { 
                 Text = "📊 檢索結果明細 (查無資料之分類將自動隱藏)", 
                 Dock = DockStyle.Fill, 
@@ -162,24 +168,25 @@ namespace Safety_System
                 AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                Padding = new Padding(10, 10, 30, 10), 
+                Padding = new Padding(5, 5, 30, 5), 
                 BackColor = Color.White
             };
             
             _flpResultsContainer.Resize += (s, e) => {
                 foreach (Control c in _flpResultsContainer.Controls) {
-                    if (c is GroupBox gb) gb.Width = _flpResultsContainer.ClientSize.Width - 40;
+                    if (c is GroupBox gb) gb.Width = _flpResultsContainer.ClientSize.Width - 30;
                 }
             };
             
+            // 初始化 12 個資料表
             foreach (var info in _tableInfos) {
                 info.GBox = new GroupBox {
                     Text = info.Title + (string.IsNullOrEmpty(info.ExtraNotice) ? "" : " - " + info.ExtraNotice),
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                     ForeColor = string.IsNullOrEmpty(info.ExtraNotice) ? Color.DarkSlateBlue : Color.Crimson,
                     AutoSize = false, 
-                    Margin = new Padding(0, 0, 0, 20),
-                    Padding = new Padding(8, 35, 8, 8), 
+                    Margin = new Padding(0, 0, 0, 10), // 🟢 間隔都在底部
+                    Padding = new Padding(5, 30, 5, 10), // 🟢 頂部預留給標題，底部留白 10px
                     Visible = false 
                 };
 
@@ -192,11 +199,13 @@ namespace Safety_System
                     RowHeadersVisible = false,
                     BorderStyle = BorderStyle.FixedSingle,
                     ScrollBars = ScrollBars.None, 
-                    Font = new Font("Microsoft JhengHei UI", 11F)
+                    Font = new Font("Microsoft JhengHei UI", 11F),
+                    // 🟢 確保欄位填滿、內容可換行
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells
                 };
+                info.Dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // 🟢 允許文字斷行
                 
-                // 🟢 解決顏色不均：統一底色與反白顏色設計
-                info.Dgv.RowTemplate.Height = 35; 
                 info.Dgv.EnableHeadersVisualStyles = false;
                 info.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 62, 80);
                 info.Dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -204,7 +213,6 @@ namespace Safety_System
                 
                 info.Dgv.DefaultCellStyle.BackColor = Color.White;
                 info.Dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
-                // 設定柔和的反白顏色，並確保所有欄位顏色一致
                 info.Dgv.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue; 
                 info.Dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
 
@@ -213,26 +221,12 @@ namespace Safety_System
             }
 
             sub4.Controls.Add(_flpResultsContainer);
-            innerTable.Controls.Add(sub1, 0, 0);
-            innerTable.Controls.Add(sub2, 0, 1);
-            innerTable.Controls.Add(sub3, 0, 2);
-            innerTable.Controls.Add(sub4, 0, 3);
+            innerTable.Controls.Add(sub4, 0, 1);
+            
             boxMain.Controls.Add(innerTable);
             mainLayout.Controls.Add(boxMain, 0, 1);
 
             return mainLayout;
-        }
-
-        private Panel CreateSubBox(Color accentColor)
-        {
-            Panel p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = Color.Transparent };
-            p.Paint += (s, e) => {
-                ControlPaint.DrawBorder(e.Graphics, p.ClientRectangle, Color.FromArgb(200, 200, 200), ButtonBorderStyle.Solid);
-                using (SolidBrush brush = new SolidBrush(accentColor)) {
-                    e.Graphics.FillRectangle(brush, 0, 0, 6, p.Height); 
-                }
-            };
-            return p;
         }
 
         private async Task ExecuteSearchAsync()
@@ -267,10 +261,16 @@ namespace Safety_System
                             dv.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "1=0";
                             info.ResultData = dv.ToTable();
 
+                            // 判斷該顯示哪些欄位 (排除沒資料的，以及使用者設定不顯示的)
                             info.VisibleColumns = new List<string>();
                             if (info.ResultData.Rows.Count > 0) {
                                 foreach (DataColumn col in info.ResultData.Columns) {
                                     if (col.ColumnName == "Id") continue;
+                                    
+                                    // 檢查使用者設定
+                                    string dictKey = $"{info.TableName}_{col.ColumnName}";
+                                    if (_columnVisibility.ContainsKey(dictKey) && !_columnVisibility[dictKey]) continue;
+
                                     bool hasValue = false;
                                     foreach (DataRow row in info.ResultData.Rows) {
                                         if (row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString())) {
@@ -295,29 +295,28 @@ namespace Safety_System
             foreach (var info in _tableInfos) {
                 if (info.ResultData != null && info.ResultData.Rows.Count > 0) {
                     
-                    info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
                     info.Dgv.DataSource = info.ResultData;
 
                     foreach (DataGridViewColumn col in info.Dgv.Columns) {
                         col.Visible = info.VisibleColumns.Contains(col.Name);
                     }
 
-                    info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+                    // 確保寬度與自動換行重算
+                    info.GBox.Width = _flpResultsContainer.ClientSize.Width - 30;
+                    info.Dgv.AutoResizeRows(); 
 
-                    int rowCount = info.ResultData.Rows.Count;
-                    int exactGridHeight = info.Dgv.ColumnHeadersHeight + (rowCount * info.Dgv.RowTemplate.Height);
-                    int targetGBoxHeight = 35 + exactGridHeight + 8 + 20; 
-
-                    info.GBox.Width = _flpResultsContainer.ClientSize.Width - 40;
-                    info.GBox.Height = targetGBoxHeight; 
+                    // 🟢 動態精準高度運算：標題高(30) + 表頭高(40) + 各列實際高度 + 底部留白(10px)
+                    int exactGridHeight = info.Dgv.ColumnHeadersHeight;
+                    foreach(DataGridViewRow r in info.Dgv.Rows) {
+                        exactGridHeight += r.Height;
+                    }
+                    info.GBox.Height = 30 + exactGridHeight + 10; 
                     
-                    // 🟢 解決顏色不一致：清除預設的反白選取，讓表格顏色回歸自然
                     info.Dgv.ClearSelection();
-                    
                     info.GBox.Visible = true;
-                    totalFound += rowCount;
+                    totalFound += info.ResultData.Rows.Count;
 
-                    await Task.Delay(10); 
+                    await Task.Delay(5); 
                 } else {
                     info.GBox.Visible = false;
                     info.Dgv.DataSource = null; 
@@ -335,6 +334,95 @@ namespace Safety_System
             }
         }
 
+        // ==========================================
+        // 🟢 欄位顯示設定系統
+        // ==========================================
+        private void LoadVisibilitySettings()
+        {
+            _columnVisibility.Clear();
+            if (File.Exists(VisibilityFile)) {
+                try {
+                    foreach (var line in File.ReadAllLines(VisibilityFile, Encoding.UTF8)) {
+                        var parts = line.Split('|');
+                        if (parts.Length == 3) {
+                            _columnVisibility[$"{parts[0]}_{parts[1]}"] = (parts[2] == "1");
+                        }
+                    }
+                } catch { }
+            }
+        }
+
+        private void SaveVisibilitySettings()
+        {
+            try {
+                var lines = _columnVisibility.Select(kvp => {
+                    var parts = kvp.Key.Split('_');
+                    return $"{parts[0]}|{parts[1]}|{(kvp.Value ? "1" : "0")}";
+                }).ToArray();
+                File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
+            } catch { }
+        }
+
+        private void OpenSettingsDialog()
+        {
+            using (Form f = new Form { Text = "⚙️ 顯示欄位設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false }) {
+                
+                Label lblTop = new Label { Text = "請選擇分類並勾選查詢時【允許顯示】的欄位：", Dock = DockStyle.Top, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.SteelBlue };
+                f.Controls.Add(lblTop);
+
+                SplitContainer split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 250, FixedPanel = FixedPanel.Panel1, Padding = new Padding(10) };
+                
+                ListBox lbTables = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
+                foreach (var info in _tableInfos) lbTables.Items.Add(info.Title);
+                split.Panel1.Controls.Add(lbTables);
+
+                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle };
+                split.Panel2.Controls.Add(clbCols);
+                f.Controls.Add(split);
+
+                Button btnSave = new Button { Text = "💾 儲存並關閉", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                f.Controls.Add(btnSave);
+
+                // 選擇分類時載入欄位
+                lbTables.SelectedIndexChanged += (s, e) => {
+                    if (lbTables.SelectedIndex < 0) return;
+                    clbCols.Items.Clear();
+                    string tblName = _tableInfos[lbTables.SelectedIndex].TableName;
+                    var cols = DataManager.GetColumnNames(DbName, tblName);
+                    
+                    foreach (var c in cols) {
+                        if (c == "Id") continue;
+                        string key = $"{tblName}_{c}";
+                        bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : true; // 預設為全開
+                        clbCols.Items.Add(c, isChecked);
+                    }
+                };
+
+                // 勾選變更即時存入字典
+                clbCols.ItemCheck += (s, e) => {
+                    if (lbTables.SelectedIndex < 0) return;
+                    string tblName = _tableInfos[lbTables.SelectedIndex].TableName;
+                    string colName = clbCols.Items[e.Index].ToString();
+                    _columnVisibility[$"{tblName}_{colName}"] = e.NewValue == CheckState.Checked;
+                };
+
+                btnSave.Click += (s, e) => {
+                    SaveVisibilitySettings();
+                    f.DialogResult = DialogResult.OK;
+                };
+
+                if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
+
+                if (f.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(_txtName.Text)) {
+                    // 若已有關鍵字，儲存設定後自動重新查詢套用
+                    _btnSearch.PerformClick();
+                }
+            }
+        }
+
+        // ==========================================
+        // 🟢 PDF 導出系統 (直式, 支援動態斷行與分頁)
+        // ==========================================
         private void ExportToPdf()
         {
             var visibleTables = _tableInfos.Where(t => t.GBox.Visible && t.ResultData != null && t.ResultData.Rows.Count > 0).ToList();
@@ -343,15 +431,16 @@ namespace Safety_System
             }
 
             PrintDocument pd = new PrintDocument();
-            pd.DefaultPageSettings.Landscape = true; 
-            pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
+            // 🟢 改為直式 PDF
+            pd.DefaultPageSettings.Landscape = false; 
+            pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
             
             int currentTableIndex = 0;
             int currentRowIndex = 0;
 
             pd.PrintPage += (s, e) => {
                 Graphics g = e.Graphics;
-                Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
+                Font fTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
                 Font fSubTitle = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
                 Font fBody = new Font("Microsoft JhengHei UI", 9F);
                 Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
@@ -359,8 +448,9 @@ namespace Safety_System
                 float x = e.MarginBounds.Left;
                 float y = e.MarginBounds.Top;
 
-                g.DrawString("化學品法規符核度分析報表", fTitle, Brushes.Black, x, y);
-                y += 45;
+                // 第一頁與換頁時的總表頭
+                g.DrawString("化學品法規符核度查詢報表", fTitle, Brushes.Black, x, y);
+                y += 35;
                 g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   台灣玻璃彰濱廠", fBody, Brushes.Gray, x, y);
                 y += 35;
 
@@ -368,44 +458,75 @@ namespace Safety_System
                     var info = visibleTables[currentTableIndex];
                     var visCols = info.Dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList();
                     
+                    if (visCols.Count == 0) { currentTableIndex++; continue; }
+
+                    // 計算各欄位分配的寬度 (填滿頁面)
+                    float totalW = visCols.Sum(c => c.Width);
+                    float[] colWidths = new float[visCols.Count];
+                    for (int i = 0; i < visCols.Count; i++) {
+                        colWidths[i] = (visCols[i].Width / totalW) * e.MarginBounds.Width;
+                    }
+
+                    // 畫子表標題和表頭
                     if (currentRowIndex == 0) {
-                        if (y + 100 > e.MarginBounds.Bottom) { e.HasMorePages = true; return; }
+                        if (y + 80 > e.MarginBounds.Bottom) { e.HasMorePages = true; return; }
+                        
                         g.DrawString(info.Title + " " + info.ExtraNotice, fSubTitle, Brushes.DarkSlateBlue, x, y);
-                        y += 30;
+                        y += 25;
 
                         float currX = x;
-                        float totalW = visCols.Sum(c => c.Width);
-                        float scale = Math.Min(1.2f, e.MarginBounds.Width / totalW);
-
-                        foreach (var col in visCols) {
-                            RectangleF rect = new RectangleF(currX, y, col.Width * scale, 30);
+                        for (int i = 0; i < visCols.Count; i++) {
+                            RectangleF rect = new RectangleF(currX, y, colWidths[i], 35);
                             g.FillRectangle(Brushes.LightGray, rect);
                             g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                            g.DrawString(col.HeaderText, fHead, Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
-                            currX += col.Width * scale;
+                            g.DrawString(visCols[i].HeaderText, fHead, Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                            currX += colWidths[i];
                         }
-                        y += 30;
+                        y += 35;
                     }
 
-                    float tW = visCols.Sum(c => c.Width);
-                    float tS = Math.Min(1.2f, e.MarginBounds.Width / tW);
-
+                    // 畫資料列 (支援文字換行動態高度)
+                    StringFormat fmtWrap = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+                    
                     while (currentRowIndex < info.ResultData.Rows.Count) {
-                        if (y + 30 > e.MarginBounds.Bottom) { e.HasMorePages = true; return; }
-                        float currX = x;
-                        foreach (var col in visCols) {
-                            RectangleF rect = new RectangleF(currX, y, col.Width * tS, 30);
-                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                            string val = info.Dgv[col.Index, currentRowIndex].Value?.ToString() ?? "";
-                            g.DrawString(val, fBody, Brushes.Black, rect, new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center });
-                            currX += col.Width * tS;
+                        // 計算本列需要的最大高度
+                        float maxRowHeight = 30; 
+                        for (int i = 0; i < visCols.Count; i++) {
+                            string val = info.Dgv[visCols[i].Index, currentRowIndex].Value?.ToString() ?? "";
+                            SizeF sSize = g.MeasureString(val, fBody, (int)colWidths[i], fmtWrap);
+                            if (sSize.Height + 10 > maxRowHeight) maxRowHeight = sSize.Height + 10;
                         }
-                        y += 30;
+
+                        // 檢查換頁
+                        if (y + maxRowHeight > e.MarginBounds.Bottom) { 
+                            e.HasMorePages = true; 
+                            return; 
+                        }
+
+                        float currX = x;
+                        for (int i = 0; i < visCols.Count; i++) {
+                            RectangleF rect = new RectangleF(currX, y, colWidths[i], maxRowHeight);
+                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                            string val = info.Dgv[visCols[i].Index, currentRowIndex].Value?.ToString() ?? "";
+                            
+                            // 稍微內縮避免貼齊邊線
+                            RectangleF textRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+                            g.DrawString(val, fBody, Brushes.Black, textRect, fmtWrap);
+                            
+                            currX += colWidths[i];
+                        }
+                        y += maxRowHeight;
                         currentRowIndex++;
                     }
-                    y += 20; currentTableIndex++; currentRowIndex = 0;
+                    
+                    // 該表印完
+                    y += 20; 
+                    currentTableIndex++; 
+                    currentRowIndex = 0;
                 }
-                e.HasMorePages = false; currentTableIndex = 0; currentRowIndex = 0;
+                e.HasMorePages = false; 
+                currentTableIndex = 0; 
+                currentRowIndex = 0;
             };
 
             PrintPreviewDialog ppd = new PrintPreviewDialog { Document = pd, Width = 1024, Height = 768, WindowState = FormWindowState.Maximized };
