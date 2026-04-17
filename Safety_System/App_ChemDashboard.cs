@@ -355,7 +355,8 @@ namespace Safety_System
 
                 // A. 繪製報表標頭
                 Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
-                Font fSub = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold);
+                // 🟢 已修正變數命名為 fSubTitle
+                Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
                 Font fBody = new Font("Microsoft JhengHei UI", 9F);
                 Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
