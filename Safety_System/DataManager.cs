@@ -156,7 +156,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 回傳擴充為 4 個欄位
         public static (string col1, string col2, string col3, string col4) GetTableKeys(string dbName, string tableName)
         {
             if (!File.Exists(KeyConfigFile)) return ("", "", "", "");
@@ -173,7 +172,6 @@ namespace Safety_System
             return ("", "", "", "");
         }
 
-        // 🟢 儲存擴充為 4 個欄位
         public static void SaveTableKeys(string dbName, string tableName, string col1, string col2, string col3, string col4)
         {
             List<string> lines = new List<string>();
@@ -274,6 +272,11 @@ namespace Safety_System
 
         public static void DropColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] DROP COLUMN [{colName}]", conn)) { cmd.ExecuteNonQuery(); }
+        });
+
+        // 🟢 新增：永久刪除整張資料表
+        public static void DropTable(string dbName, string tableName) => ExecuteWithRetry(dbName, conn => {
+            using (var cmd = new SQLiteCommand($"DROP TABLE IF EXISTS [{tableName}]", conn)) { cmd.ExecuteNonQuery(); }
         });
     }
 }
