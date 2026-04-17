@@ -81,7 +81,7 @@ namespace Safety_System
             var menuHome = new ToolStripMenuItem("首頁");
             menuHome.Click += (s, e) => LoadWelcomeScreen();
 
-            var menuReports = new ToolStripMenuItem("報表");
+            var menuReports = new ToolStripMenuItem("日常作業");
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
