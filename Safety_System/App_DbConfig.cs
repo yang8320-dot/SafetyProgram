@@ -175,10 +175,10 @@ namespace Safety_System
             Label lblDelDesc = new Label { Text = "若資料表結構異常，您可於此將整張資料表永久刪除。刪除後重新點擊模組選單即可自動建立乾淨的空表。", AutoSize = true, Location = new Point(30, 45), ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
 
             Label lblDelDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
-            _cboDelDb = new ComboBox { Location = new Point(140, 98), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboDelDb = new ComboBox { Location = new Point(150, 98), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Label lblDelTable = new Label { Text = "選擇資料表:", Location = new Point(340, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
-            _cboDelTable = new ComboBox { Location = new Point(450, 98), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblDelTable = new Label { Text = "選擇資料表:", Location = new Point(360, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboDelTable = new ComboBox { Location = new Point(480, 98), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             Button btnExecuteDelete = new Button { Text = "⚠️ 執行永久刪除", Location = new Point(730, 95), Size = new Size(180, 40), BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnExecuteDelete.Click += BtnExecuteDelete_Click;
