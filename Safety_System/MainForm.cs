@@ -82,6 +82,8 @@ namespace Safety_System
             menuHome.Click += (s, e) => LoadWelcomeScreen();
 
             var menuReports = new ToolStripMenuItem("日常作業");
+            // 🟢 新增此行：請購資料模組入口，指定資料庫為 Purchase，資料表為 PurchaseData
+            menuReports.DropDownItems.Add(CreateItem("請購資料", () => new App_GenericTable("Purchase", "PurchaseData", "請購資料").GetView())); 
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
