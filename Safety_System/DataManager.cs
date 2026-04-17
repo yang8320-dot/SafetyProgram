@@ -58,7 +58,7 @@ namespace Safety_System
             }
         }
 
-        // 🚀 極速批次儲存方法 (支援事務處理，並修正含空格之欄位名稱問題)
+        // 🚀 極速批次儲存方法 (支援事務處理，並升級 4 欄位交叉比對與 NULL 防呆)
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt)
         {
             try {
@@ -66,6 +66,13 @@ namespace Safety_System
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
                         var keys = GetTableKeys(dbName, tableName);
+
+                        // 收集有設定的判斷欄位
+                        List<string> activeKeys = new List<string>();
+                        if (!string.IsNullOrEmpty(keys.col1) && dt.Columns.Contains(keys.col1)) activeKeys.Add(keys.col1);
+                        if (!string.IsNullOrEmpty(keys.col2) && dt.Columns.Contains(keys.col2)) activeKeys.Add(keys.col2);
+                        if (!string.IsNullOrEmpty(keys.col3) && dt.Columns.Contains(keys.col3)) activeKeys.Add(keys.col3);
+                        if (!string.IsNullOrEmpty(keys.col4) && dt.Columns.Contains(keys.col4)) activeKeys.Add(keys.col4);
 
                         foreach (DataRow row in dt.Rows) {
                             if (row.RowState == DataRowState.Deleted) continue;
@@ -79,21 +86,24 @@ namespace Safety_System
                             }
 
                             int existingId = -1;
-                            // 判斷重複邏輯
-                            if (!string.IsNullOrEmpty(keys.col1) && dt.Columns.Contains(keys.col1)) {
-                                string safeKey1 = keys.col1.Replace(" ", "_").Replace("[", "").Replace("]", "");
-                                string qCheck = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @{safeKey1}";
-                                
-                                if (!string.IsNullOrEmpty(keys.col2) && dt.Columns.Contains(keys.col2)) {
-                                    string safeKey2 = keys.col2.Replace(" ", "_").Replace("[", "").Replace("]", "");
-                                    qCheck += $" AND [{keys.col2}] = @{safeKey2}";
+                            
+                            // 🟢 判斷重複邏輯 (動態組合 1~4 個判斷條件)
+                            if (activeKeys.Count > 0) {
+                                List<string> whereClauses = new List<string>();
+                                foreach (var k in activeKeys) {
+                                    string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                    // 🟢 使用 IFNULL 完美解決 Excel 匯入時 空字串與 NULL 不等價 造成的防呆失效問題
+                                    whereClauses.Add($"IFNULL([{k}], '') = IFNULL(@{safeKey}, '')");
                                 }
 
+                                string qCheck = $"SELECT Id FROM [{tableName}] WHERE " + string.Join(" AND ", whereClauses);
+
                                 using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
-                                    cmdCheck.Parameters.AddWithValue("@" + safeKey1, row[keys.col1]);
-                                    if (!string.IsNullOrEmpty(keys.col2)) {
-                                        string safeKey2 = keys.col2.Replace(" ", "_").Replace("[", "").Replace("]", "");
-                                        cmdCheck.Parameters.AddWithValue("@" + safeKey2, row[keys.col2]);
+                                    foreach (var k in activeKeys) {
+                                        string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                        // 🟢 自動去除頭尾空白 (Trim)，防止隱藏空白字元導致判斷失敗
+                                        object val = row[k] != DBNull.Value ? row[k].ToString().Trim() : DBNull.Value;
+                                        cmdCheck.Parameters.AddWithValue("@" + safeKey, val);
                                     }
                                     
                                     var res = cmdCheck.ExecuteScalar();
@@ -115,7 +125,8 @@ namespace Safety_System
                                         
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
-                                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
+                                        object val = row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value;
+                                        cmd.Parameters.AddWithValue("@" + safeParamName, val);
                                     }
                                     cmd.CommandText = sql + string.Join(", ", sqlParts) + " WHERE Id=" + targetId;
                                 } else {
@@ -127,7 +138,8 @@ namespace Safety_System
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         colNames.Add($"[{col.ColumnName}]");
                                         paramNames.Add($"@{safeParamName}");
-                                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
+                                        object val = row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value;
+                                        cmd.Parameters.AddWithValue("@" + safeParamName, val);
                                     }
                                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", colNames)}) VALUES ({string.Join(", ", paramNames)})";
                                 }
@@ -144,22 +156,30 @@ namespace Safety_System
             }
         }
 
-        public static (string col1, string col2) GetTableKeys(string dbName, string tableName)
+        // 🟢 回傳擴充為 4 個欄位
+        public static (string col1, string col2, string col3, string col4) GetTableKeys(string dbName, string tableName)
         {
-            if (!File.Exists(KeyConfigFile)) return ("", "");
+            if (!File.Exists(KeyConfigFile)) return ("", "", "", "");
             foreach (var line in File.ReadAllLines(KeyConfigFile, Encoding.UTF8)) {
                 var p = line.Split('|');
-                if (p.Length >= 4 && p[0] == dbName && p[1] == tableName) return (p[2], p[3]);
+                if (p.Length >= 4 && p[0] == dbName && p[1] == tableName) {
+                    string c1 = p[2];
+                    string c2 = p[3];
+                    string c3 = p.Length >= 5 ? p[4] : "";
+                    string c4 = p.Length >= 6 ? p[5] : "";
+                    return (c1, c2, c3, c4);
+                }
             }
-            return ("", "");
+            return ("", "", "", "");
         }
 
-        public static void SaveTableKeys(string dbName, string tableName, string col1, string col2)
+        // 🟢 儲存擴充為 4 個欄位
+        public static void SaveTableKeys(string dbName, string tableName, string col1, string col2, string col3, string col4)
         {
             List<string> lines = new List<string>();
             if (File.Exists(KeyConfigFile)) lines = new List<string>(File.ReadAllLines(KeyConfigFile, Encoding.UTF8));
             lines.RemoveAll(x => x.StartsWith($"{dbName}|{tableName}|")); 
-            lines.Add($"{dbName}|{tableName}|{col1}|{col2}"); 
+            lines.Add($"{dbName}|{tableName}|{col1}|{col2}|{col3}|{col4}"); 
             File.WriteAllLines(KeyConfigFile, lines, Encoding.UTF8);
         }
 
@@ -219,10 +239,9 @@ namespace Safety_System
                     List<string> sets = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
-                        
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         sets.Add($"[{col.ColumnName}]=@{safeParamName}");
-                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value);
                     }
                     cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sets)} WHERE Id=" + row["Id"];
                 } else {
@@ -230,11 +249,10 @@ namespace Safety_System
                     List<string> v = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
-                        
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         c.Add($"[{col.ColumnName}]"); 
                         v.Add($"@{safeParamName}");
-                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? row[col].ToString().Trim() : DBNull.Value);
                     }
                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
                 }
