@@ -1,4 +1,3 @@
-/// FILE: Safety_System/MainForm.cs ///
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -17,7 +16,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v6.2 - 全面 Generic 共用模組化)";
+            this.Text = "工安系統看板 (v7.0 - 化學品快查中心重構)";
             
             // 設定初始視窗為最大化
             this.WindowState = FormWindowState.Maximized;
@@ -98,7 +97,23 @@ namespace Safety_System
             var menuChemical = new ToolStripMenuItem("化學品");
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
             menuChemical.DropDownItems.Add(CreateItem("化學品快查", () => new App_ChemQuickSearch().GetView()));
-            menuChemical.DropDownItems.Add(CreateItem("化學品要求及規範", () => new App_GenericTable("Chemical", "ChemRegulations", "化學品要求及規範").GetView()));
+
+            // 🟢 化學品要求及規範 - 12個子類別選單
+            var menuChemReg = new ToolStripMenuItem("化學品要求及規範");
+            menuChemReg.DropDownItems.Add(CreateItem("1. 環測項目", () => new App_GenericTable("Chemical", "EnvTesting", "環測項目").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("2. 勞工暴露容許濃度", () => new App_GenericTable("Chemical", "ExposureLimits", "勞工暴露容許濃度").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("3. 毒性物質", () => new App_GenericTable("Chemical", "ToxicSubstances", "毒性物質").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("4. 關注性化學物質", () => new App_GenericTable("Chemical", "ConcernedChem", "關注性化學物質").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("5. 優先管理化學品", () => new App_GenericTable("Chemical", "PriorityMgmtChem", "優先管理化學品").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("6. 管制化學品", () => new App_GenericTable("Chemical", "ControlledChem", "管制化學品").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("7. 特定化學物質", () => new App_GenericTable("Chemical", "SpecificChem", "特定化學物質").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("8. 有機溶劑", () => new App_GenericTable("Chemical", "OrganicSolvents", "有機溶劑").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("9. 勞工健康保護", () => new App_GenericTable("Chemical", "WorkerHealthProtect", "勞工健康保護").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("10. 公共危險物品", () => new App_GenericTable("Chemical", "PublicHazardous", "公共危險物品").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("11. 空污緊急應變", () => new App_GenericTable("Chemical", "AirPollutionEmerg", "空污緊急應變").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("12. 工廠危險物品申報", () => new App_GenericTable("Chemical", "FactoryHazardous", "工廠危險物品申報").GetView()));
+            menuChemical.DropDownItems.Add(menuChemReg);
+            
             menuChemical.DropDownItems.Add(CreateItem("SDS清冊", () => new App_GenericTable("Chemical", "SDS_Inventory", "SDS清冊").GetView()));
 
             var menuNursing = new ToolStripMenuItem("護理");
@@ -157,7 +172,6 @@ namespace Safety_System
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
-            // 🟢 新增：消防法規
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
 
