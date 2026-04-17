@@ -31,7 +31,6 @@ namespace Safety_System
             public List<string> VisibleColumns; 
         }
 
-        // 保持您指定的對應欄位不變
         private List<ChemTableInfo> _tableInfos = new List<ChemTableInfo> {
             new ChemTableInfo { TableName="EnvTesting", Title="1. 環測項目", NameSearchCol="中文名稱", CasSearchCol="CASNO", ExtraNotice="" },
             new ChemTableInfo { TableName="ExposureLimits", Title="2. 勞工暴露容許濃度", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
@@ -58,41 +57,44 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
+            // 🟢 優化：水平對齊功能列的按鈕與文字
             FlowLayoutPanel pnlAction = new FlowLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 AutoSize = true, 
-                Margin = new Padding(0, 0, 0, 15) 
+                Margin = new Padding(0, 0, 0, 10),
+                WrapContents = false 
             };
             
             Button btnPdf = new Button { 
                 Text = "📄 導出分析 PDF", 
-                Size = new Size(180, 45), 
+                Size = new Size(180, 40), 
                 BackColor = Color.IndianRed, 
                 ForeColor = Color.White, 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                 Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(0, 5, 10, 5) // 統一上下邊界
             };
             btnPdf.Click += (s, e) => ExportToPdf();
 
             _btnSearch = new Button {
                 Text = "🚀 開始執行交叉檢索",
-                Size = new Size(220, 45),
+                Size = new Size(220, 40),
                 BackColor = Color.SteelBlue,
                 ForeColor = Color.White,
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(15, 0, 0, 0)
+                Margin = new Padding(5, 5, 15, 5) // 統一上下邊界
             };
             _btnSearch.Click += async (s, e) => await ExecuteSearchAsync();
 
             _lblStatus = new Label {
-                Text = "準備就緒。請輸入條件後點擊查詢。",
+                Text = "準備就緒。請輸入條件後點擊查詢或按下 Enter 鍵。",
                 ForeColor = Color.DimGray,
                 Font = new Font("Microsoft JhengHei UI", 11F),
                 AutoSize = true,
-                Margin = new Padding(15, 12, 0, 0)
+                Margin = new Padding(0, 15, 0, 0) // 下沉對齊按鈕文字的基準線
             };
 
             pnlAction.Controls.Add(btnPdf);
@@ -127,11 +129,25 @@ namespace Safety_System
             Panel sub2 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl1 = new Label { Text = "化學品名稱關鍵字：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _txtName = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
+            // 🟢 新增 Enter 鍵觸發查詢
+            _txtName.KeyDown += async (s, e) => {
+                if (e.KeyCode == Keys.Enter) {
+                    e.Handled = true; e.SuppressKeyPress = true; // 消除系統提示音
+                    await ExecuteSearchAsync();
+                }
+            };
             sub2.Controls.AddRange(new Control[] { lbl1, _txtName });
 
             Panel sub3 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl2 = new Label { Text = "CAS No. 編號：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _txtCAS = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
+            // 🟢 新增 Enter 鍵觸發查詢
+            _txtCAS.KeyDown += async (s, e) => {
+                if (e.KeyCode == Keys.Enter) {
+                    e.Handled = true; e.SuppressKeyPress = true;
+                    await ExecuteSearchAsync();
+                }
+            };
             sub3.Controls.AddRange(new Control[] { lbl2, _txtCAS });
 
             GroupBox sub4 = new GroupBox { 
@@ -150,14 +166,12 @@ namespace Safety_System
                 BackColor = Color.White
             };
             
-            // 監聽視窗縮放，動態調整結果框的寬度
             _flpResultsContainer.Resize += (s, e) => {
                 foreach (Control c in _flpResultsContainer.Controls) {
                     if (c is GroupBox gb) gb.Width = _flpResultsContainer.ClientSize.Width - 40;
                 }
             };
             
-            // 初始化 12 個資料表的視窗結構
             foreach (var info in _tableInfos) {
                 info.GBox = new GroupBox {
                     Text = info.Title + (string.IsNullOrEmpty(info.ExtraNotice) ? "" : " - " + info.ExtraNotice),
@@ -180,12 +194,19 @@ namespace Safety_System
                     ScrollBars = ScrollBars.None, 
                     Font = new Font("Microsoft JhengHei UI", 11F)
                 };
+                
+                // 🟢 解決顏色不均：統一底色與反白顏色設計
                 info.Dgv.RowTemplate.Height = 35; 
                 info.Dgv.EnableHeadersVisualStyles = false;
                 info.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 62, 80);
                 info.Dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
                 info.Dgv.ColumnHeadersHeight = 40; 
+                
+                info.Dgv.DefaultCellStyle.BackColor = Color.White;
                 info.Dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
+                // 設定柔和的反白顏色，並確保所有欄位顏色一致
+                info.Dgv.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue; 
+                info.Dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
 
                 info.GBox.Controls.Add(info.Dgv);
                 _flpResultsContainer.Controls.Add(info.GBox);
@@ -229,7 +250,6 @@ namespace Safety_System
             _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
-            // 背景運算
             await Task.Run(() => {
                 foreach (var info in _tableInfos) {
                     try {
@@ -269,7 +289,6 @@ namespace Safety_System
                 }
             });
 
-            // 回到 UI 執行緒更新畫面
             _flpResultsContainer.SuspendLayout();
             int totalFound = 0;
 
@@ -285,18 +304,19 @@ namespace Safety_System
 
                     info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
 
-                    // 🟢 修正變數名稱：計算高度
                     int rowCount = info.ResultData.Rows.Count;
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight + (rowCount * info.Dgv.RowTemplate.Height);
-                    int targetGBoxHeight = 35 + exactGridHeight + 8 + 20; // 標題高(35) + 表格高度 + 底部留白(8) + 延伸(20)
+                    int targetGBoxHeight = 35 + exactGridHeight + 8 + 20; 
 
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 40;
                     info.GBox.Height = targetGBoxHeight; 
                     
+                    // 🟢 解決顏色不一致：清除預設的反白選取，讓表格顏色回歸自然
+                    info.Dgv.ClearSelection();
+                    
                     info.GBox.Visible = true;
                     totalFound += rowCount;
 
-                    // 放出 10 毫秒的喘息空間給 UI 執行緒，防止畫面凍結
                     await Task.Delay(10); 
                 } else {
                     info.GBox.Visible = false;
