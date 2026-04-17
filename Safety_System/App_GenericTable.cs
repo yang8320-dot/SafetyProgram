@@ -98,7 +98,6 @@ namespace Safety_System
             // 🟢 新增此行：將請購資料的欄位 Schema 加到字典中，由系統自動建表
             { "PurchaseData", "[日期] TEXT, [請購單號] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [ESG分類] TEXT, [數量] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
-        };
 
         public App_GenericTable(string dbName, string tableName, string chineseTitle)
         {
