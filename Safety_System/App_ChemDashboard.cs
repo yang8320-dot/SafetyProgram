@@ -52,7 +52,7 @@ namespace Safety_System
             
             // 按鈕 A：PDF 導出
             Button btnPdf = new Button { 
-                Text = "📤 導出全廠 SDS 清冊 PDF", 
+                Text = "📤 導出 SDS 清冊 PDF", 
                 Size = new Size(220, 45), 
                 BackColor = Color.DarkCyan, 
                 ForeColor = Color.White, 
