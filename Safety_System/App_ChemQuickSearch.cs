@@ -85,6 +85,7 @@ namespace Safety_System
                 FlatStyle = FlatStyle.Flat,
                 Margin = new Padding(15, 0, 0, 0)
             };
+            // 綁定非同步查詢事件
             _btnSearch.Click += async (s, e) => await ExecuteSearchAsync();
 
             _lblStatus = new Label {
@@ -130,12 +131,14 @@ namespace Safety_System
             Panel sub2 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl1 = new Label { Text = "化學品名稱關鍵字：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _txtName = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
+            // 已移除 TextChanged 連動，改由按鈕觸發
             sub2.Controls.AddRange(new Control[] { lbl1, _txtName });
 
             // 【小框 3】：CAS 查詢
             Panel sub3 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl2 = new Label { Text = "CAS No. 編號：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _txtCAS = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
+            // 已移除 TextChanged 連動，改由按鈕觸發
             sub3.Controls.AddRange(new Control[] { lbl2, _txtCAS });
 
             // 【小框 4】：檢索結果容器
@@ -155,28 +158,29 @@ namespace Safety_System
                 BackColor = Color.White
             };
             
-            // 初始化 12 個資料表的視窗結構
+            // 🟢 初始化 12 個資料表的視窗結構 (修正高度計算坍塌 Bug)
             foreach (var info in _tableInfos) {
                 info.GBox = new GroupBox {
                     Text = info.Title + (string.IsNullOrEmpty(info.ExtraNotice) ? "" : " - " + info.ExtraNotice),
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                     ForeColor = string.IsNullOrEmpty(info.ExtraNotice) ? Color.DarkSlateBlue : Color.Crimson,
                     Width = 1100,
-                    AutoSize = true,
+                    AutoSize = false, // 🛑 關閉自動縮放，改由程式手動計算高度避免坍塌
                     Margin = new Padding(0, 0, 0, 25),
+                    Padding = new Padding(10, 30, 10, 10), // 留出標題空間
                     Visible = false 
                 };
 
                 info.Dgv = new DataGridView { 
-                    Dock = DockStyle.Top,
+                    Dock = DockStyle.Fill, // 🛑 確保表格填滿手動設定高度的 GroupBox
                     BackgroundColor = Color.White, 
                     AllowUserToAddRows = false, 
                     ReadOnly = true, 
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, 
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, 
                     RowHeadersVisible = false,
-                    BorderStyle = BorderStyle.None,
-                    ScrollBars = ScrollBars.None,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    ScrollBars = ScrollBars.Both, // 允許出現捲軸
                     Font = new Font("Microsoft JhengHei UI", 11F)
                 };
                 info.Dgv.RowTemplate.Height = 35;
@@ -203,7 +207,6 @@ namespace Safety_System
 
         private Panel CreateSubBox(Color accentColor)
         {
-            // 🟢 依需求取消白底
             Panel p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = Color.Transparent };
             p.Paint += (s, e) => {
                 ControlPaint.DrawBorder(e.Graphics, p.ClientRectangle, Color.FromArgb(200, 200, 200), ButtonBorderStyle.Solid);
@@ -266,7 +269,10 @@ namespace Safety_System
 
             foreach (var info in _tableInfos) {
                 if (info.ResultData != null && info.ResultData.Rows.Count > 0) {
+                    
+                    info.GBox.Visible = true; // 先設為可見，確保 DataGridView 計算排版時能抓到實體屬性
                     info.Dgv.DataSource = info.ResultData;
+
                     if (info.Dgv.Columns.Contains("Id")) info.Dgv.Columns["Id"].Visible = false;
 
                     // 動態隱藏空白欄位
@@ -281,14 +287,17 @@ namespace Safety_System
                         col.Visible = hasValue;
                     }
 
-                    // 調整 DGV 高度
-                    int h = info.Dgv.ColumnHeadersHeight + (info.ResultData.Rows.Count * info.Dgv.RowTemplate.Height) + 10;
-                    info.Dgv.Height = Math.Min(h, 400); 
+                    // 🛑 強制手動計算並設定 GroupBox 的精準高度，徹底解決表格空白/坍塌的問題
+                    int rowCount = info.ResultData.Rows.Count;
+                    int targetHeight = info.Dgv.ColumnHeadersHeight + (rowCount * info.Dgv.RowTemplate.Height) + info.GBox.Padding.Top + info.GBox.Padding.Bottom + 10;
                     
-                    info.GBox.Visible = true;
-                    totalFound += info.ResultData.Rows.Count;
+                    // 最高限制 400px，超過的由 ScrollBars.Both 接手
+                    info.GBox.Height = Math.Min(targetHeight, 400); 
+                    
+                    totalFound += rowCount;
                 } else {
                     info.GBox.Visible = false;
+                    info.Dgv.DataSource = null; // 清除舊資料
                 }
             }
 
@@ -296,7 +305,7 @@ namespace Safety_System
             _btnSearch.Enabled = true;
             _btnSearch.Text = "🚀 開始執行交叉檢索";
             _lblStatus.Text = $"檢索完成！共在各分類中找到 {totalFound} 筆資料。";
-            _lblStatus.ForeColor = Color.Green;
+            _lblStatus.ForeColor = Color.ForestGreen;
 
             if (totalFound == 0) {
                 MessageBox.Show("於所有法規資料庫中皆查無符合條件之項目。", "檢索結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
