@@ -320,13 +320,13 @@ namespace Safety_System
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 30;
                     info.Dgv.AutoResizeRows(); 
 
-                    // 🟢 完美高度修正：加入 25px 的底部緩衝，確保最後一列文字及底線完整顯示
+                    // 🟢 完美高度修正：加入 50px 的底部緩衝，確保最後一列文字及底線完整顯示
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight;
                     foreach(DataGridViewRow r in info.Dgv.Rows) {
                         exactGridHeight += r.Height;
                     }
-                    // 公式: 頂部Padding(30) + 表格內容高度 + 底部緩衝(25)
-                    info.GBox.Height = info.GBox.Padding.Top + exactGridHeight + 25; 
+                    // 公式: 頂部Padding(30) + 表格內容高度 + 底部緩衝(50)
+                    info.GBox.Height = info.GBox.Padding.Top + exactGridHeight + 50; 
                     
                     info.Dgv.ClearSelection();
                     info.GBox.Visible = true;
