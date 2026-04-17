@@ -205,7 +205,7 @@ namespace Safety_System
                     ForeColor = string.IsNullOrEmpty(info.ExtraNotice) ? Color.DarkSlateBlue : Color.Crimson,
                     AutoSize = false, 
                     Margin = new Padding(0, 0, 0, 10), 
-                    Padding = new Padding(5, 30, 5, 10), 
+                    Padding = new Padding(5, 20, 5, 10), 
                     Visible = false 
                 };
 
