@@ -10,7 +10,12 @@ namespace Safety_System
         private TextBox _txtPath;
         private TextBox _txtBackupPath;
         private NumericUpDown _numKeepCount;
+        
+        // 🟢 防重寫欄位變數
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2, _cboCol3, _cboCol4;
+        
+        // 🟢 刪除資料表變數
+        private ComboBox _cboDelDb, _cboDelTable;
 
         // 🟢 用於中文化顯示的字典結構
         private class ItemMap {
@@ -60,7 +65,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0,0,0,50) };
 
             // ==========================================
             // 1. 資料庫存放路徑設定
@@ -128,7 +133,7 @@ namespace Safety_System
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
 
             // ==========================================
-            // 3. 資料表防重寫欄位設定 (🟢 高度拉大至 400，容納 4 個欄位)
+            // 3. 資料表防重寫欄位設定 
             // ==========================================
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 400, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 30, 0, 0);
@@ -145,7 +150,6 @@ namespace Safety_System
             Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(420, 130), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboCol2 = new ComboBox { Location = new Point(540, 128), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // 🟢 新增第三與第四個判斷欄位
             Label lblCol3 = new Label { Text = "判斷欄位三:", Location = new Point(30, 200), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboCol3 = new ComboBox { Location = new Point(160, 198), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
@@ -162,9 +166,31 @@ namespace Safety_System
                 btnSaveKeys 
             });
 
+            // ==========================================
+            // 🟢 4. 刪除資料表設定 (危險操作區)
+            // ==========================================
+            GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
+            boxDelete.Margin = new Padding(0, 30, 0, 0);
+
+            Label lblDelDesc = new Label { Text = "若資料表結構異常，您可於此將整張資料表永久刪除。刪除後重新點擊模組選單即可自動建立乾淨的空表。", AutoSize = true, Location = new Point(30, 45), ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+            Label lblDelDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboDelDb = new ComboBox { Location = new Point(140, 98), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
+            Label lblDelTable = new Label { Text = "選擇資料表:", Location = new Point(340, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboDelTable = new ComboBox { Location = new Point(450, 98), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            Button btnExecuteDelete = new Button { Text = "⚠️ 執行永久刪除", Location = new Point(730, 95), Size = new Size(180, 40), BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnExecuteDelete.Click += BtnExecuteDelete_Click;
+
+            boxDelete.Controls.AddRange(new Control[] { lblDelDesc, lblDelDb, _cboDelDb, lblDelTable, _cboDelTable, btnExecuteDelete });
+
             Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
+            Panel spacer3 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
+            main.Controls.Add(boxDelete);
+            main.Controls.Add(spacer3);
             main.Controls.Add(boxKeys);
             main.Controls.Add(spacer1);
             main.Controls.Add(boxBackup);
@@ -174,12 +200,15 @@ namespace Safety_System
             // 載入中文化資料庫選項
             foreach (var kvp in _dbMap) {
                 _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                _cboDelDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
             }
             
             _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
-            
+            _cboDelDb.SelectedIndexChanged += CboDelDb_SelectedIndexChanged;
+
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
+            if (_cboDelDb.Items.Count > 0) _cboDelDb.SelectedIndex = 0;
 
             return main;
         }
@@ -187,7 +216,7 @@ namespace Safety_System
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
         {
             try {
-                if (_cboTable == null || _cboCol1 == null || _cboCol2 == null || _cboCol3 == null || _cboCol4 == null) return;
+                if (_cboTable == null || _cboCol1 == null) return;
                 _cboTable.Items.Clear(); _cboCol1.Items.Clear(); _cboCol2.Items.Clear(); _cboCol3.Items.Clear(); _cboCol4.Items.Clear();
                 if (_cboDb.SelectedItem == null) return;
                 
@@ -197,6 +226,23 @@ namespace Safety_System
                         _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
                     }
                     if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
+                }
+            } catch { }
+        }
+
+        private void CboDelDb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try {
+                if (_cboDelTable == null) return;
+                _cboDelTable.Items.Clear();
+                if (_cboDelDb.SelectedItem == null) return;
+                
+                var selectedDb = (ItemMap)_cboDelDb.SelectedItem;
+                if (_dbMap.ContainsKey(selectedDb.EnName)) {
+                    foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
+                        _cboDelTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                    }
+                    if (_cboDelTable.Items.Count > 0) _cboDelTable.SelectedIndex = 0;
                 }
             } catch { }
         }
@@ -246,6 +292,53 @@ namespace Safety_System
 
             DataManager.SaveTableKeys(dbName, tableName, c1, c2, c3, c4);
             MessageBox.Show($"【{chTableName}】 防重寫規則儲存成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // 🟢 執行雙重驗證的資料表刪除邏輯
+        private void BtnExecuteDelete_Click(object sender, EventArgs e)
+        {
+            if (_cboDelDb.SelectedItem == null || _cboDelTable.SelectedItem == null) {
+                MessageBox.Show("請先選擇要刪除的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            }
+
+            string dbName = ((ItemMap)_cboDelDb.SelectedItem).EnName;
+            string tableName = ((ItemMap)_cboDelTable.SelectedItem).EnName;
+            string chTableName = ((ItemMap)_cboDelTable.SelectedItem).ChName;
+
+            // 驗證 1：管理者密碼
+            if (!AuthManager.VerifyAdmin("此為毀滅性操作，請輸入管理者密碼：")) return;
+
+            // 驗證 2：手動輸入 admin 確認
+            string prompt = $"即將永久刪除【{chTableName}】所有資料及欄位結構！\n如果您確定，請在下方輸入 admin 進行最終確認：";
+            
+            using (Form p = new Form { Width = 500, Height = 280, Text = "最終確認", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                Label lbl = new Label { Left = 30, Top = 30, Width = 430, Height = 60, Text = prompt, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson };
+                TextBox txt = new TextBox { Width = 370, Left = 30, Top = 100, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認刪除", DialogResult = DialogResult.OK, Left = 280, Top = 160, Width = 120, Height = 40, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK) 
+                {
+                    if (txt.Text.Trim() == "admin") 
+                    {
+                        try {
+                            DataManager.DropTable(dbName, tableName);
+                            MessageBox.Show($"【{chTableName}】資料表已成功刪除。\n請從左側選單重新進入該模組以建立新結構。", "執行成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        } catch (Exception ex) {
+                            MessageBox.Show("刪除失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    } 
+                    else 
+                    {
+                        MessageBox.Show("輸入錯誤，刪除操作已取消。", "安全取消", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
         }
     }
 }
