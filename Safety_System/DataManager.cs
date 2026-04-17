@@ -48,7 +48,9 @@ namespace Safety_System
             for (int i = 1; i <= maxRetries; i++) {
                 try {
                     using (var conn = new SQLiteConnection(GetConnString(dbName))) {
-                        conn.Open(); dbAction(conn); return;
+                        conn.Open(); 
+                        dbAction(conn); 
+                        return;
                     }
                 } catch (SQLiteException ex) when (ex.ResultCode == SQLiteErrorCode.Locked || ex.ResultCode == SQLiteErrorCode.Busy) {
                     if (i == maxRetries) throw;
@@ -57,7 +59,7 @@ namespace Safety_System
             }
         }
 
-        // 🚀 [核心新增] 極速批次儲存方法 (支援事務處理)
+        // 🚀 [核心新增] 極速批次儲存方法 (支援事務處理，並修正含空格之欄位名稱問題)
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt)
         {
             try {
@@ -80,12 +82,22 @@ namespace Safety_System
                             int existingId = -1;
                             // 判斷重複邏輯
                             if (!string.IsNullOrEmpty(keys.col1) && dt.Columns.Contains(keys.col1)) {
-                                string qCheck = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @v1";
-                                if (!string.IsNullOrEmpty(keys.col2) && dt.Columns.Contains(keys.col2)) qCheck += $" AND [{keys.col2}] = @v2";
+                                // 參數化查詢：將鍵值名稱轉換為安全的參數名 (去除空白與括號)
+                                string safeKey1 = keys.col1.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                string qCheck = $"SELECT Id FROM [{tableName}] WHERE [{keys.col1}] = @{safeKey1}";
+                                
+                                if (!string.IsNullOrEmpty(keys.col2) && dt.Columns.Contains(keys.col2)) {
+                                    string safeKey2 = keys.col2.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                    qCheck += $" AND [{keys.col2}] = @{safeKey2}";
+                                }
 
                                 using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
-                                    cmdCheck.Parameters.AddWithValue("@v1", row[keys.col1]);
-                                    if (!string.IsNullOrEmpty(keys.col2)) cmdCheck.Parameters.AddWithValue("@v2", row[keys.col2]);
+                                    cmdCheck.Parameters.AddWithValue("@" + safeKey1, row[keys.col1]);
+                                    if (!string.IsNullOrEmpty(keys.col2)) {
+                                        string safeKey2 = keys.col2.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                        cmdCheck.Parameters.AddWithValue("@" + safeKey2, row[keys.col2]);
+                                    }
+                                    
                                     var res = cmdCheck.ExecuteScalar();
                                     if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
                                 }
@@ -96,22 +108,30 @@ namespace Safety_System
                             using (var cmd = new SQLiteCommand(conn)) {
                                 cmd.Transaction = trans;
                                 List<string> sqlParts = new List<string>();
+                                
                                 if (isUpdate) {
                                     int targetId = existingId != -1 ? existingId : Convert.ToInt32(row["Id"]);
                                     string sql = $"UPDATE [{tableName}] SET ";
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id") continue;
-                                        sqlParts.Add($"[{col.ColumnName}]=@{col.ColumnName}");
-                                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
+                                        
+                                        // 🟢 安全參數轉換：移除欄位名中的空白與括號，避免 SQL 語法錯誤 (例如: CAS No)
+                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                        sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
+                                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
                                     }
                                     cmd.CommandText = sql + string.Join(", ", sqlParts) + " WHERE Id=" + targetId;
                                 } else {
-                                    List<string> colNames = new List<string>(), paramNames = new List<string>();
+                                    List<string> colNames = new List<string>();
+                                    List<string> paramNames = new List<string>();
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id") continue;
+                                        
+                                        // 🟢 安全參數轉換
+                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         colNames.Add($"[{col.ColumnName}]");
-                                        paramNames.Add($"@{col.ColumnName}");
-                                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
+                                        paramNames.Add($"@{safeParamName}");
+                                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
                                     }
                                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", colNames)}) VALUES ({string.Join(", ", paramNames)})";
                                 }
@@ -195,9 +215,9 @@ namespace Safety_System
             return BulkSaveTable(dbName, tableName, dt);
         }
 
+        // 單筆寫入保留 (同步修正空格參數防呆)
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
-            // 單筆寫入保留
             ExecuteWithRetry(dbName, conn => {
                 bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0;
                 var cmd = new SQLiteCommand(conn);
@@ -205,16 +225,23 @@ namespace Safety_System
                     List<string> sets = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
-                        sets.Add($"[{col.ColumnName}]=@{col.ColumnName}");
-                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
+                        
+                        // 🟢 安全參數轉換
+                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                        sets.Add($"[{col.ColumnName}]=@{safeParamName}");
+                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
                     }
                     cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sets)} WHERE Id=" + row["Id"];
                 } else {
-                    List<string> c = new List<string>(), v = new List<string>();
+                    List<string> c = new List<string>();
+                    List<string> v = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id") continue;
-                        c.Add($"[{col.ColumnName}]"); v.Add($"@{col.ColumnName}");
-                        cmd.Parameters.AddWithValue("@" + col.ColumnName, row[col] ?? DBNull.Value);
+                        
+                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                        c.Add($"[{col.ColumnName}]"); 
+                        v.Add($"@{safeParamName}");
+                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] ?? DBNull.Value);
                     }
                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
                 }
