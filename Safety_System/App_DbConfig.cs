@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -13,10 +12,24 @@ namespace Safety_System
         private NumericUpDown _numKeepCount;
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2;
 
-        // 🟢 將 消防法規 加入法規群組中
+        // 🟢 將 化學品12個表 擴充納入
         private readonly Dictionary<string, string[]> _dbMap = new Dictionary<string, string[]> {
             { "Safety", new[] { "NearMiss", "SafetyInspection", "SafetyObservation", "TrafficInjury", "WorkInjury", "MinorInjury" } },
-            { "Chemical", new[] { "ChemRegulations", "SDS_Inventory" } },
+            { "Chemical", new[] { 
+                "SDS_Inventory", 
+                "EnvTesting", 
+                "ExposureLimits", 
+                "ToxicSubstances", 
+                "ConcernedChem", 
+                "PriorityMgmtChem", 
+                "ControlledChem", 
+                "SpecificChem", 
+                "OrganicSolvents", 
+                "WorkerHealthProtect", 
+                "PublicHazardous", 
+                "AirPollutionEmerg", 
+                "FactoryHazardous" 
+            } },
             { "Nursing", new[] { "HealthPromotion", "WorkInjuryReport" } },
             { "Air", new[] { "AirPollution" } },
             { "Water", new[] { "DischargeData", "WaterMeterReadings", "WaterChemicals", "WaterVolume", "WaterUsageDaily" } },
