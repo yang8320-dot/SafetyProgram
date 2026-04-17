@@ -28,7 +28,7 @@ namespace Safety_System
             public GroupBox GBox;
             public DataGridView Dgv;
             public DataTable ResultData;
-            public List<string> VisibleColumns; // 🟢 用於背景預先計算哪些欄位該顯示
+            public List<string> VisibleColumns; 
         }
 
         // 保持您指定的對應欄位不變
@@ -146,7 +146,7 @@ namespace Safety_System
                 AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                Padding = new Padding(10, 10, 30, 10), // 右側留白給捲軸
+                Padding = new Padding(10, 10, 30, 10), 
                 BackColor = Color.White
             };
             
@@ -163,28 +163,28 @@ namespace Safety_System
                     Text = info.Title + (string.IsNullOrEmpty(info.ExtraNotice) ? "" : " - " + info.ExtraNotice),
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                     ForeColor = string.IsNullOrEmpty(info.ExtraNotice) ? Color.DarkSlateBlue : Color.Crimson,
-                    AutoSize = false, // 🛑 關閉 AutoSize，改由下方代碼強制精準計算高度
+                    AutoSize = false, 
                     Margin = new Padding(0, 0, 0, 20),
-                    Padding = new Padding(8, 35, 8, 8), // 標題區塊高度保留 35px
+                    Padding = new Padding(8, 35, 8, 8), 
                     Visible = false 
                 };
 
                 info.Dgv = new DataGridView { 
-                    Dock = DockStyle.Fill, // 🛑 確保填滿 GroupBox
+                    Dock = DockStyle.Fill, 
                     BackgroundColor = Color.White, 
                     AllowUserToAddRows = false, 
                     ReadOnly = true, 
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, 
                     RowHeadersVisible = false,
                     BorderStyle = BorderStyle.FixedSingle,
-                    ScrollBars = ScrollBars.None, // 🛑 關閉表格內捲軸，完全撐開
+                    ScrollBars = ScrollBars.None, 
                     Font = new Font("Microsoft JhengHei UI", 11F)
                 };
-                info.Dgv.RowTemplate.Height = 35; // 每一列固定高度 35px
+                info.Dgv.RowTemplate.Height = 35; 
                 info.Dgv.EnableHeadersVisualStyles = false;
                 info.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 62, 80);
                 info.Dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-                info.Dgv.ColumnHeadersHeight = 40; // 表頭固定高度 40px
+                info.Dgv.ColumnHeadersHeight = 40; 
                 info.Dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
 
                 info.GBox.Controls.Add(info.Dgv);
@@ -229,7 +229,7 @@ namespace Safety_System
             _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
-            // 🟢 優化 1：將耗時的「撈取資料」與「檢查哪些欄位是空白」全移至背景 Task
+            // 背景運算
             await Task.Run(() => {
                 foreach (var info in _tableInfos) {
                     try {
@@ -247,7 +247,6 @@ namespace Safety_System
                             dv.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "1=0";
                             info.ResultData = dv.ToTable();
 
-                            // 背景預先計算可見欄位，防止 UI 執行緒卡死
                             info.VisibleColumns = new List<string>();
                             if (info.ResultData.Rows.Count > 0) {
                                 foreach (DataColumn col in info.ResultData.Columns) {
@@ -270,38 +269,34 @@ namespace Safety_System
                 }
             });
 
-            // 🟢 優化 2：UI 渲染過程
+            // 回到 UI 執行緒更新畫面
             _flpResultsContainer.SuspendLayout();
             int totalFound = 0;
 
             foreach (var info in _tableInfos) {
                 if (info.ResultData != null && info.ResultData.Rows.Count > 0) {
                     
-                    // 暫停欄位寬度自動計算，加速資料綁定
                     info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
                     info.Dgv.DataSource = info.ResultData;
 
-                    // 套用背景算好的顯示欄位
                     foreach (DataGridViewColumn col in info.Dgv.Columns) {
                         col.Visible = info.VisibleColumns.Contains(col.Name);
                     }
 
-                    // 恢復欄位寬度自動計算
                     info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
 
-                    // 🟢 優化 3：強制精準運算高度 ＋ 延伸 20px
-                    // 計算公式： GroupBox頂部Padding(35) + 表頭高度(40) + (資料筆數 * 列高35) + GroupBox底部Padding(8) + 額外延伸(20)
+                    // 🟢 修正變數名稱：計算高度
                     int rowCount = info.ResultData.Rows.Count;
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight + (rowCount * info.Dgv.RowTemplate.Height);
-                    int targetGBoxHeight = 35 + exactGridHeight + 8 + 20; 
+                    int targetGBoxHeight = 35 + exactGridHeight + 8 + 20; // 標題高(35) + 表格高度 + 底部留白(8) + 延伸(20)
 
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 40;
-                    info.GBox.Height = targetHeight; 
+                    info.GBox.Height = targetGBoxHeight; 
                     
                     info.GBox.Visible = true;
                     totalFound += rowCount;
 
-                    // 🛑 放出 10 毫秒的喘息空間給 UI 執行緒，防止畫面凍結、讓滑鼠可以隨時按 X 關閉
+                    // 放出 10 毫秒的喘息空間給 UI 執行緒，防止畫面凍結
                     await Task.Delay(10); 
                 } else {
                     info.GBox.Visible = false;
