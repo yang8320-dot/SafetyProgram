@@ -41,11 +41,10 @@ namespace Safety_System
             { "FactoryHazardous", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [名稱] TEXT, [種類] TEXT, [管制量] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
+        // 🟢 修正：移除硬編碼的 NameSearchCol 與 CasSearchCol，改為動態智慧判斷
         private class ChemTableInfo {
             public string TableName;
             public string Title;
-            public string NameSearchCol;
-            public string CasSearchCol;
             public string ExtraNotice;
             public GroupBox GBox;
             public DataGridView Dgv;
@@ -54,23 +53,23 @@ namespace Safety_System
         }
 
         private List<ChemTableInfo> _tableInfos = new List<ChemTableInfo> {
-            new ChemTableInfo { TableName="EnvTesting", Title="1. 環測項目", NameSearchCol="中文名稱", CasSearchCol="CASNO", ExtraNotice="" },
-            new ChemTableInfo { TableName="ExposureLimits", Title="2. 勞工暴露容許濃度", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
-            new ChemTableInfo { TableName="ToxicSubstances", Title="3. 毒性物質", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
-            new ChemTableInfo { TableName="ConcernedChem", Title="4. 關注性化學物質", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
-            new ChemTableInfo { TableName="PriorityMgmtChem", Title="5. 優先管理化學品", NameSearchCol="中文名稱", CasSearchCol="CASNO", ExtraNotice="" },
-            new ChemTableInfo { TableName="ControlledChem", Title="6. 管制化學品", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
-            new ChemTableInfo { TableName="SpecificChem", Title="7. 特定化學物質", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="需設置【特化主管】" },
-            new ChemTableInfo { TableName="OrganicSolvents", Title="8. 有機溶劑", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="需設置【有機溶劑作業主管】" },
-            new ChemTableInfo { TableName="WorkerHealthProtect", Title="9. 勞工健康保護", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="需【特殊體檢】" },
-            new ChemTableInfo { TableName="PublicHazardous", Title="10. 公共危險物品", NameSearchCol="種類", CasSearchCol="種類", ExtraNotice="" },
-            new ChemTableInfo { TableName="AirPollutionEmerg", Title="11. 空污緊急應變", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
-            new ChemTableInfo { TableName="FactoryHazardous", Title="12. 工廠危險物品申報", NameSearchCol="種類", CasSearchCol="種類", ExtraNotice="" }
+            new ChemTableInfo { TableName="EnvTesting", Title="1. 環測項目", ExtraNotice="" },
+            new ChemTableInfo { TableName="ExposureLimits", Title="2. 勞工暴露容許濃度", ExtraNotice="" },
+            new ChemTableInfo { TableName="ToxicSubstances", Title="3. 毒性物質", ExtraNotice="" },
+            new ChemTableInfo { TableName="ConcernedChem", Title="4. 關注性化學物質", ExtraNotice="" },
+            new ChemTableInfo { TableName="PriorityMgmtChem", Title="5. 優先管理化學品", ExtraNotice="" },
+            new ChemTableInfo { TableName="ControlledChem", Title="6. 管制化學品", ExtraNotice="" },
+            new ChemTableInfo { TableName="SpecificChem", Title="7. 特定化學物質", ExtraNotice="需設置【特化主管】" },
+            new ChemTableInfo { TableName="OrganicSolvents", Title="8. 有機溶劑", ExtraNotice="需設置【有機溶劑作業主管】" },
+            new ChemTableInfo { TableName="WorkerHealthProtect", Title="9. 勞工健康保護", ExtraNotice="需【特殊體檢】" },
+            new ChemTableInfo { TableName="PublicHazardous", Title="10. 公共危險物品", ExtraNotice="" },
+            new ChemTableInfo { TableName="AirPollutionEmerg", Title="11. 空污緊急應變", ExtraNotice="" },
+            new ChemTableInfo { TableName="FactoryHazardous", Title="12. 工廠危險物品申報", ExtraNotice="" }
         };
 
         public Control GetView()
         {
-            // 🟢 強制預先建表，防止首次執行時設定選單抓不到欄位
+            // 強制預先建表，防止首次執行時設定選單抓不到欄位
             foreach (var info in _tableInfos) {
                 if (_schemaMap.ContainsKey(info.TableName)) {
                     DataManager.InitTable(DbName, info.TableName, $"CREATE TABLE IF NOT EXISTS [{info.TableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {_schemaMap[info.TableName]});");
@@ -216,7 +215,7 @@ namespace Safety_System
                     ReadOnly = true, 
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, 
                     RowHeadersVisible = false,
-                    BorderStyle = BorderStyle.None, // 🟢 移除外框，減少高度計算誤差
+                    BorderStyle = BorderStyle.None,
                     ScrollBars = ScrollBars.None, 
                     Font = new Font("Microsoft JhengHei UI", 11F),
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
@@ -262,21 +261,50 @@ namespace Safety_System
             _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
+            // 🟢 重構：動態掃描具備的欄位，達成全域智慧防呆檢索
             await Task.Run(() => {
                 foreach (var info in _tableInfos) {
                     try {
                         DataTable dt = DataManager.GetTableData(DbName, info.TableName, "", "", "");
                         if (dt != null && dt.Rows.Count > 0) {
                             DataView dv = dt.DefaultView;
-                            List<string> filters = new List<string>();
-                            
-                            if (!string.IsNullOrEmpty(nameKey) && dt.Columns.Contains(info.NameSearchCol)) 
-                                filters.Add($"[{info.NameSearchCol}] LIKE '%{nameKey.Replace("'", "''")}%'");
-                            
-                            if (!string.IsNullOrEmpty(casKey) && dt.Columns.Contains(info.CasSearchCol)) 
-                                filters.Add($"[{info.CasSearchCol}] LIKE '%{casKey.Replace("'", "''")}%'");
+                            List<string> matchConditions = new List<string>();
 
-                            dv.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "1=0";
+                            // 1. 名稱模糊檢索 (掃描表格中所有跟名稱有關的欄位)
+                            if (!string.IsNullOrEmpty(nameKey)) {
+                                List<string> nameFilters = new List<string>();
+                                string[] possibleNameCols = { "中文名稱", "英文名稱", "名稱", "種類", "化學品名稱", "內容", "危害成份" };
+                                foreach(var c in possibleNameCols) {
+                                    if (dt.Columns.Contains(c)) {
+                                        nameFilters.Add($"[{c}] LIKE '%{nameKey.Replace("'", "''")}%'");
+                                    }
+                                }
+                                if (nameFilters.Count > 0) {
+                                    matchConditions.Add("(" + string.Join(" OR ", nameFilters) + ")");
+                                } else {
+                                    matchConditions.Add("1=0"); // 表格不含任何名稱欄位，過濾失敗
+                                }
+                            }
+
+                            // 2. CAS Number 檢索 (若表格無 CAS，但有符合的名稱，則放行容錯)
+                            if (!string.IsNullOrEmpty(casKey)) {
+                                List<string> casFilters = new List<string>();
+                                string[] possibleCasCols = { "CASNO", "CAS_No", "化學式" };
+                                foreach(var c in possibleCasCols) {
+                                    if (dt.Columns.Contains(c)) {
+                                        casFilters.Add($"[{c}] LIKE '%{casKey.Replace("'", "''")}%'");
+                                    }
+                                }
+                                
+                                if (casFilters.Count > 0) {
+                                    matchConditions.Add("(" + string.Join(" OR ", casFilters) + ")");
+                                } else if (string.IsNullOrEmpty(nameKey)) {
+                                    // 只有輸入 CAS，但此表沒 CAS 欄位，所以不可能找到
+                                    matchConditions.Add("1=0");
+                                }
+                            }
+
+                            dv.RowFilter = matchConditions.Count > 0 ? string.Join(" AND ", matchConditions) : "1=0";
                             info.ResultData = dv.ToTable();
 
                             info.VisibleColumns = new List<string>();
@@ -320,12 +348,11 @@ namespace Safety_System
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 30;
                     info.Dgv.AutoResizeRows(); 
 
-                    // 🟢 完美高度修正：加入 50px 的底部緩衝，確保最後一列文字及底線完整顯示
+                    // 完美高度修正：加入 50px 的底部緩衝，確保最後一列文字及底線完整顯示
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight;
                     foreach(DataGridViewRow r in info.Dgv.Rows) {
                         exactGridHeight += r.Height;
                     }
-                    // 公式: 頂部Padding(30) + 表格內容高度 + 底部緩衝(50)
                     info.GBox.Height = info.GBox.Padding.Top + exactGridHeight + 50; 
                     
                     info.Dgv.ClearSelection();
@@ -427,7 +454,7 @@ namespace Safety_System
 
                 if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
 
-                if (f.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(_txtName.Text)) {
+                if (f.ShowDialog() == DialogResult.OK && (!string.IsNullOrEmpty(_txtName.Text) || !string.IsNullOrEmpty(_txtCAS.Text))) {
                     _btnSearch.PerformClick();
                 }
             }
