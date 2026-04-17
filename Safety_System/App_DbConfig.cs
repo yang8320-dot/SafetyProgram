@@ -39,7 +39,9 @@ namespace Safety_System
             { "教育訓練", new[] { "訓練時數" } },
             { "法規", new[] { "環保法規", "職安衛法規", "消防法規", "其它法規" } }, 
             { "ESG", new[] { "ESG_Performance" } },
-            { "ISO14001", new[] { "TargetManagement" } } 
+            { "ISO14001", new[] { "TargetManagement" } } ,
+            // 🟢 新增此行：將請購資料註冊到設定面板，讓使用者可以設定防重寫規則
+            { "Purchase", new[] { "PurchaseData" } }
         };
 
         public Control GetView()
