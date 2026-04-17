@@ -19,7 +19,6 @@ namespace Safety_System
         
         private const string DbName = "Chemical";
 
-        // 內部類別用於定義 12 個表的查詢與顯示規則
         private class ChemTableInfo {
             public string TableName;
             public string Title;
@@ -29,8 +28,10 @@ namespace Safety_System
             public GroupBox GBox;
             public DataGridView Dgv;
             public DataTable ResultData;
+            public List<string> VisibleColumns; // 🟢 用於背景預先計算哪些欄位該顯示
         }
 
+        // 保持您指定的對應欄位不變
         private List<ChemTableInfo> _tableInfos = new List<ChemTableInfo> {
             new ChemTableInfo { TableName="EnvTesting", Title="1. 環測項目", NameSearchCol="中文名稱", CasSearchCol="CASNO", ExtraNotice="" },
             new ChemTableInfo { TableName="ExposureLimits", Title="2. 勞工暴露容許濃度", NameSearchCol="中文名稱", CasSearchCol="中文名稱", ExtraNotice="" },
@@ -57,7 +58,6 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // --- 第一行：功能按鈕區 ---
             FlowLayoutPanel pnlAction = new FlowLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 AutoSize = true, 
@@ -85,7 +85,6 @@ namespace Safety_System
                 FlatStyle = FlatStyle.Flat,
                 Margin = new Padding(15, 0, 0, 0)
             };
-            // 綁定非同步查詢事件
             _btnSearch.Click += async (s, e) => await ExecuteSearchAsync();
 
             _lblStatus = new Label {
@@ -101,7 +100,6 @@ namespace Safety_System
             pnlAction.Controls.Add(_lblStatus);
             mainLayout.Controls.Add(pnlAction, 0, 0);
 
-            // --- 第二行：主查詢區與結果區 ---
             GroupBox boxMain = new GroupBox { 
                 Text = "🔍 化學品法規快查中心", 
                 Dock = DockStyle.Fill, 
@@ -116,7 +114,6 @@ namespace Safety_System
             innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 85F));  
             innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 【小框 1】：標題文字
             Panel sub1 = CreateSubBox(Color.Teal);
             Label lblMainTitle = new Label { 
                 Text = "🧬 化學品法規符核度查詢系統", 
@@ -127,21 +124,16 @@ namespace Safety_System
             };
             sub1.Controls.Add(lblMainTitle);
 
-            // 【小框 2】：名稱查詢
             Panel sub2 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl1 = new Label { Text = "化學品名稱關鍵字：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _txtName = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
-            // 已移除 TextChanged 連動，改由按鈕觸發
             sub2.Controls.AddRange(new Control[] { lbl1, _txtName });
 
-            // 【小框 3】：CAS 查詢
             Panel sub3 = CreateSubBox(Color.FromArgb(45, 62, 80));
             Label lbl2 = new Label { Text = "CAS No. 編號：", Location = new Point(25, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _txtCAS = new TextBox { Location = new Point(220, 22), Width = 450, Font = new Font("Microsoft JhengHei UI", 14F) };
-            // 已移除 TextChanged 連動，改由按鈕觸發
             sub3.Controls.AddRange(new Control[] { lbl2, _txtCAS });
 
-            // 【小框 4】：檢索結果容器
             GroupBox sub4 = new GroupBox { 
                 Text = "📊 檢索結果明細 (查無資料之分類將自動隱藏)", 
                 Dock = DockStyle.Fill, 
@@ -154,40 +146,45 @@ namespace Safety_System
                 AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                Padding = new Padding(10),
+                Padding = new Padding(10, 10, 30, 10), // 右側留白給捲軸
                 BackColor = Color.White
             };
             
-            // 🟢 初始化 12 個資料表的視窗結構 (修正高度計算坍塌 Bug)
+            // 監聽視窗縮放，動態調整結果框的寬度
+            _flpResultsContainer.Resize += (s, e) => {
+                foreach (Control c in _flpResultsContainer.Controls) {
+                    if (c is GroupBox gb) gb.Width = _flpResultsContainer.ClientSize.Width - 40;
+                }
+            };
+            
+            // 初始化 12 個資料表的視窗結構
             foreach (var info in _tableInfos) {
                 info.GBox = new GroupBox {
                     Text = info.Title + (string.IsNullOrEmpty(info.ExtraNotice) ? "" : " - " + info.ExtraNotice),
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
                     ForeColor = string.IsNullOrEmpty(info.ExtraNotice) ? Color.DarkSlateBlue : Color.Crimson,
-                    Width = 1100,
-                    AutoSize = false, // 🛑 關閉自動縮放，改由程式手動計算高度避免坍塌
-                    Margin = new Padding(0, 0, 0, 25),
-                    Padding = new Padding(10, 30, 10, 10), // 留出標題空間
+                    AutoSize = false, // 🛑 關閉 AutoSize，改由下方代碼強制精準計算高度
+                    Margin = new Padding(0, 0, 0, 20),
+                    Padding = new Padding(8, 35, 8, 8), // 標題區塊高度保留 35px
                     Visible = false 
                 };
 
                 info.Dgv = new DataGridView { 
-                    Dock = DockStyle.Fill, // 🛑 確保表格填滿手動設定高度的 GroupBox
+                    Dock = DockStyle.Fill, // 🛑 確保填滿 GroupBox
                     BackgroundColor = Color.White, 
                     AllowUserToAddRows = false, 
                     ReadOnly = true, 
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, 
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, 
                     RowHeadersVisible = false,
                     BorderStyle = BorderStyle.FixedSingle,
-                    ScrollBars = ScrollBars.Both, // 允許出現捲軸
+                    ScrollBars = ScrollBars.None, // 🛑 關閉表格內捲軸，完全撐開
                     Font = new Font("Microsoft JhengHei UI", 11F)
                 };
-                info.Dgv.RowTemplate.Height = 35;
+                info.Dgv.RowTemplate.Height = 35; // 每一列固定高度 35px
                 info.Dgv.EnableHeadersVisualStyles = false;
                 info.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 62, 80);
                 info.Dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-                info.Dgv.ColumnHeadersHeight = 40;
+                info.Dgv.ColumnHeadersHeight = 40; // 表頭固定高度 40px
                 info.Dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
 
                 info.GBox.Controls.Add(info.Dgv);
@@ -227,13 +224,12 @@ namespace Safety_System
                 return;
             }
 
-            // 鎖定按鈕，防止重複點擊
             _btnSearch.Enabled = false;
-            _btnSearch.Text = "⏳ 檢索中...";
-            _lblStatus.Text = "正在背景檢索 12 個資料庫表，請稍候...";
+            _btnSearch.Text = "⏳ 檢索與排版中...";
+            _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
-            // 🟢 使用 Task.Run 進行背景非同步運算，防止 UI 執行緒假當機
+            // 🟢 優化 1：將耗時的「撈取資料」與「檢查哪些欄位是空白」全移至背景 Task
             await Task.Run(() => {
                 foreach (var info in _tableInfos) {
                     try {
@@ -248,12 +244,23 @@ namespace Safety_System
                             if (!string.IsNullOrEmpty(casKey) && dt.Columns.Contains(info.CasSearchCol)) 
                                 filters.Add($"[{info.CasSearchCol}] LIKE '%{casKey.Replace("'", "''")}%'");
 
-                            if (filters.Count > 0) 
-                                dv.RowFilter = string.Join(" AND ", filters);
-                            else
-                                dv.RowFilter = "1=0"; // 若沒輸條件則該表不顯示
-                            
+                            dv.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "1=0";
                             info.ResultData = dv.ToTable();
+
+                            // 背景預先計算可見欄位，防止 UI 執行緒卡死
+                            info.VisibleColumns = new List<string>();
+                            if (info.ResultData.Rows.Count > 0) {
+                                foreach (DataColumn col in info.ResultData.Columns) {
+                                    if (col.ColumnName == "Id") continue;
+                                    bool hasValue = false;
+                                    foreach (DataRow row in info.ResultData.Rows) {
+                                        if (row[col] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col].ToString())) {
+                                            hasValue = true; break;
+                                        }
+                                    }
+                                    if (hasValue) info.VisibleColumns.Add(col.ColumnName);
+                                }
+                            }
                         } else {
                             info.ResultData = null;
                         }
@@ -263,41 +270,42 @@ namespace Safety_System
                 }
             });
 
-            // 回到 UI 執行緒更新畫面
+            // 🟢 優化 2：UI 渲染過程
             _flpResultsContainer.SuspendLayout();
             int totalFound = 0;
 
             foreach (var info in _tableInfos) {
                 if (info.ResultData != null && info.ResultData.Rows.Count > 0) {
                     
-                    info.GBox.Visible = true; // 先設為可見，確保 DataGridView 計算排版時能抓到實體屬性
+                    // 暫停欄位寬度自動計算，加速資料綁定
+                    info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
                     info.Dgv.DataSource = info.ResultData;
 
-                    if (info.Dgv.Columns.Contains("Id")) info.Dgv.Columns["Id"].Visible = false;
-
-                    // 動態隱藏空白欄位
+                    // 套用背景算好的顯示欄位
                     foreach (DataGridViewColumn col in info.Dgv.Columns) {
-                        if (col.Name == "Id") continue;
-                        bool hasValue = false;
-                        foreach (DataRow row in info.ResultData.Rows) {
-                            if (row[col.Name] != DBNull.Value && !string.IsNullOrWhiteSpace(row[col.Name].ToString())) {
-                                hasValue = true; break;
-                            }
-                        }
-                        col.Visible = hasValue;
+                        col.Visible = info.VisibleColumns.Contains(col.Name);
                     }
 
-                    // 🛑 強制手動計算並設定 GroupBox 的精準高度，徹底解決表格空白/坍塌的問題
+                    // 恢復欄位寬度自動計算
+                    info.Dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+
+                    // 🟢 優化 3：強制精準運算高度 ＋ 延伸 20px
+                    // 計算公式： GroupBox頂部Padding(35) + 表頭高度(40) + (資料筆數 * 列高35) + GroupBox底部Padding(8) + 額外延伸(20)
                     int rowCount = info.ResultData.Rows.Count;
-                    int targetHeight = info.Dgv.ColumnHeadersHeight + (rowCount * info.Dgv.RowTemplate.Height) + info.GBox.Padding.Top + info.GBox.Padding.Bottom + 10;
+                    int exactGridHeight = info.Dgv.ColumnHeadersHeight + (rowCount * info.Dgv.RowTemplate.Height);
+                    int targetGBoxHeight = 35 + exactGridHeight + 8 + 20; 
+
+                    info.GBox.Width = _flpResultsContainer.ClientSize.Width - 40;
+                    info.GBox.Height = targetHeight; 
                     
-                    // 最高限制 400px，超過的由 ScrollBars.Both 接手
-                    info.GBox.Height = Math.Min(targetHeight, 400); 
-                    
+                    info.GBox.Visible = true;
                     totalFound += rowCount;
+
+                    // 🛑 放出 10 毫秒的喘息空間給 UI 執行緒，防止畫面凍結、讓滑鼠可以隨時按 X 關閉
+                    await Task.Delay(10); 
                 } else {
                     info.GBox.Visible = false;
-                    info.Dgv.DataSource = null; // 清除舊資料
+                    info.Dgv.DataSource = null; 
                 }
             }
 
