@@ -1,403 +1,379 @@
-// ============================================================
-// FILE: MiniProgram01/App_TodoList.cs 
-// ============================================================
+/*
+ * 檔案功能：待辦事項與計畫大綱管理模組 (支援新增、刪除、以及跨清單轉移任務)
+ * 對應選單名稱：待辦事項 / 計畫大綱 (動態生成)
+ * 對應資料庫名稱：(本模組採用純文字檔存儲) MainDB_TodoList_{listName}.txt
+ * 資料表名稱：無 (資料欄位採用 '|' 符號間隔)
+ */
+
 using System;
-using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Text;
 
-public class App_TodoList : UserControl {
+public class App_TodoList : UserControl
+{
+    // --- 子模組參考 ---
     private MainForm parentForm;
-    private string listType;
-    private string transferLabel;
-    private string dataFile;
-    
-    // 用於雙向轉移的目標列表 (待辦 <-> 待規)
-    public App_TodoList TargetList { get; set; }
-    
-    private FlowLayoutPanel taskPanel;
-    private int dragInsertIndex = -1;
+    public dynamic TargetList { get; set; } // 供外部設定目標清單，用於轉移任務
 
-    // --- iOS 風格色彩與字體定義 ---
-    private static Color iosBackground = Color.FromArgb(242, 242, 247);
-    private static Color iosCardWhite = Color.White;
-    private static Color iosAppleBlue = Color.FromArgb(0, 122, 255);
-    private static Color iosRed = Color.FromArgb(255, 59, 48);
-    private static Color iosGrayText = Color.FromArgb(142, 142, 147);
-    private static Color iosYellow = Color.FromArgb(255, 204, 0);
-    private static Color iosGreen = Color.FromArgb(52, 199, 89);
-    
-    private static Font MainFont = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular);
-    private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
+    // --- 核心變數 ---
+    private string listName;
+    private string transferBtnText;
+    private string dataFilePath;
+    private List<TodoItem> taskList = new List<TodoItem>();
+
+    // --- 介面控制項 ---
+    private Panel topInputPanel;
+    private TextBox txtInput;
+    private Button btnAdd;
+    private ListBox listBoxTasks;
+    private Panel bottomActionPanel;
+    private Button btnTransfer;
+    private Button btnDelete;
+
+    // --- 樣式設定 (iOS 風格) ---
+    private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
+    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
+    private static Color AppleRed = Color.FromArgb(255, 59, 48);
+    private static Font MainFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Regular);
+    private static Font DateFont = new Font("Microsoft JhengHei UI", 8.5f, FontStyle.Regular);
 
     // --- 資料模型 ---
-    public class TodoTask {
-        public string Name { get; set; }
-        public string ColorStr { get; set; }
-        public string Tag { get; set; }
-        public string Note { get; set; }
+    private class TodoItem
+    {
+        public string Id { get; set; }
+        public string Content { get; set; }
+        public string CreatedDate { get; set; }
+
+        public override string ToString()
+        {
+            // 寫入文字檔的格式，使用 '|' 間隔
+            return $"{Id}|{Content}|{CreatedDate}";
+        }
     }
 
-    public List<TodoTask> tasks = new List<TodoTask>();
+    public App_TodoList(MainForm parent, string listName, string transferBtnText)
+    {
+        this.parentForm = parent;
+        this.listName = listName;
+        this.transferBtnText = transferBtnText;
+        this.dataFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"MainDB_TodoList_{this.listName}.txt");
 
-    public App_TodoList(MainForm mainForm, string listType, string transferLabel) {
-        this.parentForm = mainForm;
-        this.listType = listType;
-        this.transferLabel = transferLabel;
-        this.dataFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"todo_{listType}.txt");
+        // 1. 初始化控制項與 DPI 支援
+        this.AutoScaleMode = AutoScaleMode.Dpi;
+        this.BackColor = AppleBgColor;
+        this.Font = MainFont;
+        this.Padding = new Padding(15); // 與主框架間保持 15 的留白
 
-        this.BackColor = iosBackground;
-        this.Padding = new Padding(15);
-        this.AutoScaleMode = AutoScaleMode.Dpi; // 核心：支援高 DPI 縮放
-
+        // 2. 建構純程式碼 UI
         InitializeUI();
-        LoadTasks();
+
+        // 3. 載入資料 (非同步)
+        LoadDataAsync();
     }
 
-    private void InitializeUI() {
-        // --- 頂部標題與新增按鈕 ---
-        TableLayoutPanel header = new TableLayoutPanel() { 
-            Dock = DockStyle.Top, 
-            Height = 50, 
-            ColumnCount = 2 
+    /// <summary>
+    /// 建構 iOS 風格純程式碼介面 (Code-First UI)
+    /// </summary>
+    private void InitializeUI()
+    {
+        // ==========================================
+        // 頂部輸入區塊 (Input Panel)
+        // ==========================================
+        topInputPanel = new Panel()
+        {
+            Dock = DockStyle.Top,
+            Height = 45,
+            BackColor = Color.White,
+            Padding = new Padding(10), // 框內與文字間隔 10
+            Margin = new Padding(0, 0, 0, 15) // 與下方列表間距 15
         };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
 
-        string titleText = listType == "todo" ? "待辦事項" : "待規事項";
-        Label lblTitle = new Label() { 
-            Text = titleText, 
-            Font = new Font("Microsoft JhengHei UI", 14f, FontStyle.Bold), 
-            ForeColor = Color.FromArgb(28, 28, 30),
-            Dock = DockStyle.Fill, 
-            TextAlign = ContentAlignment.MiddleLeft, 
-            Padding = new Padding(5, 0, 0, 0) 
-        };
-        
-        Button btnAdd = new Button() { 
-            Text = "新增", 
-            Dock = DockStyle.Fill, 
-            FlatStyle = FlatStyle.Flat, 
-            Margin = new Padding(2, 8, 2, 8), 
-            Cursor = Cursors.Hand, 
-            BackColor = iosAppleBlue, 
+        btnAdd = new Button()
+        {
+            Text = "新增",
+            Dock = DockStyle.Right,
+            Width = 80,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = AppleBlue,
             ForeColor = Color.White,
-            Font = BoldFont
+            Cursor = Cursors.Hand,
+            Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold)
         };
-        btnAdd.FlatAppearance.BorderSize = 0; 
-        btnAdd.Click += (s, e) => { new EditTodoTaskWindow(this, -1, null).ShowDialog(); };
+        btnAdd.FlatAppearance.BorderSize = 0;
+        btnAdd.Click += async (s, e) => await AddTaskAsync();
 
-        header.Controls.Add(lblTitle, 0, 0);
-        header.Controls.Add(btnAdd, 1, 0);
-        this.Controls.Add(header);
-
-        // --- 任務卡片容器 (支援拖曳排序) ---
-        taskPanel = new FlowLayoutPanel() { 
-            Dock = DockStyle.Fill, 
-            AutoScroll = true, 
-            FlowDirection = FlowDirection.TopDown, 
-            WrapContents = false, 
-            BackColor = iosBackground, 
-            AllowDrop = true,
-            Padding = new Padding(0, 10, 0, 0)
+        txtInput = new TextBox()
+        {
+            Dock = DockStyle.Fill,
+            BorderStyle = BorderStyle.None,
+            Font = new Font("Microsoft JhengHei UI", 12f, FontStyle.Regular),
         };
-        
-        taskPanel.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
-        taskPanel.DragOver += OnTaskDragOver;
-        taskPanel.DragLeave += (s, e) => { dragInsertIndex = -1; taskPanel.Invalidate(); };
-        taskPanel.DragDrop += OnTaskDragDrop;
-        taskPanel.Paint += OnTaskContainerPaint;
-        
-        taskPanel.Resize += (s, e) => {
-            int safeWidth = taskPanel.ClientSize.Width - 25;
-            if (safeWidth > 0) {
-                foreach (Control c in taskPanel.Controls) if (c is Panel) c.Width = safeWidth;
-            }
+        // 處理 TextBox 在 Panel 中的垂直置中
+        txtInput.Margin = new Padding(0, 5, 10, 0); 
+        txtInput.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await AddTaskAsync(); } };
+
+        topInputPanel.Controls.Add(txtInput);
+        topInputPanel.Controls.Add(btnAdd);
+
+        // ==========================================
+        // 底部操作區塊 (Action Panel)
+        // ==========================================
+        bottomActionPanel = new Panel()
+        {
+            Dock = DockStyle.Bottom,
+            Height = 45,
+            Padding = new Padding(0, 15, 0, 0) // 與上方列表間距 15
         };
 
-        this.Controls.Add(taskPanel);
-        taskPanel.BringToFront();
+        btnDelete = new Button()
+        {
+            Text = "刪除任務",
+            Dock = DockStyle.Right,
+            Width = 100,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = AppleRed,
+            ForeColor = Color.White,
+            Cursor = Cursors.Hand,
+            Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Regular)
+        };
+        btnDelete.FlatAppearance.BorderSize = 0;
+        btnDelete.Click += async (s, e) => await DeleteSelectedTaskAsync();
+
+        btnTransfer = new Button()
+        {
+            Text = transferBtnText,
+            Dock = DockStyle.Left,
+            Width = 100,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.White,
+            ForeColor = AppleBlue,
+            Cursor = Cursors.Hand,
+            Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold)
+        };
+        btnTransfer.FlatAppearance.BorderSize = 1;
+        btnTransfer.FlatAppearance.BorderColor = AppleBlue;
+        btnTransfer.Click += async (s, e) => await TransferSelectedTaskAsync();
+
+        bottomActionPanel.Controls.Add(btnDelete);
+        bottomActionPanel.Controls.Add(btnTransfer);
+
+        // ==========================================
+        // 中間列表區塊 (iOS Style ListBox)
+        // ==========================================
+        listBoxTasks = new ListBox()
+        {
+            Dock = DockStyle.Fill,
+            BorderStyle = BorderStyle.None,
+            BackColor = Color.White,
+            IntegralHeight = false,
+            ItemHeight = 60, // 加大行高，適應觸控與閱讀
+            DrawMode = DrawMode.OwnerDrawFixed // 啟用自訂繪製
+        };
+        listBoxTasks.DrawItem += ListBoxTasks_DrawItem;
+
+        // ==========================================
+        // 組合至主畫面 (注意加入順序會影響 Dock 排版)
+        // ==========================================
+        this.Controls.Add(listBoxTasks);
+        this.Controls.Add(topInputPanel);
+        // 加入分隔用透明 Panel 實作 Margin 效果
+        this.Controls.Add(new Panel() { Dock = DockStyle.Top, Height = 15, BackColor = AppleBgColor }); 
+        this.Controls.Add(bottomActionPanel);
     }
 
-    public void RefreshUI() {
-        taskPanel.Controls.Clear();
-        int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 25 : 450;
-        
-        foreach (var t in tasks) {
-            // 卡片背景
-            Panel card = new Panel() { 
-                Width = startWidth, 
-                AutoSize = true, 
-                MinimumSize = new Size(0, 55), 
-                Margin = new Padding(5, 5, 5, 10), 
-                BackColor = iosCardWhite, 
-                BorderStyle = BorderStyle.None 
-            };
-            
-            TableLayoutPanel tlp = new TableLayoutPanel() { 
-                Dock = DockStyle.Fill, 
-                ColumnCount = 6, 
-                RowCount = 1, 
-                AutoSize = true, 
-                Padding = new Padding(10) 
-            };
-            
-            // 欄位比例設定：刪除 | 轉移 | 備註 | 內容(自動延展) | 標籤 | 編輯
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
+    /// <summary>
+    /// 自訂繪製 ListBox 項目 (iOS 儲存格風格)
+    /// </summary>
+    private void ListBoxTasks_DrawItem(object sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= taskList.Count) return;
 
-            // 1. 刪除按鈕
-            Button btnDel = CreateIconButton("✕", iosRed, Color.White);
-            btnDel.Click += (s, e) => { 
-                if (MessageBox.Show("確定移除此任務？", "確認", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK) {
-                    DeleteTask(t);
+        TodoItem item = taskList[e.Index];
+        bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+
+        // 設定背景色
+        Color bgColor = isSelected ? Color.FromArgb(235, 235, 240) : Color.White;
+        using (SolidBrush bgBrush = new SolidBrush(bgColor))
+        {
+            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+        }
+
+        // 繪製文字 (標題)
+        using (SolidBrush textBrush = new SolidBrush(Color.Black))
+        {
+            Rectangle textRect = new Rectangle(e.Bounds.X + 15, e.Bounds.Y + 10, e.Bounds.Width - 30, 20);
+            e.Graphics.DrawString(item.Content, MainFont, textBrush, textRect);
+        }
+
+        // 繪製文字 (日期)
+        using (SolidBrush dateBrush = new SolidBrush(Color.Gray))
+        {
+            Rectangle dateRect = new Rectangle(e.Bounds.X + 15, e.Bounds.Y + 35, e.Bounds.Width - 30, 20);
+            e.Graphics.DrawString($"建立於: {item.CreatedDate}", DateFont, dateBrush, dateRect);
+        }
+
+        // 繪製底部灰色分隔線 (iOS Style)
+        using (Pen linePen = new Pen(Color.FromArgb(230, 230, 230)))
+        {
+            e.Graphics.DrawLine(linePen, e.Bounds.X + 15, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+        }
+
+        e.DrawFocusRectangle();
+    }
+
+    // ==========================================
+    // 核心邏輯與非同步檔案處理 (Thread-Safety)
+    // ==========================================
+
+    /// <summary>
+    /// 非同步載入資料
+    /// </summary>
+    private async Task LoadDataAsync()
+    {
+        if (!File.Exists(dataFilePath)) return;
+
+        try
+        {
+            string[] lines = await Task.Run(() => File.ReadAllLines(dataFilePath));
+            List<TodoItem> loadedTasks = new List<TodoItem>();
+
+            foreach (var line in lines)
+            {
+                string[] parts = line.Split('|');
+                if (parts.Length >= 3)
+                {
+                    loadedTasks.Add(new TodoItem
+                    {
+                        Id = parts[0],
+                        Content = parts[1],
+                        CreatedDate = parts[2]
+                    });
                 }
-            };
+            }
 
-            // 2. 轉移按鈕 (轉待辦/轉待規)
-            Button btnTransfer = CreateIconButton(transferLabel, iosGreen, Color.White);
-            btnTransfer.Click += (s, e) => {
-                if (TargetList != null) {
-                    TargetList.AddTask(t.Name, t.ColorStr, t.Tag, t.Note);
-                    DeleteTask(t);
-                }
-            };
-
-            // 3. 備註按鈕 (有備註顯示黃色，無則為灰色)
-            bool hasNote = !string.IsNullOrWhiteSpace(t.Note);
-            Button btnNote = CreateIconButton("註", hasNote ? iosYellow : Color.FromArgb(230, 230, 235), hasNote ? Color.Black : iosGrayText);
-            btnNote.Click += (s, e) => {
-                // 若有實作獨立的備註編輯視窗可在此呼叫，此處直接整合至編輯視窗
-                new EditTodoTaskWindow(this, tasks.IndexOf(t), t).ShowDialog();
-            };
-
-            // 4. 任務文字 (支援拖曳)
-            Label lbl = new Label() { 
-                Text = t.Name, 
-                Dock = DockStyle.Fill, 
-                TextAlign = ContentAlignment.MiddleLeft, 
-                AutoSize = true, 
-                Font = MainFont, 
-                Padding = new Padding(10, 5, 0, 5),
-                Cursor = Cursors.SizeAll 
-            };
-            // 依據 ColorStr 設定文字顏色
-            try { lbl.ForeColor = Color.FromName(t.ColorStr); } catch { lbl.ForeColor = Color.Black; }
-            if (lbl.ForeColor.Name == "0" || lbl.ForeColor == Color.Transparent) lbl.ForeColor = Color.Black;
-
-            lbl.MouseDown += (sender, e) => {
-                if (e.Button == MouseButtons.Left) card.DoDragDrop(card, DragDropEffects.Move);
-            };
-
-            // 5. 標籤顯示
-            Label lblTag = new Label() {
-                Text = string.IsNullOrEmpty(t.Tag) ? "" : $"[{t.Tag}]",
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = iosAppleBlue,
-                Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold)
-            };
-
-            // 6. 編輯按鈕
-            Button btnEdit = CreateIconButton("修", iosAppleBlue, Color.White);
-            btnEdit.Click += (s, e) => {
-                new EditTodoTaskWindow(this, tasks.IndexOf(t), t).ShowDialog();
-            };
-
-            tlp.Controls.Add(btnDel, 0, 0);
-            tlp.Controls.Add(btnTransfer, 1, 0);
-            tlp.Controls.Add(btnNote, 2, 0);
-            tlp.Controls.Add(lbl, 3, 0);
-            tlp.Controls.Add(lblTag, 4, 0);
-            tlp.Controls.Add(btnEdit, 5, 0);
-
-            card.Controls.Add(tlp);
-            taskPanel.Controls.Add(card);
+            // 安全更新 UI
+            UpdateUIList(loadedTasks);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"讀取資料失敗: {ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
-    private Button CreateIconButton(string text, Color backColor, Color foreColor) {
-        Button btn = new Button() { 
-            Text = text, 
-            Dock = DockStyle.Fill, 
-            Height = 35, 
-            BackColor = backColor, 
-            ForeColor = foreColor, 
-            FlatStyle = FlatStyle.Flat, 
-            Cursor = Cursors.Hand, 
-            Margin = new Padding(2), 
-            Font = BoldFont 
+    /// <summary>
+    /// 非同步儲存資料
+    /// </summary>
+    private async Task SaveDataAsync()
+    {
+        try
+        {
+            List<string> lines = taskList.Select(t => t.ToString()).ToList();
+            await Task.Run(() => File.WriteAllLines(dataFilePath, lines));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"儲存資料失敗: {ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// 更新 UI 列表 (實作 InvokeRequired 確保 Thread-Safety)
+    /// </summary>
+    private void UpdateUIList(List<TodoItem> newTasks = null)
+    {
+        if (this.InvokeRequired)
+        {
+            this.Invoke(new Action(() => UpdateUIList(newTasks)));
+            return;
+        }
+
+        if (newTasks != null)
+        {
+            taskList = newTasks;
+        }
+
+        listBoxTasks.Items.Clear();
+        foreach (var task in taskList)
+        {
+            listBoxTasks.Items.Add(task); // 加入物件以配合 OwnerDrawFixed
+        }
+    }
+
+    /// <summary>
+    /// 新增任務
+    /// </summary>
+    private async Task AddTaskAsync()
+    {
+        string content = txtInput.Text.Trim();
+        if (string.IsNullOrEmpty(content)) return;
+
+        TodoItem newItem = new TodoItem
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Content = content,
+            CreatedDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") // 強制統一日期格式
         };
-        btn.FlatAppearance.BorderSize = 0;
-        return btn;
-    }
 
-    // --- 外部呼叫 API ---
-    public void AddTask(string name, string colorStr, string tag, string note) {
-        tasks.Add(new TodoTask() { Name = name, ColorStr = colorStr, Tag = tag, Note = note });
-        SaveTasks();
-        RefreshUI();
-    }
-
-    public void DeleteTask(TodoTask t) {
-        if (tasks.Contains(t)) {
-            tasks.Remove(t);
-            SaveTasks();
-            RefreshUI();
-        }
-    }
-
-    // --- 拖曳排序核心邏輯 ---
-    private void OnTaskDragOver(object sender, DragEventArgs e) {
-        e.Effect = DragDropEffects.Move;
-        Point clientPoint = taskPanel.PointToClient(new Point(e.X, e.Y));
-        Control target = taskPanel.GetChildAtPoint(clientPoint);
+        taskList.Add(newItem);
+        txtInput.Text = "";
         
-        if (target != null) {
-            int idx = taskPanel.Controls.GetChildIndex(target);
-            if (clientPoint.Y > target.Top + (target.Height / 2)) idx++;
-            if (dragInsertIndex != idx) { dragInsertIndex = idx; taskPanel.Invalidate(); }
-        }
+        UpdateUIList();
+        await SaveDataAsync();
     }
 
-    private void OnTaskContainerPaint(object sender, PaintEventArgs e) {
-        if (dragInsertIndex != -1 && taskPanel.Controls.Count > 0) {
-            int y = (dragInsertIndex < taskPanel.Controls.Count) ?
-                taskPanel.Controls[dragInsertIndex].Top - 2 : taskPanel.Controls[taskPanel.Controls.Count - 1].Bottom + 2;
-            e.Graphics.FillRectangle(new SolidBrush(iosAppleBlue), 5, y, taskPanel.Width - 30, 4); 
-        }
+    /// <summary>
+    /// 刪除選取任務
+    /// </summary>
+    private async Task DeleteSelectedTaskAsync()
+    {
+        int selectedIndex = listBoxTasks.SelectedIndex;
+        if (selectedIndex < 0 || selectedIndex >= taskList.Count) return;
+
+        taskList.RemoveAt(selectedIndex);
+        UpdateUIList();
+        await SaveDataAsync();
     }
 
-    private void OnTaskDragDrop(object sender, DragEventArgs e) {
-        Panel draggedCard = (Panel)e.Data.GetData(typeof(Panel));
-        if (draggedCard != null && dragInsertIndex != -1) {
-            int targetIdx = dragInsertIndex;
-            int currentIdx = taskPanel.Controls.GetChildIndex(draggedCard);
-            if (currentIdx < targetIdx) targetIdx--; 
+    /// <summary>
+    /// 跨清單轉移任務
+    /// </summary>
+    private async Task TransferSelectedTaskAsync()
+    {
+        int selectedIndex = listBoxTasks.SelectedIndex;
+        if (selectedIndex < 0 || selectedIndex >= taskList.Count) return;
+
+        if (TargetList != null)
+        {
+            TodoItem itemToTransfer = taskList[selectedIndex];
             
-            var item = tasks[currentIdx];
-            tasks.RemoveAt(currentIdx);
-            
-            int finalIdx = Math.Min(targetIdx, tasks.Count);
-            tasks.Insert(finalIdx, item);
+            // 呼叫目標清單的公開方法加入任務
+            await TargetList.ReceiveTaskAsync(itemToTransfer.Content, itemToTransfer.CreatedDate);
 
-            dragInsertIndex = -1; 
-            taskPanel.Invalidate(); 
-            SaveTasks(); 
-            RefreshUI(); 
+            // 從當前清單移除
+            taskList.RemoveAt(selectedIndex);
+            UpdateUIList();
+            await SaveDataAsync();
         }
     }
 
-    // --- 存檔與載入 ---
-    public void SaveTasks() {
-        List<string> lines = new List<string>();
-        foreach(var t in tasks) {
-            string safeNote = string.IsNullOrEmpty(t.Note) ? "" : Convert.ToBase64String(Encoding.UTF8.GetBytes(t.Note));
-            lines.Add($"{t.Name}|{t.ColorStr}|{t.Tag}|{safeNote}");
-        }
-        File.WriteAllLines(dataFile, lines);
-    }
-
-    public void LoadTasks() {
-        if(!File.Exists(dataFile)) return;
-        tasks.Clear();
-        foreach(var l in File.ReadAllLines(dataFile)) {
-            var p = l.Split('|');
-            if(p.Length >= 4) {
-                string note = "";
-                try { note = string.IsNullOrEmpty(p[3]) ? "" : Encoding.UTF8.GetString(Convert.FromBase64String(p[3])); } catch { note = p[3]; }
-                tasks.Add(new TodoTask() { Name = p[0], ColorStr = p[1], Tag = p[2], Note = note });
-            }
-        }
-        RefreshUI();
-    }
-}
-
-// ==========================================
-// 視窗：新增/編輯任務 (iOS 風格)
-// ==========================================
-public class EditTodoTaskWindow : Form {
-    private App_TodoList parent;
-    private int index;
-    private TextBox txtName, txtTag, txtNote;
-    private ComboBox cbColor;
-
-    public EditTodoTaskWindow(App_TodoList p, int idx, App_TodoList.TodoTask item) {
-        this.parent = p;
-        this.index = idx;
-        this.Text = idx == -1 ? "新增任務" : "編輯任務";
-        this.Width = 450; 
-        this.Height = 450;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.MaximizeBox = false; 
-        this.MinimizeBox = false;
-        this.BackColor = Color.White; 
-        this.AutoScaleMode = AutoScaleMode.Dpi; 
-        this.Font = new Font("Microsoft JhengHei UI", 10.5f);
-
-        FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(25) };
-        
-        // 名稱
-        f.Controls.Add(new Label() { Text = "任務名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5), ForeColor = Color.FromArgb(142, 142, 147) });
-        txtName = new TextBox() { Width = 380, Text = item?.Name ?? "", Margin = new Padding(0, 0, 0, 15), BorderStyle = BorderStyle.FixedSingle };
-        f.Controls.Add(txtName);
-
-        // 標籤與顏色區塊 (並排)
-        TableLayoutPanel row2 = new TableLayoutPanel() { Width = 380, Height = 60, ColumnCount = 2, Margin = new Padding(0, 0, 0, 15) };
-        row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-        row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-        
-        Panel pnlTag = new Panel() { Dock = DockStyle.Fill };
-        pnlTag.Controls.Add(new Label() { Text = "分類標籤：", AutoSize = true, ForeColor = Color.FromArgb(142, 142, 147), Location = new Point(0, 0) });
-        txtTag = new TextBox() { Width = 170, Text = item?.Tag ?? "", Location = new Point(0, 25), BorderStyle = BorderStyle.FixedSingle };
-        pnlTag.Controls.Add(txtTag);
-
-        Panel pnlColor = new Panel() { Dock = DockStyle.Fill };
-        pnlColor.Controls.Add(new Label() { Text = "文字顏色：", AutoSize = true, ForeColor = Color.FromArgb(142, 142, 147), Location = new Point(0, 0) });
-        cbColor = new ComboBox() { Width = 170, DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(0, 25) };
-        cbColor.Items.AddRange(new string[] { "Black", "Red", "Blue", "Green", "Orange", "Purple" });
-        cbColor.SelectedItem = string.IsNullOrEmpty(item?.ColorStr) ? "Black" : item.ColorStr;
-        pnlColor.Controls.Add(cbColor);
-
-        row2.Controls.Add(pnlTag, 0, 0);
-        row2.Controls.Add(pnlColor, 1, 0);
-        f.Controls.Add(row2);
-
-        // 備註
-        f.Controls.Add(new Label() { Text = "詳細備註：", AutoSize = true, Margin = new Padding(0, 0, 0, 5), ForeColor = Color.FromArgb(142, 142, 147) });
-        txtNote = new TextBox() { Width = 380, Height = 100, Multiline = true, ScrollBars = ScrollBars.Vertical, Text = item?.Note ?? "", Margin = new Padding(0, 0, 0, 20), BorderStyle = BorderStyle.FixedSingle };
-        f.Controls.Add(txtNote);
-
-        // 儲存按鈕
-        Button btnSave = new Button() { 
-            Text = "儲存任務", Width = 380, Height = 42, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold)
+    /// <summary>
+    /// 供外部清單呼叫，接收轉移過來的任務
+    /// </summary>
+    public async Task ReceiveTaskAsync(string content, string originalDate)
+    {
+        TodoItem newItem = new TodoItem
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Content = content,
+            CreatedDate = originalDate // 保留原始建立時間
         };
-        btnSave.FlatAppearance.BorderSize = 0;
-        btnSave.Click += (s, e) => {
-            if (string.IsNullOrWhiteSpace(txtName.Text)) {
-                MessageBox.Show("任務名稱不可為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            if (index == -1) {
-                parent.AddTask(txtName.Text, cbColor.Text, txtTag.Text, txtNote.Text);
-            } else {
-                parent.tasks[index].Name = txtName.Text;
-                parent.tasks[index].ColorStr = cbColor.Text;
-                parent.tasks[index].Tag = txtTag.Text;
-                parent.tasks[index].Note = txtNote.Text;
-                parent.SaveTasks();
-                parent.RefreshUI();
-            }
-            this.Close();
-        };
-        f.Controls.Add(btnSave);
-        this.Controls.Add(f);
+
+        taskList.Add(newItem);
+        UpdateUIList();
+        await SaveDataAsync();
     }
 }
