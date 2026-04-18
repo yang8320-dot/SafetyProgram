@@ -1,435 +1,403 @@
+// ============================================================
+// FILE: MiniProgram01/App_TodoList.cs 
+// ============================================================
 using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using System.Linq;
-using System.Threading;
+using System.Text;
 
 public class App_TodoList : UserControl {
-    private string activeFile;
-    private string addedLog;
-    private string doneLog;
-
-    public App_TodoList TargetList { get; set; }
-    private string moveBtnText;
-
-    private TextBox inputField;
-    private FlowLayoutPanel taskContainer;
-
-    // 將任務資料擴充，包含時間、顏色、以及「詳細說明 (Note)」
-    public class TaskInfo {
-        public DateTime Time;
-        public string Color;
-        public string Note;
-        public TaskInfo(DateTime t, string c, string n) { Time = t; Color = c; Note = n; }
-    }
-    private Dictionary<string, TaskInfo> taskData = new Dictionary<string, TaskInfo>();
+    private MainForm parentForm;
+    private string listType;
+    private string transferLabel;
+    private string dataFile;
     
-    private int dragInsertIndex = -1; 
-    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
-    private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
-    private MainForm mainForm;
+    // 用於雙向轉移的目標列表 (待辦 <-> 待規)
+    public App_TodoList TargetList { get; set; }
+    
+    private FlowLayoutPanel taskPanel;
+    private int dragInsertIndex = -1;
 
-    private readonly string[] colorCycle = { "Black", "Red", "DodgerBlue", "MediumOrchid", "DarkGreen", "DarkOrange" };
+    // --- iOS 風格色彩與字體定義 ---
+    private static Color iosBackground = Color.FromArgb(242, 242, 247);
+    private static Color iosCardWhite = Color.White;
+    private static Color iosAppleBlue = Color.FromArgb(0, 122, 255);
+    private static Color iosRed = Color.FromArgb(255, 59, 48);
+    private static Color iosGrayText = Color.FromArgb(142, 142, 147);
+    private static Color iosYellow = Color.FromArgb(255, 204, 0);
+    private static Color iosGreen = Color.FromArgb(52, 199, 89);
+    
+    private static Font MainFont = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular);
+    private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
 
-    public App_TodoList(MainForm parent, string filePrefix, string moveText) {
-        this.mainForm = parent; 
-        this.moveBtnText = moveText;
-        this.Dock = DockStyle.Fill; 
-        
-        activeFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filePrefix + "_active.txt");
-        addedLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filePrefix + "_history_added.txt");
-        doneLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filePrefix + "_history_completed.txt");
+    // --- 資料模型 ---
+    public class TodoTask {
+        public string Name { get; set; }
+        public string ColorStr { get; set; }
+        public string Tag { get; set; }
+        public string Note { get; set; }
+    }
 
-        this.BackColor = Color.FromArgb(245, 245, 247);
-        this.Padding = new Padding(10);
+    public List<TodoTask> tasks = new List<TodoTask>();
 
-        // 頂部輸入區
-        TableLayoutPanel top = new TableLayoutPanel();
-        top.Dock = DockStyle.Top;
-        top.Height = 40;
-        top.ColumnCount = 2;
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 75f)); 
+    public App_TodoList(MainForm mainForm, string listType, string transferLabel) {
+        this.parentForm = mainForm;
+        this.listType = listType;
+        this.transferLabel = transferLabel;
+        this.dataFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"todo_{listType}.txt");
 
-        inputField = new TextBox();
-        inputField.Dock = DockStyle.Fill;
-        inputField.Font = MainFont;
-        inputField.Margin = new Padding(0, 5, 5, 0);
-        inputField.KeyDown += new KeyEventHandler(InputField_KeyDown);
-        
-        Button btnAdd = new Button();
-        btnAdd.Text = "新增";
-        btnAdd.Dock = DockStyle.Fill;
-        btnAdd.FlatStyle = FlatStyle.Flat;
-        btnAdd.BackColor = AppleBlue;
-        btnAdd.ForeColor = Color.White;
-        btnAdd.Font = new Font(MainFont.FontFamily, 10f, FontStyle.Bold);
-        btnAdd.Margin = new Padding(0, 3, 0, 5);
-        btnAdd.Click += new EventHandler(BtnAdd_Click);
+        this.BackColor = iosBackground;
+        this.Padding = new Padding(15);
+        this.AutoScaleMode = AutoScaleMode.Dpi; // 核心：支援高 DPI 縮放
 
-        top.Controls.Add(inputField, 0, 0);
-        top.Controls.Add(btnAdd, 1, 0);
-
-        // 任務清單容器
-        taskContainer = new FlowLayoutPanel();
-        taskContainer.Dock = DockStyle.Fill;
-        taskContainer.AutoScroll = true;
-        taskContainer.FlowDirection = FlowDirection.TopDown;
-        taskContainer.WrapContents = false;
-        taskContainer.BackColor = Color.White;
-        taskContainer.AllowDrop = true;
-        
-        taskContainer.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
-        taskContainer.DragOver += OnTaskDragOver;
-        taskContainer.DragLeave += (s, e) => { dragInsertIndex = -1; taskContainer.Invalidate(); };
-        taskContainer.DragDrop += OnTaskDragDrop;
-        taskContainer.Paint += OnTaskContainerPaint;
-
-        taskContainer.Resize += (s, e) => {
-            int safeWidth = taskContainer.ClientSize.Width - 25; 
-            if (safeWidth > 0) {
-                foreach (Control c in taskContainer.Controls) {
-                    if (c is TableLayoutPanel) c.Width = safeWidth;
-                }
-            }
-        };
-
-        this.Controls.Add(top);
-        this.Controls.Add(taskContainer);
-        taskContainer.BringToFront(); 
-        
+        InitializeUI();
         LoadTasks();
     }
 
-    private void InputField_KeyDown(object sender, KeyEventArgs e) {
-        if (e.KeyCode == Keys.Enter) { 
-            e.SuppressKeyPress = true; 
-            AddTask(inputField.Text); 
-            inputField.Text = ""; 
+    private void InitializeUI() {
+        // --- 頂部標題與新增按鈕 ---
+        TableLayoutPanel header = new TableLayoutPanel() { 
+            Dock = DockStyle.Top, 
+            Height = 50, 
+            ColumnCount = 2 
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
+
+        string titleText = listType == "todo" ? "待辦事項" : "待規事項";
+        Label lblTitle = new Label() { 
+            Text = titleText, 
+            Font = new Font("Microsoft JhengHei UI", 14f, FontStyle.Bold), 
+            ForeColor = Color.FromArgb(28, 28, 30),
+            Dock = DockStyle.Fill, 
+            TextAlign = ContentAlignment.MiddleLeft, 
+            Padding = new Padding(5, 0, 0, 0) 
+        };
+        
+        Button btnAdd = new Button() { 
+            Text = "新增", 
+            Dock = DockStyle.Fill, 
+            FlatStyle = FlatStyle.Flat, 
+            Margin = new Padding(2, 8, 2, 8), 
+            Cursor = Cursors.Hand, 
+            BackColor = iosAppleBlue, 
+            ForeColor = Color.White,
+            Font = BoldFont
+        };
+        btnAdd.FlatAppearance.BorderSize = 0; 
+        btnAdd.Click += (s, e) => { new EditTodoTaskWindow(this, -1, null).ShowDialog(); };
+
+        header.Controls.Add(lblTitle, 0, 0);
+        header.Controls.Add(btnAdd, 1, 0);
+        this.Controls.Add(header);
+
+        // --- 任務卡片容器 (支援拖曳排序) ---
+        taskPanel = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, 
+            AutoScroll = true, 
+            FlowDirection = FlowDirection.TopDown, 
+            WrapContents = false, 
+            BackColor = iosBackground, 
+            AllowDrop = true,
+            Padding = new Padding(0, 10, 0, 0)
+        };
+        
+        taskPanel.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
+        taskPanel.DragOver += OnTaskDragOver;
+        taskPanel.DragLeave += (s, e) => { dragInsertIndex = -1; taskPanel.Invalidate(); };
+        taskPanel.DragDrop += OnTaskDragDrop;
+        taskPanel.Paint += OnTaskContainerPaint;
+        
+        taskPanel.Resize += (s, e) => {
+            int safeWidth = taskPanel.ClientSize.Width - 25;
+            if (safeWidth > 0) {
+                foreach (Control c in taskPanel.Controls) if (c is Panel) c.Width = safeWidth;
+            }
+        };
+
+        this.Controls.Add(taskPanel);
+        taskPanel.BringToFront();
+    }
+
+    public void RefreshUI() {
+        taskPanel.Controls.Clear();
+        int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 25 : 450;
+        
+        foreach (var t in tasks) {
+            // 卡片背景
+            Panel card = new Panel() { 
+                Width = startWidth, 
+                AutoSize = true, 
+                MinimumSize = new Size(0, 55), 
+                Margin = new Padding(5, 5, 5, 10), 
+                BackColor = iosCardWhite, 
+                BorderStyle = BorderStyle.None 
+            };
+            
+            TableLayoutPanel tlp = new TableLayoutPanel() { 
+                Dock = DockStyle.Fill, 
+                ColumnCount = 6, 
+                RowCount = 1, 
+                AutoSize = true, 
+                Padding = new Padding(10) 
+            };
+            
+            // 欄位比例設定：刪除 | 轉移 | 備註 | 內容(自動延展) | 標籤 | 編輯
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f)); 
+
+            // 1. 刪除按鈕
+            Button btnDel = CreateIconButton("✕", iosRed, Color.White);
+            btnDel.Click += (s, e) => { 
+                if (MessageBox.Show("確定移除此任務？", "確認", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK) {
+                    DeleteTask(t);
+                }
+            };
+
+            // 2. 轉移按鈕 (轉待辦/轉待規)
+            Button btnTransfer = CreateIconButton(transferLabel, iosGreen, Color.White);
+            btnTransfer.Click += (s, e) => {
+                if (TargetList != null) {
+                    TargetList.AddTask(t.Name, t.ColorStr, t.Tag, t.Note);
+                    DeleteTask(t);
+                }
+            };
+
+            // 3. 備註按鈕 (有備註顯示黃色，無則為灰色)
+            bool hasNote = !string.IsNullOrWhiteSpace(t.Note);
+            Button btnNote = CreateIconButton("註", hasNote ? iosYellow : Color.FromArgb(230, 230, 235), hasNote ? Color.Black : iosGrayText);
+            btnNote.Click += (s, e) => {
+                // 若有實作獨立的備註編輯視窗可在此呼叫，此處直接整合至編輯視窗
+                new EditTodoTaskWindow(this, tasks.IndexOf(t), t).ShowDialog();
+            };
+
+            // 4. 任務文字 (支援拖曳)
+            Label lbl = new Label() { 
+                Text = t.Name, 
+                Dock = DockStyle.Fill, 
+                TextAlign = ContentAlignment.MiddleLeft, 
+                AutoSize = true, 
+                Font = MainFont, 
+                Padding = new Padding(10, 5, 0, 5),
+                Cursor = Cursors.SizeAll 
+            };
+            // 依據 ColorStr 設定文字顏色
+            try { lbl.ForeColor = Color.FromName(t.ColorStr); } catch { lbl.ForeColor = Color.Black; }
+            if (lbl.ForeColor.Name == "0" || lbl.ForeColor == Color.Transparent) lbl.ForeColor = Color.Black;
+
+            lbl.MouseDown += (sender, e) => {
+                if (e.Button == MouseButtons.Left) card.DoDragDrop(card, DragDropEffects.Move);
+            };
+
+            // 5. 標籤顯示
+            Label lblTag = new Label() {
+                Text = string.IsNullOrEmpty(t.Tag) ? "" : $"[{t.Tag}]",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = iosAppleBlue,
+                Font = new Font("Microsoft JhengHei UI", 9f, FontStyle.Bold)
+            };
+
+            // 6. 編輯按鈕
+            Button btnEdit = CreateIconButton("修", iosAppleBlue, Color.White);
+            btnEdit.Click += (s, e) => {
+                new EditTodoTaskWindow(this, tasks.IndexOf(t), t).ShowDialog();
+            };
+
+            tlp.Controls.Add(btnDel, 0, 0);
+            tlp.Controls.Add(btnTransfer, 1, 0);
+            tlp.Controls.Add(btnNote, 2, 0);
+            tlp.Controls.Add(lbl, 3, 0);
+            tlp.Controls.Add(lblTag, 4, 0);
+            tlp.Controls.Add(btnEdit, 5, 0);
+
+            card.Controls.Add(tlp);
+            taskPanel.Controls.Add(card);
         }
     }
 
-    private void BtnAdd_Click(object sender, EventArgs e) {
-        AddTask(inputField.Text); 
-        inputField.Text = "";
+    private Button CreateIconButton(string text, Color backColor, Color foreColor) {
+        Button btn = new Button() { 
+            Text = text, 
+            Dock = DockStyle.Fill, 
+            Height = 35, 
+            BackColor = backColor, 
+            ForeColor = foreColor, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand, 
+            Margin = new Padding(2), 
+            Font = BoldFont 
+        };
+        btn.FlatAppearance.BorderSize = 0;
+        return btn;
     }
 
-    public void AddTask(string text, string colorName = "Black", string source = "手動", string note = "") {
-        text = text.Trim(); 
-        if (string.IsNullOrEmpty(text) || taskData.ContainsKey(text)) return;
-        
-        DateTime now = DateTime.Now;
-        taskData[text] = new TaskInfo(now, colorName, note);
-        
-        CreateTaskUI(text, colorName);
-        SafeAppendLog(addedLog, string.Format("[{0}] {1}: {2}\n", now.ToString("yyyy-MM-dd HH:mm"), source, text));
-        SaveActive();
+    // --- 外部呼叫 API ---
+    public void AddTask(string name, string colorStr, string tag, string note) {
+        tasks.Add(new TodoTask() { Name = name, ColorStr = colorStr, Tag = tag, Note = note });
+        SaveTasks();
+        RefreshUI();
     }
 
-    private void CreateTaskUI(string text, string textColorName) {
-        Color textColor = Color.FromName(textColorName);
-        int startWidth = taskContainer.ClientSize.Width > 50 ? taskContainer.ClientSize.Width - 25 : 450;
-
-        TableLayoutPanel item = new TableLayoutPanel();
-        item.Width = startWidth;
-        item.AutoSize = true;
-        item.Margin = new Padding(5, 3, 5, 8);
-        item.BackColor = Color.White;
-        item.ColumnCount = 6;
-        item.RowCount = 1;
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30f)); 
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 註
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f)); // 轉移
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 色
-        item.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); // 修
-        
-        CheckBox chk = new CheckBox();
-        chk.Dock = DockStyle.Fill;
-        chk.Cursor = Cursors.Hand;
-        chk.BackColor = Color.Transparent;
-        chk.ForeColor = textColor;
-        chk.Padding = new Padding(5, 5, 0, 0);
-        chk.CheckedChanged += (s, e) => {
-            if (chk.Checked) {
-                if (taskData.ContainsKey(text)) {
-                    SafeAppendLog(doneLog, string.Format("[完成:{0}] {1} (建立於:{2})\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text, taskData[text].Time.ToString("yyyy-MM-dd HH:mm")));
-                    taskData.Remove(text);
-                }
-                taskContainer.Controls.Remove(item);
-                SaveActive();
-            }
-        };
-
-        Label lbl = new Label();
-        lbl.Text = text;
-        lbl.Dock = DockStyle.Fill;
-        lbl.Font = MainFont;
-        lbl.ForeColor = textColor;
-        lbl.AutoSize = true;
-        lbl.Padding = new Padding(0, 5, 0, 5);
-        lbl.Cursor = Cursors.SizeAll;
-        lbl.BackColor = Color.Transparent;
-        lbl.TextAlign = ContentAlignment.MiddleLeft;
-
-        // ==========================================
-        // 【核心機制】：註解按鈕與變色邏輯
-        // ==========================================
-        Button btnNote = new Button();
-        btnNote.Text = "註";
-        btnNote.Dock = DockStyle.Fill;
-        btnNote.Height = 28;
-        btnNote.FlatStyle = FlatStyle.Flat;
-        btnNote.Cursor = Cursors.Hand;
-        btnNote.FlatAppearance.BorderSize = 0;
-        btnNote.Margin = new Padding(2);
-        btnNote.Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold);
-
-        // 定義一個變色方法，隨時檢查是否有文字
-        Action updateNoteStyle = () => {
-            if (taskData.ContainsKey(text)) {
-                if (!string.IsNullOrEmpty(taskData[text].Note)) {
-                    // ★ 有文字時：變成醒目的金黃色 ★
-                    btnNote.BackColor = Color.FromArgb(255, 193, 7); 
-                    btnNote.ForeColor = Color.Black;
-                } else {
-                    // ★ 沒文字時：保持低調淺灰色 ★
-                    btnNote.BackColor = Color.FromArgb(235, 235, 235); 
-                    btnNote.ForeColor = Color.FromName(taskData[text].Color); 
-                }
-            }
-        };
-        
-        // 建立 UI 時先檢查一次變色
-        updateNoteStyle();
-
-        btnNote.Click += (s, e) => {
-            string currentNote = taskData.ContainsKey(text) ? taskData[text].Note : "";
-            string newNote = ShowNoteEditBox(text, currentNote);
-            if (newNote != null && taskData.ContainsKey(text)) {
-                taskData[text].Note = newNote;
-                updateNoteStyle(); // 編輯完馬上刷新按鈕顏色！
-                SaveActive();
-            }
-        };
-
-        Button btnMove = new Button();
-        btnMove.Text = moveBtnText;
-        btnMove.Dock = DockStyle.Fill;
-        btnMove.Height = 28;
-        btnMove.FlatStyle = FlatStyle.Flat;
-        btnMove.BackColor = Color.FromArgb(235, 230, 255);
-        btnMove.ForeColor = textColor;
-        btnMove.Font = new Font(MainFont.FontFamily, 8.5f, FontStyle.Bold);
-        btnMove.Cursor = Cursors.Hand;
-        btnMove.FlatAppearance.BorderSize = 0;
-        btnMove.Margin = new Padding(2);
-
-        Button btnColor = new Button();
-        btnColor.Text = "色";
-        btnColor.Dock = DockStyle.Fill;
-        btnColor.Height = 28;
-        btnColor.FlatStyle = FlatStyle.Flat;
-        btnColor.BackColor = Color.FromArgb(211, 227, 253);
-        btnColor.ForeColor = textColor;
-        btnColor.Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold);
-        btnColor.Cursor = Cursors.Hand;
-        btnColor.FlatAppearance.BorderSize = 0;
-        btnColor.Margin = new Padding(2);
-
-        Button btnEdit = new Button();
-        btnEdit.Text = "修";
-        btnEdit.Dock = DockStyle.Fill;
-        btnEdit.Height = 28;
-        btnEdit.FlatStyle = FlatStyle.Flat;
-        btnEdit.BackColor = Color.FromArgb(255, 210, 210);
-        btnEdit.ForeColor = textColor;
-        btnEdit.Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold);
-        btnEdit.Cursor = Cursors.Hand;
-        btnEdit.FlatAppearance.BorderSize = 0;
-        btnEdit.Margin = new Padding(2);
-
-        btnMove.Click += (s, e) => {
-            if (TargetList != null) {
-                string currentColorName = taskData[text].Color;
-                string currentNote = taskData[text].Note;
-                TargetList.AddTask(text, currentColorName, "轉移寫入", currentNote); 
-                if (taskData.ContainsKey(text)) {
-                    SafeAppendLog(doneLog, string.Format("[轉出至{0}:{1}] {2}\n", moveBtnText.Replace("轉",""), DateTime.Now.ToString("yyyy-MM-dd HH:mm"), text));
-                    taskData.Remove(text);
-                }
-                taskContainer.Controls.Remove(item);
-                SaveActive();
-            }
-        };
-
-        btnColor.Click += (s, e) => {
-            string currentColorName = taskData[text].Color;
-            int nextIdx = (Array.IndexOf(colorCycle, currentColorName) + 1) % colorCycle.Length;
-            string nextColorName = colorCycle[nextIdx];
-            
-            taskData[text].Color = nextColorName;
-            Color newTextColor = Color.FromName(nextColorName);
-            
-            lbl.ForeColor = newTextColor;
-            chk.ForeColor = newTextColor;
-            btnEdit.ForeColor = newTextColor;
-            btnColor.ForeColor = newTextColor;
-            btnMove.ForeColor = newTextColor; 
-            updateNoteStyle();
-            
-            SaveActive();
-        };
-
-        Action triggerEdit = () => {
-            string oldText = lbl.Text;
-            string newText = ShowLargeEditBox(oldText); 
-            if (!string.IsNullOrEmpty(newText) && newText != oldText && !taskData.ContainsKey(newText)) {
-                taskData[newText] = taskData[oldText]; taskData.Remove(oldText);
-                lbl.Text = newText; text = newText; SaveActive();
-            }
-        };
-
-        lbl.MouseDoubleClick += (s, e) => triggerEdit();
-        btnEdit.Click += (s, e) => triggerEdit();
-        lbl.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) item.DoDragDrop(item, DragDropEffects.Move); };
-
-        item.Controls.Add(chk, 0, 0);
-        item.Controls.Add(lbl, 1, 0);
-        item.Controls.Add(btnNote, 2, 0);
-        item.Controls.Add(btnMove, 3, 0);
-        item.Controls.Add(btnColor, 4, 0);
-        item.Controls.Add(btnEdit, 5, 0);
-        
-        taskContainer.Controls.Add(item); 
-        taskContainer.Controls.SetChildIndex(item, 0);
-    }
-
-    private void SaveActive() {
-        ThreadPool.QueueUserWorkItem(_ => {
-            List<string> lines = new List<string>();
-            try {
-                this.Invoke(new Action(() => {
-                    foreach (Control ctrl in taskContainer.Controls) {
-                        if (ctrl is TableLayoutPanel p) {
-                            foreach (Control sub in p.Controls) {
-                                if (sub is Label lbl && taskData.ContainsKey(lbl.Text)) { 
-                                    TaskInfo info = taskData[lbl.Text];
-                                    string encodedNote = EncodeBase64(info.Note);
-                                    lines.Add(string.Format("{0}|{1}|{2}|{3}", lbl.Text, info.Time.ToString(), info.Color, encodedNote)); 
-                                    break; 
-                                }
-                            }
-                        }
-                    }
-                }));
-
-                for (int i = 0; i < 5; i++) {
-                    try { File.WriteAllLines(activeFile, lines); return; } 
-                    catch (IOException) { Thread.Sleep(150); }
-                }
-            } catch { }
-        });
-    }
-
-    private void SafeAppendLog(string path, string content) {
-        for (int i = 0; i < 5; i++) {
-            try { File.AppendAllText(path, content); break; }
-            catch (IOException) { Thread.Sleep(150); }
+    public void DeleteTask(TodoTask t) {
+        if (tasks.Contains(t)) {
+            tasks.Remove(t);
+            SaveTasks();
+            RefreshUI();
         }
     }
 
-    private void LoadTasks() {
-        if (!File.Exists(activeFile)) return;
-        try {
-            string[] lines = File.ReadAllLines(activeFile);
-            Array.Reverse(lines); 
-            foreach (string l in lines) {
-                string[] p = l.Split('|');
-                if (p.Length >= 2) { 
-                    string text = p[0];
-                    DateTime time = DateTime.Parse(p[1]);
-                    string color = p.Length >= 3 ? p[2] : "Black";
-                    string note = p.Length >= 4 ? DecodeBase64(p[3]) : "";
-                    
-                    taskData[text] = new TaskInfo(time, color, note);
-                    CreateTaskUI(text, color); 
-                }
-            }
-        } catch { }
-    }
-
+    // --- 拖曳排序核心邏輯 ---
     private void OnTaskDragOver(object sender, DragEventArgs e) {
         e.Effect = DragDropEffects.Move;
-        Point clientPoint = taskContainer.PointToClient(new Point(e.X, e.Y));
-        Control target = taskContainer.GetChildAtPoint(clientPoint);
+        Point clientPoint = taskPanel.PointToClient(new Point(e.X, e.Y));
+        Control target = taskPanel.GetChildAtPoint(clientPoint);
+        
         if (target != null) {
-            if (!(target is TableLayoutPanel)) target = target.Parent;
-            int idx = taskContainer.Controls.GetChildIndex(target);
+            int idx = taskPanel.Controls.GetChildIndex(target);
             if (clientPoint.Y > target.Top + (target.Height / 2)) idx++;
-            if (dragInsertIndex != idx) { dragInsertIndex = idx; taskContainer.Invalidate(); }
+            if (dragInsertIndex != idx) { dragInsertIndex = idx; taskPanel.Invalidate(); }
         }
     }
 
     private void OnTaskContainerPaint(object sender, PaintEventArgs e) {
-        if (dragInsertIndex != -1 && taskContainer.Controls.Count > 0) {
-            int y = (dragInsertIndex < taskContainer.Controls.Count) ? taskContainer.Controls[dragInsertIndex].Top - 2 : taskContainer.Controls[taskContainer.Controls.Count - 1].Bottom + 2;
-            e.Graphics.FillRectangle(new SolidBrush(AppleBlue), 5, y, taskContainer.Width - 30, 3);
+        if (dragInsertIndex != -1 && taskPanel.Controls.Count > 0) {
+            int y = (dragInsertIndex < taskPanel.Controls.Count) ?
+                taskPanel.Controls[dragInsertIndex].Top - 2 : taskPanel.Controls[taskPanel.Controls.Count - 1].Bottom + 2;
+            e.Graphics.FillRectangle(new SolidBrush(iosAppleBlue), 5, y, taskPanel.Width - 30, 4); 
         }
     }
 
     private void OnTaskDragDrop(object sender, DragEventArgs e) {
-        TableLayoutPanel draggedItem = (TableLayoutPanel)e.Data.GetData(typeof(TableLayoutPanel));
-        if (draggedItem != null && dragInsertIndex != -1) {
+        Panel draggedCard = (Panel)e.Data.GetData(typeof(Panel));
+        if (draggedCard != null && dragInsertIndex != -1) {
             int targetIdx = dragInsertIndex;
-            int currentIdx = taskContainer.Controls.GetChildIndex(draggedItem);
+            int currentIdx = taskPanel.Controls.GetChildIndex(draggedCard);
             if (currentIdx < targetIdx) targetIdx--; 
-            taskContainer.Controls.SetChildIndex(draggedItem, targetIdx);
-            dragInsertIndex = -1; taskContainer.Invalidate(); SaveActive();
+            
+            var item = tasks[currentIdx];
+            tasks.RemoveAt(currentIdx);
+            
+            int finalIdx = Math.Min(targetIdx, tasks.Count);
+            tasks.Insert(finalIdx, item);
+
+            dragInsertIndex = -1; 
+            taskPanel.Invalidate(); 
+            SaveTasks(); 
+            RefreshUI(); 
         }
     }
 
-    private string ShowLargeEditBox(string defaultValue) {
-        Form form = new Form() { Width = 450, Height = 250, Text = "滾動式編輯任務", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
-        Label lbl = new Label() { Text = "請修正任務內容：", Left = 15, Top = 15, AutoSize = true, Font = MainFont };
-        TextBox txt = new TextBox() { Left = 15, Top = 45, Width = 405, Height = 100, Multiline = true, WordWrap = true, ScrollBars = ScrollBars.Vertical, Font = MainFont, Text = defaultValue };
-        Button btnOk = new Button() { Text = "確認修改", Left = 320, Top = 165, Width = 100, Height = 35, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
-        
-        form.Controls.AddRange(new Control[] { lbl, txt, btnOk });
-        form.AcceptButton = btnOk;
-        txt.SelectionStart = txt.Text.Length; 
-        
-        if (form.ShowDialog() == DialogResult.OK) return txt.Text.Trim();
-        return "";
+    // --- 存檔與載入 ---
+    public void SaveTasks() {
+        List<string> lines = new List<string>();
+        foreach(var t in tasks) {
+            string safeNote = string.IsNullOrEmpty(t.Note) ? "" : Convert.ToBase64String(Encoding.UTF8.GetBytes(t.Note));
+            lines.Add($"{t.Name}|{t.ColorStr}|{t.Tag}|{safeNote}");
+        }
+        File.WriteAllLines(dataFile, lines);
     }
 
-    // 顯示詳細說明 (註) 的輸入視窗
-    private string ShowNoteEditBox(string taskName, string currentNote) {
-        Form form = new Form() { Width = 400, Height = 350, Text = "任務詳細說明 (註)", StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
-        
-        Label lbl = new Label() { Text = "【 " + taskName + " 】", Left = 15, Top = 15, Width = 350, Height = 45, Font = new Font(MainFont, FontStyle.Bold), ForeColor = AppleBlue };
-        TextBox txt = new TextBox() { Left = 15, Top = 65, Width = 350, Height = 180, Multiline = true, WordWrap = true, ScrollBars = ScrollBars.Vertical, Font = MainFont, Text = currentNote };
-        Button btnOk = new Button() { Text = "儲存說明", Left = 265, Top = 260, Width = 100, Height = 35, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White };
-        
-        form.Controls.AddRange(new Control[] { lbl, txt, btnOk });
-        form.AcceptButton = btnOk;
-        txt.SelectionStart = txt.Text.Length; 
-        
-        if (form.ShowDialog() == DialogResult.OK) return txt.Text.Trim();
-        return null;
+    public void LoadTasks() {
+        if(!File.Exists(dataFile)) return;
+        tasks.Clear();
+        foreach(var l in File.ReadAllLines(dataFile)) {
+            var p = l.Split('|');
+            if(p.Length >= 4) {
+                string note = "";
+                try { note = string.IsNullOrEmpty(p[3]) ? "" : Encoding.UTF8.GetString(Convert.FromBase64String(p[3])); } catch { note = p[3]; }
+                tasks.Add(new TodoTask() { Name = p[0], ColorStr = p[1], Tag = p[2], Note = note });
+            }
+        }
+        RefreshUI();
     }
+}
 
-    // 將多行文字進行安全的 Base64 編碼與解碼
-    private string EncodeBase64(string text) {
-        if (string.IsNullOrEmpty(text)) return "";
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text));
-    }
+// ==========================================
+// 視窗：新增/編輯任務 (iOS 風格)
+// ==========================================
+public class EditTodoTaskWindow : Form {
+    private App_TodoList parent;
+    private int index;
+    private TextBox txtName, txtTag, txtNote;
+    private ComboBox cbColor;
 
-    private string DecodeBase64(string base64) {
-        if (string.IsNullOrEmpty(base64)) return "";
-        try { return System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64)); }
-        catch { return base64; } 
+    public EditTodoTaskWindow(App_TodoList p, int idx, App_TodoList.TodoTask item) {
+        this.parent = p;
+        this.index = idx;
+        this.Text = idx == -1 ? "新增任務" : "編輯任務";
+        this.Width = 450; 
+        this.Height = 450;
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.FormBorderStyle = FormBorderStyle.FixedDialog;
+        this.MaximizeBox = false; 
+        this.MinimizeBox = false;
+        this.BackColor = Color.White; 
+        this.AutoScaleMode = AutoScaleMode.Dpi; 
+        this.Font = new Font("Microsoft JhengHei UI", 10.5f);
+
+        FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(25) };
+        
+        // 名稱
+        f.Controls.Add(new Label() { Text = "任務名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5), ForeColor = Color.FromArgb(142, 142, 147) });
+        txtName = new TextBox() { Width = 380, Text = item?.Name ?? "", Margin = new Padding(0, 0, 0, 15), BorderStyle = BorderStyle.FixedSingle };
+        f.Controls.Add(txtName);
+
+        // 標籤與顏色區塊 (並排)
+        TableLayoutPanel row2 = new TableLayoutPanel() { Width = 380, Height = 60, ColumnCount = 2, Margin = new Padding(0, 0, 0, 15) };
+        row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        
+        Panel pnlTag = new Panel() { Dock = DockStyle.Fill };
+        pnlTag.Controls.Add(new Label() { Text = "分類標籤：", AutoSize = true, ForeColor = Color.FromArgb(142, 142, 147), Location = new Point(0, 0) });
+        txtTag = new TextBox() { Width = 170, Text = item?.Tag ?? "", Location = new Point(0, 25), BorderStyle = BorderStyle.FixedSingle };
+        pnlTag.Controls.Add(txtTag);
+
+        Panel pnlColor = new Panel() { Dock = DockStyle.Fill };
+        pnlColor.Controls.Add(new Label() { Text = "文字顏色：", AutoSize = true, ForeColor = Color.FromArgb(142, 142, 147), Location = new Point(0, 0) });
+        cbColor = new ComboBox() { Width = 170, DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(0, 25) };
+        cbColor.Items.AddRange(new string[] { "Black", "Red", "Blue", "Green", "Orange", "Purple" });
+        cbColor.SelectedItem = string.IsNullOrEmpty(item?.ColorStr) ? "Black" : item.ColorStr;
+        pnlColor.Controls.Add(cbColor);
+
+        row2.Controls.Add(pnlTag, 0, 0);
+        row2.Controls.Add(pnlColor, 1, 0);
+        f.Controls.Add(row2);
+
+        // 備註
+        f.Controls.Add(new Label() { Text = "詳細備註：", AutoSize = true, Margin = new Padding(0, 0, 0, 5), ForeColor = Color.FromArgb(142, 142, 147) });
+        txtNote = new TextBox() { Width = 380, Height = 100, Multiline = true, ScrollBars = ScrollBars.Vertical, Text = item?.Note ?? "", Margin = new Padding(0, 0, 0, 20), BorderStyle = BorderStyle.FixedSingle };
+        f.Controls.Add(txtNote);
+
+        // 儲存按鈕
+        Button btnSave = new Button() { 
+            Text = "儲存任務", Width = 380, Height = 42, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold)
+        };
+        btnSave.FlatAppearance.BorderSize = 0;
+        btnSave.Click += (s, e) => {
+            if (string.IsNullOrWhiteSpace(txtName.Text)) {
+                MessageBox.Show("任務名稱不可為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (index == -1) {
+                parent.AddTask(txtName.Text, cbColor.Text, txtTag.Text, txtNote.Text);
+            } else {
+                parent.tasks[index].Name = txtName.Text;
+                parent.tasks[index].ColorStr = cbColor.Text;
+                parent.tasks[index].Tag = txtTag.Text;
+                parent.tasks[index].Note = txtNote.Text;
+                parent.SaveTasks();
+                parent.RefreshUI();
+            }
+            this.Close();
+        };
+        f.Controls.Add(btnSave);
+        this.Controls.Add(f);
     }
 }
