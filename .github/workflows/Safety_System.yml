@@ -1,7 +1,7 @@
 name: Safety_System
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 只有手動點擊 "Run workflow" 才會執行
 
 jobs:
   build:
