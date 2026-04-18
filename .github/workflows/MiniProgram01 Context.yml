@@ -1,9 +1,7 @@
 name: 打包 MiniProgram01 Context
 
 on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+  workflow_dispatch: # 核心修正：移除 push，改為全手動觸發
 
 jobs:
   build:
@@ -11,18 +9,17 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      [span_0](start_span)uses: actions/checkout@v4[span_0](end_span)
 
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        [span_1](start_span)python-version: '3.10'[span_1](end_span)
 
-    # 🟢 新增的除錯步驟：這會印出 GitHub 伺服器上實際看到的資料夾結構
     - name: Debug - List all folders
       run: |
         echo "=== 當前目錄下的所有資料夾 ==="
-        find . -type d -not -path "*/\.git/*"
+        find . -[span_2](start_span)type d -not -path "*/\.git/*"[span_2](end_span)
         echo "==============================="
 
     - name: Create and Run Context Generator
@@ -31,55 +28,54 @@ jobs:
         import os
 
         # 目標資料夾路徑
-        TARGET_DIR = './MiniProgram01'
+        [span_3](start_span)TARGET_DIR = './MiniProgram01'[span_3](end_span)
         
-        valid_extensions = ('.cs', '.csproj', '.config', '.md', '.txt')
-        exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}
+        [span_4](start_span)valid_extensions = ('.cs', '.csproj', '.config', '.md', '.txt')[span_4](end_span)
+        [span_5](start_span)exclude_dirs = {'bin', 'obj', '.git', '.vs', 'packages', 'TestResults'}[span_5](end_span)
 
         if not os.path.exists(TARGET_DIR):
-            print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")
-            print("請往上看 'Debug - List all folders' 步驟的輸出，確認正確的路徑名稱。")
+            [span_6](start_span)print(f"錯誤：找不到 {TARGET_DIR} 資料夾！")[span_6](end_span)
+            [span_7](start_span)print("請往上看 'Debug - List all folders' 步驟的輸出，確認正確的路徑名稱。")[span_7](end_span)
             exit(1)
 
         file_paths = []
         full_content = []
 
         for root, dirs, files in os.walk(TARGET_DIR):
-            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            [span_8](start_span)dirs[:] = [d for d in dirs if d not in exclude_dirs][span_8](end_span)
             for file in files:
-                if file.lower().endswith(valid_extensions):
-                    if file in ['0_project_tree.txt', 'project_context_all.txt']: continue
+                [span_9](start_span)if file.lower().endswith(valid_extensions):[span_9](end_span)
+                    [span_10](start_span)if file in ['0_project_tree.txt', 'project_context_all.txt']: continue[span_10](end_span)
                     file_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(file_path, '.')
-                    file_paths.append(rel_path)
+                    [span_11](start_span)rel_path = os.path.relpath(file_path, '.')[span_11](end_span)
+                    [span_12](start_span)file_paths.append(rel_path)[span_12](end_span)
                     try:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as code_f:
-                            content = code_f.read()
+                            [span_13](start_span)content = code_f.read()[span_13](end_span)
                     except Exception as e:
-                        content = f"// 無法讀取此檔案: {e}\n"
-                    header = f"\n{'='*60}\n/// FILE: {rel_path} ///\n{'='*60}\n\n"
-                    full_content.append(header + content + "\n")
+                        [span_14](start_span)content = f"// 無法讀取此檔案: {e}\n"[span_14](end_span)
+                    [span_15](start_span)header = f"\n{'='*60}\n/// FILE: {rel_path} ///\n{'='*60}\n\n"[span_15](end_span)
+                    [span_16](start_span)full_content.append(header + content + "\n")[span_16](end_span)
 
         with open('0_project_tree.txt', 'w', encoding='utf-8') as f_tree:
-            f_tree.write(f"# C# 專案檔案總覽 (總計 {len(file_paths)} 個檔案)\n\n")
+            [span_17](start_span)f_tree.write(f"# C# 專案檔案總覽 (總計 {len(file_paths)} 個檔案)\n\n")[span_17](end_span)
             for path in sorted(file_paths):
-                f_tree.write(f"- {path}\n")
+                [span_18](start_span)f_tree.write(f"- {path}\n")[span_18](end_span)
 
         with open('project_context_all.txt', 'w', encoding='utf-8') as f_all:
-            f_all.write(f"# C# 專案完整代碼總覽\n")
-            f_all.write("".join(full_content))
+            [span_19](start_span)f_all.write(f"# C# 專案完整代碼總覽\n")[span_19](end_span)
+            [span_20](start_span)f_all.write("".join(full_content))[span_20](end_span)
 
-        print(f"成功生成目錄與完整內容，共計 {len(file_paths)} 個檔案。")
+        [span_21](start_span)print(f"成功生成目錄與完整內容，共計 {len(file_paths)} 個檔案。")[span_21](end_span)
         EOF
-        python generate_context.py
+        [span_22](start_span)python generate_context.py[span_22](end_span)
 
     - name: Upload Context Artifacts
-      # 只有在前面的步驟都成功時才執行上傳
       if: success() 
       uses: actions/upload-artifact@v4
       with:
         name: MiniProgram01-Code-Context
         path: |
           0_project_tree.txt
-          project_context_all.txt
-        retention-days: 7
+          [span_23](start_span)project_context_all.txt[span_23](end_span)
+        [span_24](start_span)retention-days: 7[span_24](end_span)
