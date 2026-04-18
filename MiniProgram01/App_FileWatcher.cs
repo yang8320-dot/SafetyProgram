@@ -242,11 +242,11 @@ public class App_FileWatcher : UserControl
                 Directory.CreateDirectory(Path.GetDirectoryName(targetFile));
                 File.Copy(e.FullPath, targetFile, true);
                 
-                // 觸發主視窗閃爍警報 (呼叫時必須透過 Invoke 確保 Thread-Safety)
-                if (parentForm != null && parentForm.InvokeRequired == false)
+                // 觸發主視窗閃爍警報 (0 代表「檔案監控」在主視窗分頁中的索引位置)
+                // MainForm.AddAlertTab 內部已實作 Thread-Safety，可由背景執行緒直接安全呼叫
+                if (parentForm != null)
                 {
-                    // 此處假設 FileWatcher 在 TabControl 中的 Index，實務上可透過事件委派傳遞
-                    parentForm.Invoke(new Action(() => parentForm.AddAlertTab(0))); 
+                    parentForm.AddAlertTab(0); 
                 }
             }
             catch { /* 檔案可能被鎖定，等待下一次觸發 */ }
