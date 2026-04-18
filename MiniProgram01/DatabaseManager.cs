@@ -1,8 +1,7 @@
 /*
- * 檔案功能：SQLite 資料庫全域管理器 (負責連線與初始化資料表)
- * 對應選單名稱：全域共用
+ * 檔案功能：SQLite 資料庫全域管理器 (最終完整版)
  * 對應資料庫名稱：MainDB.sqlite
- * 資料表名稱：TodoList, Shortcuts
+ * 資料表：TodoList, Shortcuts, FileWatcher, RecurringTasks, GlobalSettings
  */
 
 using System;
@@ -25,27 +24,20 @@ public static class DatabaseManager
         {
             conn.Open();
             
-            // 1. 建立 TodoList 資料表 (待辦事項)
-            string createTodoTable = @"
-                CREATE TABLE IF NOT EXISTS TodoList (
-                    Id TEXT PRIMARY KEY,
-                    ListName TEXT NOT NULL,
-                    Content TEXT NOT NULL,
-                    CreatedDate TEXT NOT NULL
-                )";
-            using (var cmd = new SQLiteCommand(createTodoTable, conn)) { cmd.ExecuteNonQuery(); }
+            // 1. 待辦事項 (TodoList)
+            using (var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS TodoList (Id TEXT PRIMARY KEY, ListName TEXT NOT NULL, Content TEXT NOT NULL, CreatedDate TEXT NOT NULL)", conn)) { cmd.ExecuteNonQuery(); }
 
-            // 2. 建立 Shortcuts 資料表 (常用捷徑) - 新增 SortOrder 負責記憶拖曳排序
-            string createShortcutsTable = @"
-                CREATE TABLE IF NOT EXISTS Shortcuts (
-                    Id TEXT PRIMARY KEY,
-                    Name TEXT NOT NULL,
-                    TargetPath TEXT NOT NULL,
-                    SortOrder INTEGER NOT NULL
-                )";
-            using (var cmd = new SQLiteCommand(createShortcutsTable, conn)) { cmd.ExecuteNonQuery(); }
+            // 2. 常用捷徑 (Shortcuts)
+            using (var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS Shortcuts (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, TargetPath TEXT NOT NULL, SortOrder INTEGER NOT NULL)", conn)) { cmd.ExecuteNonQuery(); }
 
-            // (未來會在此處繼續加入 FileWatcher, RecurringTasks 等資料表)
+            // 3. 檔案監控 (FileWatcher)
+            using (var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS FileWatcher (SourcePath TEXT PRIMARY KEY, TargetPath TEXT NOT NULL, SyncMethod TEXT, Frequency TEXT, Depth TEXT, SyncMode TEXT, Retention TEXT, CustomName TEXT)", conn)) { cmd.ExecuteNonQuery(); }
+
+            // 4. 週期任務 (RecurringTasks)
+            using (var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS RecurringTasks (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, MonthStr TEXT, DateStr TEXT, TimeStr TEXT, LastTriggeredDate TEXT, Note TEXT, TaskType TEXT)", conn)) { cmd.ExecuteNonQuery(); }
+
+            // 5. 全域設定 (GlobalSettings - 供週期任務等全域變數使用)
+            using (var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS GlobalSettings (SettingKey TEXT PRIMARY KEY, SettingValue TEXT)", conn)) { cmd.ExecuteNonQuery(); }
         }
     }
 
