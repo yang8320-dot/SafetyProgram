@@ -1,3 +1,6 @@
+// ============================================================
+// FILE: MiniProgram01/App_Shortcuts.cs 
+// ============================================================
 using System;
 using System.IO;
 using System.Collections.Generic;
@@ -11,9 +14,16 @@ public class App_Shortcuts : UserControl {
     private FlowLayoutPanel taskPanel;
 
     // 拖曳排序相關變數
-    private int dragInsertIndex = -1; 
-    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
-    private static Font MainFont = new Font("Microsoft JhengHei UI", 10f);
+    private int dragInsertIndex = -1;
+    
+    // --- iOS 風格色彩與字體定義 ---
+    private static Color iosBackground = Color.FromArgb(242, 242, 247);
+    private static Color iosCardWhite = Color.White;
+    private static Color iosAppleBlue = Color.FromArgb(0, 122, 255);
+    private static Color iosGreen = Color.FromArgb(52, 199, 89);
+    private static Color iosRed = Color.FromArgb(255, 59, 48);
+    private static Font MainFont = new Font("Microsoft JhengHei UI", 10.5f, FontStyle.Regular);
+    private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
 
     public class ShortcutItem {
         public string Name { get; set; }
@@ -23,16 +33,37 @@ public class App_Shortcuts : UserControl {
 
     public App_Shortcuts(MainForm mainForm) {
         this.parentForm = mainForm;
-        this.BackColor = Color.FromArgb(245, 245, 247);
-        this.Padding = new Padding(10); 
+        this.BackColor = iosBackground; 
+        this.Padding = new Padding(15); 
+        this.AutoScaleMode = AutoScaleMode.Dpi; // 核心：支援高 DPI 縮放
 
-        TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 2 };
+        TableLayoutPanel header = new TableLayoutPanel() { 
+            Dock = DockStyle.Top, 
+            Height = 50, 
+            ColumnCount = 2 
+        };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
 
-        Label lblTitle = new Label() { Text = "常用捷徑", Font = new Font(MainFont, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5, 0, 0, 0) };
+        Label lblTitle = new Label() { 
+            Text = "常用捷徑", 
+            Font = new Font("Microsoft JhengHei UI", 14f, FontStyle.Bold), 
+            ForeColor = Color.FromArgb(28, 28, 30),
+            Dock = DockStyle.Fill, 
+            TextAlign = ContentAlignment.MiddleLeft, 
+            Padding = new Padding(5, 0, 0, 0) 
+        };
         
-        Button btnAdd = new Button() { Text = "新增", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(2, 6, 2, 8), Cursor = Cursors.Hand, BackColor = AppleBlue, ForeColor = Color.White };
+        Button btnAdd = new Button() { 
+            Text = "新增", 
+            Dock = DockStyle.Fill, 
+            FlatStyle = FlatStyle.Flat, 
+            Margin = new Padding(2, 8, 2, 8), 
+            Cursor = Cursors.Hand, 
+            BackColor = iosAppleBlue, 
+            ForeColor = Color.White,
+            Font = BoldFont
+        };
         btnAdd.FlatAppearance.BorderSize = 0; 
         btnAdd.Click += (s, e) => { new EditShortcutWindow(this, -1, null).ShowDialog(); };
 
@@ -46,17 +77,18 @@ public class App_Shortcuts : UserControl {
             AutoScroll = true, 
             FlowDirection = FlowDirection.TopDown, 
             WrapContents = false, 
-            BackColor = Color.White,
-            AllowDrop = true 
+            BackColor = iosBackground, 
+            AllowDrop = true,
+            Padding = new Padding(0, 10, 0, 0)
         };
-
+        
         // 綁定拖曳相關事件
         taskPanel.DragEnter += (s, e) => e.Effect = DragDropEffects.Move;
         taskPanel.DragOver += OnTaskDragOver;
         taskPanel.DragLeave += (s, e) => { dragInsertIndex = -1; taskPanel.Invalidate(); };
         taskPanel.DragDrop += OnTaskDragDrop;
         taskPanel.Paint += OnTaskContainerPaint;
-
+        
         taskPanel.Resize += (s, e) => {
             int safeWidth = taskPanel.ClientSize.Width - 25;
             if (safeWidth > 0) {
@@ -73,28 +105,41 @@ public class App_Shortcuts : UserControl {
     public void RefreshUI() {
         taskPanel.Controls.Clear();
         int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 25 : 450;
-
+        
         foreach (var s in shortcuts) {
             Panel card = new Panel() { 
                 Width = startWidth, 
                 AutoSize = true, 
-                MinimumSize = new Size(0, 48), 
-                Margin = new Padding(5, 5, 5, 8), 
-                BackColor = Color.FromArgb(248, 248, 250),
+                MinimumSize = new Size(0, 55), 
+                Margin = new Padding(5, 5, 5, 10), 
+                BackColor = iosCardWhite, 
                 BorderStyle = BorderStyle.None 
             };
-
+            
             TableLayoutPanel tlp = new TableLayoutPanel() { 
-                Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, AutoSize = true, 
-                Padding = new Padding(8) 
+                Dock = DockStyle.Fill, 
+                ColumnCount = 4, 
+                RowCount = 1, 
+                AutoSize = true, 
+                Padding = new Padding(10) 
             };
             
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45f)); 
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45f)); 
 
-            Button btnOpen = new Button() { Text = "開啟", Dock = DockStyle.Top, Height = 28, BackColor = Color.FromArgb(0, 153, 76), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 5, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
+            Button btnOpen = new Button() { 
+                Text = "開啟", 
+                Dock = DockStyle.Fill, 
+                Height = 35, 
+                BackColor = iosGreen, 
+                ForeColor = Color.White, 
+                FlatStyle = FlatStyle.Flat, 
+                Cursor = Cursors.Hand, 
+                Margin = new Padding(0, 0, 5, 0), 
+                Font = BoldFont 
+            };
             btnOpen.FlatAppearance.BorderSize = 0; 
             btnOpen.Click += (sender, e) => {
                 try { 
@@ -104,10 +149,20 @@ public class App_Shortcuts : UserControl {
                 catch { MessageBox.Show("無法開啟此捷徑，請檢查路徑或檔案是否存在！", "開啟失敗", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
 
-            Button btnDel = new Button() { Text = "✕", Dock = DockStyle.Top, Height = 28, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 5, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
+            Button btnDel = new Button() { 
+                Text = "✕", 
+                Dock = DockStyle.Fill, 
+                Height = 35, 
+                BackColor = iosRed, 
+                ForeColor = Color.White, 
+                FlatStyle = FlatStyle.Flat, 
+                Cursor = Cursors.Hand, 
+                Margin = new Padding(0, 0, 5, 0), 
+                Font = BoldFont 
+            };
             btnDel.FlatAppearance.BorderSize = 0; 
             btnDel.Click += (sender, e) => { 
-                if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) {
+                if (MessageBox.Show("確定移除？", "確認", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK) {
                     shortcuts.Remove(s);
                     SaveShortcuts();
                     RefreshUI();
@@ -121,14 +176,24 @@ public class App_Shortcuts : UserControl {
                 TextAlign = ContentAlignment.MiddleLeft, 
                 AutoSize = true, 
                 Font = MainFont, 
-                Padding = new Padding(5, 5, 0, 5),
-                Cursor = Cursors.SizeAll // 讓使用者知道可以拖曳
+                Padding = new Padding(10, 5, 0, 5),
+                Cursor = Cursors.SizeAll 
             };
             lbl.MouseDown += (sender, e) => {
                 if (e.Button == MouseButtons.Left) card.DoDragDrop(card, DragDropEffects.Move);
             };
 
-            Button btnEdit = new Button() { Text = "修", Dock = DockStyle.Top, Height = 28, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(5, 0, 0, 0), Font = new Font(MainFont.FontFamily, 9f, FontStyle.Bold) };
+            Button btnEdit = new Button() { 
+                Text = "修", 
+                Dock = DockStyle.Fill, 
+                Height = 35, 
+                BackColor = iosAppleBlue, 
+                ForeColor = Color.White, 
+                FlatStyle = FlatStyle.Flat, 
+                Cursor = Cursors.Hand, 
+                Margin = new Padding(5, 0, 0, 0), 
+                Font = BoldFont 
+            };
             btnEdit.FlatAppearance.BorderSize = 0; 
             btnEdit.Click += (sender, e) => {
                 int idx = shortcuts.IndexOf(s);
@@ -151,6 +216,7 @@ public class App_Shortcuts : UserControl {
         e.Effect = DragDropEffects.Move;
         Point clientPoint = taskPanel.PointToClient(new Point(e.X, e.Y));
         Control target = taskPanel.GetChildAtPoint(clientPoint);
+        
         if (target != null) {
             int idx = taskPanel.Controls.GetChildIndex(target);
             if (clientPoint.Y > target.Top + (target.Height / 2)) idx++;
@@ -160,9 +226,9 @@ public class App_Shortcuts : UserControl {
 
     private void OnTaskContainerPaint(object sender, PaintEventArgs e) {
         if (dragInsertIndex != -1 && taskPanel.Controls.Count > 0) {
-            // 繪製藍色分隔線
-            int y = (dragInsertIndex < taskPanel.Controls.Count) ? taskPanel.Controls[dragInsertIndex].Top - 2 : taskPanel.Controls[taskPanel.Controls.Count - 1].Bottom + 2;
-            e.Graphics.FillRectangle(new SolidBrush(AppleBlue), 5, y, taskPanel.Width - 30, 3);
+            int y = (dragInsertIndex < taskPanel.Controls.Count) ?
+                taskPanel.Controls[dragInsertIndex].Top - 2 : taskPanel.Controls[taskPanel.Controls.Count - 1].Bottom + 2;
+            e.Graphics.FillRectangle(new SolidBrush(iosAppleBlue), 5, y, taskPanel.Width - 30, 4); 
         }
     }
 
@@ -173,17 +239,16 @@ public class App_Shortcuts : UserControl {
             int currentIdx = taskPanel.Controls.GetChildIndex(draggedCard);
             if (currentIdx < targetIdx) targetIdx--; 
             
-            // 同步記憶體內的 List 順序
             var item = shortcuts[currentIdx];
             shortcuts.RemoveAt(currentIdx);
-            // 確保 targetIdx 沒越界
+            
             int finalIdx = Math.Min(targetIdx, shortcuts.Count);
             shortcuts.Insert(finalIdx, item);
 
             dragInsertIndex = -1; 
             taskPanel.Invalidate(); 
-            SaveShortcuts(); // 儲存新順序
-            RefreshUI();    // 重新整理介面
+            SaveShortcuts(); 
+            RefreshUI(); 
         }
     }
 
@@ -224,39 +289,83 @@ public class EditShortcutWindow : Form {
     private TextBox txtName, txtPath;
 
     public EditShortcutWindow(App_Shortcuts p, int idx, App_Shortcuts.ShortcutItem item) {
-        this.parent = p; this.index = idx;
+        this.parent = p;
+        this.index = idx;
         this.Text = idx == -1 ? "新增捷徑" : "編輯捷徑";
-        this.Width = 400; this.Height = 250; this.StartPosition = FormStartPosition.CenterScreen;
+        this.Width = 450; 
+        this.Height = 280;
+        this.StartPosition = FormStartPosition.CenterScreen;
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.MaximizeBox = false; this.MinimizeBox = false;
+        this.MaximizeBox = false; 
+        this.MinimizeBox = false;
+        this.BackColor = Color.White; 
+        this.AutoScaleMode = AutoScaleMode.Dpi; 
+        this.Font = new Font("Microsoft JhengHei UI", 10.5f);
 
-        FlowLayoutPanel f = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(20) };
+        FlowLayoutPanel f = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, 
+            FlowDirection = FlowDirection.TopDown, 
+            Padding = new Padding(25) 
+        };
         
-        f.Controls.Add(new Label() { Text = "捷徑名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
-        txtName = new TextBox() { Width = 340, Text = item?.Name ?? "", Margin = new Padding(0, 0, 0, 15) };
+        f.Controls.Add(new Label() { Text = "捷徑名稱：", AutoSize = true, Margin = new Padding(0, 0, 0, 5), ForeColor = Color.FromArgb(142, 142, 147) });
+        txtName = new TextBox() { 
+            Width = 380, 
+            Text = item?.Name ?? "", 
+            Margin = new Padding(0, 0, 0, 20),
+            BorderStyle = BorderStyle.FixedSingle
+        };
         f.Controls.Add(txtName);
-
-        f.Controls.Add(new Label() { Text = "目標路徑 (檔案 / 資料夾 / 網址)：", AutoSize = true, Margin = new Padding(0, 0, 0, 5) });
         
-        TableLayoutPanel pathRow = new TableLayoutPanel() { Width = 340, Height = 35, ColumnCount = 2, Margin = new Padding(0, 0, 0, 15) };
+        f.Controls.Add(new Label() { Text = "目標路徑 (檔案 / 資料夾 / 網址)：", AutoSize = true, Margin = new Padding(0, 0, 0, 5), ForeColor = Color.FromArgb(142, 142, 147) });
+        
+        TableLayoutPanel pathRow = new TableLayoutPanel() { 
+            Width = 380, 
+            Height = 38, 
+            ColumnCount = 2, 
+            Margin = new Padding(0, 0, 0, 20) 
+        };
         pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60f));
+        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));
         
-        txtPath = new TextBox() { Dock = DockStyle.Fill, Text = item?.Path ?? "" };
-        Button btnBrowse = new Button() { Text = "瀏覽", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        txtPath = new TextBox() { 
+            Dock = DockStyle.Fill, 
+            Text = item?.Path ?? "",
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        
+        Button btnBrowse = new Button() { 
+            Text = "瀏覽", 
+            Dock = DockStyle.Fill, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand,
+            BackColor = Color.FromArgb(242, 242, 247), 
+            FlatAppearance = { BorderSize = 0 }
+        };
         btnBrowse.Click += (s, e) => {
             OpenFileDialog ofd = new OpenFileDialog() { Title = "選擇捷徑目標檔案" };
             if (ofd.ShowDialog() == DialogResult.OK) { txtPath.Text = ofd.FileName; }
         };
+        
         pathRow.Controls.Add(txtPath, 0, 0);
         pathRow.Controls.Add(btnBrowse, 1, 0);
         f.Controls.Add(pathRow);
 
-        Button btnSave = new Button() { Text = "儲存設定", Width = 340, Height = 35, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        Button btnSave = new Button() { 
+            Text = "儲存設定", 
+            Width = 380, 
+            Height = 42, 
+            BackColor = Color.FromArgb(0, 122, 255), 
+            ForeColor = Color.White, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand,
+            Font = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold)
+        };
         btnSave.FlatAppearance.BorderSize = 0;
         btnSave.Click += (s, e) => {
             if (string.IsNullOrWhiteSpace(txtName.Text) || string.IsNullOrWhiteSpace(txtPath.Text)) {
-                MessageBox.Show("名稱與路徑不可為空！"); return;
+                MessageBox.Show("名稱與路徑不可為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
             if (index == -1) {
                 parent.shortcuts.Add(new App_Shortcuts.ShortcutItem() { Name = txtName.Text, Path = txtPath.Text });
@@ -269,7 +378,6 @@ public class EditShortcutWindow : Form {
             this.Close();
         };
         f.Controls.Add(btnSave);
-
         this.Controls.Add(f);
     }
 }
