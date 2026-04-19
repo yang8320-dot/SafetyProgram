@@ -1,7 +1,7 @@
-name: MiniProgram01-Build
+name: MyTool-Manual-Build
 
 on:
-  workflow_dispatch: # 手動觸發按鈕
+  workflow_dispatch: # 全手動觸發，GitHub 網頁 Actions 頁面會出現「Run workflow」按鈕
 
 jobs:
   build:
@@ -11,21 +11,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 設定 .NET 環境以執行 dotnet publish
+      # 設定 .NET 8.0 環境
       - name: Setup .NET 8.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
       - name: Compile and Bundle SQLite
-        # 核心修正：進入 MiniProgram01 目錄並使用 MyTool.csproj 進行打包
+        # 修正後的指令：
+        # 1. 進入專案目錄 MiniProgram01
+        # 2. 使用 MyTool.csproj 發佈
+        # 3. 增加 IncludeNativeLibrariesForSelfExtract 確保 SQLite DLL 被正確打包
         run: |
           cd MiniProgram01
-          dotnet publish MyTool.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ../PublishOutput
+          dotnet publish MyTool.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ../PublishOutput
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: MyTool-Portable-App
-          # 上傳編譯後產出的 MyTool.exe
+          # 上傳編譯後產出的 MyTool.exe (位於根目錄下的 PublishOutput)
           path: PublishOutput/MyTool.exe
