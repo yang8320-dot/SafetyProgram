@@ -1,6 +1,6 @@
 /*
- * 檔案功能：系統主視窗框架 (整合 iOS 風格導覽列、系統列常駐、與全域快捷鍵設定)
- * 包含模組：系統選單、全域熱鍵註冊 (Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+9)
+ * 檔案功能：系統主視窗框架 (最終完整版)
+ * 包含模組：iOS 風格導覽、系統列常駐、全域快捷鍵設定、開機自動啟動註冊
  */
 
 using System;
@@ -10,6 +10,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.Win32; // 新增：用於操作 Windows 登錄檔 (開機啟動)
 
 public class MainForm : Form
 {
@@ -53,7 +54,7 @@ public class MainForm : Form
         this.BackColor = AppleBgColor;
         this.Font = MainFont;
 
-        // 2. 建立系統列 (Tray)
+        // 2. 建立系統列 (Tray) 與開機啟動選單
         InitializeTrayIcon();
 
         // 3. 建立 UI 架構 (左側導覽、右側內容)
@@ -160,7 +161,7 @@ public class MainForm : Form
         };
 
         navBar.Controls.Add(btn);
-        btn.BringToFront(); // 確保按鈕順序由上而下
+        btn.BringToFront(); 
     }
 
     // ==========================================
@@ -170,9 +171,14 @@ public class MainForm : Form
     {
         trayMenu = new ContextMenu();
         trayMenu.MenuItems.Add("開啟主畫面", (s, e) => ShowAppWindow());
-        
-        // 【新增】打開快捷鍵路徑設定介面
         trayMenu.MenuItems.Add("快捷鍵路徑設定", (s, e) => { new HotkeySettingsWindow(this).ShowDialog(); });
+        
+        // 開機自動啟動選項
+        MenuItem startupItem = new MenuItem("開機自動啟動");
+        startupItem.Checked = IsRunOnStartup();
+        startupItem.Click += ToggleStartup;
+        trayMenu.MenuItems.Add(startupItem);
+
         trayMenu.MenuItems.Add("-");
         
         trayMenu.MenuItems.Add("完全退出程式", (s, e) => 
@@ -195,6 +201,45 @@ public class MainForm : Form
         trayIcon.DoubleClick += (s, e) => ShowAppWindow();
     }
 
+    // --- 開機自動啟動 (Registry 登錄檔控制) ---
+    private void ToggleStartup(object sender, EventArgs e)
+    {
+        MenuItem item = sender as MenuItem;
+        bool newState = !item.Checked;
+        SetRunOnStartup(newState);
+        item.Checked = newState;
+    }
+
+    private bool IsRunOnStartup()
+    {
+        try 
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false))
+            {
+                return key?.GetValue("整合通知中心") != null;
+            }
+        }
+        catch { return false; }
+    }
+
+    private void SetRunOnStartup(bool enable)
+    {
+        try 
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
+            {
+                if (enable)
+                    key.SetValue("整合通知中心", Application.ExecutablePath);
+                else
+                    key.DeleteValue("整合通知中心", false);
+            }
+        }
+        catch (Exception ex) 
+        { 
+            MessageBox.Show($"設定開機啟動失敗: {ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+        }
+    }
+
     public void ShowAppWindow()
     {
         this.Show();
@@ -207,10 +252,10 @@ public class MainForm : Form
     // ==========================================
     private void RegisterAllHotkeys()
     {
-        RegisterHotKey(this.Handle, HOTKEY_ID_AWAKE, MOD_CONTROL, (int)Keys.D1); // Ctrl+1 喚醒視窗
-        RegisterHotKey(this.Handle, HOTKEY_ID_APP2, MOD_CONTROL, (int)Keys.D2);  // Ctrl+2
-        RegisterHotKey(this.Handle, HOTKEY_ID_APP3, MOD_CONTROL, (int)Keys.D3);  // Ctrl+3
-        RegisterHotKey(this.Handle, HOTKEY_ID_APP9, MOD_CONTROL, (int)Keys.D9);  // Ctrl+9
+        RegisterHotKey(this.Handle, HOTKEY_ID_AWAKE, MOD_CONTROL, (int)Keys.D1); 
+        RegisterHotKey(this.Handle, HOTKEY_ID_APP2, MOD_CONTROL, (int)Keys.D2);  
+        RegisterHotKey(this.Handle, HOTKEY_ID_APP3, MOD_CONTROL, (int)Keys.D3);  
+        RegisterHotKey(this.Handle, HOTKEY_ID_APP9, MOD_CONTROL, (int)Keys.D9);  
     }
 
     protected override void WndProc(ref Message m)
@@ -309,12 +354,10 @@ public class MainForm : Form
             return; 
         }
         
-        // 此處對應檔案監控按鈕 (如果背景觸發更新，會變成紅色閃爍)
         foreach (Control c in navBar.Controls)
         {
             if (c is Button b && b.Text == "檔案監控" && b.BackColor != AppleBlue)
             {
-                // 若非當前頁面，則切換為警示色
                 b.BackColor = Color.IndianRed;
                 b.ForeColor = Color.White;
             }
@@ -344,7 +387,6 @@ public class HotkeySettingsWindow : Form
         this.AutoScaleMode = AutoScaleMode.Dpi;
         this.Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Regular);
 
-        // 打開視窗前先載入最新設定
         parent.LoadHotkeySettings();
 
         FlowLayoutPanel flow = new FlowLayoutPanel() 
@@ -362,7 +404,6 @@ public class HotkeySettingsWindow : Form
             ForeColor = Color.Gray 
         });
 
-        // 動態生成三個輸入框列
         txtH2 = AddRow(flow, "Ctrl + 2 (如圖片小工具)：", "Hotkey2_Path");
         txtH3 = AddRow(flow, "Ctrl + 3 (如 Safety System)：", "Hotkey3_Path");
         txtH9 = AddRow(flow, "Ctrl + 9 (如 G-Task)：", "Hotkey9_Path");
@@ -410,7 +451,6 @@ public class HotkeySettingsWindow : Form
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));
         
-        // 從資料庫讀取目前的設定值顯示
         string val = "";
         using (var conn = DatabaseManager.GetConnection()) 
         {
