@@ -21,7 +21,7 @@ public class App_FileWatcher : UserControl {
     private System.Windows.Forms.Timer retentionTimer; 
     private float scale;
 
-    public App_FileWatcher(MainForm mainForm, ContextMenu menu) {
+    public App_FileWatcher(MainForm mainForm, ContextMenuStrip menu) {
         this.parentForm = mainForm;
         this.scale = this.DeviceDpi / 96f;
         this.BackColor = UITheme.BgGray;
