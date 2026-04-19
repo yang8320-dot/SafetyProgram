@@ -1,353 +1,243 @@
-/*
- * 檔案功能：全域畫面截圖模組 (支援自訂範圍拖曳截取、雙螢幕捕捉、複製至剪貼簿與存檔)
- * 對應選單名稱：畫面截圖
- * 對應資料庫名稱：無 (直接存取圖片檔與剪貼簿)
- * 資料表名稱：無
- */
-
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
+using System.Threading;
 
-public class App_Screenshot : UserControl
-{
+public class App_Screenshot : UserControl {
     private MainForm parentForm;
-    private PictureBox pictureBox;
-    private Label lblStatus;
-    
-    // --- 樣式設定 (iOS 風格) ---
-    private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
-    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
-    private static Color AppleRed = Color.FromArgb(255, 59, 48);
-    private static Color AppleGreen = Color.FromArgb(52, 199, 89);
-    private static Color AppleGray = Color.FromArgb(142, 142, 147);
-    private static Font MainFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Regular);
-    private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
+    private PictureBox previewBox;
+    private Label statusLabel;
+    private float scale;
 
-    public App_Screenshot(MainForm mainForm)
-    {
+    public App_Screenshot(MainForm mainForm) {
         this.parentForm = mainForm;
-        
-        // 1. 初始化控制項與 DPI 支援
-        this.AutoScaleMode = AutoScaleMode.Dpi;
-        this.BackColor = AppleBgColor;
-        this.Font = MainFont;
-        this.Padding = new Padding(15); // 與主框架間保持 15 的留白
-        
-        // 2. 建構純程式碼 UI
-        InitializeUI();
-    }
+        this.scale = this.DeviceDpi / 96f;
+        this.BackColor = UITheme.BgGray;
+        this.Padding = new Padding((int)(10 * scale));
 
-    /// <summary>
-    /// 建構 iOS 風格純程式碼介面 (Code-First UI)
-    /// </summary>
-    private void InitializeUI()
-    {
-        // ==========================================
-        // 頂部控制區塊 (Action Panel)
-        // ==========================================
-        TableLayoutPanel headerPanel = new TableLayoutPanel()
-        {
-            Dock = DockStyle.Top,
-            Height = 45,
-            ColumnCount = 5,
-            BackColor = Color.Transparent,
-            Margin = new Padding(0, 0, 0, 15)
+        // --- 頂部控制列 ---
+        Panel topPanel = new Panel() { Dock = DockStyle.Top, Height = (int)(80 * scale) };
+        
+        // 截圖按鈕 (Apple Blue)
+        Button btnNew = new Button() { 
+            Text = "截圖", 
+            Left = 0, Top = (int)(5 * scale), Width = (int)(85 * scale), Height = (int)(38 * scale), 
+            BackColor = UITheme.AppleBlue, ForeColor = UITheme.CardWhite, 
+            FlatStyle = FlatStyle.Flat, Font = UITheme.GetFont(10.5f, FontStyle.Bold), Cursor = Cursors.Hand 
         };
-        
-        // 分配欄寬 (四個按鈕 + 一個狀態標籤)
-        headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
-        headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
-        headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
-        headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
-        headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        btnNew.FlatAppearance.BorderSize = 0;
+        btnNew.Click += BtnNew_Click;
 
-        Button btnCapture = CreateAppleButton("截圖", AppleBlue);
-        btnCapture.Click += BtnCapture_Click;
-
-        Button btnCopy = CreateAppleButton("複製", AppleGreen);
+        // 複製按鈕 (Apple Green)
+        Button btnCopy = new Button() { 
+            Text = "複製", 
+            Left = (int)(95 * scale), Top = (int)(5 * scale), Width = (int)(85 * scale), Height = (int)(38 * scale), 
+            BackColor = UITheme.AppleGreen, ForeColor = UITheme.CardWhite, 
+            FlatStyle = FlatStyle.Flat, Font = UITheme.GetFont(10.5f, FontStyle.Bold), Cursor = Cursors.Hand 
+        };
+        btnCopy.FlatAppearance.BorderSize = 0;
         btnCopy.Click += BtnCopy_Click;
 
-        Button btnSave = CreateAppleButton("儲存", AppleGray);
+        // 儲存按鈕 (Gray)
+        Button btnSave = new Button() { 
+            Text = "儲存", 
+            Left = (int)(190 * scale), Top = (int)(5 * scale), Width = (int)(85 * scale), Height = (int)(38 * scale), 
+            BackColor = Color.Gainsboro, ForeColor = UITheme.TextMain, 
+            FlatStyle = FlatStyle.Flat, Font = UITheme.GetFont(10.5f, FontStyle.Bold), Cursor = Cursors.Hand 
+        };
+        btnSave.FlatAppearance.BorderSize = 0;
         btnSave.Click += BtnSave_Click;
 
-        Button btnClear = CreateAppleButton("清除", AppleRed);
+        // 清除按鈕 (Apple Red)
+        Button btnClear = new Button() { 
+            Text = "清除", 
+            Left = (int)(285 * scale), Top = (int)(5 * scale), Width = (int)(85 * scale), Height = (int)(38 * scale), 
+            BackColor = UITheme.AppleRed, ForeColor = UITheme.CardWhite, 
+            FlatStyle = FlatStyle.Flat, Font = UITheme.GetFont(10.5f, FontStyle.Bold), Cursor = Cursors.Hand 
+        };
+        btnClear.FlatAppearance.BorderSize = 0;
         btnClear.Click += BtnClear_Click;
 
-        lblStatus = new Label()
-        {
-            Text = "等待操作...",
-            Font = MainFont,
-            ForeColor = Color.Gray,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleRight,
-            Padding = new Padding(0, 0, 10, 0) // 狀態文字離右邊界留白 10
+        // 狀態文字
+        statusLabel = new Label() { 
+            Text = "點擊「截圖」開始...", 
+            Left = (int)(2 * scale), Top = (int)(50 * scale), AutoSize = true, 
+            Font = UITheme.GetFont(10f), ForeColor = UITheme.TextSub 
         };
 
-        headerPanel.Controls.Add(btnCapture, 0, 0);
-        headerPanel.Controls.Add(btnCopy, 1, 0);
-        headerPanel.Controls.Add(btnSave, 2, 0);
-        headerPanel.Controls.Add(btnClear, 3, 0);
-        headerPanel.Controls.Add(lblStatus, 4, 0);
+        topPanel.Controls.AddRange(new Control[] { btnNew, btnCopy, btnSave, btnClear, statusLabel });
+        this.Controls.Add(topPanel);
 
-        // ==========================================
-        // 中間圖片顯示區塊 (iOS Style Card)
-        // ==========================================
-        Panel imageCard = new Panel()
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.White,
-            Padding = new Padding(10) // 圖片與外框保留 10 的內縮距離
+        // --- 預覽區塊 (iOS 圓角白底卡片) ---
+        Panel previewContainer = new Panel() { 
+            Dock = DockStyle.Fill, BackColor = UITheme.CardWhite, 
+            Padding = new Padding((int)(8 * scale)), Margin = new Padding(0, (int)(10 * scale), 0, 0)
+        };
+        
+        previewContainer.Paint += (s, e) => {
+            UITheme.DrawRoundedBackground(e.Graphics, new Rectangle(0, 0, previewContainer.Width - 1, previewContainer.Height - 1), (int)(10 * scale), UITheme.CardWhite);
+            using (var pen = new Pen(Color.FromArgb(220, 220, 220), 1)) {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                e.Graphics.DrawPath(pen, UITheme.CreateRoundedRectanglePath(new Rectangle(0, 0, previewContainer.Width - 1, previewContainer.Height - 1), (int)(10 * scale)));
+            }
         };
 
-        pictureBox = new PictureBox()
-        {
-            Dock = DockStyle.Fill,
-            SizeMode = PictureBoxSizeMode.Zoom, // 保持圖片比例自動縮放
-            BackColor = Color.FromArgb(250, 250, 250), // 圖片背景微灰，與白底產生對比
+        previewBox = new PictureBox() { 
+            Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, 
+            BackColor = Color.FromArgb(245, 245, 245) 
         };
-
-        imageCard.Controls.Add(pictureBox);
-
-        // ==========================================
-        // 組合至主畫面
-        // ==========================================
-        this.Controls.Add(imageCard);
-        this.Controls.Add(new Panel() { Dock = DockStyle.Top, Height = 15, BackColor = Color.Transparent }); // 確保間隔為 15
-        this.Controls.Add(headerPanel);
+        previewContainer.Controls.Add(previewBox);
+        
+        this.Controls.Add(previewContainer);
+        previewContainer.BringToFront();
     }
 
-    /// <summary>
-    /// 動態生成扁平化 iOS 風格按鈕
-    /// </summary>
-    private Button CreateAppleButton(string text, Color bgColor)
-    {
-        Button btn = new Button()
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            BackColor = bgColor,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Cursor = Cursors.Hand,
-            Font = BoldFont,
-            Margin = new Padding(0, 5, 10, 5) // 按鈕之間保留間隔
-        };
-        btn.FlatAppearance.BorderSize = 0;
-        return btn;
-    }
-
-    // ==========================================
-    // 截圖與影像處理邏輯
-    // ==========================================
-
-    private void BtnCapture_Click(object sender, EventArgs e)
-    {
-        // 隱藏主視窗，避免被截圖擷取到
+    private void BtnNew_Click(object sender, EventArgs e) {
         parentForm.Hide();
-        System.Threading.Thread.Sleep(300); // 確保動畫完全隱藏視窗
+        Application.DoEvents();
+        Thread.Sleep(250); 
 
-        // 啟動全螢幕截圖遮罩
-        using (SnippingOverlayForm overlay = new SnippingOverlayForm())
-        {
-            if (overlay.ShowDialog() == DialogResult.OK && overlay.ResultImage != null)
-            {
-                // 釋放舊圖片記憶體
-                if (pictureBox.Image != null) pictureBox.Image.Dispose();
+        using (SnippingOverlayForm snipForm = new SnippingOverlayForm()) {
+            if (snipForm.ShowDialog() == DialogResult.OK && snipForm.ResultImage != null) {
+                if (previewBox.Image != null) previewBox.Image.Dispose();
+                previewBox.Image = (Image)snipForm.ResultImage.Clone();
                 
-                pictureBox.Image = new Bitmap(overlay.ResultImage);
-                Clipboard.SetImage(pictureBox.Image);
-                
-                lblStatus.Text = "截圖完成並已自動複製至剪貼簿！";
-                lblStatus.ForeColor = AppleGreen;
-            }
-            else
-            {
-                lblStatus.Text = "截圖已取消。";
-                lblStatus.ForeColor = Color.Gray;
+                Clipboard.SetImage(previewBox.Image);
+                statusLabel.Text = "截圖成功！已自動複製。";
+                statusLabel.ForeColor = UITheme.AppleGreen;
+            } else {
+                statusLabel.Text = "已取消截圖。";
+                statusLabel.ForeColor = UITheme.TextSub;
             }
         }
-
-        // 截圖結束後自動恢復主視窗並跳轉回此分頁
-        parentForm.ShowAppWindow();
+        
+        // 確保喚醒後切換回截圖分頁 (Index 5)
+        parentForm.ShowAppWindow(5); 
     }
 
-    private void BtnCopy_Click(object sender, EventArgs e)
-    {
-        if (pictureBox.Image != null)
-        {
-            Clipboard.SetImage(pictureBox.Image);
-            lblStatus.Text = "已複製到剪貼簿！";
-            lblStatus.ForeColor = AppleBlue;
-        }
-        else
-        {
-            lblStatus.Text = "請先進行截圖。";
-            lblStatus.ForeColor = AppleRed;
-        }
-    }
-
-    private void BtnSave_Click(object sender, EventArgs e)
-    {
-        if (pictureBox.Image == null)
-        {
-            lblStatus.Text = "沒有可儲存的圖片。";
-            lblStatus.ForeColor = AppleRed;
+    private void BtnCopy_Click(object sender, EventArgs e) {
+        if (previewBox.Image == null) {
+            MessageBox.Show("目前沒有可複製的截圖！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
+        Clipboard.SetImage(previewBox.Image);
+        statusLabel.Text = "已重新複製到剪貼簿！";
+        statusLabel.ForeColor = UITheme.AppleBlue;
+    }
 
-        using (SaveFileDialog sfd = new SaveFileDialog())
-        {
-            sfd.Filter = "PNG 圖片|*.png|JPEG 圖片|*.jpg|BMP 圖片|*.bmp";
-            sfd.Title = "儲存截圖";
-            sfd.FileName = $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}";
+    private void BtnSave_Click(object sender, EventArgs e) {
+        if (previewBox.Image == null) return;
 
-            if (sfd.ShowDialog() == DialogResult.OK)
-            {
-                ImageFormat format = ImageFormat.Png;
-                if (sfd.FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)) format = ImageFormat.Jpeg;
-                else if (sfd.FileName.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase)) format = ImageFormat.Bmp;
-
-                pictureBox.Image.Save(sfd.FileName, format);
-                lblStatus.Text = "儲存成功！";
-                lblStatus.ForeColor = AppleBlue;
+        using (SaveFileDialog sfd = new SaveFileDialog()) {
+            sfd.Filter = "PNG 圖片|*.png|JPEG 圖片|*.jpg";
+            sfd.FileName = "截圖_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            if (sfd.ShowDialog() == DialogResult.OK) {
+                ImageFormat format = sfd.FileName.EndsWith(".jpg") ? ImageFormat.Jpeg : ImageFormat.Png;
+                previewBox.Image.Save(sfd.FileName, format);
+                statusLabel.Text = "檔案已成功儲存！";
+                statusLabel.ForeColor = UITheme.TextSub;
             }
         }
     }
 
-    private void BtnClear_Click(object sender, EventArgs e)
-    {
-        if (pictureBox.Image != null)
-        {
-            pictureBox.Image.Dispose();
-            pictureBox.Image = null;
+    private void BtnClear_Click(object sender, EventArgs e) {
+        if (previewBox.Image != null) {
+            previewBox.Image.Dispose();
+            previewBox.Image = null;
+            statusLabel.Text = "內容已清除。";
+            statusLabel.ForeColor = UITheme.TextSub;
         }
-        lblStatus.Text = "圖片已清除。";
-        lblStatus.ForeColor = Color.Gray;
     }
 }
 
 // ==========================================
-// 視窗：全螢幕半透明遮罩 (負責滑鼠拖曳與影像捕捉)
+// 核心：全螢幕截圖覆蓋視窗 (支援高 DPI 與多螢幕)
 // ==========================================
-public class SnippingOverlayForm : Form
-{
+public class SnippingOverlayForm : Form {
     private Bitmap screenBmp;
     private Point startPt;
     private Rectangle selectRect;
     private bool isDragging = false;
-    
     public Image ResultImage { get; private set; }
 
-    public SnippingOverlayForm()
-    {
+    public SnippingOverlayForm() {
         this.FormBorderStyle = FormBorderStyle.None;
         this.StartPosition = FormStartPosition.Manual;
-        this.TopMost = true;
-        this.Cursor = Cursors.Cross;
-        this.DoubleBuffered = true; // 啟用雙重緩衝，防止拖曳時畫面閃爍
+        this.TopMost = true; 
+        this.ShowInTaskbar = false;
+        this.Cursor = Cursors.Cross; 
+        this.DoubleBuffered = true; 
 
-        // 取得全域虛擬螢幕大小 (完整支援多螢幕)
-        Rectangle bounds = SystemInformation.VirtualScreen;
-        this.Bounds = bounds;
+        // 取得跨越多螢幕的虛擬螢幕尺寸
+        this.Location = SystemInformation.VirtualScreen.Location;
+        this.Size = SystemInformation.VirtualScreen.Size;
 
-        // 捕捉當前全螢幕畫面
-        screenBmp = new Bitmap(bounds.Width, bounds.Height);
-        using (Graphics g = Graphics.FromImage(screenBmp))
-        {
-            g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+        screenBmp = new Bitmap(this.Width, this.Height);
+        using (Graphics g = Graphics.FromImage(screenBmp)) {
+            g.CopyFromScreen(this.Location, Point.Empty, this.Size);
         }
-
-        // 將截取的靜態畫面作為背景
-        this.BackgroundImage = screenBmp;
     }
 
-    protected override void OnPaint(PaintEventArgs e)
-    {
+    protected override void OnPaint(PaintEventArgs e) {
         base.OnPaint(e);
-
-        // 1. 繪製全畫面半透明黑色遮罩 (ARGB: 120 透明度)
-        using (SolidBrush dimBrush = new SolidBrush(Color.FromArgb(120, 0, 0, 0)))
-        {
+        e.Graphics.DrawImageUnscaled(screenBmp, 0, 0);
+        
+        // 畫一層半透明黑色遮罩
+        using (SolidBrush dimBrush = new SolidBrush(Color.FromArgb(120, 0, 0, 0))) {
             e.Graphics.FillRectangle(dimBrush, this.ClientRectangle);
         }
-
-        // 2. 將滑鼠框選的區域「挖空」露出底下明亮的截圖
-        if (selectRect.Width > 0 && selectRect.Height > 0)
-        {
+        
+        // 畫出選取的區域 (亮起)
+        if (selectRect.Width > 0 && selectRect.Height > 0) {
             e.Graphics.DrawImage(screenBmp, selectRect, selectRect, GraphicsUnit.Pixel);
-            
-            // 3. 繪製精緻的藍色選取外框 (iOS Blue)
-            using (Pen borderPen = new Pen(Color.FromArgb(0, 122, 255), 2))
-            {
+            using (Pen borderPen = new Pen(Color.Red, 2)) {
                 e.Graphics.DrawRectangle(borderPen, selectRect);
             }
         }
     }
 
-    protected override void OnMouseDown(MouseEventArgs e)
-    {
-        if (e.Button == MouseButtons.Left)
-        {
-            isDragging = true;
-            startPt = e.Location;
-            selectRect = new Rectangle(e.X, e.Y, 0, 0);
-        }
-        else if (e.Button == MouseButtons.Right)
-        {
-            // 按下滑鼠右鍵可直接取消截圖作業
-            this.DialogResult = DialogResult.Cancel;
-            this.Close();
+    protected override void OnMouseDown(MouseEventArgs e) {
+        if (e.Button == MouseButtons.Left) { 
+            isDragging = true; 
+            startPt = e.Location; 
+            selectRect = new Rectangle(e.X, e.Y, 0, 0); 
+        } 
+        else if (e.Button == MouseButtons.Right) { 
+            this.DialogResult = DialogResult.Cancel; 
+            this.Close(); 
         }
     }
 
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        if (isDragging)
-        {
-            // 動態計算滑鼠拖曳時的矩形寬高 (支援向任意方向拖曳)
-            int x = Math.Min(startPt.X, e.X);
+    protected override void OnMouseMove(MouseEventArgs e) {
+        if (isDragging) {
+            int x = Math.Min(startPt.X, e.X); 
             int y = Math.Min(startPt.Y, e.Y);
-            int w = Math.Abs(startPt.X - e.X);
+            int w = Math.Abs(startPt.X - e.X); 
             int h = Math.Abs(startPt.Y - e.Y);
-            
-            selectRect = new Rectangle(x, y, w, h);
-            this.Invalidate(); // 觸發 OnPaint 重新繪製畫面
+            selectRect = new Rectangle(x, y, w, h); 
+            this.Invalidate(); 
         }
     }
 
-    protected override void OnMouseUp(MouseEventArgs e)
-    {
-        if (isDragging)
-        {
+    protected override void OnMouseUp(MouseEventArgs e) {
+        if (isDragging) {
             isDragging = false;
-            
-            // 避免使用者只是單點滑鼠而沒有拖曳出範圍
-            if (selectRect.Width > 5 && selectRect.Height > 5)
-            {
+            if (selectRect.Width > 5 && selectRect.Height > 5) {
                 ResultImage = new Bitmap(selectRect.Width, selectRect.Height);
-                using (Graphics g = Graphics.FromImage(ResultImage))
-                {
+                using (Graphics g = Graphics.FromImage(ResultImage)) {
                     g.DrawImage(screenBmp, new Rectangle(0, 0, selectRect.Width, selectRect.Height), selectRect, GraphicsUnit.Pixel);
                 }
                 this.DialogResult = DialogResult.OK;
-            }
-            else
-            {
-                this.DialogResult = DialogResult.Cancel;
+            } else { 
+                this.DialogResult = DialogResult.Cancel; 
             }
             this.Close();
         }
     }
 
-    // 確實釋放全螢幕 Bitmap 記憶體
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing && screenBmp != null)
-        {
-            screenBmp.Dispose();
-        }
+    protected override void Dispose(bool disposing) {
+        if (disposing && screenBmp != null) screenBmp.Dispose();
         base.Dispose(disposing);
     }
 }
