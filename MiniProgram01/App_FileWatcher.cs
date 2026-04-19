@@ -1,331 +1,651 @@
-/*
- * 檔案功能：檔案監控與自動備份/同步模組 (Microsoft.Data.Sqlite 升級版)
- */
-
 using System;
-using System.Collections.Generic;
-using Microsoft.Data.Sqlite;
-using System.Drawing;
 using System.IO;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Drawing;
 using System.Windows.Forms;
+using System.Threading;
+using Microsoft.Data.Sqlite;
 
-public class App_FileWatcher : UserControl
-{
+public class App_FileWatcher : UserControl {
     private MainForm parentForm;
-    private ContextMenuStrip trayMenu;
+    private FlowLayoutPanel cardPanel;
 
+    private List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
+    // 儲存任務設定 (來源路徑當作 Key，Value 是完整設定字串陣列)
     private Dictionary<string, string[]> pathPairs = new Dictionary<string, string[]>();
-    private Dictionary<string, FileSystemWatcher> activeWatchers = new Dictionary<string, FileSystemWatcher>();
+    
+    private Dictionary<string, DateTime> lastProcessedTimes = new Dictionary<string, DateTime>();
+    private Dictionary<string, DateTime> lastUINotifications = new Dictionary<string, DateTime>();
+    
+    private readonly object lockObj = new object();
+    private System.Windows.Forms.Timer retentionTimer; 
+    private float scale;
 
-    private FlowLayoutPanel taskPanel;
+    public App_FileWatcher(MainForm mainForm, ContextMenu menu) {
+        this.parentForm = mainForm;
+        this.scale = this.DeviceDpi / 96f;
+        this.BackColor = UITheme.BgGray;
+        this.Padding = new Padding((int)(5 * scale));
 
-    private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
-    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
-    private static Color AppleRed = Color.FromArgb(255, 59, 48);
-    private static Color AppleGreen = Color.FromArgb(52, 199, 89);
-    private static Font MainFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Regular);
-    private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
-    private static Font SmallFont = new Font("Microsoft JhengHei UI", 9.5f, FontStyle.Regular);
-
-    public App_FileWatcher(MainForm parent, ContextMenuStrip trayMenu)
-    {
-        this.parentForm = parent;
-        this.trayMenu = trayMenu;
-
-        this.AutoScaleMode = AutoScaleMode.Dpi;
-        this.BackColor = AppleBgColor;
-        this.Font = MainFont;
-        this.Padding = new Padding(15);
-
-        InitializeUI();
-        _ = LoadAndStartWatchersAsync();
-    }
-
-    private void InitializeUI()
-    {
-        TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = 45, ColumnCount = 2, BackColor = Color.Transparent };
+        // --- 頂部控制列 ---
+        TableLayoutPanel header = new TableLayoutPanel() { Dock = DockStyle.Top, Height = (int)(50 * scale), ColumnCount = 3 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, (int)(100 * scale))); 
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, (int)(100 * scale)));
 
-        Label lblTitle = new Label() { Text = "檔案監控與同步", Font = new Font(MainFont.FontFamily, 14f, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5, 0, 0, 0) };
-        Button btnAdd = new Button() { Text = "新增任務", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, BackColor = AppleBlue, ForeColor = Color.White, Font = BoldFont, Margin = new Padding(0, 5, 0, 5) };
-        btnAdd.FlatAppearance.BorderSize = 0;
-        btnAdd.Click += (s, e) => { new MonitorSettingsWindow(this, null).ShowDialog(); };
+        Label lblTitle = new Label() { 
+            Text = "異動紀錄清單", Font = UITheme.GetFont(12f, FontStyle.Bold), ForeColor = UITheme.TextMain,
+            Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding((int)(10 * scale),0,0,0) 
+        };
+        
+        Button btnClear = new Button() { 
+            Text = "一鍵清除", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, 
+            Margin = new Padding((int)(2 * scale),(int)(8 * scale),(int)(2 * scale),(int)(8 * scale)), 
+            Cursor = Cursors.Hand, BackColor = UITheme.CardWhite, Font = UITheme.GetFont(10f, FontStyle.Bold)
+        };
+        btnClear.FlatAppearance.BorderColor = Color.LightGray;
+        btnClear.Click += (s, e) => cardPanel.Controls.Clear();
+        
+        Button btnGoSet = new Button() { 
+            Text = "設定參數", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, 
+            BackColor = Color.Gainsboro, ForeColor = UITheme.TextMain,
+            Margin = new Padding((int)(2 * scale),(int)(8 * scale),(int)(8 * scale),(int)(8 * scale)), 
+            Cursor = Cursors.Hand, Font = UITheme.GetFont(10f, FontStyle.Bold)
+        };
+        btnGoSet.FlatAppearance.BorderSize = 0;
+        btnGoSet.Click += (s, e) => { new MonitorSettingsWindow(this).Show(); };
 
         header.Controls.Add(lblTitle, 0, 0);
-        header.Controls.Add(btnAdd, 1, 0);
+        header.Controls.Add(btnClear, 1, 0);
+        header.Controls.Add(btnGoSet, 2, 0);
+        this.Controls.Add(header);
 
-        taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = AppleBgColor };
-        taskPanel.Resize += (s, e) =>
-        {
-            int safeWidth = taskPanel.ClientSize.Width - 20;
-            if (safeWidth > 0) { foreach (Control c in taskPanel.Controls) if (c is Panel) c.Width = safeWidth; }
+        // --- 提示卡片容器 ---
+        cardPanel = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, AutoScroll = true, 
+            FlowDirection = FlowDirection.TopDown, WrapContents = false, 
+            BackColor = UITheme.BgGray 
+        };
+        
+        cardPanel.Resize += (s, e) => {
+            int safeWidth = cardPanel.ClientSize.Width - (int)(15 * scale);
+            if (safeWidth > 0) {
+                foreach (Control c in cardPanel.Controls) {
+                    if (c is Panel) c.Width = safeWidth;
+                }
+            }
         };
 
-        this.Controls.Add(taskPanel);
-        this.Controls.Add(new Panel() { Dock = DockStyle.Top, Height = 15, BackColor = Color.Transparent });
-        this.Controls.Add(header);
-        taskPanel.BringToFront();
+        this.Controls.Add(cardPanel);
+        cardPanel.BringToFront();
+
+        LoadConfigFromDb();
+
+        retentionTimer = new System.Windows.Forms.Timer() { Interval = 3600000, Enabled = true };
+        retentionTimer.Tick += (s, e) => RunRetentionSweep();
+        RunRetentionSweep(); 
     }
 
-    private async Task LoadAndStartWatchersAsync()
-    {
-        try
-        {
-            var loadedPairs = await Task.Run(() =>
-            {
-                var dict = new Dictionary<string, string[]>();
-                using (var conn = DatabaseManager.GetConnection())
-                {
-                    conn.Open();
-                    using (var cmd = new SqliteCommand("SELECT SourcePath, TargetPath, SyncMethod, Frequency, Depth, SyncMode, Retention, CustomName FROM FileWatcher", conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            string src = reader.GetString(0);
-                            dict[src] = new string[] { 
-                                src, reader.GetString(1), reader.GetString(2), reader.GetString(3), 
-                                reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7) 
-                            };
-                        }
+    public Dictionary<string, string[]> GetPathPairs() { return pathPairs; }
+
+    // --- 資料庫操作 ---
+    public void AddNewTask(string src, string dst, string method, string freq, string depth, string syncMode, string retention, string customName) {
+        using (var conn = DbHelper.GetConnection()) {
+            conn.Open();
+            string sql = "INSERT INTO FileWatchers (SourcePath, DestPath, Method, Frequency, Depth, SyncMode, Retention, CustomName) VALUES (@S, @D, @M, @F, @Dp, @Sy, @R, @C)";
+            using (var cmd = new SqliteCommand(sql, conn)) {
+                cmd.Parameters.AddWithValue("@S", src); cmd.Parameters.AddWithValue("@D", dst);
+                cmd.Parameters.AddWithValue("@M", method); cmd.Parameters.AddWithValue("@F", freq);
+                cmd.Parameters.AddWithValue("@Dp", depth); cmd.Parameters.AddWithValue("@Sy", syncMode);
+                cmd.Parameters.AddWithValue("@R", retention); cmd.Parameters.AddWithValue("@C", customName);
+                cmd.ExecuteNonQuery();
+            }
+        }
+        LoadConfigFromDb(); 
+        MessageBox.Show("監控任務已成功建立！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    public void UpdateTask(string oldSrc, string newSrc, string dst, string method, string freq, string depth, string syncMode, string retention, string customName) {
+        if (!string.Equals(oldSrc, newSrc, StringComparison.OrdinalIgnoreCase) && pathPairs.ContainsKey(newSrc)) {
+            MessageBox.Show("新的來源路徑已存在監控清單中！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        using (var conn = DbHelper.GetConnection()) {
+            conn.Open();
+            using (var transaction = conn.BeginTransaction()) {
+                using (var cmdDel = new SqliteCommand("DELETE FROM FileWatchers WHERE SourcePath=@OldSrc", conn, transaction)) {
+                    cmdDel.Parameters.AddWithValue("@OldSrc", oldSrc);
+                    cmdDel.ExecuteNonQuery();
+                }
+                string sql = "INSERT INTO FileWatchers (SourcePath, DestPath, Method, Frequency, Depth, SyncMode, Retention, CustomName) VALUES (@S, @D, @M, @F, @Dp, @Sy, @R, @C)";
+                using (var cmdIn = new SqliteCommand(sql, conn, transaction)) {
+                    cmdIn.Parameters.AddWithValue("@S", newSrc); cmdIn.Parameters.AddWithValue("@D", dst);
+                    cmdIn.Parameters.AddWithValue("@M", method); cmdIn.Parameters.AddWithValue("@F", freq);
+                    cmdIn.Parameters.AddWithValue("@Dp", depth); cmdIn.Parameters.AddWithValue("@Sy", syncMode);
+                    cmdIn.Parameters.AddWithValue("@R", retention); cmdIn.Parameters.AddWithValue("@C", customName);
+                    cmdIn.ExecuteNonQuery();
+                }
+                transaction.Commit();
+            }
+        }
+        LoadConfigFromDb(); 
+        MessageBox.Show("任務修改成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    public void DeleteTask(string key) {
+        using (var conn = DbHelper.GetConnection()) {
+            conn.Open();
+            using (var cmd = new SqliteCommand("DELETE FROM FileWatchers WHERE SourcePath=@Key", conn)) {
+                cmd.Parameters.AddWithValue("@Key", key);
+                cmd.ExecuteNonQuery();
+            }
+        }
+        LoadConfigFromDb(); 
+    }
+
+    private void LoadConfigFromDb() {
+        pathPairs.Clear();
+        using (var conn = DbHelper.GetConnection()) {
+            conn.Open();
+            string sql = "SELECT SourcePath, DestPath, Method, Frequency, Depth, SyncMode, Retention, CustomName FROM FileWatchers";
+            using (var cmd = new SqliteCommand(sql, conn)) {
+                using (var reader = cmd.ExecuteReader()) {
+                    while (reader.Read()) {
+                        string src = reader.GetString(0);
+                        string[] data = new string[] {
+                            src, reader.GetString(1), reader.GetString(2), reader.GetString(3), 
+                            reader.GetString(4), reader.GetString(5), reader.GetString(6), 
+                            reader.IsDBNull(7) ? "" : reader.GetString(7)
+                        };
+                        pathPairs[src] = data;
                     }
                 }
-                return dict;
-            });
-
-            pathPairs = loadedPairs;
-            ReloadAllWatchers();
-            RefreshUI();
+            }
         }
-        catch (Exception ex) { MessageBox.Show($"載入監控設定失敗: {ex.Message}"); }
+        ReloadAllWatchers();
     }
 
-    public async Task AddOrUpdateTaskAsync(string oldSrc, string[] data)
-    {
-        string newSrc = data[0];
-        if (!string.IsNullOrEmpty(oldSrc) && oldSrc != newSrc && pathPairs.ContainsKey(newSrc))
-        {
-            MessageBox.Show("新的來源路徑已存在監控清單中！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); return;
+    public void OpenListWindow() {
+        new MonitorListWindow(this).Show();
+    }
+
+    private void ReloadAllWatchers() {
+        foreach (var w in watchers) { 
+            w.EnableRaisingEvents = false; 
+            w.Dispose(); 
+        }
+        watchers.Clear();
+        foreach (var val in pathPairs.Values) { 
+            StartWatcherFromArray(val); 
+        }
+    }
+
+    private bool IsSamePath(string p1, string p2) {
+        if (string.IsNullOrEmpty(p1) || string.IsNullOrEmpty(p2)) return false;
+        return string.Equals(p1.TrimEnd('\\', '/'), p2.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void StartWatcherFromArray(string[] p) {
+        if (p.Length < 6) return;
+        string src = p[0], dst = p[1], depth = p[4], syncMode = p[5];
+        
+        try {
+            if (!Directory.Exists(src)) return;
+            FileSystemWatcher wSrc = new FileSystemWatcher(src) { 
+                IncludeSubdirectories = (depth != "僅本層"), 
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size,
+                EnableRaisingEvents = true 
+            };
+            wSrc.Changed += OnFileEvent; 
+            wSrc.Created += OnFileEvent; 
+            watchers.Add(wSrc);
+
+            if (syncMode == "雙向同步") {
+                if (!Directory.Exists(dst)) Directory.CreateDirectory(dst);
+                FileSystemWatcher wDst = new FileSystemWatcher(dst) { 
+                    IncludeSubdirectories = (depth != "僅本層"), 
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size,
+                    EnableRaisingEvents = true 
+                };
+                wDst.Changed += OnFileEvent; 
+                wDst.Created += OnFileEvent; 
+                watchers.Add(wDst);
+            }
+        } catch { }
+    }
+
+    private void OnFileEvent(object sender, FileSystemEventArgs e) {
+        if (Directory.Exists(e.FullPath)) return;
+        
+        string checkName = Path.GetFileName(e.FullPath);
+        
+        if (checkName.StartsWith("~") || 
+            checkName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+            checkName.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase) ||
+            checkName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) ||
+            checkName.Equals(".DS_Store", StringComparison.OrdinalIgnoreCase)) 
+        { return; }
+
+        string triggerRoot = ((FileSystemWatcher)sender).Path;
+        string[] taskLine = null; 
+        bool isTriggerFromSrc = true;
+
+        foreach (var val in pathPairs.Values) {
+            if (IsSamePath(triggerRoot, val[0])) { 
+                taskLine = val; isTriggerFromSrc = true; break; 
+            }
+            if (val[5] == "雙向同步" && IsSamePath(triggerRoot, val[1])) { 
+                taskLine = val; isTriggerFromSrc = false; break; 
+            }
+        }
+        if (taskLine == null) return; 
+        
+        string sourceDir = isTriggerFromSrc ? taskLine[0] : taskLine[1];
+        string targetDir = isTriggerFromSrc ? taskLine[1] : taskLine[0];
+        string syncMode = taskLine[5];
+
+        int targetDepth = ParseDepth(taskLine[4]);
+        if (targetDepth != -1 && GetPathDepth(sourceDir, e.FullPath) > targetDepth) return;
+
+        string cleanSrc = sourceDir.TrimEnd('\\', '/') + "\\";
+        string relPath = "";
+        try { relPath = Uri.UnescapeDataString(new Uri(cleanSrc).MakeRelativeUri(new Uri(e.FullPath)).ToString().Replace('/', '\\')); } 
+        catch { return; }
+
+        string targetFile = Path.Combine(targetDir, relPath);
+
+        if (syncMode == "雙向同步" && File.Exists(targetFile)) {
+            if (Math.Abs((File.GetLastWriteTime(e.FullPath) - File.GetLastWriteTime(targetFile)).TotalSeconds) < 2) return;
         }
 
-        try
-        {
-            await Task.Run(() =>
-            {
-                using (var conn = DatabaseManager.GetConnection())
-                {
-                    conn.Open();
-                    using (var transaction = conn.BeginTransaction())
-                    {
-                        if (!string.IsNullOrEmpty(oldSrc) && oldSrc != newSrc)
-                        {
-                            using (var cmdDel = new SqliteCommand("DELETE FROM FileWatcher WHERE SourcePath = @OldSrc", conn, transaction))
-                            {
-                                cmdDel.Parameters.AddWithValue("@OldSrc", oldSrc);
-                                cmdDel.ExecuteNonQuery();
+        lock (lockObj) {
+            if (lastProcessedTimes.ContainsKey(e.FullPath) && (DateTime.Now - lastProcessedTimes[e.FullPath]).TotalMilliseconds < 800) return;
+            lastProcessedTimes[e.FullPath] = DateTime.Now;
+        }
+        
+        string customName = taskLine[7];
+        DoBackup(e.FullPath, targetFile, taskLine[2] == "顯示在監控", taskLine[3], relPath, customName);
+    }
+
+    private int GetPathDepth(string root, string file) {
+        string rel = file.Replace(root, "").TrimStart('\\', '/');
+        return string.IsNullOrEmpty(rel) ? 0 : rel.Split(new char[] { '\\', '/' }).Length - 1;
+    }
+
+    private int ParseDepth(string d) {
+        if (d == "無限層") return -1; if (d == "僅本層") return 0;
+        if (d == "第一層") return 1; if (d == "第二層") return 2; if (d == "第三層") return 3; if (d == "第十層") return 10;
+        string clean = d.Replace("層", "").Replace("第", "").Trim();
+        return int.TryParse(clean, out int res) ? res : -1;
+    }
+
+    private void DoBackup(string srcFile, string targetFile, bool showUI, string freqStr, string relPath, string customName) {
+        ThreadPool.QueueUserWorkItem(_ => {
+            int sec; 
+            if(!int.TryParse(freqStr.Replace("秒", "").Trim(), out sec)) sec = 1;
+            Thread.Sleep(sec * 1000); 
+
+            bool copySuccess = false;
+            for(int i = 0; i < 3; i++) { 
+                try {
+                    string dir = Path.GetDirectoryName(targetFile);
+                    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    File.Copy(srcFile, targetFile, true); 
+                    copySuccess = true; 
+                    break;
+                } catch { Thread.Sleep(800); }
+            }
+
+            if (copySuccess && showUI) {
+                string[] pathParts = relPath.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                bool isInsideFolder = pathParts.Length > 1;
+                string displayFileName = isInsideFolder ? "📁 " + pathParts[0] + " (資料夾群組)" : Path.GetFileName(srcFile);
+
+                bool shouldUpdateUI = false;
+                lock (lockObj) {
+                    if (!lastUINotifications.ContainsKey(displayFileName) || (DateTime.Now - lastUINotifications[displayFileName]).TotalSeconds > 2) {
+                        lastUINotifications[displayFileName] = DateTime.Now;
+                        shouldUpdateUI = true;
+                    }
+                }
+
+                if (!shouldUpdateUI) return; 
+
+                try {
+                    this.Invoke(new Action(() => {
+                        parentForm.AlertTab(0); 
+                        string cardUniqueName = displayFileName;
+                        
+                        foreach (Control ctrl in cardPanel.Controls) {
+                            if (ctrl.Name == cardUniqueName) {
+                                cardPanel.Controls.SetChildIndex(ctrl, 0);
+                                return; 
                             }
                         }
+                        
+                        // iOS 風格提示卡片
+                        Panel c = new Panel() { 
+                            Name = cardUniqueName, 
+                            Width = (int)(340 * scale), AutoSize = true, 
+                            BackColor = UITheme.CardWhite,
+                            Margin = new Padding((int)(5 * scale), (int)(5 * scale), (int)(5 * scale), (int)(10 * scale)) 
+                        };
+                        
+                        c.Paint += (s, ev) => {
+                            UITheme.DrawRoundedBackground(ev.Graphics, new Rectangle(0, 0, c.Width - 1, c.Height - 1), (int)(8 * scale), UITheme.CardWhite);
+                            using (var pen = new Pen(Color.FromArgb(230, 230, 230), 1)) {
+                                ev.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                                ev.Graphics.DrawPath(pen, UITheme.CreateRoundedRectanglePath(new Rectangle(0, 0, c.Width - 1, c.Height - 1), (int)(8 * scale)));
+                            }
+                        };
+                        
+                        TableLayoutPanel tlp = new TableLayoutPanel() { 
+                            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, 
+                            AutoSize = true, Padding = new Padding((int)(8 * scale)),
+                            BackColor = Color.Transparent
+                        };
+                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, (int)(65 * scale))); 
+                        tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
 
-                        using (var cmdIns = new SqliteCommand(@"INSERT OR REPLACE INTO FileWatcher 
-                            (SourcePath, TargetPath, SyncMethod, Frequency, Depth, SyncMode, Retention, CustomName) 
-                            VALUES (@Src, @Dst, @Method, @Freq, @Depth, @SyncMode, @Retain, @CName)", conn, transaction))
-                        {
-                            cmdIns.Parameters.AddWithValue("@Src", data[0]); cmdIns.Parameters.AddWithValue("@Dst", data[1]);
-                            cmdIns.Parameters.AddWithValue("@Method", data[2]); cmdIns.Parameters.AddWithValue("@Freq", data[3]);
-                            cmdIns.Parameters.AddWithValue("@Depth", data[4]); cmdIns.Parameters.AddWithValue("@SyncMode", data[5]);
-                            cmdIns.Parameters.AddWithValue("@Retain", data[6]); cmdIns.Parameters.AddWithValue("@CName", data[7]);
-                            cmdIns.ExecuteNonQuery();
+                        FlowLayoutPanel btnPnl = new FlowLayoutPanel() { 
+                            FlowDirection = FlowDirection.TopDown, 
+                            AutoSize = true, Margin = new Padding(0) 
+                        };
+                        
+                        Button bView = new Button() { 
+                            Text = "查看", Width = (int)(55 * scale), Height = (int)(28 * scale), 
+                            Margin = new Padding(0, (int)(2 * scale), 0, (int)(5 * scale)), 
+                            BackColor = UITheme.AppleBlue, ForeColor = UITheme.CardWhite, 
+                            FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = UITheme.GetFont(9f, FontStyle.Bold)
+                        };
+                        bView.FlatAppearance.BorderSize = 0;
+                        bView.Click += (s, e2) => {
+                            try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + srcFile + "\""); } catch { }
+                            cardPanel.Controls.Remove(c); c.Dispose(); 
+                        };
+                        
+                        Button bClose = new Button() { 
+                            Text = "X", Width = (int)(55 * scale), Height = (int)(28 * scale), 
+                            BackColor = UITheme.AppleRed, ForeColor = UITheme.CardWhite, 
+                            FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = UITheme.GetFont(9f, FontStyle.Bold)
+                        };
+                        bClose.FlatAppearance.BorderSize = 0;
+                        bClose.Click += (s, e2) => { cardPanel.Controls.Remove(c); c.Dispose(); };
+                        
+                        btnPnl.Controls.Add(bView); btnPnl.Controls.Add(bClose);
+
+                        string displayLoc = string.IsNullOrWhiteSpace(customName) ? (isInsideFolder ? pathParts[0] : relPath) : customName;
+                        Label lbl = new Label() { 
+                            Text = displayFileName + "\n位置: " + displayLoc, 
+                            Dock = DockStyle.Fill, AutoSize = true, 
+                            Padding = new Padding((int)(10 * scale), (int)(5 * scale), 0, 0), 
+                            TextAlign = ContentAlignment.MiddleLeft,
+                            Font = UITheme.GetFont(10.5f), ForeColor = UITheme.TextMain
+                        };
+                        
+                        tlp.Controls.Add(btnPnl, 0, 0); tlp.Controls.Add(lbl, 1, 0); 
+                        c.Controls.Add(tlp);
+                        cardPanel.Controls.Add(c); 
+                        cardPanel.Controls.SetChildIndex(c, 0);
+                        
+                        if (cardPanel.Controls.Count > 15) { 
+                            var old = cardPanel.Controls[15]; 
+                            cardPanel.Controls.RemoveAt(15); old.Dispose(); 
                         }
-                        transaction.Commit();
-                    }
-                }
-            });
-
-            if (!string.IsNullOrEmpty(oldSrc)) pathPairs.Remove(oldSrc);
-            pathPairs[newSrc] = data;
-
-            ReloadAllWatchers();
-            RefreshUI();
-        }
-        catch (Exception ex) { MessageBox.Show($"儲存監控設定失敗: {ex.Message}"); }
-    }
-
-    public async Task DeleteTaskAsync(string srcPath)
-    {
-        try
-        {
-            await Task.Run(() =>
-            {
-                using (var conn = DatabaseManager.GetConnection())
-                {
-                    conn.Open();
-                    using (var cmd = new SqliteCommand("DELETE FROM FileWatcher WHERE SourcePath = @Src", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@Src", srcPath);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            });
-
-            pathPairs.Remove(srcPath);
-            ReloadAllWatchers();
-            RefreshUI();
-        }
-        catch (Exception ex) { MessageBox.Show($"刪除失敗: {ex.Message}"); }
-    }
-
-    public void ReloadAllWatchers()
-    {
-        foreach (var watcher in activeWatchers.Values) { watcher.EnableRaisingEvents = false; watcher.Dispose(); }
-        activeWatchers.Clear();
-
-        foreach (var kvp in pathPairs)
-        {
-            string[] parts = kvp.Value;
-            string src = parts[0];
-
-            if (Directory.Exists(src))
-            {
-                try
-                {
-                    FileSystemWatcher fsw = new FileSystemWatcher(src)
-                    {
-                        IncludeSubdirectories = parts[4] == "包含子目錄",
-                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName,
-                        EnableRaisingEvents = true
-                    };
-
-                    fsw.Created += (s, e) => OnFileChanged(e, parts);
-                    fsw.Changed += (s, e) => OnFileChanged(e, parts);
-                    fsw.Renamed += (s, e) => OnFileChanged(e, parts);
-
-                    activeWatchers[src] = fsw;
-                }
-                catch { }
+                    }));
+                } catch { } 
             }
-        }
-    }
-
-    private void OnFileChanged(FileSystemEventArgs e, string[] parts)
-    {
-        Task.Run(() => 
-        {
-            string srcDir = parts[0]; string targetDir = parts[1]; string syncMode = parts[5];
-            if (!Directory.Exists(targetDir)) return;
-
-            try
-            {
-                string cleanSrc = srcDir.TrimEnd('\\', '/') + "\\";
-                string relPath = Uri.UnescapeDataString(new Uri(cleanSrc).MakeRelativeUri(new Uri(e.FullPath)).ToString().Replace('/', '\\'));
-                string targetFile = Path.Combine(targetDir, relPath);
-
-                if (syncMode == "雙向同步" && File.Exists(targetFile))
-                {
-                    if (Math.Abs((File.GetLastWriteTime(e.FullPath) - File.GetLastWriteTime(targetFile)).TotalSeconds) < 2) return; 
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(targetFile));
-                File.Copy(e.FullPath, targetFile, true);
-                
-                if (parentForm != null) { parentForm.AddAlertTab(0); }
-            }
-            catch { }
         });
     }
 
-    public void RefreshUI()
-    {
-        if (this.InvokeRequired) { this.Invoke(new Action(RefreshUI)); return; }
-
-        taskPanel.Controls.Clear();
-        int startWidth = taskPanel.ClientSize.Width > 50 ? taskPanel.ClientSize.Width - 20 : 450;
-
-        foreach (var kvp in pathPairs)
-        {
-            var parts = kvp.Value;
-            string src = parts[0]; string dst = parts[1]; string syncMode = parts[5]; string customName = parts[7];
-            bool isRunning = activeWatchers.ContainsKey(src);
-
-            Panel card = new Panel() { Width = startWidth, AutoSize = true, MinimumSize = new Size(0, 85), Margin = new Padding(0, 0, 0, 15), BackColor = Color.White, Padding = new Padding(10) };
-            TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, AutoSize = true };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80f)); 
-
-            Label lblTitle = new Label() { Text = $"{(string.IsNullOrWhiteSpace(customName) ? "未命名任務" : customName)}  [{syncMode}]", Font = BoldFont, AutoSize = true, ForeColor = isRunning ? AppleGreen : Color.Gray, Dock = DockStyle.Top, Margin = new Padding(0, 0, 0, 5) };
-            tlp.Controls.Add(lblTitle, 0, 0);
-
-            Label lblDetails = new Label() { Text = $"來源: {src}\n目標: {dst}", Font = SmallFont, ForeColor = Color.DarkGray, AutoSize = true, Dock = DockStyle.Top };
-            tlp.SetRowSpan(lblDetails, 2); tlp.Controls.Add(lblDetails, 0, 1);
-
-            Button btnEdit = new Button() { Text = "編輯", Dock = DockStyle.Top, Height = 30, BackColor = AppleBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = SmallFont, Margin = new Padding(10, 0, 0, 5) };
-            btnEdit.FlatAppearance.BorderSize = 0;
-            btnEdit.Click += (s, e) => new MonitorSettingsWindow(this, parts).ShowDialog();
-            tlp.Controls.Add(btnEdit, 1, 0);
-
-            Button btnDel = new Button() { Text = "刪除", Dock = DockStyle.Top, Height = 30, BackColor = AppleRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = SmallFont, Margin = new Padding(10, 0, 0, 0) };
-            btnDel.FlatAppearance.BorderSize = 0;
-            btnDel.Click += async (s, e) => { if (MessageBox.Show("確定要刪除這個任務嗎？", "確認", MessageBoxButtons.OKCancel) == DialogResult.OK) { await DeleteTaskAsync(src); } };
-            tlp.Controls.Add(btnDel, 1, 1);
-
-            card.Controls.Add(tlp); taskPanel.Controls.Add(card);
+    private void RunRetentionSweep() {
+        foreach (var val in pathPairs.Values) {
+            if (val[5] == "單向備份" && val[6] != "永久") {
+                int months = 0; 
+                string mStr = val[6].Replace("個月", "").Replace("月", "").Trim();
+                if (int.TryParse(mStr, out months) && months > 0 && Directory.Exists(val[1])) {
+                    try {
+                        DateTime threshold = DateTime.Now.AddMonths(-months);
+                        foreach (string file in Directory.GetFiles(val[1], "*", SearchOption.AllDirectories)) {
+                            if (File.GetLastWriteTime(file) < threshold) { 
+                                try { File.Delete(file); } catch { } 
+                            }
+                        }
+                    } catch { }
+                }
+            }
         }
     }
 }
 
-public class MonitorSettingsWindow : Form
-{
-    private App_FileWatcher parent;
-    private string originalSource = null;
-
+// ==========================================
+// 視窗：監控設定 (DPI 與 UI 升級)
+// ==========================================
+public class MonitorSettingsWindow : Form {
+    private App_FileWatcher parentWatcher;
     private TextBox txtCustomName, txtSource, txtBackup;
     private ComboBox cmbMethod, cmbFreq, cmbDepth, cmbSync, cmbRetain;
+    private string editingKey = null;
+    private float scale;
 
-    public MonitorSettingsWindow(App_FileWatcher parent, string[] configData)
-    {
-        this.parent = parent;
+    public MonitorSettingsWindow(App_FileWatcher watcher, string existingKey = null, string[] existingData = null) {
+        this.parentWatcher = watcher;
+        this.editingKey = existingKey;
+        this.scale = this.DeviceDpi / 96f;
+
+        this.Text = string.IsNullOrEmpty(existingKey) ? "新增監控設定" : "編輯監控設定";
+        this.Width = (int)(420 * scale);
+        this.AutoSize = true;
+        this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.BackColor = UITheme.BgGray;
+        this.FormBorderStyle = FormBorderStyle.FixedDialog;
+        this.MaximizeBox = false;
+        this.MinimizeBox = false;
+        this.TopMost = true; 
+
+        FlowLayoutPanel mainFlow = new FlowLayoutPanel() { 
+            FlowDirection = FlowDirection.TopDown, WrapContents = false, 
+            Padding = new Padding((int)(20 * scale)), AutoSize = true 
+        };
         
-        this.Text = configData == null ? "新增監控任務" : "編輯監控任務";
-        this.Width = 500; this.Height = 620; this.StartPosition = FormStartPosition.CenterScreen;
-        this.FormBorderStyle = FormBorderStyle.FixedDialog; this.MaximizeBox = false; this.MinimizeBox = false;
-        this.BackColor = Color.FromArgb(245, 245, 247); this.AutoScaleMode = AutoScaleMode.Dpi; this.Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Regular);
+        txtCustomName = AddTextRow(mainFlow, "自訂顯示名稱：");
+        txtSource = AddPathRow(mainFlow, "來源路徑：");
+        txtBackup = AddPathRow(mainFlow, "備份路徑：");
+        cmbSync = AddComboRow(mainFlow, "同步模式：", new string[] { "單向備份", "雙向同步" });
+        cmbRetain = AddComboRow(mainFlow, "自動刪除(單向)：", new string[] { "永久", "1個月", "3個月", "6個月", "12個月" });
+        cmbMethod = AddComboRow(mainFlow, "通知方式：", new string[] { "顯示在監控", "隱藏背後執行" });
+        cmbFreq = AddComboRow(mainFlow, "延遲執行：", new string[] { "0秒", "1秒", "3秒", "5秒", "10秒" });
+        cmbDepth = AddComboRow(mainFlow, "監控深度：", new string[] { "無限層", "僅本層", "第一層", "第二層", "第三層" });
 
-        FlowLayoutPanel flow = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(20), WrapContents = false, AutoScroll = true };
-
-        string cName = "", src = "", dst = "", method = "即時監控", freq = "即時", depth = "包含子目錄", syncMode = "單向備份", retain = "永久保留";
-        if (configData != null)
-        {
-            originalSource = configData[0]; src = configData[0]; dst = configData[1]; method = configData[2]; freq = configData[3];
-            depth = configData[4]; syncMode = configData[5]; retain = configData[6]; cName = configData[7];
+        Button btnSave = new Button() { 
+            Text = string.IsNullOrEmpty(existingKey) ? "新增任務" : "儲存修改", 
+            Width = (int)(360 * scale), Height = (int)(45 * scale), 
+            BackColor = UITheme.AppleBlue, ForeColor = UITheme.CardWhite, 
+            FlatStyle = FlatStyle.Flat, Margin = new Padding(0, (int)(20 * scale), 0, 0),
+            Font = UITheme.GetFont(11f, FontStyle.Bold), Cursor = Cursors.Hand
+        };
+        btnSave.FlatAppearance.BorderSize = 0;
+        
+        if (existingData != null && existingData.Length >= 8) {
+            txtSource.Text = existingData[0];
+            txtBackup.Text = existingData[1];
+            cmbMethod.Text = existingData[2];
+            cmbFreq.Text = existingData[3];
+            cmbDepth.Text = existingData[4];
+            cmbSync.Text = existingData[5];
+            cmbRetain.Text = existingData[6];
+            txtCustomName.Text = existingData[7];
         }
 
-        void AddLabel(string text) { flow.Controls.Add(new Label() { Text = text, AutoSize = true, Margin = new Padding(0, 10, 0, 5) }); }
-        TextBox AddTextBox(string val) { TextBox tb = new TextBox() { Text = val, Width = 440, BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(5) }; flow.Controls.Add(tb); return tb; }
-        ComboBox AddComboBox(string[] items, string sel) { ComboBox cb = new ComboBox() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 440 }; cb.Items.AddRange(items); cb.SelectedItem = cb.Items.Contains(sel) ? sel : items[0]; flow.Controls.Add(cb); return cb; }
-
-        AddLabel("任務自訂名稱："); txtCustomName = AddTextBox(cName);
-        AddLabel("來源目錄 (需監控的資料夾)："); txtSource = AddTextBox(src);
-        txtSource.DoubleClick += (s, e) => { FolderBrowserDialog fbd = new FolderBrowserDialog(); if (fbd.ShowDialog() == DialogResult.OK) txtSource.Text = fbd.SelectedPath; };
-        flow.Controls.Add(new Label() { Text = "(雙擊輸入框可開啟資料夾選擇視窗)", ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8.5f) });
-
-        AddLabel("目標目錄 (備份/同步至)："); txtBackup = AddTextBox(dst);
-        txtBackup.DoubleClick += (s, e) => { FolderBrowserDialog fbd = new FolderBrowserDialog(); if (fbd.ShowDialog() == DialogResult.OK) txtBackup.Text = fbd.SelectedPath; };
-
-        AddLabel("同步模式："); cmbSync = AddComboBox(new string[] { "單向備份", "雙向同步" }, syncMode);
-        AddLabel("監控深度："); cmbDepth = AddComboBox(new string[] { "僅限當前目錄", "包含子目錄" }, depth);
-
-        cmbMethod = new ComboBox() { Text = method }; cmbFreq = new ComboBox() { Text = freq }; cmbRetain = new ComboBox() { Text = retain };
-
-        Button btnSave = new Button() { Text = "儲存設定", Width = 440, Height = 45, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0) };
-        btnSave.FlatAppearance.BorderSize = 0;
-        btnSave.Click += async (s, e) =>
-        {
-            if (string.IsNullOrWhiteSpace(txtSource.Text) || string.IsNullOrWhiteSpace(txtBackup.Text)) { MessageBox.Show("來源與目標不可為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-            string[] newData = new string[] { txtSource.Text.Trim(), txtBackup.Text.Trim(), cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text, txtCustomName.Text.Trim() };
-            await parent.AddOrUpdateTaskAsync(originalSource, newData);
+        btnSave.Click += (s, e) => {
+            if (string.IsNullOrWhiteSpace(txtSource.Text) || string.IsNullOrWhiteSpace(txtBackup.Text)) {
+                MessageBox.Show("來源與備份路徑不可為空！"); return;
+            }
+            if (string.IsNullOrEmpty(editingKey)) {
+                parentWatcher.AddNewTask(txtSource.Text, txtBackup.Text, cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text, txtCustomName.Text);
+            } else {
+                parentWatcher.UpdateTask(editingKey, txtSource.Text, txtBackup.Text, cmbMethod.Text, cmbFreq.Text, cmbDepth.Text, cmbSync.Text, cmbRetain.Text, txtCustomName.Text);
+            }
             this.Close();
         };
 
-        flow.Controls.Add(btnSave); this.Controls.Add(flow);
+        mainFlow.Controls.Add(btnSave);
+
+        if (string.IsNullOrEmpty(existingKey)) {
+            Button btnList = new Button() { 
+                Text = "管理現有任務", Width = (int)(360 * scale), Height = (int)(45 * scale), 
+                BackColor = Color.Gray, ForeColor = UITheme.CardWhite, 
+                FlatStyle = FlatStyle.Flat, Margin = new Padding(0, (int)(10 * scale), 0, 0),
+                Font = UITheme.GetFont(11f, FontStyle.Bold), Cursor = Cursors.Hand
+            };
+            btnList.FlatAppearance.BorderSize = 0;
+            btnList.Click += (s, e) => { parentWatcher.OpenListWindow(); this.Close(); };
+            mainFlow.Controls.Add(btnList);
+        }
+        this.Controls.Add(mainFlow);
+    }
+
+    private TextBox AddTextRow(FlowLayoutPanel container, string label) {
+        container.Controls.Add(new Label() { Text = label, AutoSize = true, Margin = new Padding(0, (int)(8 * scale), 0, (int)(3 * scale)), Font = UITheme.GetFont(10.5f, FontStyle.Bold) });
+        TextBox tb = new TextBox() { Width = (int)(360 * scale), Font = UITheme.GetFont(10.5f) };
+        container.Controls.Add(tb);
+        return tb;
+    }
+
+    private TextBox AddPathRow(FlowLayoutPanel container, string label) {
+        container.Controls.Add(new Label() { Text = label, AutoSize = true, Margin = new Padding(0, (int)(8 * scale), 0, (int)(3 * scale)), Font = UITheme.GetFont(10.5f, FontStyle.Bold) });
+        FlowLayoutPanel row = new FlowLayoutPanel() { AutoSize = true, Margin = new Padding(0, 0, 0, (int)(10 * scale)), WrapContents = false };
+        TextBox tb = new TextBox() { Width = (int)(250 * scale), Font = UITheme.GetFont(10.5f) };
+        
+        Button btnSel = new Button() { Text = "選", Width = (int)(45 * scale), Height = (int)(32 * scale), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, BackColor = UITheme.CardWhite, Font = UITheme.GetFont(9.5f) };
+        btnSel.FlatAppearance.BorderColor = Color.LightGray;
+        btnSel.Click += (s, e) => { using(FolderBrowserDialog fbd = new FolderBrowserDialog()) { if(fbd.ShowDialog() == DialogResult.OK) tb.Text = fbd.SelectedPath; } };
+        
+        Button btnPaste = new Button() { Text = "貼", Width = (int)(45 * scale), Height = (int)(32 * scale), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, BackColor = UITheme.CardWhite, Font = UITheme.GetFont(9.5f) };
+        btnPaste.FlatAppearance.BorderColor = Color.LightGray;
+        btnPaste.Click += (s, e) => { string p = Clipboard.GetText().Trim(' ', '\"'); if (!string.IsNullOrEmpty(p)) tb.Text = p; };
+        
+        row.Controls.Add(tb); row.Controls.Add(btnSel); row.Controls.Add(btnPaste);
+        container.Controls.Add(row);
+        return tb;
+    }
+
+    private ComboBox AddComboRow(FlowLayoutPanel container, string label, string[] items) {
+        container.Controls.Add(new Label() { Text = label, AutoSize = true, Margin = new Padding(0, (int)(8 * scale), 0, (int)(3 * scale)), Font = UITheme.GetFont(10.5f, FontStyle.Bold) });
+        ComboBox cb = new ComboBox() { Width = (int)(360 * scale), Font = UITheme.GetFont(10.5f), DropDownStyle = ComboBoxStyle.DropDownList };
+        cb.Items.AddRange(items);
+        if (items.Length > 0) cb.SelectedIndex = 0;
+        container.Controls.Add(cb);
+        return cb;
+    }
+}
+
+// ==========================================
+// 視窗：管理監控任務清單 (DPI 與 UI 升級)
+// ==========================================
+public class MonitorListWindow : Form {
+    private App_FileWatcher parentWatcher;
+    private FlowLayoutPanel flow;
+    private float scale;
+
+    public MonitorListWindow(App_FileWatcher watcher) {
+        this.parentWatcher = watcher;
+        this.scale = this.DeviceDpi / 96f;
+
+        this.Text = "管理現有任務";
+        this.Width = (int)(550 * scale);
+        this.Height = (int)(550 * scale);
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.BackColor = UITheme.BgGray;
+        this.TopMost = true; 
+
+        flow = new FlowLayoutPanel() { 
+            Dock = DockStyle.Fill, AutoScroll = true, 
+            FlowDirection = FlowDirection.TopDown, WrapContents = false, 
+            Padding = new Padding((int)(15 * scale)) 
+        };
+        
+        flow.Resize += (s, e) => {
+            int w = flow.ClientSize.Width - (int)(30 * scale);
+            if (w > 0) {
+                foreach (Control c in flow.Controls) if (c is Panel) c.Width = w;
+            }
+        };
+        
+        this.Controls.Add(flow);
+        RefreshList();
+    }
+
+    private void RefreshList() {
+        flow.Controls.Clear();
+        var pairs = parentWatcher.GetPathPairs();
+        
+        if (pairs.Count == 0) {
+            flow.Controls.Add(new Label() { Text = "目前沒有任何監控任務。", AutoSize = true, Margin = new Padding((int)(10 * scale)), Font = UITheme.GetFont(11f), ForeColor = UITheme.TextMain });
+            return;
+        }
+
+        foreach (var kvp in pairs) {
+            string key = kvp.Key;
+            string[] parts = kvp.Value;
+            
+            string customName = parts[7];
+            string displayName = string.IsNullOrWhiteSpace(customName) ? parts[0] : $"{customName}\n({parts[0]})";
+
+            Panel card = new Panel() { 
+                AutoSize = true, MinimumSize = new Size(0, (int)(70 * scale)), 
+                BackColor = UITheme.CardWhite, Margin = new Padding(0, 0, 0, (int)(15 * scale)), 
+                Padding = new Padding((int)(12 * scale)) 
+            };
+            card.Width = flow.ClientSize.Width > (int)(30 * scale) ? flow.ClientSize.Width - (int)(30 * scale) : (int)(400 * scale);
+            
+            card.Paint += (s, ev) => {
+                UITheme.DrawRoundedBackground(ev.Graphics, new Rectangle(0, 0, card.Width - 1, card.Height - 1), (int)(10 * scale), UITheme.CardWhite);
+                using (var pen = new Pen(Color.FromArgb(230, 230, 230), 1)) {
+                    ev.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    ev.Graphics.DrawPath(pen, UITheme.CreateRoundedRectanglePath(new Rectangle(0, 0, card.Width - 1, card.Height - 1), (int)(10 * scale)));
+                }
+            };
+
+            TableLayoutPanel tlp = new TableLayoutPanel() { 
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true, BackColor = Color.Transparent 
+            };
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, (int)(130 * scale)));
+
+            Label lbl = new Label() { 
+                Text = displayName + "\n=> " + parts[1], 
+                Dock = DockStyle.Fill, AutoSize = true, Font = UITheme.GetFont(10.5f), ForeColor = UITheme.TextMain 
+            };
+            
+            FlowLayoutPanel btnPanel = new FlowLayoutPanel() { 
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0) 
+            };
+            
+            Button btnEdit = new Button() { 
+                Text = "編輯", Width = (int)(55 * scale), Height = (int)(35 * scale), 
+                BackColor = UITheme.AppleBlue, ForeColor = UITheme.CardWhite, 
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = UITheme.GetFont(10f, FontStyle.Bold)
+            };
+            btnEdit.FlatAppearance.BorderSize = 0;
+            btnEdit.Click += (s, e) => { new MonitorSettingsWindow(parentWatcher, key, parts).Show(); this.Close(); };
+            
+            Button btnDel = new Button() { 
+                Text = "刪除", Width = (int)(55 * scale), Height = (int)(35 * scale), 
+                BackColor = UITheme.AppleRed, ForeColor = UITheme.CardWhite, 
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = UITheme.GetFont(10f, FontStyle.Bold)
+            };
+            btnDel.FlatAppearance.BorderSize = 0;
+            btnDel.Click += (s, e) => {
+                if (MessageBox.Show("確定要刪除此監控任務嗎？", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                    parentWatcher.DeleteTask(key); RefreshList();
+                }
+            };
+            
+            btnPanel.Controls.Add(btnEdit); btnPanel.Controls.Add(btnDel);
+            tlp.Controls.Add(lbl, 0, 0); tlp.Controls.Add(btnPanel, 1, 0);
+            card.Controls.Add(tlp); flow.Controls.Add(card);
+        }
     }
 }
