@@ -1,13 +1,10 @@
 /*
- * 檔案功能：待辦事項與計畫大綱管理模組 (支援顏色標記、備註、日誌寫入與跨清單轉移)
- * 對應選單名稱：待辦事項 / 計畫大綱
- * 對應資料庫名稱：MainDB.sqlite
- * 資料表名稱：TodoList
+ * 檔案功能：待辦事項與計畫大綱管理模組 (Microsoft.Data.Sqlite 升級版)
  */
 
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -22,13 +19,11 @@ public class App_TodoList : UserControl
     private string transferBtnText;
     private List<TodoItem> taskList = new List<TodoItem>();
 
-    // --- 介面控制項 ---
     private Panel topInputPanel;
     private TextBox txtInput;
     private Button btnAdd;
-    private FlowLayoutPanel taskPanel; // 改用動態容器，捨棄死板的 ListBox
+    private FlowLayoutPanel taskPanel;
 
-    // --- 樣式設定與顏色輪替 (iOS 風格對應) ---
     private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Color AppleRed = Color.FromArgb(255, 59, 48);
@@ -37,7 +32,6 @@ public class App_TodoList : UserControl
     private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
     private static Font SmallFont = new Font("Microsoft JhengHei UI", 9.5f, FontStyle.Regular);
 
-    // 原始功能的顏色陣列 (對應到全新的 Apple 質感色系)
     private readonly string[] colorCycle = { "Black", "AppleRed", "AppleBlue", "ApplePurple", "AppleGreen", "AppleOrange" };
 
     private Color GetDisplayColor(string colorName)
@@ -53,7 +47,6 @@ public class App_TodoList : UserControl
         }
     }
 
-    // --- 資料模型 ---
     public class TodoItem
     {
         public string Id { get; set; }
@@ -80,7 +73,6 @@ public class App_TodoList : UserControl
 
     private void InitializeUI()
     {
-        // 頂部輸入區塊
         topInputPanel = new Panel() { Dock = DockStyle.Top, Height = 45, BackColor = Color.White, Padding = new Padding(10), Margin = new Padding(0, 0, 0, 15) };
         btnAdd = new Button() { Text = "新增", Dock = DockStyle.Right, Width = 80, FlatStyle = FlatStyle.Flat, BackColor = AppleBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold) };
         btnAdd.FlatAppearance.BorderSize = 0;
@@ -92,7 +84,6 @@ public class App_TodoList : UserControl
         topInputPanel.Controls.Add(txtInput);
         topInputPanel.Controls.Add(btnAdd);
 
-        // 卡片式列表區塊
         taskPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = AppleBgColor };
         taskPanel.Resize += (s, e) =>
         {
@@ -105,9 +96,6 @@ public class App_TodoList : UserControl
         this.Controls.Add(topInputPanel);
     }
 
-    // ==========================================
-    // UI 動態更新與卡片生成
-    // ==========================================
     public void RefreshUI()
     {
         if (this.InvokeRequired) { this.Invoke(new Action(RefreshUI)); return; }
@@ -120,24 +108,21 @@ public class App_TodoList : UserControl
             Panel card = new Panel() { Width = startWidth, AutoSize = true, MinimumSize = new Size(0, 65), Margin = new Padding(0, 0, 0, 15), BackColor = Color.White, Padding = new Padding(10) };
             
             TableLayoutPanel tlp = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1, AutoSize = true };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));  // 轉移按鈕
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  // 內容文字
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45f));  // 顏色按鈕
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45f));  // 備註按鈕
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));  // 刪除按鈕
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45f)); 
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f)); 
 
-            // 1. 轉移按鈕
             Button btnTransfer = new Button() { Text = transferBtnText, Dock = DockStyle.Fill, BackColor = Color.White, ForeColor = AppleBlue, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold), Margin = new Padding(0, 0, 10, 0) };
             btnTransfer.FlatAppearance.BorderColor = AppleBlue;
             btnTransfer.Click += async (s, e) => await TransferTaskAsync(t);
             
-            // 2. 內容與日期 (動態變色)
             TableLayoutPanel textPanel = new TableLayoutPanel() { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, AutoSize = true, Margin = new Padding(0, 0, 10, 0) };
             Label lblTitle = new Label() { Text = t.Content, ForeColor = GetDisplayColor(t.Color), Font = BoldFont, AutoSize = true, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
             Label lblDate = new Label() { Text = $"建立於: {t.CreatedDate}", ForeColor = Color.Gray, Font = SmallFont, AutoSize = true, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
             textPanel.Controls.Add(lblTitle, 0, 0); textPanel.Controls.Add(lblDate, 0, 1);
 
-            // 3. 顏色切換按鈕
             Button btnColor = new Button() { Text = "色", Dock = DockStyle.Fill, BackColor = GetDisplayColor(t.Color), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = SmallFont, Margin = new Padding(0, 0, 5, 0) };
             btnColor.FlatAppearance.BorderSize = 0;
             btnColor.Click += async (s, e) => {
@@ -148,12 +133,10 @@ public class App_TodoList : UserControl
                 RefreshUI();
             };
 
-            // 4. 備註按鈕 (有備註時亮橘色)
             Button btnNote = new Button() { Text = "註", Dock = DockStyle.Fill, BackColor = string.IsNullOrEmpty(t.Note) ? Color.FromArgb(230, 230, 230) : AppleOrange, ForeColor = string.IsNullOrEmpty(t.Note) ? Color.Gray : Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = SmallFont, Margin = new Padding(0, 0, 10, 0) };
             btnNote.FlatAppearance.BorderSize = 0;
             btnNote.Click += (s, e) => { new EditNoteWindow(this, t).ShowDialog(); };
 
-            // 5. 刪除按鈕
             Button btnDel = new Button() { Text = "刪除", Dock = DockStyle.Fill, BackColor = AppleRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Regular), Margin = new Padding(0) };
             btnDel.FlatAppearance.BorderSize = 0;
             btnDel.Click += async (s, e) => {
@@ -172,9 +155,6 @@ public class App_TodoList : UserControl
         }
     }
 
-    // ==========================================
-    // SQLite 資料庫操作與日誌
-    // ==========================================
     private void SafeAppendLog(string action, string content)
     {
         try
@@ -197,7 +177,7 @@ public class App_TodoList : UserControl
                 using (var conn = DatabaseManager.GetConnection())
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT Id, Content, CreatedDate, Color, Note FROM TodoList WHERE ListName = @ListName ORDER BY CreatedDate ASC", conn))
+                    using (var cmd = new SqliteCommand("SELECT Id, Content, CreatedDate, Color, Note FROM TodoList WHERE ListName = @ListName ORDER BY CreatedDate ASC", conn))
                     {
                         cmd.Parameters.AddWithValue("@ListName", this.listName);
                         using (var reader = cmd.ExecuteReader())
@@ -234,7 +214,7 @@ public class App_TodoList : UserControl
             await Task.Run(() => {
                 using (var conn = DatabaseManager.GetConnection()) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("INSERT INTO TodoList (Id, ListName, Content, CreatedDate, Color, Note) VALUES (@Id, @ListName, @Content, @CreatedDate, @Color, @Note)", conn)) {
+                    using (var cmd = new SqliteCommand("INSERT INTO TodoList (Id, ListName, Content, CreatedDate, Color, Note) VALUES (@Id, @ListName, @Content, @CreatedDate, @Color, @Note)", conn)) {
                         cmd.Parameters.AddWithValue("@Id", newItem.Id); cmd.Parameters.AddWithValue("@ListName", this.listName);
                         cmd.Parameters.AddWithValue("@Content", newItem.Content); cmd.Parameters.AddWithValue("@CreatedDate", newItem.CreatedDate);
                         cmd.Parameters.AddWithValue("@Color", newItem.Color); cmd.Parameters.AddWithValue("@Note", newItem.Note);
@@ -270,7 +250,7 @@ public class App_TodoList : UserControl
         await Task.Run(() => {
             using (var conn = DatabaseManager.GetConnection()) {
                 conn.Open();
-                using (var cmd = new SQLiteCommand($"UPDATE TodoList SET {field} = @Value WHERE Id = @Id", conn)) {
+                using (var cmd = new SqliteCommand($"UPDATE TodoList SET {field} = @Value WHERE Id = @Id", conn)) {
                     cmd.Parameters.AddWithValue("@Value", value); cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
                 }
             }
@@ -282,14 +262,11 @@ public class App_TodoList : UserControl
         await Task.Run(() => {
             using (var conn = DatabaseManager.GetConnection()) {
                 conn.Open();
-                using (var cmd = new SQLiteCommand("DELETE FROM TodoList WHERE Id = @Id", conn)) { cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery(); }
+                using (var cmd = new SqliteCommand("DELETE FROM TodoList WHERE Id = @Id", conn)) { cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery(); }
             }
         });
     }
 
-    /// <summary>
-    /// 供外部清單/排程推播呼叫：接收轉移過來的任務 (使用預設參數以兼容其它尚未修正的模組)
-    /// </summary>
     public async Task ReceiveTaskAsync(string content, string originalDate, string color = "Black", string note = "")
     {
         TodoItem newItem = new TodoItem { Id = Guid.NewGuid().ToString("N"), Content = content, CreatedDate = originalDate, Color = color, Note = note };
@@ -297,7 +274,7 @@ public class App_TodoList : UserControl
         await Task.Run(() => {
             using (var conn = DatabaseManager.GetConnection()) {
                 conn.Open();
-                using (var cmd = new SQLiteCommand("INSERT INTO TodoList (Id, ListName, Content, CreatedDate, Color, Note) VALUES (@Id, @ListName, @Content, @CreatedDate, @Color, @Note)", conn)) {
+                using (var cmd = new SqliteCommand("INSERT INTO TodoList (Id, ListName, Content, CreatedDate, Color, Note) VALUES (@Id, @ListName, @Content, @CreatedDate, @Color, @Note)", conn)) {
                     cmd.Parameters.AddWithValue("@Id", newItem.Id); cmd.Parameters.AddWithValue("@ListName", this.listName);
                     cmd.Parameters.AddWithValue("@Content", newItem.Content); cmd.Parameters.AddWithValue("@CreatedDate", newItem.CreatedDate);
                     cmd.Parameters.AddWithValue("@Color", newItem.Color); cmd.Parameters.AddWithValue("@Note", newItem.Note);
@@ -310,9 +287,6 @@ public class App_TodoList : UserControl
     }
 }
 
-// ==========================================
-// 視窗：獨立備註編輯器
-// ==========================================
 public class EditNoteWindow : Form
 {
     private App_TodoList parent;
