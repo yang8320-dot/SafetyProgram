@@ -1,13 +1,10 @@
 /*
- * 檔案功能：常用捷徑管理與開啟模組 (支援新增、編輯、刪除、拖曳排序與直接啟動程式/檔案/網頁)
- * 對應選單名稱：常用捷徑
- * 對應資料庫名稱：MainDB.sqlite
- * 資料表名稱：Shortcuts
+ * 檔案功能：常用捷徑管理與開啟模組 (Microsoft.Data.Sqlite 升級版)
  */
 
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.Diagnostics;
 using System.Drawing;
 using System.Threading.Tasks;
@@ -19,7 +16,6 @@ public class App_Shortcuts : UserControl
     private FlowLayoutPanel taskPanel;
     private int dragInsertIndex = -1;
 
-    // --- 樣式設定 (iOS 風格) ---
     private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Color AppleRed = Color.FromArgb(255, 59, 48);
@@ -27,7 +23,6 @@ public class App_Shortcuts : UserControl
     private static Font MainFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Regular);
     private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
 
-    // --- 資料模型 ---
     public class ShortcutItem
     {
         public string Id { get; set; }
@@ -171,9 +166,6 @@ public class App_Shortcuts : UserControl
         }
     }
 
-    // ==========================================
-    // SQLite 資料存取邏輯 (交易機制保障效能)
-    // ==========================================
     public async Task LoadShortcutsAsync()
     {
         try
@@ -184,7 +176,7 @@ public class App_Shortcuts : UserControl
                 using (var conn = DatabaseManager.GetConnection())
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT Id, Name, TargetPath FROM Shortcuts ORDER BY SortOrder ASC", conn))
+                    using (var cmd = new SqliteCommand("SELECT Id, Name, TargetPath FROM Shortcuts ORDER BY SortOrder ASC", conn))
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -213,10 +205,9 @@ public class App_Shortcuts : UserControl
                     conn.Open();
                     using (var transaction = conn.BeginTransaction())
                     {
-                        // 為了精確寫入拖曳排序後的結果，先清空表，再按目前 List 順序寫入 (資料量小，此作法最穩定)
-                        using (var cmdDel = new SQLiteCommand("DELETE FROM Shortcuts", conn, transaction)) { cmdDel.ExecuteNonQuery(); }
+                        using (var cmdDel = new SqliteCommand("DELETE FROM Shortcuts", conn, transaction)) { cmdDel.ExecuteNonQuery(); }
 
-                        using (var cmdIns = new SQLiteCommand("INSERT INTO Shortcuts (Id, Name, TargetPath, SortOrder) VALUES (@Id, @Name, @Path, @Order)", conn, transaction))
+                        using (var cmdIns = new SqliteCommand("INSERT INTO Shortcuts (Id, Name, TargetPath, SortOrder) VALUES (@Id, @Name, @Path, @Order)", conn, transaction))
                         {
                             for (int i = 0; i < shortcuts.Count; i++)
                             {
