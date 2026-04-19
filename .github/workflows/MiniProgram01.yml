@@ -1,12 +1,10 @@
-name: 手動打包 MyTool (分離檔案/秒開版)
+name: 手動打包 MyTool (資料夾隱藏/極速秒開版)
 
-# 觸發條件：手動執行
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    # 因為是 Windows 桌面程式，指定在 Windows 伺服器上編譯
     runs-on: windows-latest
 
     steps:
@@ -19,29 +17,45 @@ jobs:
         dotnet-version: '8.0.x'
 
     - name: 3. 還原 NuGet 套件
-      # 注意：如果您的 MyTool.csproj 不在 MiniProgram01 資料夾下，請修改此路徑
+      # 若您的 csproj 不在 MiniProgram01 內，請修改路徑
       run: dotnet restore MiniProgram01/MyTool.csproj
 
-    - name: 4. 編譯與發布 (獨立式 + 檔案分離)
-      # 關鍵參數：
-      # --self-contained true : 內建 .NET 引擎 (別人電腦不用裝 .NET 也能跑)
-      # -p:PublishSingleFile=false : 檔案分離不壓縮成單一檔 (確保點擊瞬間秒開)
+    - name: 4. 編譯真正的程式到 system 資料夾
+      # 將主程式與所有 DLL 打包到 publish_output/system 中
       run: >
         dotnet publish MiniProgram01/MyTool.csproj
         -c Release
         -r win-x64
         --self-contained true
         -p:PublishSingleFile=false
-        -o ./publish_output
+        -o ./publish_output/system
 
-    - name: 5. 將發布檔案壓縮成 ZIP
-      # 使用 PowerShell 將 publish_output 資料夾內的所有檔案壓縮成 MyTool_Release_win64.zip
-      run: Compress-Archive -Path ./publish_output/* -DestinationPath MyTool_Release_win64.zip
+    - name: 5. 自動生成極速啟動器 (Launcher)
+      # 利用腳本自動寫一個 10KB 的引導程式，放在外層
+      run: |
+        mkdir Launcher
+        
+        # 建立微型專案 (採用 Windows 內建的 .NET 4.7.2 確保體積極小且秒開)
+        echo '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net472</TargetFramework><AssemblyName>MyTool</AssemblyName></PropertyGroup></Project>' > Launcher/Launcher.csproj
+        
+        # 建立啟動器程式碼 (呼叫 system/MyTool.exe 並將工作目錄設為 system)
+        echo 'using System.Diagnostics; using System.IO; using System.Reflection; class Program { static void Main(string[] args) { string baseDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location); string target = Path.Combine(baseDir, "system", "MyTool.exe"); if (File.Exists(target)) { ProcessStartInfo info = new ProcessStartInfo { FileName = target, WorkingDirectory = Path.Combine(baseDir, "system"), Arguments = string.Join(" ", args) }; Process.Start(info); } } }' > Launcher/Program.cs
+        
+        # 編譯啟動器並放入外層資料夾
+        dotnet build Launcher/Launcher.csproj -c Release -o ./publish_output
 
-    - name: 6. 上傳 ZIP 讓您可以下載
+    - name: 6. 刪除啟動器產生時的多餘檔案 (保持根目錄乾淨)
+      run: |
+        del ./publish_output/MyTool.exe.config
+        del ./publish_output/MyTool.pdb
+
+    - name: 7. 將發布檔案壓縮成 ZIP
+      # 壓縮成果，此時結構為： 外層有 MyTool.exe，內層有一個 system 資料夾
+      run: Compress-Archive -Path ./publish_output/* -DestinationPath MyTool_Release_Clean.zip
+
+    - name: 8. 上傳 ZIP 讓您可以下載
       uses: actions/upload-artifact@v4
       with:
-        name: MyTool-Build-Artifact
-        path: MyTool_Release_win64.zip
-        # 產生的 ZIP 檔會在 GitHub 空間保留 30 天
+        name: MyTool-Clean-Artifact
+        path: MyTool_Release_Clean.zip
         retention-days: 30
