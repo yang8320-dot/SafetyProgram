@@ -1,13 +1,10 @@
 /*
- * 檔案功能：檔案監控與自動備份/同步模組 (SQLite 升級版)
- * 對應選單名稱：檔案監控
- * 對應資料庫名稱：MainDB.sqlite
- * 資料表名稱：FileWatcher
+ * 檔案功能：檔案監控與自動備份/同步模組 (Microsoft.Data.Sqlite 升級版)
  */
 
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -16,15 +13,13 @@ using System.Windows.Forms;
 public class App_FileWatcher : UserControl
 {
     private MainForm parentForm;
-    private ContextMenuStrip trayMenu; // 【修正】改用現代化的 ContextMenuStrip
+    private ContextMenuStrip trayMenu;
 
-    // --- 核心資料結構 ---
     private Dictionary<string, string[]> pathPairs = new Dictionary<string, string[]>();
     private Dictionary<string, FileSystemWatcher> activeWatchers = new Dictionary<string, FileSystemWatcher>();
 
     private FlowLayoutPanel taskPanel;
 
-    // --- 樣式設定 (iOS 風格) ---
     private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
     private static Color AppleBlue = Color.FromArgb(0, 122, 255);
     private static Color AppleRed = Color.FromArgb(255, 59, 48);
@@ -33,7 +28,7 @@ public class App_FileWatcher : UserControl
     private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
     private static Font SmallFont = new Font("Microsoft JhengHei UI", 9.5f, FontStyle.Regular);
 
-    public App_FileWatcher(MainForm parent, ContextMenuStrip trayMenu) // 【修正】改用現代化的 ContextMenuStrip
+    public App_FileWatcher(MainForm parent, ContextMenuStrip trayMenu)
     {
         this.parentForm = parent;
         this.trayMenu = trayMenu;
@@ -84,7 +79,7 @@ public class App_FileWatcher : UserControl
                 using (var conn = DatabaseManager.GetConnection())
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT SourcePath, TargetPath, SyncMethod, Frequency, Depth, SyncMode, Retention, CustomName FROM FileWatcher", conn))
+                    using (var cmd = new SqliteCommand("SELECT SourcePath, TargetPath, SyncMethod, Frequency, Depth, SyncMode, Retention, CustomName FROM FileWatcher", conn))
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -126,14 +121,14 @@ public class App_FileWatcher : UserControl
                     {
                         if (!string.IsNullOrEmpty(oldSrc) && oldSrc != newSrc)
                         {
-                            using (var cmdDel = new SQLiteCommand("DELETE FROM FileWatcher WHERE SourcePath = @OldSrc", conn, transaction))
+                            using (var cmdDel = new SqliteCommand("DELETE FROM FileWatcher WHERE SourcePath = @OldSrc", conn, transaction))
                             {
                                 cmdDel.Parameters.AddWithValue("@OldSrc", oldSrc);
                                 cmdDel.ExecuteNonQuery();
                             }
                         }
 
-                        using (var cmdIns = new SQLiteCommand(@"INSERT OR REPLACE INTO FileWatcher 
+                        using (var cmdIns = new SqliteCommand(@"INSERT OR REPLACE INTO FileWatcher 
                             (SourcePath, TargetPath, SyncMethod, Frequency, Depth, SyncMode, Retention, CustomName) 
                             VALUES (@Src, @Dst, @Method, @Freq, @Depth, @SyncMode, @Retain, @CName)", conn, transaction))
                         {
@@ -166,7 +161,7 @@ public class App_FileWatcher : UserControl
                 using (var conn = DatabaseManager.GetConnection())
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("DELETE FROM FileWatcher WHERE SourcePath = @Src", conn))
+                    using (var cmd = new SqliteCommand("DELETE FROM FileWatcher WHERE SourcePath = @Src", conn))
                     {
                         cmd.Parameters.AddWithValue("@Src", srcPath);
                         cmd.ExecuteNonQuery();
