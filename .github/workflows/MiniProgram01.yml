@@ -1,34 +1,47 @@
-name: MyTool-Manual-Build
+name: 手動打包 MyTool (分離檔案/秒開版)
 
+# 觸發條件：手動執行
 on:
-  workflow_dispatch: # 全手動觸發，GitHub 網頁 Actions 頁面會出現「Run workflow」按鈕
+  workflow_dispatch:
 
 jobs:
   build:
+    # 因為是 Windows 桌面程式，指定在 Windows 伺服器上編譯
     runs-on: windows-latest
-    
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: 1. 取得最新程式碼
+      uses: actions/checkout@v4
 
-      # 設定 .NET 8.0 環境
-      - name: Setup .NET 8.0
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
+    - name: 2. 安裝 .NET 8.0 環境
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
 
-      - name: Compile and Bundle SQLite
-        # 修正後的指令：
-        # 1. 進入專案目錄 MiniProgram01
-        # 2. 使用 MyTool.csproj 發佈
-        # 3. 增加 IncludeNativeLibrariesForSelfExtract 確保 SQLite DLL 被正確打包
-        run: |
-          cd MiniProgram01
-          dotnet publish MyTool.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ../PublishOutput
+    - name: 3. 還原 NuGet 套件
+      # 注意：如果您的 MyTool.csproj 不在 MiniProgram01 資料夾下，請修改此路徑
+      run: dotnet restore MiniProgram01/MyTool.csproj
 
-      - name: Upload EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: MyTool-Portable-App
-          # 上傳編譯後產出的 MyTool.exe (位於根目錄下的 PublishOutput)
-          path: PublishOutput/MyTool.exe
+    - name: 4. 編譯與發布 (獨立式 + 檔案分離)
+      # 關鍵參數：
+      # --self-contained true : 內建 .NET 引擎 (別人電腦不用裝 .NET 也能跑)
+      # -p:PublishSingleFile=false : 檔案分離不壓縮成單一檔 (確保點擊瞬間秒開)
+      run: >
+        dotnet publish MiniProgram01/MyTool.csproj
+        -c Release
+        -r win-x64
+        --self-contained true
+        -p:PublishSingleFile=false
+        -o ./publish_output
+
+    - name: 5. 將發布檔案壓縮成 ZIP
+      # 使用 PowerShell 將 publish_output 資料夾內的所有檔案壓縮成 MyTool_Release_win64.zip
+      run: Compress-Archive -Path ./publish_output/* -DestinationPath MyTool_Release_win64.zip
+
+    - name: 6. 上傳 ZIP 讓您可以下載
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyTool-Build-Artifact
+        path: MyTool_Release_win64.zip
+        # 產生的 ZIP 檔會在 GitHub 空間保留 30 天
+        retention-days: 30
