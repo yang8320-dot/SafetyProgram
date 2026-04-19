@@ -16,10 +16,9 @@ using System.Windows.Forms;
 public class App_FileWatcher : UserControl
 {
     private MainForm parentForm;
-    private ContextMenu trayMenu;
+    private ContextMenuStrip trayMenu; // 【修正】改用現代化的 ContextMenuStrip
 
     // --- 核心資料結構 ---
-    // key: SourcePath, value: 設定陣列 (src, dst, method, freq, depth, syncMode, retention, customName)
     private Dictionary<string, string[]> pathPairs = new Dictionary<string, string[]>();
     private Dictionary<string, FileSystemWatcher> activeWatchers = new Dictionary<string, FileSystemWatcher>();
 
@@ -34,7 +33,7 @@ public class App_FileWatcher : UserControl
     private static Font BoldFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold);
     private static Font SmallFont = new Font("Microsoft JhengHei UI", 9.5f, FontStyle.Regular);
 
-    public App_FileWatcher(MainForm parent, ContextMenu trayMenu)
+    public App_FileWatcher(MainForm parent, ContextMenuStrip trayMenu) // 【修正】改用現代化的 ContextMenuStrip
     {
         this.parentForm = parent;
         this.trayMenu = trayMenu;
@@ -75,9 +74,6 @@ public class App_FileWatcher : UserControl
         taskPanel.BringToFront();
     }
 
-    // ==========================================
-    // SQLite 資料存取 (Async & Thread-Safety)
-    // ==========================================
     private async Task LoadAndStartWatchersAsync()
     {
         try
@@ -128,7 +124,6 @@ public class App_FileWatcher : UserControl
                     conn.Open();
                     using (var transaction = conn.BeginTransaction())
                     {
-                        // 若修改了來源路徑，先刪除舊的
                         if (!string.IsNullOrEmpty(oldSrc) && oldSrc != newSrc)
                         {
                             using (var cmdDel = new SQLiteCommand("DELETE FROM FileWatcher WHERE SourcePath = @OldSrc", conn, transaction))
@@ -138,7 +133,6 @@ public class App_FileWatcher : UserControl
                             }
                         }
 
-                        // 新增或更新 (INSERT OR REPLACE)
                         using (var cmdIns = new SQLiteCommand(@"INSERT OR REPLACE INTO FileWatcher 
                             (SourcePath, TargetPath, SyncMethod, Frequency, Depth, SyncMode, Retention, CustomName) 
                             VALUES (@Src, @Dst, @Method, @Freq, @Depth, @SyncMode, @Retain, @CName)", conn, transaction))
@@ -187,9 +181,6 @@ public class App_FileWatcher : UserControl
         catch (Exception ex) { MessageBox.Show($"刪除失敗: {ex.Message}"); }
     }
 
-    // ==========================================
-    // 核心邏輯：背景監控引擎
-    // ==========================================
     public void ReloadAllWatchers()
     {
         foreach (var watcher in activeWatchers.Values) { watcher.EnableRaisingEvents = false; watcher.Dispose(); }
@@ -217,7 +208,7 @@ public class App_FileWatcher : UserControl
 
                     activeWatchers[src] = fsw;
                 }
-                catch { /* 忽略無法監控的目錄 */ }
+                catch { }
             }
         }
     }
@@ -249,9 +240,6 @@ public class App_FileWatcher : UserControl
         });
     }
 
-    // ==========================================
-    // UI 更新
-    // ==========================================
     public void RefreshUI()
     {
         if (this.InvokeRequired) { this.Invoke(new Action(RefreshUI)); return; }
@@ -290,9 +278,6 @@ public class App_FileWatcher : UserControl
     }
 }
 
-// ==========================================
-// 視窗：新增/編輯監控設定
-// ==========================================
 public class MonitorSettingsWindow : Form
 {
     private App_FileWatcher parent;
