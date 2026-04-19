@@ -1,7 +1,7 @@
 name: MiniProgram01
 
 on:
-  workflow_dispatch: # 核心修正：移除 push，只保留手動觸發按鈕
+  workflow_dispatch: # 核心修正：完全依照您的要求，只保留手動觸發按鈕
 
 jobs:
   build:
@@ -10,14 +10,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Compile C# Multi-Files
-        # 使用 Visual Studio 2022 內建的 Roslyn 編譯器 (csc.exe)
+      # 為了讓 dotnet 指令能順利執行，先設定 .NET 環境
+      - name: Setup .NET 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Compile and Bundle SQLite
+        # 核心修正：捨棄裸 csc.exe，改用 dotnet publish
+        # 它會讀取您資料夾內的 MiniProgram01.csproj，自動下載 SQLite 並將所有東西揉合成單一 EXE
         run: |
           cd MiniProgram01
-          & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe" /target:winexe /out:MiniProgram01.exe /optimize+ *.cs
+          dotnet publish MiniProgram01.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ../PublishOutput
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: MiniProgram01-App
-          path: MiniProgram01/MiniProgram01.exe
+          path: PublishOutput/*.exe
