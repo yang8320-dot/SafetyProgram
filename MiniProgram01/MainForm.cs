@@ -9,11 +9,11 @@ using System.Diagnostics;
 
 public class MainForm : Form {
     public NotifyIcon trayIcon;
-    public ContextMenu trayMenu;
+    public ContextMenuStrip trayMenu;
     private TabControl tabControl;
     private string appName = "MiniProgram01";
     private HashSet<int> alertTabs = new HashSet<int>();
-    private Timer flashTimer;
+    private System.Windows.Forms.Timer flashTimer;
     private bool flashState = false;
 
     // --- 快捷鍵相關 API 與常數 ---
@@ -64,25 +64,25 @@ public class MainForm : Form {
         this.Top = area.Bottom - this.Height - 10;
 
         // --- 設定常駐右鍵選單 ---
-        trayMenu = new ContextMenu();
-        MenuItem startupItem = new MenuItem("開機自動啟動", ToggleStartup);
+        trayMenu = new ContextMenuStrip();
+        ToolStripMenuItem startupItem = new ToolStripMenuItem("開機自動啟動", null, ToggleStartup);
         startupItem.Checked = IsRunOnStartup();
-        trayMenu.MenuItems.Add(startupItem);
-        trayMenu.MenuItems.Add("-");
+        trayMenu.Items.Add(startupItem);
+        trayMenu.Items.Add(new ToolStripSeparator());
         
-        trayMenu.MenuItems.Add("顯示主視窗 (Ctrl+1)", (s, e) => ShowAppWindow());
-        trayMenu.MenuItems.Add("圖片小工具 (Ctrl+2)", (s, e) => LaunchExternalApp(HOTKEY_IMAGE_ID));
-        trayMenu.MenuItems.Add("啟動 Safety System (Ctrl+3)", (s, e) => LaunchExternalApp(HOTKEY_SAFETY_ID));
-        trayMenu.MenuItems.Add("啟動 G-Task (Ctrl+9)", (s, e) => LaunchExternalApp(HOTKEY_GTASK_ID));
+        trayMenu.Items.Add("顯示主視窗 (Ctrl+1)", null, (s, e) => ShowAppWindow());
+        trayMenu.Items.Add("圖片小工具 (Ctrl+2)", null, (s, e) => LaunchExternalApp(HOTKEY_IMAGE_ID));
+        trayMenu.Items.Add("啟動 Safety System (Ctrl+3)", null, (s, e) => LaunchExternalApp(HOTKEY_SAFETY_ID));
+        trayMenu.Items.Add("啟動 G-Task (Ctrl+9)", null, (s, e) => LaunchExternalApp(HOTKEY_GTASK_ID));
         
-        trayMenu.MenuItems.Add("-");
-        trayMenu.MenuItems.Add("快捷鍵程式設定", (s, e) => OpenPathSettingsWindow());
-        trayMenu.MenuItems.Add("-");
-        trayMenu.MenuItems.Add("完全退出", (s, e) => { trayIcon.Visible = false; Environment.Exit(0); });
+        trayMenu.Items.Add(new ToolStripSeparator());
+        trayMenu.Items.Add("快捷鍵程式設定", null, (s, e) => OpenPathSettingsWindow());
+        trayMenu.Items.Add(new ToolStripSeparator());
+        trayMenu.Items.Add("完全退出", null, (s, e) => { trayIcon.Visible = false; Environment.Exit(0); });
         
         trayIcon = new NotifyIcon();
         trayIcon.Icon = SystemIcons.Application; 
-        trayIcon.ContextMenu = trayMenu;
+        trayIcon.ContextMenuStrip = trayMenu;
         trayIcon.Visible = true;
         trayIcon.Text = "整合通知中心";
         trayIcon.DoubleClick += (s, e) => ShowAppWindow();
@@ -140,7 +140,7 @@ public class MainForm : Form {
         tabControl.TabPages[4].Controls.Add(shortcutsApp);
         tabControl.TabPages[5].Controls.Add(screenshotApp);
 
-        flashTimer = new Timer() { Interval = 500 };
+        flashTimer = new System.Windows.Forms.Timer() { Interval = 500 };
         flashTimer.Tick += (s, e) => {
             if (alertTabs.Count == 0) { 
                 flashTimer.Stop();
@@ -223,7 +223,8 @@ public class MainForm : Form {
     private void HideAppWindow() { this.Hide(); }
 
     private void ToggleStartup(object sender, EventArgs e) {
-        MenuItem item = sender as MenuItem;
+        ToolStripMenuItem item = sender as ToolStripMenuItem;
+        if (item == null) return;
         bool newState = !item.Checked;
         SetRunOnStartup(newState);
         item.Checked = newState;
