@@ -10,7 +10,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Win32; // 新增：用於操作 Windows 登錄檔 (開機啟動)
+using Microsoft.Win32; 
 
 public class MainForm : Form
 {
@@ -33,7 +33,7 @@ public class MainForm : Form
 
     // --- 介面元件 ---
     private NotifyIcon trayIcon;
-    private ContextMenu trayMenu;
+    private ContextMenuStrip trayMenu; // 【修正】改用現代化 ContextMenuStrip
     private Panel navBar;
     private Panel contentPanel;
     private App_TodoList appTodo;
@@ -139,7 +139,6 @@ public class MainForm : Form
         
         btn.Click += (s, e) =>
         {
-            // 重置所有按鈕樣式
             foreach (Control c in navBar.Controls)
             {
                 if (c is Button b)
@@ -150,12 +149,10 @@ public class MainForm : Form
                 }
             }
             
-            // 標示當前選取按鈕 (Apple Blue)
             btn.BackColor = AppleBlue;
             btn.ForeColor = Color.White;
             btn.Font = new Font(MainFont.FontFamily, 11f, FontStyle.Bold);
 
-            // 切換右側內容
             contentPanel.Controls.Clear();
             contentPanel.Controls.Add(module);
         };
@@ -169,19 +166,21 @@ public class MainForm : Form
     // ==========================================
     private void InitializeTrayIcon()
     {
-        trayMenu = new ContextMenu();
-        trayMenu.MenuItems.Add("開啟主畫面", (s, e) => ShowAppWindow());
-        trayMenu.MenuItems.Add("快捷鍵路徑設定", (s, e) => { new HotkeySettingsWindow(this).ShowDialog(); });
+        trayMenu = new ContextMenuStrip(); // 【修正】使用 ContextMenuStrip
+        
+        // 【修正】使用 Items.Add 並對應現代化的寫法
+        trayMenu.Items.Add("開啟主畫面", null, (s, e) => ShowAppWindow());
+        trayMenu.Items.Add("快捷鍵路徑設定", null, (s, e) => { new HotkeySettingsWindow(this).ShowDialog(); });
         
         // 開機自動啟動選項
-        MenuItem startupItem = new MenuItem("開機自動啟動");
+        ToolStripMenuItem startupItem = new ToolStripMenuItem("開機自動啟動"); // 【修正】使用 ToolStripMenuItem
         startupItem.Checked = IsRunOnStartup();
         startupItem.Click += ToggleStartup;
-        trayMenu.MenuItems.Add(startupItem);
+        trayMenu.Items.Add(startupItem);
 
-        trayMenu.MenuItems.Add("-");
+        trayMenu.Items.Add(new ToolStripSeparator()); // 【修正】加入分隔線
         
-        trayMenu.MenuItems.Add("完全退出程式", (s, e) => 
+        trayMenu.Items.Add("完全退出程式", null, (s, e) => 
         {
             UnregisterHotKey(this.Handle, HOTKEY_ID_AWAKE);
             UnregisterHotKey(this.Handle, HOTKEY_ID_APP2);
@@ -195,7 +194,7 @@ public class MainForm : Form
         {
             Text = "整合通知中心 (背景執行中)",
             Icon = SystemIcons.Application,
-            ContextMenu = trayMenu,
+            ContextMenuStrip = trayMenu, // 【修正】將 ContextMenu 改為 ContextMenuStrip 屬性
             Visible = true
         };
         trayIcon.DoubleClick += (s, e) => ShowAppWindow();
@@ -204,7 +203,7 @@ public class MainForm : Form
     // --- 開機自動啟動 (Registry 登錄檔控制) ---
     private void ToggleStartup(object sender, EventArgs e)
     {
-        MenuItem item = sender as MenuItem;
+        ToolStripMenuItem item = sender as ToolStripMenuItem; // 【修正】轉型為 ToolStripMenuItem
         bool newState = !item.Checked;
         SetRunOnStartup(newState);
         item.Checked = newState;
@@ -343,9 +342,6 @@ public class MainForm : Form
         });
     }
 
-    // ==========================================
-    // 供外部模組呼叫：分頁閃爍警報
-    // ==========================================
     public void AddAlertTab(int tabIndex)
     {
         if (this.InvokeRequired) 
@@ -365,9 +361,6 @@ public class MainForm : Form
     }
 }
 
-// ==========================================
-// 視窗：全域快捷鍵路徑設定
-// ==========================================
 public class HotkeySettingsWindow : Form
 {
     private MainForm parent;
