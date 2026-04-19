@@ -1,4 +1,4 @@
-name: MyTool
+name: MiniProgram01-MyTool
 
 on:
   workflow_dispatch:
