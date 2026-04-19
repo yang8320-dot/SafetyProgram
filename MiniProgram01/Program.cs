@@ -1,8 +1,5 @@
 /*
- * 檔案功能：程式進入點 (Entry Point)，負責啟動主視窗、確保單一執行個體 (Mutex) 與設定 DPI 縮放支援
- * 對應選單名稱：無 (系統啟動核心)
- * 對應資料庫名稱：MainDB.sqlite (於此處觸發初始化)
- * 資料表名稱：無
+ * 檔案功能：程式進入點 (加入全局錯誤捕捉網)
  */
 
 using System;
@@ -12,44 +9,54 @@ using System.Windows.Forms;
 
 public static class Program
 {
-    // --- 引入 Windows API 確保高 DPI 螢幕下字體不模糊 (iOS 風格介面必備) ---
     [DllImport("user32.dll", ExactSpelling = true, CharSet = CharSet.Auto)]
     private static extern bool SetProcessDPIAware();
 
-    // --- 宣告全域 Mutex，確保程式為單一執行檔 (不會重複開啟) ---
     private static Mutex mutex = new Mutex(true, "{A93B72C1-D264-48E3-8E5F-B4A1F6C8D9E2}");
 
     [STAThread]
     public static void Main()
     {
-        if (mutex.WaitOne(TimeSpan.Zero, true))
+        // 加入全局錯誤捕捉，防止程式默默閃退
+        Application.ThreadException += (s, e) => 
+            MessageBox.Show($"UI執行緒發生錯誤:\n{e.Exception.Message}\n\n{e.Exception.StackTrace}", "嚴重錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        
+        AppDomain.CurrentDomain.UnhandledException += (s, e) => 
+            MessageBox.Show($"發生非預期錯誤:\n{((Exception)e.ExceptionObject).Message}\n\n{((Exception)e.ExceptionObject).StackTrace}", "嚴重錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+        try
         {
-            try
+            if (mutex.WaitOne(TimeSpan.Zero, true))
             {
                 if (Environment.OSVersion.Version.Major >= 6)
                 {
-                    SetProcessDPIAware(); // 啟用 DPI 縮放支援
+                    SetProcessDPIAware();
                 }
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 
-                // 【新增】：在介面啟動前，初始化 SQLite 資料庫與所有資料表
+                // 這裡如果出錯，就會被下方的 catch 捕捉到
                 DatabaseManager.InitializeDatabase();
                 
-                // 啟動我們設計好的 iOS 風格主視窗
                 Application.Run(new MainForm());
             }
-            finally
+            else
             {
-                mutex.ReleaseMutex();
+                MessageBox.Show("整合通知中心已在背景執行中！\n請按下 Ctrl+1 喚醒。", 
+                                "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
         }
-        else
+        catch (Exception ex)
         {
-            MessageBox.Show("整合通知中心已在背景執行中！\n請查看桌面右下角系統列 (Tray) 的常駐圖示，或按下熱鍵 (Ctrl+1) 喚醒。", 
-                            "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
+            // 捕捉初始化期間的任何崩潰
+            MessageBox.Show($"程式啟動失敗！\n錯誤訊息: {ex.Message}\n\n詳細追蹤:\n{ex.StackTrace}", 
+                            "啟動崩潰", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            try { mutex.ReleaseMutex(); } catch { }
         }
     }
 }
