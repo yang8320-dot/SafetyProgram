@@ -1,386 +1,455 @@
 /*
- * 檔案功能：主視窗與整合通知中心 (提供系統列圖示、全域快捷鍵、分頁管理與 iOS 風格導覽列)
- * 對應選單名稱：主選單
- * 對應資料庫名稱：MainDB.sqlite (目前主框架以設定檔/記憶體為主)
- * 資料表名稱：MainForm_Config
+ * 檔案功能：系統主視窗框架 (整合 iOS 風格導覽列、系統列常駐、與全域快捷鍵設定)
+ * 包含模組：系統選單、全域熱鍵註冊 (Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+9)
  */
 
 using System;
-using System.Collections.Generic;
+using System.Data.SQLite;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Win32;
-using System.Threading;
 
 public class MainForm : Form
 {
-    // --- 介面核心控制項 ---
-    private Panel topNavBar;                 // 模擬 iOS 風格的頂部導覽列
-    private TabControl tabControl;           // 負責裝載各模組的容器 (隱藏原生標籤)
-    private NotifyIcon trayIcon;             // 系統列常駐圖示
-    private ContextMenu trayMenu;            // 右鍵選單
-    private List<Button> navButtons = new List<Button>(); // 導覽列按鈕集合
-
-    // --- 子模組參考 ---
-    private UserControl fileWatcherApp;
-    private dynamic todoApp;      // 使用 dynamic 方便未來的強型別綁定，或替換為實際類別名
-    private dynamic planApp;
-    private UserControl recurringApp;
-    private UserControl shortcutsApp;
-    private UserControl screenshotApp;
-
-    // --- 狀態與常數 ---
-    private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
-    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
-    private static Font MainFont = new Font("Microsoft JhengHei UI", 10f, FontStyle.Regular);
-    private static Font ActiveFont = new Font("Microsoft JhengHei UI", 10f, FontStyle.Bold);
-
-    private HashSet<int> alertTabs = new HashSet<int>();
-    private System.Windows.Forms.Timer flashTimer; // 明確指定 Forms.Timer
-    private bool flashState = false;
-
-    // --- 全域快捷鍵 API ---
+    // --- Windows API 宣告 (全域快捷鍵) ---
     [DllImport("user32.dll")]
-    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-    
-    // 快捷鍵 ID 定義
-    private const int HOTKEY_ID = 9000;       // Ctrl+1: 喚醒主視窗
-    private const int HOTKEY_IMAGE_ID = 9001; // Ctrl+2
-    private const int HOTKEY_SAFETY_ID = 9002;// Ctrl+3
-    private const int HOTKEY_GTASK_ID = 9008; // Ctrl+9
+
+    private const int MOD_CONTROL = 0x0002;
+    private const int HOTKEY_ID_AWAKE = 1;
+    private const int HOTKEY_ID_APP2 = 2;
+    private const int HOTKEY_ID_APP3 = 3;
+    private const int HOTKEY_ID_APP9 = 9;
+
+    // --- 快捷鍵目標路徑 ---
+    private string pathApp2 = "";
+    private string pathApp3 = "";
+    private string pathApp9 = "";
+
+    // --- 介面元件 ---
+    private NotifyIcon trayIcon;
+    private ContextMenu trayMenu;
+    private Panel navBar;
+    private Panel contentPanel;
+    private App_TodoList appTodo;
+
+    // --- 樣式設定 (iOS 風格) ---
+    private static Color AppleBgColor = Color.FromArgb(245, 245, 247);
+    private static Color AppleBlue = Color.FromArgb(0, 122, 255);
+    private static Font MainFont = new Font("Microsoft JhengHei UI", 11f, FontStyle.Regular);
 
     public MainForm()
     {
-        // 1. 初始化表單基本設定與 DPI 支援
+        // 1. 視窗基本設定
         this.Text = "整合通知中心";
         this.Width = 900;
-        this.Height = 650;
+        this.Height = 700;
         this.StartPosition = FormStartPosition.CenterScreen;
+        this.AutoScaleMode = AutoScaleMode.Dpi;
         this.BackColor = AppleBgColor;
-        this.AutoScaleMode = AutoScaleMode.Dpi; // 【重要】DPI 縮放防模糊
         this.Font = MainFont;
-        
-        // 2. 初始化系統列圖示 (Tray Icon)
+
+        // 2. 建立系統列 (Tray)
         InitializeTrayIcon();
 
-        // 3. 初始化 iOS 風格介面與分頁容器
+        // 3. 建立 UI 架構 (左側導覽、右側內容)
         InitializeUI();
 
-        // 4. 註冊全域快捷鍵 (Ctrl = 2, 1 = 0x31)
-        RegisterHotKey(this.Handle, HOTKEY_ID, 2, 0x31);
-        RegisterHotKey(this.Handle, HOTKEY_IMAGE_ID, 2, 0x32);
-        RegisterHotKey(this.Handle, HOTKEY_SAFETY_ID, 2, 0x33);
-        RegisterHotKey(this.Handle, HOTKEY_GTASK_ID, 2, 0x39);
+        // 4. 註冊全域快捷鍵
+        RegisterAllHotkeys();
 
-        // 5. 初始化閃爍提醒 Timer
-        flashTimer = new System.Windows.Forms.Timer();
-        flashTimer.Interval = 500; // 每 0.5 秒閃爍一次
-        flashTimer.Tick += FlashTimer_Tick;
-        flashTimer.Start();
+        // 5. 載入資料庫中的快捷鍵設定
+        LoadHotkeySettings();
 
-        // 隱藏視窗作為背景常駐服務
-        this.Load += (s, e) => { BeginInvoke(new Action(() => this.Hide())); };
-    }
-
-    /// <summary>
-    /// 建構純程式碼介面 (Code-First UI)
-    /// </summary>
-    private void InitializeUI()
-    {
-        // 建立模擬 iOS Segmented Control 的導覽列
-        topNavBar = new FlowLayoutPanel()
+        // 攔截視窗關閉事件，改為縮小至系統列
+        this.FormClosing += (s, e) =>
         {
-            Dock = DockStyle.Top,
-            Height = 55,
-            BackColor = Color.White,
-            Padding = new Padding(15, 10, 15, 0), // 內部與文字間隔
-            Margin = new Padding(0, 0, 0, 15)     // 【關鍵】主選單與下方頁面間隔 15
-        };
-        
-        // 底部加上一條極細的灰色分隔線提升立體感
-        Panel borderLine = new Panel() { Dock = DockStyle.Top, Height = 1, BackColor = Color.FromArgb(230, 230, 230) };
-
-        // 建立裝載各子模組的容器
-        tabControl = new TabControl()
-        {
-            Dock = DockStyle.Fill,
-            // 隱藏原生的醜陋分頁標籤，完全由上方的 topNavBar 控制
-            Appearance = TabAppearance.FlatButtons,
-            ItemSize = new Size(0, 1),
-            SizeMode = TabSizeMode.Fixed,
-            BackColor = AppleBgColor
-        };
-
-        // 解除警報事件：當切換分頁時，移除該分頁的警報狀態
-        tabControl.SelectedIndexChanged += (s, e) => 
-        {
-            if (tabControl.SelectedIndex >= 0)
+            if (e.CloseReason == CloseReason.UserClosing)
             {
-                alertTabs.Remove(tabControl.SelectedIndex);
-                SyncNavButtons(); // 同步更新按鈕的視覺狀態
+                e.Cancel = true;
+                this.Hide();
             }
         };
-
-        // 將控制項加入視窗主體
-        this.Controls.Add(tabControl);
-        this.Controls.Add(borderLine);
-        this.Controls.Add(topNavBar);
-
-        // 初始化各個獨立模組
-        // (假設原本專案中的類別皆已存在，此處實例化並傳入必要的參考)
-        fileWatcherApp = new App_FileWatcher(this, trayMenu);
-        todoApp = new App_TodoList(this, "todo", "轉待規");
-        planApp = new App_TodoList(this, "plan", "轉待辦");
-        todoApp.TargetList = planApp;
-        planApp.TargetList = todoApp;
-        recurringApp = new App_RecurringTasks(this, todoApp);
-        shortcutsApp = new App_Shortcuts(this);
-        screenshotApp = new App_Screenshot(this);
-
-        // 設定各模組佈滿分頁
-        fileWatcherApp.Dock = DockStyle.Fill;
-        todoApp.Dock = DockStyle.Fill;
-        planApp.Dock = DockStyle.Fill;
-        recurringApp.Dock = DockStyle.Fill;
-        shortcutsApp.Dock = DockStyle.Fill;
-        screenshotApp.Dock = DockStyle.Fill;
-
-        // 建立分頁並與按鈕綁定
-        AddTab("檔案監控", fileWatcherApp);
-        AddTab("待辦事項", todoApp);
-        AddTab("計畫大綱", planApp);
-        AddTab("週期任務", recurringApp);
-        AddTab("常用捷徑", shortcutsApp);
-        AddTab("畫面截圖", screenshotApp);
-
-        // 預設選中第一個分頁
-        if (navButtons.Count > 0) SyncNavButtons();
     }
 
-    /// <summary>
-    /// 動態新增分頁與對應的 iOS 風格導覽按鈕
-    /// </summary>
-    private void AddTab(string title, Control content)
+    private void InitializeUI()
     {
-        // 建立分頁
-        TabPage page = new TabPage(title) { BackColor = AppleBgColor };
-        page.Controls.Add(content);
-        tabControl.TabPages.Add(page);
+        navBar = new Panel() 
+        { 
+            Dock = DockStyle.Left, 
+            Width = 150, 
+            BackColor = Color.White, 
+            Padding = new Padding(10) 
+        };
+        
+        contentPanel = new Panel() 
+        { 
+            Dock = DockStyle.Fill, 
+            BackColor = AppleBgColor 
+        };
 
-        int tabIndex = tabControl.TabPages.Count - 1;
+        this.Controls.Add(contentPanel);
+        this.Controls.Add(navBar);
 
-        // 建立導覽列按鈕
+        // 實例化各模組
+        appTodo = new App_TodoList(this, "todo", "轉至計畫");
+        var appPlan = new App_TodoList(this, "plan", "轉至待辦");
+        var appShortcuts = new App_Shortcuts(this);
+        var appWatcher = new App_FileWatcher(this, trayMenu);
+        var appTasks = new App_RecurringTasks(this, appTodo);
+        var appScreen = new App_Screenshot(this);
+
+        // 將模組加入導覽列
+        AddNavButton("待辦事項", appTodo);
+        AddNavButton("計畫大綱", appPlan);
+        AddNavButton("常用捷徑", appShortcuts);
+        AddNavButton("檔案監控", appWatcher);
+        AddNavButton("週期任務", appTasks);
+        AddNavButton("畫面截圖", appScreen);
+
+        // 預設選取第一個模組
+        if (navBar.Controls.Count > 0 && navBar.Controls[navBar.Controls.Count - 1] is Button firstBtn)
+        {
+            firstBtn.PerformClick();
+        }
+    }
+
+    private void AddNavButton(string title, UserControl module)
+    {
+        module.Dock = DockStyle.Fill;
+
         Button btn = new Button()
         {
             Text = title,
-            AutoSize = true,
-            Height = 35,
+            Dock = DockStyle.Top,
+            Height = 45,
             FlatStyle = FlatStyle.Flat,
             Cursor = Cursors.Hand,
-            Padding = new Padding(10, 0, 10, 0), // 【關鍵】框內與文字間隔 10
-            Margin = new Padding(0, 0, 10, 0),
-            Font = MainFont,
             BackColor = Color.White,
-            ForeColor = Color.FromArgb(100, 100, 100) // 預設未選中顏色
+            ForeColor = Color.Black,
+            Font = new Font(MainFont.FontFamily, 11f, FontStyle.Regular),
+            Margin = new Padding(0, 0, 0, 10)
         };
-        btn.FlatAppearance.BorderSize = 0; // 隱藏邊框
-
-        // 點擊按鈕時切換 Tab
-        btn.Click += (s, e) => 
+        btn.FlatAppearance.BorderSize = 0;
+        
+        btn.Click += (s, e) =>
         {
-            tabControl.SelectedIndex = tabIndex;
-            SyncNavButtons();
-        };
-
-        navButtons.Add(btn);
-        topNavBar.Controls.Add(btn);
-    }
-
-    /// <summary>
-    /// 同步導覽列按鈕狀態 (高亮顯示目前所在的分頁)
-    /// </summary>
-    private void SyncNavButtons()
-    {
-        for (int i = 0; i < navButtons.Count; i++)
-        {
-            if (i == tabControl.SelectedIndex)
+            // 重置所有按鈕樣式
+            foreach (Control c in navBar.Controls)
             {
-                // 啟動狀態：Apple 經典藍色，粗體
-                navButtons[i].ForeColor = AppleBlue;
-                navButtons[i].Font = ActiveFont;
-            }
-            else
-            {
-                // 若該分頁正處於警報狀態且正在閃爍，保留警報色
-                if (alertTabs.Contains(i) && flashState)
+                if (c is Button b)
                 {
-                    navButtons[i].ForeColor = Color.IndianRed;
-                }
-                else
-                {
-                    // 恢復未選中顏色
-                    navButtons[i].ForeColor = Color.FromArgb(100, 100, 100);
-                    navButtons[i].Font = MainFont;
+                    b.BackColor = Color.White;
+                    b.ForeColor = Color.Black;
+                    b.Font = new Font(MainFont.FontFamily, 11f, FontStyle.Regular);
                 }
             }
-        }
+            
+            // 標示當前選取按鈕 (Apple Blue)
+            btn.BackColor = AppleBlue;
+            btn.ForeColor = Color.White;
+            btn.Font = new Font(MainFont.FontFamily, 11f, FontStyle.Bold);
+
+            // 切換右側內容
+            contentPanel.Controls.Clear();
+            contentPanel.Controls.Add(module);
+        };
+
+        navBar.Controls.Add(btn);
+        btn.BringToFront(); // 確保按鈕順序由上而下
     }
 
-    /// <summary>
-    /// 初始化系統列右鍵選單與圖示
-    /// </summary>
+    // ==========================================
+    // 系統列 (Tray) 與全域設定選單
+    // ==========================================
     private void InitializeTrayIcon()
     {
         trayMenu = new ContextMenu();
+        trayMenu.MenuItems.Add("開啟主畫面", (s, e) => ShowAppWindow());
         
-        MenuItem mnuShow = new MenuItem("開啟控制面板", (s, e) => ShowAppWindow());
-        MenuItem mnuStartup = new MenuItem("開機自動啟動", ToggleStartup);
-        mnuStartup.Checked = IsRunOnStartup(); // 檢查登錄檔狀態
-        MenuItem mnuExit = new MenuItem("完全退出程式", (s, e) => Application.Exit());
-
-        trayMenu.MenuItems.Add(mnuShow);
+        // 【新增】打開快捷鍵路徑設定介面
+        trayMenu.MenuItems.Add("快捷鍵路徑設定", (s, e) => { new HotkeySettingsWindow(this).ShowDialog(); });
         trayMenu.MenuItems.Add("-");
-        trayMenu.MenuItems.Add(mnuStartup);
-        trayMenu.MenuItems.Add("-");
-        trayMenu.MenuItems.Add(mnuExit);
-
-        trayIcon = new NotifyIcon();
-        trayIcon.Text = "整合通知中心 (執行中)";
-        trayIcon.Icon = SystemIcons.Application; // 可自行替換為專案資源 .ico
-        trayIcon.ContextMenu = trayMenu;
-        trayIcon.Visible = true;
         
-        // 左鍵雙擊喚醒主視窗
+        trayMenu.MenuItems.Add("完全退出程式", (s, e) => 
+        {
+            UnregisterHotKey(this.Handle, HOTKEY_ID_AWAKE);
+            UnregisterHotKey(this.Handle, HOTKEY_ID_APP2);
+            UnregisterHotKey(this.Handle, HOTKEY_ID_APP3);
+            UnregisterHotKey(this.Handle, HOTKEY_ID_APP9);
+            trayIcon.Visible = false;
+            Application.Exit();
+        });
+
+        trayIcon = new NotifyIcon()
+        {
+            Text = "整合通知中心 (背景執行中)",
+            Icon = SystemIcons.Application,
+            ContextMenu = trayMenu,
+            Visible = true
+        };
         trayIcon.DoubleClick += (s, e) => ShowAppWindow();
     }
 
-    // --- 核心邏輯操作 ---
-
-    /// <summary>
-    /// 顯示並喚醒主視窗 (執行緒安全)
-    /// </summary>
-    public void ShowAppWindow(int targetTabIndex = -1)
+    public void ShowAppWindow()
     {
-        if (this.InvokeRequired)
-        {
-            this.Invoke(new Action(() => ShowAppWindow(targetTabIndex)));
-            return;
-        }
-
-        if (targetTabIndex >= 0 && targetTabIndex < tabControl.TabPages.Count)
-        {
-            tabControl.SelectedIndex = targetTabIndex;
-            SyncNavButtons();
-        }
-
         this.Show();
         this.WindowState = FormWindowState.Normal;
-        this.Activate(); // 將視窗推至最前端
+        this.Activate();
     }
 
-    /// <summary>
-    /// 處理閃爍邏輯 (執行緒安全)
-    /// </summary>
-    private void FlashTimer_Tick(object sender, EventArgs e)
+    // ==========================================
+    // 全域快捷鍵邏輯與 SQLite 存取
+    // ==========================================
+    private void RegisterAllHotkeys()
     {
-        if (alertTabs.Count == 0) return;
-
-        flashState = !flashState;
-        SyncNavButtons(); // 觸發按鈕重新渲染顏色
+        RegisterHotKey(this.Handle, HOTKEY_ID_AWAKE, MOD_CONTROL, (int)Keys.D1); // Ctrl+1 喚醒視窗
+        RegisterHotKey(this.Handle, HOTKEY_ID_APP2, MOD_CONTROL, (int)Keys.D2);  // Ctrl+2
+        RegisterHotKey(this.Handle, HOTKEY_ID_APP3, MOD_CONTROL, (int)Keys.D3);  // Ctrl+3
+        RegisterHotKey(this.Handle, HOTKEY_ID_APP9, MOD_CONTROL, (int)Keys.D9);  // Ctrl+9
     }
 
-    /// <summary>
-    /// 外部模組呼叫：為特定分頁加入警報閃爍狀態
-    /// </summary>
-    public void AddAlertTab(int tabIndex)
-    {
-        if (this.InvokeRequired)
-        {
-            this.Invoke(new Action(() => AddAlertTab(tabIndex)));
-            return;
-        }
-
-        if (tabIndex >= 0 && tabIndex < tabControl.TabPages.Count)
-        {
-            alertTabs.Add(tabIndex);
-        }
-    }
-
-    // --- 開機啟動註冊邏輯 ---
-    private void ToggleStartup(object sender, EventArgs e)
-    {
-        MenuItem item = sender as MenuItem;
-        bool newState = !item.Checked;
-        SetRunOnStartup(newState);
-        item.Checked = newState;
-    }
-
-    private bool IsRunOnStartup()
-    {
-        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false))
-        {
-            if (key != null)
-            {
-                return key.GetValue("MiniProgram_NotifyCenter") != null;
-            }
-        }
-        return false;
-    }
-
-    private void SetRunOnStartup(bool enable)
-    {
-        string path = Application.ExecutablePath;
-        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
-        {
-            if (enable) key.SetValue("MiniProgram_NotifyCenter", "\"" + path + "\"");
-            else key.DeleteValue("MiniProgram_NotifyCenter", false);
-        }
-    }
-
-    // --- 覆寫作業系統熱鍵訊息攔截 ---
     protected override void WndProc(ref Message m)
     {
         const int WM_HOTKEY = 0x0312;
         if (m.Msg == WM_HOTKEY)
         {
             int id = m.WParam.ToInt32();
-            if (id == HOTKEY_ID)
-            {
+            if (id == HOTKEY_ID_AWAKE) 
                 ShowAppWindow();
-            }
-            // 於此處可依據專案需求補充其他快捷鍵觸發邏輯，如呼叫圖片截取等
+            else if (id == HOTKEY_ID_APP2 && !string.IsNullOrEmpty(pathApp2)) 
+                LaunchApp(pathApp2);
+            else if (id == HOTKEY_ID_APP3 && !string.IsNullOrEmpty(pathApp3)) 
+                LaunchApp(pathApp3);
+            else if (id == HOTKEY_ID_APP9 && !string.IsNullOrEmpty(pathApp9)) 
+                LaunchApp(pathApp9);
         }
         base.WndProc(ref m);
     }
 
-    // --- 表單生命週期管理 ---
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    private void LaunchApp(string path)
     {
-        // 點擊右上角關閉時，僅隱藏視窗而非關閉程式
-        if (e.CloseReason == CloseReason.UserClosing)
-        {
-            e.Cancel = true;
-            this.Hide();
+        try 
+        { 
+            Process.Start(new ProcessStartInfo() { FileName = path, UseShellExecute = true }); 
         }
-        base.OnFormClosing(e);
+        catch 
+        { 
+            MessageBox.Show($"無法啟動目標: {path}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+        }
     }
 
-    protected override void Dispose(bool disposing)
+    public void LoadHotkeySettings()
     {
-        if (disposing)
+        try
         {
-            // 釋放資源與快捷鍵註冊
-            UnregisterHotKey(this.Handle, HOTKEY_ID);
-            UnregisterHotKey(this.Handle, HOTKEY_IMAGE_ID);
-            UnregisterHotKey(this.Handle, HOTKEY_SAFETY_ID);
-            UnregisterHotKey(this.Handle, HOTKEY_GTASK_ID);
-
-            if (trayIcon != null) trayIcon.Dispose();
-            if (flashTimer != null) flashTimer.Dispose();
+            using (var conn = DatabaseManager.GetConnection())
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT SettingKey, SettingValue FROM GlobalSettings WHERE SettingKey LIKE 'Hotkey%'", conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string k = reader.GetString(0); 
+                        string v = reader.GetString(1);
+                        if (k == "Hotkey2_Path") pathApp2 = v;
+                        else if (k == "Hotkey3_Path") pathApp3 = v;
+                        else if (k == "Hotkey9_Path") pathApp9 = v;
+                    }
+                }
+            }
         }
-        base.Dispose(disposing);
+        catch { }
+    }
+
+    public async Task SaveHotkeySettingsAsync(string p2, string p3, string p9)
+    {
+        this.pathApp2 = p2; 
+        this.pathApp3 = p3; 
+        this.pathApp9 = p9;
+        
+        await Task.Run(() =>
+        {
+            using (var conn = DatabaseManager.GetConnection())
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    void Set(string k, string v)
+                    {
+                        using (var cmd = new SQLiteCommand("INSERT OR REPLACE INTO GlobalSettings (SettingKey, SettingValue) VALUES (@k, @v)", conn, tx))
+                        { 
+                            cmd.Parameters.AddWithValue("@k", k); 
+                            cmd.Parameters.AddWithValue("@v", v); 
+                            cmd.ExecuteNonQuery(); 
+                        }
+                    }
+                    Set("Hotkey2_Path", p2); 
+                    Set("Hotkey3_Path", p3); 
+                    Set("Hotkey9_Path", p9);
+                    tx.Commit();
+                }
+            }
+        });
+    }
+
+    // ==========================================
+    // 供外部模組呼叫：分頁閃爍警報
+    // ==========================================
+    public void AddAlertTab(int tabIndex)
+    {
+        if (this.InvokeRequired) 
+        { 
+            this.Invoke(new Action(() => AddAlertTab(tabIndex))); 
+            return; 
+        }
+        
+        // 此處對應檔案監控按鈕 (如果背景觸發更新，會變成紅色閃爍)
+        foreach (Control c in navBar.Controls)
+        {
+            if (c is Button b && b.Text == "檔案監控" && b.BackColor != AppleBlue)
+            {
+                // 若非當前頁面，則切換為警示色
+                b.BackColor = Color.IndianRed;
+                b.ForeColor = Color.White;
+            }
+        }
+    }
+}
+
+// ==========================================
+// 視窗：全域快捷鍵路徑設定
+// ==========================================
+public class HotkeySettingsWindow : Form
+{
+    private MainForm parent;
+    private TextBox txtH2, txtH3, txtH9;
+
+    public HotkeySettingsWindow(MainForm parent)
+    {
+        this.parent = parent;
+        this.Text = "全域快捷鍵路徑設定";
+        this.Width = 500; 
+        this.Height = 400; 
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.FormBorderStyle = FormBorderStyle.FixedDialog; 
+        this.MaximizeBox = false; 
+        this.MinimizeBox = false;
+        this.BackColor = Color.FromArgb(245, 245, 247); 
+        this.AutoScaleMode = AutoScaleMode.Dpi;
+        this.Font = new Font("Microsoft JhengHei UI", 10f, FontStyle.Regular);
+
+        // 打開視窗前先載入最新設定
+        parent.LoadHotkeySettings();
+
+        FlowLayoutPanel flow = new FlowLayoutPanel() 
+        { 
+            Dock = DockStyle.Fill, 
+            FlowDirection = FlowDirection.TopDown, 
+            Padding = new Padding(20) 
+        };
+        
+        flow.Controls.Add(new Label() 
+        { 
+            Text = "設定 Ctrl + 2 / 3 / 9 所對應啟動的程式或檔案路徑：", 
+            AutoSize = true, 
+            Margin = new Padding(0, 0, 0, 20), 
+            ForeColor = Color.Gray 
+        });
+
+        // 動態生成三個輸入框列
+        txtH2 = AddRow(flow, "Ctrl + 2 (如圖片小工具)：", "Hotkey2_Path");
+        txtH3 = AddRow(flow, "Ctrl + 3 (如 Safety System)：", "Hotkey3_Path");
+        txtH9 = AddRow(flow, "Ctrl + 9 (如 G-Task)：", "Hotkey9_Path");
+
+        Button btnSave = new Button() 
+        { 
+            Text = "儲存設定", 
+            Width = 440, 
+            Height = 45, 
+            BackColor = Color.FromArgb(0, 122, 255), 
+            ForeColor = Color.White, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand, 
+            Font = new Font("Microsoft JhengHei UI", 11f, FontStyle.Bold), 
+            Margin = new Padding(0, 20, 0, 0) 
+        };
+        btnSave.FlatAppearance.BorderSize = 0;
+        btnSave.Click += async (s, e) => 
+        { 
+            await parent.SaveHotkeySettingsAsync(txtH2.Text, txtH3.Text, txtH9.Text); 
+            MessageBox.Show("設定已成功儲存至資料庫！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+            this.Close(); 
+        };
+        
+        flow.Controls.Add(btnSave); 
+        this.Controls.Add(flow);
+    }
+
+    private TextBox AddRow(FlowLayoutPanel parentPanel, string label, string settingKey)
+    {
+        parentPanel.Controls.Add(new Label() 
+        { 
+            Text = label, 
+            AutoSize = true, 
+            Margin = new Padding(0, 0, 0, 5) 
+        });
+        
+        TableLayoutPanel row = new TableLayoutPanel() 
+        { 
+            Width = 440, 
+            Height = 35, 
+            ColumnCount = 2, 
+            Margin = new Padding(0, 0, 0, 15) 
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f)); 
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));
+        
+        // 從資料庫讀取目前的設定值顯示
+        string val = "";
+        using (var conn = DatabaseManager.GetConnection()) 
+        {
+            conn.Open();
+            using (var cmd = new SQLiteCommand("SELECT SettingValue FROM GlobalSettings WHERE SettingKey = @k", conn)) 
+            {
+                cmd.Parameters.AddWithValue("@k", settingKey);
+                var res = cmd.ExecuteScalar(); 
+                if (res != null) val = res.ToString();
+            }
+        }
+
+        TextBox tb = new TextBox() 
+        { 
+            Dock = DockStyle.Fill, 
+            Text = val, 
+            BorderStyle = BorderStyle.FixedSingle, 
+            Margin = new Padding(0, 5, 10, 0) 
+        };
+        
+        Button btn = new Button() 
+        { 
+            Text = "瀏覽", 
+            Dock = DockStyle.Fill, 
+            FlatStyle = FlatStyle.Flat, 
+            Cursor = Cursors.Hand, 
+            BackColor = Color.White 
+        };
+        btn.FlatAppearance.BorderColor = Color.Gray;
+        btn.Click += (s, e) => 
+        { 
+            OpenFileDialog ofd = new OpenFileDialog(); 
+            if (ofd.ShowDialog() == DialogResult.OK) tb.Text = ofd.FileName; 
+        };
+        
+        row.Controls.Add(tb, 0, 0); 
+        row.Controls.Add(btn, 1, 0); 
+        parentPanel.Controls.Add(row); 
+        
+        return tb;
     }
 }
