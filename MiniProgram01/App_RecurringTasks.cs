@@ -5,12 +5,13 @@ using System.Windows.Forms;
 using System.Linq;
 using System.Drawing.Printing;
 using Microsoft.Data.Sqlite;
+using System.Threading;
 
 public class App_RecurringTasks : UserControl {
     private MainForm parentForm;
     private App_TodoList todoApp;
     private FlowLayoutPanel taskPanel;
-    private Timer checkTimer;
+    private System.Windows.Forms.Timer checkTimer;
     private float scale;
 
     // 全域排程設定 (對應資料庫 Settings 表)
@@ -99,7 +100,7 @@ public class App_RecurringTasks : UserControl {
         LoadSettingsFromDb();
         LoadTasksFromDb();
 
-        checkTimer = new Timer();
+        checkTimer = new System.Windows.Forms.Timer();
         checkTimer.Interval = GetTimerInterval(scanFrequency);
         checkTimer.Enabled = true;
         checkTimer.Tick += (s, e) => CheckTasks();
