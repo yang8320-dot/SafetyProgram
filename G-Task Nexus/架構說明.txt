@@ -1,8 +1,0 @@
-SafetyProgram/
-└── G-Task Nexus/
-    ├── Program.cs              // 程式進入點
-    ├── Core_Security.cs        // 加密與隨機檔案儲存邏輯
-    ├── Service_GoogleTasks.cs  // Google API 對接與同步邏輯
-    ├── UI_MainForm.cs          // 主介面 (Code-First WinForms)
-    └── .github/workflows/
-        └── build-exe.yml       // GitHub Actions 自動化編譯
