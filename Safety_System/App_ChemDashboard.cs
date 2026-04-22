@@ -20,13 +20,13 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 記憶設定檔路徑
-        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Visibility.txt");
+        // 🟢 更改檔名為 v2，確保舊的快取設定不會覆蓋新的預設 7 欄位版面
+        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Visibility_v2.txt");
         
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 🟢 定義預設顯示的欄位清單與順序
-        private readonly string[] _defaultVisibleCols = { "項次", "化學物質名稱", "危害標示", "供應商", "供應商電話", "日期" };
+        // 🟢 更新為您指定的 7 個預設顯示欄位與排序
+        private readonly string[] _defaultVisibleCols = { "項次", "廠內編號", "化學物質名稱", "危害標示", "供應商", "供應商電話", "SDS版本日期" };
 
         public Control GetView()
         {
