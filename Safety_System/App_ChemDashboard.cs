@@ -23,10 +23,9 @@ namespace Safety_System
         // 記憶設定檔路徑
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Visibility.txt");
         
-        // 用於存儲欄位顯示狀態的字典 (Key: 欄位名稱, Value: 是否顯示)
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 🟢 預設顯示的欄位清單
+        // 🟢 預設顯示的欄位清單 (依序為：項次、名稱、標示、供應商、電話、日期)
         private readonly string[] _defaultVisibleCols = { "項次", "化學物質名稱", "危害標示", "供應商", "供應商電話", "日期" };
 
         public Control GetView()
@@ -58,7 +57,6 @@ namespace Safety_System
             };
             btnPdf.Click += (s, e) => ExportToPdf();
 
-            // 🟢 新增：危害性化學品清單 導出按鈕
             Button btnHazardousPdf = new Button { 
                 Text = "📄 導出：危害性化學品清單", 
                 Size = new Size(260, 45), 
@@ -68,7 +66,8 @@ namespace Safety_System
                 Cursor = Cursors.Hand,
                 Margin = new Padding(15, 0, 0, 0)
             };
-            btnHazardousPdf.Click += (s, e) => ExportToHazardousListPdf();
+            // 🟢 取消預覽對話框，直接導出存檔
+            btnHazardousPdf.Click += (s, e) => ExportToHazardousListPdfDirectly();
 
             Button btnSettings = new Button { 
                 Text = "⚙️ 設定顯示欄位", 
@@ -163,7 +162,6 @@ namespace Safety_System
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
                 if (dt != null)
                 {
-                    // 🟢 動態加入「項次」流水號欄位，並排在第一列
                     if (!dt.Columns.Contains("項次"))
                     {
                         DataColumn seqCol = new DataColumn("項次", typeof(int));
@@ -208,7 +206,6 @@ namespace Safety_System
                     continue; 
                 }
                 
-                // 🟢 預設邏輯：第一次載入時，只顯示指定的預設欄位
                 if (isFirstTime)
                 {
                     col.Visible = _defaultVisibleCols.Contains(col.Name);
@@ -216,14 +213,16 @@ namespace Safety_System
                 }
                 else
                 {
-                    if (_columnVisibility.ContainsKey(col.Name))
-                    {
-                        col.Visible = _columnVisibility[col.Name];
-                    }
-                    else
-                    {
-                        col.Visible = false; // 新欄位預設隱藏
-                    }
+                    col.Visible = _columnVisibility.ContainsKey(col.Name) ? _columnVisibility[col.Name] : false;
+                }
+            }
+
+            // 🟢 強制處理欄位排序：依據 _defaultVisibleCols 指定順序
+            for (int i = 0; i < _defaultVisibleCols.Length; i++)
+            {
+                if (_dgvSDS.Columns.Contains(_defaultVisibleCols[i]))
+                {
+                    _dgvSDS.Columns[_defaultVisibleCols[i]].DisplayIndex = i;
                 }
             }
 
@@ -277,10 +276,7 @@ namespace Safety_System
                     foreach (var colName in allCols)
                     {
                         if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
-                        
-                        bool isChecked = false;
-                        if (_columnVisibility.ContainsKey(colName)) isChecked = _columnVisibility[colName];
-
+                        bool isChecked = _columnVisibility.ContainsKey(colName) ? _columnVisibility[colName] : false;
                         clb.Items.Add(colName, isChecked);
                     }
 
@@ -350,146 +346,143 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁)
+        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁，不預覽直接存檔)
         // =========================================================================
-        private void ExportToHazardousListPdf()
+        private void ExportToHazardousListPdfDirectly()
         {
             if (_dgvSDS.DataSource == null || _dgvSDS.Rows.Count == 0)
             {
                 MessageBox.Show("目前沒有數據可供導出。"); return;
             }
 
-            PrintDocument pd = new PrintDocument();
-            pd.DefaultPageSettings.Landscape = false; // 直式 A4
-            pd.DefaultPageSettings.Margins = new Margins(50, 50, 60, 60);
-            
-            int currentRow = 0;
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "危害性化學品清單_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                    
+                    PrintDocument pd = new PrintDocument();
+                    pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                    pd.PrinterSettings.PrintToFile = true;
+                    pd.PrinterSettings.PrintFileName = sfd.FileName;
+                    pd.DefaultPageSettings.Landscape = false; // 直式 A4
+                    pd.DefaultPageSettings.Margins = new Margins(50, 50, 60, 60);
+                    
+                    int currentRow = 0;
 
-            pd.PrintPage += (s, e) => {
-                Graphics g = e.Graphics;
-                float x = e.MarginBounds.Left;
-                float y = e.MarginBounds.Top;
-                float w = e.MarginBounds.Width;
+                    pd.PrintPage += (s, e) => {
+                        Graphics g = e.Graphics;
+                        float x = e.MarginBounds.Left;
+                        float y = e.MarginBounds.Top;
+                        float w = e.MarginBounds.Width;
 
-                Font fTitle = new Font("DFKai-SB", 22F, FontStyle.Bold); // 標楷體更貼近公文格式
-                Font fBody = new Font("DFKai-SB", 14F);
-                Font fSmall = new Font("DFKai-SB", 12F);
+                        Font fTitle = new Font("DFKai-SB", 22F, FontStyle.Bold); 
+                        Font fBody = new Font("DFKai-SB", 14F);
+                        Font fSmall = new Font("DFKai-SB", 12F);
 
-                StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+                        StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                string separator = "※※※※※※※※※※※※※※※※※※※※※";
+                        string separator = "※※※※※※※※※※※※※※※※※※※※※※※※※";
 
-                // 取得當前資料列
-                DataGridViewRow row = _dgvSDS.Rows[currentRow];
-                
-                string GetVal(string colName) {
-                    if (_dgvSDS.Columns.Contains(colName) && row.Cells[colName].Value != null)
-                        return row.Cells[colName].Value.ToString();
-                    return "";
+                        DataGridViewRow row = _dgvSDS.Rows[currentRow];
+                        
+                        string GetVal(string colName) {
+                            if (_dgvSDS.Columns.Contains(colName) && row.Cells[colName].Value != null)
+                                return row.Cells[colName].Value.ToString();
+                            return "";
+                        }
+
+                        g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
+                        y += 60;
+
+                        g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString($"化學品名稱：{GetVal("化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString($"其他名稱：{GetVal("其它化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
+                        
+                        // 🟢 修正：安全資料表索引碼 對應 「廠內編號」
+                        g.DrawString($"安全資料表索引碼：{GetVal("廠內編號")}", fBody, Brushes.Black, x, y); y += 30;
+                        
+                        g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString($"製造者、輸入者或供應者：{GetVal("供應商")}", fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString($"供應商地址：{GetVal("供應商地址")}", fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString($"供應商電話：{GetVal("供應商電話")}", fBody, Brushes.Black, x, y); y += 30;
+
+                        g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString("使用資料", fBody, Brushes.Black, x, y); y += 30;
+
+                        float col1X = x;
+                        float col2X = x + 160;
+                        float col3X = x + 340;
+                        float col4X = x + 520;
+
+                        g.DrawString("地  點", fBody, Brushes.Black, col1X, y);
+                        g.DrawString("平均數量", fBody, Brushes.Black, col2X, y);
+                        g.DrawString("最大數量", fBody, Brushes.Black, col3X, y);
+                        g.DrawString("使用者", fBody, Brushes.Black, col4X, y);
+                        y += 35;
+
+                        g.DrawString(GetVal("使用地點"), fBody, Brushes.Black, col1X, y);
+                        g.DrawString(GetVal("使用平均量"), fBody, Brushes.Black, col2X, y);
+                        g.DrawString(GetVal("使用最大量"), fBody, Brushes.Black, col3X, y);
+                        g.DrawString(GetVal("使用單位"), fBody, Brushes.Black, col4X, y);
+                        y += 35;
+
+                        for (int i = 0; i < 2; i++) {
+                            g.DrawLine(Pens.Black, col1X, y + 20, col1X + 100, y + 20);
+                            g.DrawLine(Pens.Black, col2X, y + 20, col2X + 100, y + 20);
+                            g.DrawLine(Pens.Black, col3X, y + 20, col3X + 100, y + 20);
+                            g.DrawLine(Pens.Black, col4X, y + 20, col4X + 100, y + 20);
+                            y += 35;
+                        }
+
+                        g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
+                        g.DrawString("貯存資料", fBody, Brushes.Black, x, y); y += 30;
+
+                        g.DrawString("地  點", fBody, Brushes.Black, col1X, y);
+                        g.DrawString("平均數量", fBody, Brushes.Black, col2X, y);
+                        g.DrawString("最大數量", fBody, Brushes.Black, col3X, y);
+                        y += 35;
+
+                        g.DrawString(GetVal("貯存地點"), fBody, Brushes.Black, col1X, y);
+                        g.DrawString(GetVal("平均貯存量"), fBody, Brushes.Black, col2X, y);
+                        g.DrawString(GetVal("最大貯存量"), fBody, Brushes.Black, col3X, y);
+                        y += 35;
+
+                        for (int i = 0; i < 2; i++) {
+                            g.DrawLine(Pens.Black, col1X, y + 20, col1X + 100, y + 20);
+                            g.DrawLine(Pens.Black, col2X, y + 20, col2X + 100, y + 20);
+                            g.DrawLine(Pens.Black, col3X, y + 20, col3X + 100, y + 20);
+                            y += 35;
+                        }
+
+                        g.DrawString(separator, fBody, Brushes.Black, x, y); y += 40;
+                        string dateStr = $"製單日期：{DateTime.Now.Year} 年 {DateTime.Now.Month:D2} 月 {DateTime.Now.Day:D2} 日";
+                        g.DrawString(dateStr, fBody, Brushes.Black, x, y);
+
+                        g.DrawString("8-ES-B09-01", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
+
+                        currentRow++;
+                        if (currentRow < _dgvSDS.Rows.Count) {
+                            e.HasMorePages = true;
+                        } else {
+                            e.HasMorePages = false;
+                            currentRow = 0; 
+                        }
+                    };
+
+                    try {
+                        pd.Print();
+                        MessageBox.Show("危害性化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
                 }
-
-                // 1. 標題
-                g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
-                y += 60;
-
-                // 2. 第一區塊：名稱與索引碼
-                g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString($"化學品名稱：{GetVal("化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString($"其他名稱：{GetVal("其它化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString($"安全資料表索引碼：", fBody, Brushes.Black, x, y); y += 30;
-                
-                // 3. 第二區塊：供應商資料
-                g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString($"製造者、輸入者或供應者：{GetVal("供應商")}", fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString($"供應商地址：{GetVal("供應商地址")}", fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString($"供應商電話：{GetVal("供應商電話")}", fBody, Brushes.Black, x, y); y += 30;
-
-                // 4. 第三區塊：使用資料
-                g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString("使用資料", fBody, Brushes.Black, x, y); y += 30;
-
-                float col1X = x;
-                float col2X = x + 160;
-                float col3X = x + 340;
-                float col4X = x + 520;
-
-                g.DrawString("地  點", fBody, Brushes.Black, col1X, y);
-                g.DrawString("平均數量", fBody, Brushes.Black, col2X, y);
-                g.DrawString("最大數量", fBody, Brushes.Black, col3X, y);
-                g.DrawString("使用者", fBody, Brushes.Black, col4X, y);
-                y += 35;
-
-                // 第一列實際資料
-                g.DrawString(GetVal("使用地點"), fBody, Brushes.Black, col1X, y);
-                g.DrawString(GetVal("使用平均量"), fBody, Brushes.Black, col2X, y);
-                g.DrawString(GetVal("使用最大量"), fBody, Brushes.Black, col3X, y);
-                g.DrawString(GetVal("使用單位"), fBody, Brushes.Black, col4X, y);
-                y += 35;
-
-                // 畫兩行空白填寫線
-                for (int i = 0; i < 2; i++) {
-                    g.DrawLine(Pens.Black, col1X, y + 20, col1X + 100, y + 20);
-                    g.DrawLine(Pens.Black, col2X, y + 20, col2X + 100, y + 20);
-                    g.DrawLine(Pens.Black, col3X, y + 20, col3X + 100, y + 20);
-                    g.DrawLine(Pens.Black, col4X, y + 20, col4X + 100, y + 20);
-                    y += 35;
-                }
-
-                // 5. 第四區塊：貯存資料
-                g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
-                g.DrawString("貯存資料", fBody, Brushes.Black, x, y); y += 30;
-
-                g.DrawString("地  點", fBody, Brushes.Black, col1X, y);
-                g.DrawString("平均數量", fBody, Brushes.Black, col2X, y);
-                g.DrawString("最大數量", fBody, Brushes.Black, col3X, y);
-                y += 35;
-
-                // 第一列實際資料
-                g.DrawString(GetVal("貯存地點"), fBody, Brushes.Black, col1X, y);
-                g.DrawString(GetVal("平均貯存量"), fBody, Brushes.Black, col2X, y);
-                g.DrawString(GetVal("最大貯存量"), fBody, Brushes.Black, col3X, y);
-                y += 35;
-
-                // 畫兩行空白填寫線
-                for (int i = 0; i < 2; i++) {
-                    g.DrawLine(Pens.Black, col1X, y + 20, col1X + 100, y + 20);
-                    g.DrawLine(Pens.Black, col2X, y + 20, col2X + 100, y + 20);
-                    g.DrawLine(Pens.Black, col3X, y + 20, col3X + 100, y + 20);
-                    y += 35;
-                }
-
-                // 6. 頁尾區塊
-                g.DrawString(separator, fBody, Brushes.Black, x, y); y += 40;
-                string dateStr = $"製單日期：{DateTime.Now.Year} 年 {DateTime.Now.Month:D2} 月 {DateTime.Now.Day:D2} 日";
-                g.DrawString(dateStr, fBody, Brushes.Black, x, y);
-
-                // 檔案編號 (固定放左下角位置)
-                g.DrawString("8-ES-B09-01", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
-
-                // 分頁判斷
-                currentRow++;
-                if (currentRow < _dgvSDS.Rows.Count) {
-                    e.HasMorePages = true;
-                } else {
-                    e.HasMorePages = false;
-                    currentRow = 0; 
-                }
-            };
-
-            PrintPreviewDialog ppd = new PrintPreviewDialog { 
-                Document = pd, 
-                Width = 1024, 
-                Height = 768, 
-                WindowState = FormWindowState.Maximized,
-                UseAntiAlias = true
-            };
-            ppd.ShowDialog();
+            }
         }
 
-        // =========================================================================
-        // 原有 一般 SDS 清冊 PDF 導出 (橫式表格式)
-        // =========================================================================
         private void ExportToPdf()
         {
             if (_dgvSDS.DataSource == null || _dgvSDS.Rows.Count == 0)
@@ -526,7 +519,7 @@ namespace Safety_System
                 g.DrawString(subTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 35), sfCenter); y += 35;
                 g.DrawString(pageInfo, fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 30), sfCenter); y += 30;
 
-                var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList();
+                var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
                 if (visCols.Count == 0) return;
 
                 float totalGridWidth = visCols.Sum(c => c.Width);
