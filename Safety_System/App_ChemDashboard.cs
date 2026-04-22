@@ -20,16 +20,25 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 🟢 更改檔名為 v2，確保舊的快取設定不會覆蓋新的預設 7 欄位版面
-        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Visibility_v2.txt");
+        // 🟢 升級為 v3：支援順序記憶與顯示狀態的全新設定檔
+        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Columns_v3.txt");
         
-        private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
+        // 🟢 用於儲存欄位順序與可見性的結構
+        private class ColConfig {
+            public string Name { get; set; }
+            public bool IsVisible { get; set; }
+        }
+        private List<ColConfig> _columnSettings = new List<ColConfig>();
 
-        // 🟢 更新為您指定的 7 個預設顯示欄位與排序
+        // 🟢 預設 7 個顯示欄位與初始排序
         private readonly string[] _defaultVisibleCols = { "項次", "廠內編號", "化學物質名稱", "危害標示", "供應商", "供應商電話", "SDS版本日期" };
 
         public Control GetView()
         {
+            // 防呆：確保資料表已建立，避免因為空表導致讀取崩潰畫面擠壓
+            string schema = TableSchemaManager.SchemaMap.ContainsKey(TableName) ? TableSchemaManager.SchemaMap[TableName] : "[日期] TEXT, [備註] TEXT";
+            DataManager.InitTable(DbName, TableName, $"CREATE TABLE IF NOT EXISTS [{TableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
+
             LoadVisibilitySettings();
 
             TableLayoutPanel mainLayout = new TableLayoutPanel { 
@@ -42,41 +51,50 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             FlowLayoutPanel pnlAction = new FlowLayoutPanel { 
-                Dock = DockStyle.Fill, 
+                Dock = DockStyle.Top, 
                 AutoSize = true, 
-                Margin = new Padding(0, 0, 0, 15) 
+                Margin = new Padding(0, 0, 0, 15),
+                WrapContents = false
             };
             
+            // 🟢 按鈕樣式優化：統一高度、套用 FlatStyle 消除 3D 視差，並統一間距對齊
             Button btnPdf = new Button { 
                 Text = "📤 導出 SDS 清冊 PDF", 
-                Size = new Size(220, 45), 
+                Size = new Size(230, 45), 
                 BackColor = Color.DarkCyan, 
                 ForeColor = Color.White, 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
-                Cursor = Cursors.Hand 
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(0, 0, 15, 0)
             };
+            btnPdf.FlatAppearance.BorderSize = 0;
             btnPdf.Click += (s, e) => ExportToPdf();
 
             Button btnHazardousPdf = new Button { 
                 Text = "📄 導出：危害性化學品清單", 
-                Size = new Size(260, 45), 
+                Size = new Size(280, 45), 
                 BackColor = Color.IndianRed, 
                 ForeColor = Color.White, 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                 Cursor = Cursors.Hand,
-                Margin = new Padding(15, 0, 0, 0)
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(0, 0, 15, 0)
             };
+            btnHazardousPdf.FlatAppearance.BorderSize = 0;
             btnHazardousPdf.Click += (s, e) => ExportToHazardousListPdfDirectly();
 
             Button btnSettings = new Button { 
-                Text = "⚙️ 設定顯示欄位", 
-                Size = new Size(180, 45), 
+                Text = "⚙️ 設定顯示欄位與排序", 
+                Size = new Size(240, 45), 
                 BackColor = Color.LightSlateGray, 
                 ForeColor = Color.White, 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                 Cursor = Cursors.Hand, 
-                Margin = new Padding(15, 0, 0, 0) 
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(0, 0, 0, 0) 
             };
+            btnSettings.FlatAppearance.BorderSize = 0;
             btnSettings.Click += (s, e) => OpenColumnSettings();
 
             pnlAction.Controls.Add(btnPdf);
@@ -126,13 +144,14 @@ namespace Safety_System
                 Dock = DockStyle.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
+
             _dgvSDS = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = false, 
                 ReadOnly = true, 
                 RowHeadersVisible = false, 
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells, 
                 BorderStyle = BorderStyle.None 
             };
             _dgvSDS.RowTemplate.Height = 35;
@@ -161,7 +180,6 @@ namespace Safety_System
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
                 if (dt != null)
                 {
-                    // 🟢 動態加入「項次」欄位，並填入流水號
                     if (!dt.Columns.Contains("項次"))
                     {
                         DataColumn seqCol = new DataColumn("項次", typeof(int));
@@ -177,12 +195,10 @@ namespace Safety_System
                     _dgvSDS.DataSource = dt;
                     
                     if (_dgvSDS.Columns.Contains("項次")) {
-                        _dgvSDS.Columns["項次"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                        _dgvSDS.Columns["項次"].Width = 60;
                         _dgvSDS.Columns["項次"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                     }
 
-                    ApplyVisibility(); 
+                    ApplyVisibility(dt); 
                 }
                 else
                 {
@@ -192,78 +208,67 @@ namespace Safety_System
             catch { _dgvSDS.DataSource = null; }
         }
 
-        private void ApplyVisibility()
+        private void ApplyVisibility(DataTable dt)
         {
             if (_dgvSDS.DataSource == null || _dgvSDS.Columns.Count == 0) return;
             
-            bool isFirstTime = _columnVisibility.Count == 0;
+            // 如果從未設定過 (檔案不存在或為空)，則依照預設建立順序
+            if (_columnSettings.Count == 0)
+            {
+                // 先加入預設欄位 (顯示)
+                foreach (string defCol in _defaultVisibleCols)
+                {
+                    _columnSettings.Add(new ColConfig { Name = defCol, IsVisible = true });
+                }
 
+                // 再加入其餘隱藏的欄位
+                foreach (DataColumn col in dt.Columns)
+                {
+                    if (col.ColumnName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!_defaultVisibleCols.Contains(col.ColumnName))
+                    {
+                        _columnSettings.Add(new ColConfig { Name = col.ColumnName, IsVisible = false });
+                    }
+                }
+                SaveVisibilitySettings();
+            }
+
+            // 先強制將所有欄位隱藏
             foreach (DataGridViewColumn col in _dgvSDS.Columns)
             {
-                // 強制隱藏 Id 欄位
-                if (col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)) 
-                { 
-                    col.Visible = false; 
-                    continue; 
-                }
-                
-                // 首次設定時，僅顯示預設欄位；後續則依據使用者的設定
-                if (isFirstTime)
-                {
-                    col.Visible = _defaultVisibleCols.Contains(col.Name);
-                    _columnVisibility[col.Name] = col.Visible;
-                }
-                else
-                {
-                    col.Visible = _columnVisibility.ContainsKey(col.Name) ? _columnVisibility[col.Name] : false;
-                }
+                col.Visible = false;
             }
 
-            // 🟢 強制處理欄位排序
-            int currentIndex = 0;
-            
-            // 1. 先排序「預設欄位清單」中的欄位 (若其狀態為顯示)
-            foreach (string defCol in _defaultVisibleCols)
+            // 依照設定檔的「順序」與「可見性」進行套用
+            int displayIdx = 0;
+            foreach (var cfg in _columnSettings)
             {
-                if (_dgvSDS.Columns.Contains(defCol) && _dgvSDS.Columns[defCol].Visible)
+                if (_dgvSDS.Columns.Contains(cfg.Name))
                 {
-                    _dgvSDS.Columns[defCol].DisplayIndex = currentIndex++;
+                    var col = _dgvSDS.Columns[cfg.Name];
+                    col.Visible = cfg.IsVisible;
+                    if (cfg.IsVisible)
+                    {
+                        col.DisplayIndex = displayIdx++;
+                    }
                 }
             }
-            
-            // 2. 排序其他由使用者手動勾選擴充顯示的欄位
-            foreach (DataGridViewColumn col in _dgvSDS.Columns)
-            {
-                if (col.Visible && !_defaultVisibleCols.Contains(col.Name) && !col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase))
-                {
-                    col.DisplayIndex = currentIndex++;
-                }
-            }
-
-            if (isFirstTime) SaveVisibilitySettings();
         }
 
         private void OpenColumnSettings()
         {
             try
             {
-                List<string> allCols = new List<string>();
-                if (_dgvSDS.Columns.Count > 0) {
-                    foreach(DataGridViewColumn c in _dgvSDS.Columns) {
-                        allCols.Add(c.Name);
-                    }
-                }
-
-                if (allCols.Count == 0)
+                if (_dgvSDS.Columns.Count == 0)
                 {
-                    MessageBox.Show("目前找不到資料表，請先匯入資料。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("目前找不到資料庫資料，請先匯入資料。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
                 using (Form f = new Form())
                 {
-                    f.Text = "⚙️ 看板顯示欄位設定";
-                    f.Size = new Size(380, 550);
+                    f.Text = "⚙️ 顯示欄位與排序設定";
+                    f.Size = new Size(500, 600);
                     f.StartPosition = FormStartPosition.CenterParent;
                     f.FormBorderStyle = FormBorderStyle.FixedDialog;
                     f.MaximizeBox = false; 
@@ -271,7 +276,7 @@ namespace Safety_System
                     f.BackColor = Color.White;
 
                     Label lbl = new Label { 
-                        Text = "請勾選要在看板與報表中顯示的項目：", 
+                        Text = "勾選顯示項目，並可透過右側按鈕自訂欄位左右排列順序：", 
                         Dock = DockStyle.Top, 
                         Height = 50, 
                         Padding = new Padding(10), 
@@ -279,22 +284,57 @@ namespace Safety_System
                         ForeColor = Color.SteelBlue
                     };
                     
+                    Panel pnlCenter = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+                    
                     CheckedListBox clb = new CheckedListBox { 
                         Dock = DockStyle.Fill, 
                         CheckOnClick = true, 
-                        Font = new Font("Microsoft JhengHei UI", 11F),
-                        BorderStyle = BorderStyle.None,
+                        Font = new Font("Microsoft JhengHei UI", 12F),
+                        BorderStyle = BorderStyle.FixedSingle,
                         BackColor = Color.FromArgb(250, 250, 250)
                     };
-                    
-                    foreach (var colName in allCols)
+
+                    // 載入目前設定
+                    foreach (var cfg in _columnSettings)
                     {
-                        if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
-                        
-                        // 取得目前的勾選狀態
-                        bool isChecked = _columnVisibility.ContainsKey(colName) ? _columnVisibility[colName] : _defaultVisibleCols.Contains(colName);
-                        clb.Items.Add(colName, isChecked);
+                        clb.Items.Add(cfg.Name, cfg.IsVisible);
                     }
+
+                    Panel pnlRight = new Panel { Dock = DockStyle.Right, Width = 120, Padding = new Padding(10, 0, 0, 0) };
+                    
+                    Button btnUp = new Button { Text = "↑ 上移", Width = 100, Height = 40, Margin = new Padding(0, 0, 0, 10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), BackColor = Color.WhiteSmoke };
+                    btnUp.Click += (s, e) => {
+                        if (clb.SelectedIndex > 0) {
+                            int idx = clb.SelectedIndex;
+                            object item = clb.SelectedItem;
+                            bool isChecked = clb.GetItemChecked(idx);
+                            
+                            clb.Items.RemoveAt(idx);
+                            clb.Items.Insert(idx - 1, item);
+                            clb.SetItemChecked(idx - 1, isChecked);
+                            clb.SelectedIndex = idx - 1;
+                        }
+                    };
+
+                    Button btnDown = new Button { Text = "↓ 下移", Width = 100, Height = 40, Top = 50, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), BackColor = Color.WhiteSmoke };
+                    btnDown.Click += (s, e) => {
+                        if (clb.SelectedIndex < clb.Items.Count - 1 && clb.SelectedIndex != -1) {
+                            int idx = clb.SelectedIndex;
+                            object item = clb.SelectedItem;
+                            bool isChecked = clb.GetItemChecked(idx);
+                            
+                            clb.Items.RemoveAt(idx);
+                            clb.Items.Insert(idx + 1, item);
+                            clb.SetItemChecked(idx + 1, isChecked);
+                            clb.SelectedIndex = idx + 1;
+                        }
+                    };
+
+                    pnlRight.Controls.Add(btnUp);
+                    pnlRight.Controls.Add(btnDown);
+
+                    pnlCenter.Controls.Add(clb);
+                    pnlCenter.Controls.Add(pnlRight);
 
                     Button btnSave = new Button { 
                         Text = "💾 儲存設定並套用", 
@@ -308,17 +348,20 @@ namespace Safety_System
                     };
                     
                     btnSave.Click += (s, e) => {
-                        _columnVisibility.Clear();
+                        _columnSettings.Clear();
                         for (int i = 0; i < clb.Items.Count; i++)
                         {
-                            _columnVisibility[clb.Items[i].ToString()] = clb.GetItemChecked(i);
+                            _columnSettings.Add(new ColConfig {
+                                Name = clb.Items[i].ToString(),
+                                IsVisible = clb.GetItemChecked(i)
+                            });
                         }
                         SaveVisibilitySettings();
-                        ApplyVisibility();
+                        ApplyVisibility((DataTable)_dgvSDS.DataSource);
                         f.DialogResult = DialogResult.OK;
                     };
 
-                    f.Controls.Add(clb);
+                    f.Controls.Add(pnlCenter);
                     f.Controls.Add(lbl);
                     f.Controls.Add(btnSave);
                     f.ShowDialog();
@@ -329,7 +372,7 @@ namespace Safety_System
 
         private void LoadVisibilitySettings()
         {
-            _columnVisibility.Clear();
+            _columnSettings.Clear();
             if (File.Exists(VisibilityFile))
             {
                 try
@@ -340,7 +383,10 @@ namespace Safety_System
                         var parts = line.Split('|');
                         if (parts.Length == 2)
                         {
-                            _columnVisibility[parts[0]] = (parts[1] == "1");
+                            _columnSettings.Add(new ColConfig {
+                                Name = parts[0],
+                                IsVisible = (parts[1] == "1")
+                            });
                         }
                     }
                 }
@@ -353,9 +399,9 @@ namespace Safety_System
             try
             {
                 StringBuilder sb = new StringBuilder();
-                foreach (var kvp in _columnVisibility)
+                foreach (var cfg in _columnSettings)
                 {
-                    sb.AppendLine($"{kvp.Key}|{(kvp.Value ? "1" : "0")}");
+                    sb.AppendLine($"{cfg.Name}|{(cfg.IsVisible ? "1" : "0")}");
                 }
                 File.WriteAllText(VisibilityFile, sb.ToString(), Encoding.UTF8);
             }
