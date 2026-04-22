@@ -25,7 +25,7 @@ namespace Safety_System
         
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 🟢 預設顯示的欄位清單 (依序為：項次、名稱、標示、供應商、電話、日期)
+        // 🟢 定義預設顯示的欄位清單與順序
         private readonly string[] _defaultVisibleCols = { "項次", "化學物質名稱", "危害標示", "供應商", "供應商電話", "日期" };
 
         public Control GetView()
@@ -66,7 +66,6 @@ namespace Safety_System
                 Cursor = Cursors.Hand,
                 Margin = new Padding(15, 0, 0, 0)
             };
-            // 🟢 取消預覽對話框，直接導出存檔
             btnHazardousPdf.Click += (s, e) => ExportToHazardousListPdfDirectly();
 
             Button btnSettings = new Button { 
@@ -162,6 +161,7 @@ namespace Safety_System
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
                 if (dt != null)
                 {
+                    // 🟢 動態加入「項次」欄位，並填入流水號
                     if (!dt.Columns.Contains("項次"))
                     {
                         DataColumn seqCol = new DataColumn("項次", typeof(int));
@@ -200,12 +200,14 @@ namespace Safety_System
 
             foreach (DataGridViewColumn col in _dgvSDS.Columns)
             {
+                // 強制隱藏 Id 欄位
                 if (col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)) 
                 { 
                     col.Visible = false; 
                     continue; 
                 }
                 
+                // 首次設定時，僅顯示預設欄位；後續則依據使用者的設定
                 if (isFirstTime)
                 {
                     col.Visible = _defaultVisibleCols.Contains(col.Name);
@@ -217,12 +219,24 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 強制處理欄位排序：依據 _defaultVisibleCols 指定順序
-            for (int i = 0; i < _defaultVisibleCols.Length; i++)
+            // 🟢 強制處理欄位排序
+            int currentIndex = 0;
+            
+            // 1. 先排序「預設欄位清單」中的欄位 (若其狀態為顯示)
+            foreach (string defCol in _defaultVisibleCols)
             {
-                if (_dgvSDS.Columns.Contains(_defaultVisibleCols[i]))
+                if (_dgvSDS.Columns.Contains(defCol) && _dgvSDS.Columns[defCol].Visible)
                 {
-                    _dgvSDS.Columns[_defaultVisibleCols[i]].DisplayIndex = i;
+                    _dgvSDS.Columns[defCol].DisplayIndex = currentIndex++;
+                }
+            }
+            
+            // 2. 排序其他由使用者手動勾選擴充顯示的欄位
+            foreach (DataGridViewColumn col in _dgvSDS.Columns)
+            {
+                if (col.Visible && !_defaultVisibleCols.Contains(col.Name) && !col.Name.Equals("Id", StringComparison.OrdinalIgnoreCase))
+                {
+                    col.DisplayIndex = currentIndex++;
                 }
             }
 
@@ -276,7 +290,9 @@ namespace Safety_System
                     foreach (var colName in allCols)
                     {
                         if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
-                        bool isChecked = _columnVisibility.ContainsKey(colName) ? _columnVisibility[colName] : false;
+                        
+                        // 取得目前的勾選狀態
+                        bool isChecked = _columnVisibility.ContainsKey(colName) ? _columnVisibility[colName] : _defaultVisibleCols.Contains(colName);
                         clb.Items.Add(colName, isChecked);
                     }
 
@@ -290,6 +306,7 @@ namespace Safety_System
                         Cursor = Cursors.Hand,
                         FlatStyle = FlatStyle.Flat
                     };
+                    
                     btnSave.Click += (s, e) => {
                         _columnVisibility.Clear();
                         for (int i = 0; i < clb.Items.Count; i++)
@@ -346,7 +363,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁，不預覽直接存檔)
+        // 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁)
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -365,7 +382,7 @@ namespace Safety_System
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
                     pd.PrinterSettings.PrintFileName = sfd.FileName;
-                    pd.DefaultPageSettings.Landscape = false; // 直式 A4
+                    pd.DefaultPageSettings.Landscape = false; 
                     pd.DefaultPageSettings.Margins = new Margins(50, 50, 60, 60);
                     
                     int currentRow = 0;
@@ -400,7 +417,6 @@ namespace Safety_System
                         g.DrawString($"化學品名稱：{GetVal("化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
                         g.DrawString($"其他名稱：{GetVal("其它化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
                         
-                        // 🟢 修正：安全資料表索引碼 對應 「廠內編號」
                         g.DrawString($"安全資料表索引碼：{GetVal("廠內編號")}", fBody, Brushes.Black, x, y); y += 30;
                         
                         g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
