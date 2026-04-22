@@ -227,7 +227,7 @@ namespace Safety_System
             // 🟢 新增：UI 防呆狀態列
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 優化 3：RowTemplate 增高、增加交替列顏色，提升閱讀體驗
+            // 🟢 優化 3：支援自動適應列高 AutoSizeRowsMode.AllCells
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
@@ -241,6 +241,9 @@ namespace Safety_System
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
             _dgv.KeyDown += Dgv_KeyDown; 
             _dgv.CellClick += Dgv_CellClick;
+            
+            // 🟢 支援鍵盤直接輸入與換行
+            _dgv.KeyPress += Dgv_KeyPress;
 
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(boxOps, 0, 1); 
@@ -251,6 +254,41 @@ namespace Safety_System
             _ = LoadGridDataAsync(); 
             return main;
         }
+
+        // ==========================================
+        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
+        // ==========================================
+        private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
+            {
+                if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar))
+                {
+                    _dgv.BeginEdit(true);
+                    if (_dgv.EditingControl is TextBox txt)
+                    {
+                        txt.Text = e.KeyChar.ToString();
+                        txt.SelectionStart = txt.Text.Length;
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void TextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Alt && e.KeyCode == Keys.Enter)
+            {
+                if (sender is TextBox txt)
+                {
+                    int selectionStart = txt.SelectionStart;
+                    txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine);
+                    txt.SelectionStart = selectionStart + Environment.NewLine.Length;
+                    e.Handled = true;
+                }
+            }
+        }
+        // ==========================================
 
         // ==========================================
         // 🟢 狀態與日期強制格式化管理
@@ -372,6 +410,8 @@ namespace Safety_System
             if (_dgv.Columns.Contains("鑑別日期")) _dgv.Columns["鑑別日期"].DefaultCellStyle.Format = "yyyy-MM-dd";
 
             UpdateCboColumns();
+            
+            // 確保套用後表格行高重新計算
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
@@ -653,15 +693,21 @@ namespace Safety_System
                 if (_dgv.Columns.Contains(kvp.Key)) {
                     _dgv.Columns[kvp.Key].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                     _dgv.Columns[kvp.Key].Width = kvp.Value; 
+                    // 🟢 確保啟用換行
                     _dgv.Columns[kvp.Key].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
         }
 
+        // 🟢 將 TextBox_KeyDown 綁定到編輯中的控制項，支援 Alt+Enter
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
         {
             if (e.Control is ComboBox cbo) { cbo.DropDownStyle = ComboBoxStyle.DropDownList; }
-            else if (e.Control is TextBox txt) { txt.Multiline = true; }
+            else if (e.Control is TextBox txt) { 
+                txt.Multiline = true; 
+                txt.KeyDown -= TextBox_KeyDown;
+                txt.KeyDown += TextBox_KeyDown;
+            }
         }
 
         private void Dgv_DataError(object sender, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; }
@@ -725,7 +771,6 @@ namespace Safety_System
                         SetUIState(true, $"匯入成功！新增資料後總筆數：{tempDt.Rows.Count}", Color.Green);
                         MessageBox.Show($"載入 {tempDt.Rows.Count} 筆資料成功！\n系統已就緒，請點擊「儲存」以寫入資料庫。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
-                        // 🟢 修正此處的呼叫，移除多餘參數
                         await LoadGridDataAsync(); 
                         MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
