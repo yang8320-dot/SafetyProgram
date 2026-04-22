@@ -1,3 +1,4 @@
+/// FILE: Safety_System/MainForm.cs ///
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -48,6 +49,15 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
+        // 🟢 徹底解決視窗關閉卡住問題
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            
+            // 強制終止所有背景執行緒與行程，確保應用程式秒退
+            Environment.Exit(0);
+        }
+
         // 支援全局 Ctrl+S 快捷存檔
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
@@ -82,7 +92,6 @@ namespace Safety_System
             menuHome.Click += (s, e) => LoadWelcomeScreen();
 
             var menuReports = new ToolStripMenuItem("日常作業");
-            // 🟢 新增此行：請購資料模組入口，指定資料庫為 Purchase，資料表為 PurchaseData
             menuReports.DropDownItems.Add(CreateItem("請購資料", () => new App_GenericTable("Purchase", "PurchaseData", "請購資料").GetView())); 
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
@@ -100,7 +109,6 @@ namespace Safety_System
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
             menuChemical.DropDownItems.Add(CreateItem("化學品快查", () => new App_ChemQuickSearch().GetView()));
 
-            // 🟢 化學品要求及規範 - 12個子類別選單
             var menuChemReg = new ToolStripMenuItem("化學品要求及規範");
             menuChemReg.DropDownItems.Add(CreateItem("1. 環測項目", () => new App_GenericTable("Chemical", "EnvTesting", "環測項目").GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("2. 勞工暴露容許濃度", () => new App_GenericTable("Chemical", "ExposureLimits", "勞工暴露容許濃度").GetView()));
