@@ -20,17 +20,17 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 🟢 升級為 v3：支援順序記憶與顯示狀態的全新設定檔
+        // 升級為 v3：支援順序記憶與顯示狀態的全新設定檔
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Columns_v3.txt");
         
-        // 🟢 用於儲存欄位順序與可見性的結構
+        // 用於儲存欄位順序與可見性的結構
         private class ColConfig {
             public string Name { get; set; }
             public bool IsVisible { get; set; }
         }
         private List<ColConfig> _columnSettings = new List<ColConfig>();
 
-        // 🟢 預設 7 個顯示欄位與初始排序
+        // 預設 7 個顯示欄位與初始排序
         private readonly string[] _defaultVisibleCols = { "項次", "廠內編號", "化學物質名稱", "危害標示", "供應商", "供應商電話", "SDS版本日期" };
 
         public Control GetView()
@@ -57,7 +57,7 @@ namespace Safety_System
                 WrapContents = false
             };
             
-            // 🟢 按鈕樣式優化：統一高度、套用 FlatStyle 消除 3D 視差，並統一間距對齊
+            // 統一高度、套用 FlatStyle 消除 3D 視差，並統一間距對齊
             Button btnPdf = new Button { 
                 Text = "📤 導出 SDS 清冊 PDF", 
                 Size = new Size(230, 45), 
@@ -198,6 +198,7 @@ namespace Safety_System
                         _dgvSDS.Columns["項次"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                     }
 
+                    // 🟢 傳入 DataTable 進行結構對齊與介面初始化
                     ApplyVisibility(dt); 
                 }
                 else
@@ -208,30 +209,54 @@ namespace Safety_System
             catch { _dgvSDS.DataSource = null; }
         }
 
+        // 🟢 修復：確保即使資料表沒有資料列，也能根據 DataTable 欄位初始化並顯示設定選單
         private void ApplyVisibility(DataTable dt)
         {
-            if (_dgvSDS.DataSource == null || _dgvSDS.Columns.Count == 0) return;
-            
+            if (dt == null) return;
+
+            // 取得當前真實的資料庫欄位清單
+            List<string> actualCols = dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName).ToList();
+
             // 如果從未設定過 (檔案不存在或為空)，則依照預設建立順序
             if (_columnSettings.Count == 0)
             {
                 // 先加入預設欄位 (顯示)
                 foreach (string defCol in _defaultVisibleCols)
                 {
-                    _columnSettings.Add(new ColConfig { Name = defCol, IsVisible = true });
+                    if (actualCols.Contains(defCol))
+                    {
+                        _columnSettings.Add(new ColConfig { Name = defCol, IsVisible = true });
+                    }
                 }
 
                 // 再加入其餘隱藏的欄位
-                foreach (DataColumn col in dt.Columns)
+                foreach (string colName in actualCols)
                 {
-                    if (col.ColumnName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
-                    if (!_defaultVisibleCols.Contains(col.ColumnName))
+                    if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!_columnSettings.Any(c => c.Name == colName))
                     {
-                        _columnSettings.Add(new ColConfig { Name = col.ColumnName, IsVisible = false });
+                        _columnSettings.Add(new ColConfig { Name = colName, IsVisible = false });
                     }
                 }
                 SaveVisibilitySettings();
             }
+            else
+            {
+                // 補齊新增加的欄位
+                foreach (string colName in actualCols)
+                {
+                    if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!_columnSettings.Any(c => c.Name == colName))
+                    {
+                        _columnSettings.Add(new ColConfig { Name = colName, IsVisible = false });
+                    }
+                }
+                // 移除已經不存在的舊欄位
+                _columnSettings.RemoveAll(c => !actualCols.Contains(c.Name));
+            }
+
+            // 若 DataGridView 尚未產生欄位，直接中止 UI 變更，但記憶設定檔已初始化完畢
+            if (_dgvSDS.Columns.Count == 0) return;
 
             // 先強制將所有欄位隱藏
             foreach (DataGridViewColumn col in _dgvSDS.Columns)
@@ -259,9 +284,9 @@ namespace Safety_System
         {
             try
             {
-                if (_dgvSDS.Columns.Count == 0)
+                if (_columnSettings.Count == 0)
                 {
-                    MessageBox.Show("目前找不到資料庫資料，請先匯入資料。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("目前找不到資料庫資料，請先匯入資料以建立結構。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
@@ -357,7 +382,10 @@ namespace Safety_System
                             });
                         }
                         SaveVisibilitySettings();
-                        ApplyVisibility((DataTable)_dgvSDS.DataSource);
+                        if (_dgvSDS.DataSource != null)
+                        {
+                            ApplyVisibility((DataTable)_dgvSDS.DataSource);
+                        }
                         f.DialogResult = DialogResult.OK;
                     };
 
