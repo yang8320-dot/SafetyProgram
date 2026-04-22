@@ -330,23 +330,26 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
+            // 🟢 修改點：加入 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells 自動適應列高
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 🟢 新增此行
                 AllowUserToOrderColumns = true,
                 Margin = new Padding(0, 10, 0, 10)
             };
             
-            _dgv.RowTemplate.Height = 35;
+            // 註解掉固定的 RowTemplate 高度，避免干擾自動換行展開
+            // _dgv.RowTemplate.Height = 35;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
             _dgv.CellFormatting += Dgv_CellFormatting;
             _dgv.CellClick += Dgv_CellClick;
             _dgv.KeyDown += Dgv_KeyDown;
             
-            // 🟢 加入直接鍵盤輸入支援
+            // 加入直接鍵盤輸入支援
             _dgv.KeyPress += Dgv_KeyPress;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
 
@@ -364,7 +367,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
+        // 支援按鍵直接輸入 & Alt+Enter 換行
         // ==========================================
         private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -458,6 +461,9 @@ namespace Safety_System
             }
 
             SetupDropdownColumns();
+
+            // 🟢 修改點：確保套用樣式後觸發重新計算列高，讓畫面自動撐開
+            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
         private void SetupDropdownColumns()
