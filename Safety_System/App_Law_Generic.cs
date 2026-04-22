@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -21,7 +23,6 @@ namespace Safety_System
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
         
-        // 將按鈕提至全域以利狀態控制
         private Button _btnToggle;     
         private Button _btnSave; 
         private Button _btnRead;
@@ -30,7 +31,6 @@ namespace Safety_System
         private Button _btnAdvancedSearch;
         private Button _btnRtfToExcel;
 
-        // 🟢 新增：UI 狀態提示列
         private Label _lblStatus;
 
         private bool _isFirstLoad = true;
@@ -82,14 +82,12 @@ namespace Safety_System
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
-            // 🟢 優化 1：TableLayoutPanel 加入 Padding，完美排版
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 給狀態列      
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize));    
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 🟢 優化 2：Margin 下推 10px 隔開距離
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
             
             FlowLayoutPanel flpTopContainer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
@@ -179,7 +177,6 @@ namespace Safety_System
             flpTopContainer.Controls.Add(row3);
             boxTop.Controls.Add(flpTopContainer);
 
-            // ================= 可隱藏的欄位操作排 =================
             GroupBox boxOps = new GroupBox { Text = "進階欄位管理", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray, Margin = new Padding(0, 0, 0, 10) };
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             _txtNewColName = new TextBox { Width = 120 };
@@ -224,10 +221,8 @@ namespace Safety_System
                 _btnToggle.BackColor = boxOps.Visible ? Color.LightCoral : Color.LightGray; 
             };
 
-            // 🟢 新增：UI 防呆狀態列
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 優化 3：RowTemplate 增高、增加交替列顏色，提升閱讀體驗
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
@@ -242,19 +237,53 @@ namespace Safety_System
             _dgv.KeyDown += Dgv_KeyDown; 
             _dgv.CellClick += Dgv_CellClick;
 
+            // 🟢 加入直接鍵盤輸入支援
+            _dgv.KeyPress += Dgv_KeyPress;
+
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(boxOps, 0, 1); 
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
             
-            // 🟢 啟動時非同步載入，加上棄洞消除警告
             _ = LoadGridDataAsync(); 
             return main;
         }
 
         // ==========================================
-        // 🟢 狀態與日期強制格式化管理
+        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
         // ==========================================
+        private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
+            {
+                if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar))
+                {
+                    _dgv.BeginEdit(true);
+                    if (_dgv.EditingControl is TextBox txt)
+                    {
+                        txt.Text = e.KeyChar.ToString();
+                        txt.SelectionStart = txt.Text.Length;
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void TextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Alt && e.KeyCode == Keys.Enter)
+            {
+                if (sender is TextBox txt)
+                {
+                    int selectionStart = txt.SelectionStart;
+                    txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine);
+                    txt.SelectionStart = selectionStart + Environment.NewLine.Length;
+                    e.Handled = true;
+                }
+            }
+        }
+        // ==========================================
+
         private void SetUIState(bool isEnabled, string statusText, Color statusColor)
         {
             _btnRead.Enabled = isEnabled;
@@ -288,9 +317,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 核心資料載入 (加入非同步優化)
-        // ==========================================
         private async Task LoadGridDataAsync() {
             SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
             DataTable dt = null;
@@ -375,9 +401,6 @@ namespace Safety_System
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
-        // ==========================================
-        // 🟢 核心儲存邏輯 (完整保留原有法規目錄與重複比對)
-        // ==========================================
         private async void BtnSave_Click(object sender, EventArgs e)
         {
             try {
@@ -390,11 +413,11 @@ namespace Safety_System
                 bool success = await Task.Run(() =>
                 {
                     EnforceDateFormats(dtToSave);
-                    ResolveDuplicates(dtToSave); // 處理重複判斷
+                    ResolveDuplicates(dtToSave);
                     
                     bool mainSave = DataManager.BulkSaveTable(_dbName, _tableName, dtToSave);
                     if (mainSave) {
-                        GenerateAndSaveDirectory(); // 自動重新產生目錄
+                        GenerateAndSaveDirectory();
                     }
                     return mainSave;
                 });
@@ -536,9 +559,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // UI 輔助方法
-        // ==========================================
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0) {
@@ -658,17 +678,8 @@ namespace Safety_System
             }
         }
 
-        private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
-        {
-            if (e.Control is ComboBox cbo) { cbo.DropDownStyle = ComboBoxStyle.DropDownList; }
-            else if (e.Control is TextBox txt) { txt.Multiline = true; }
-        }
-
         private void Dgv_DataError(object sender, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; }
 
-        // ==========================================
-        // 匯入與匯出邏輯 (包含防卡頓優化)
-        // ==========================================
         private void BtnExport_Click(object sender, EventArgs e) {
             if (_dgv.Rows.Count <= 1) return;
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = _tableName + "_" + DateTime.Now.ToString("yyyyMMdd") }) {
@@ -725,7 +736,6 @@ namespace Safety_System
                         SetUIState(true, $"匯入成功！新增資料後總筆數：{tempDt.Rows.Count}", Color.Green);
                         MessageBox.Show($"載入 {tempDt.Rows.Count} 筆資料成功！\n系統已就緒，請點擊「儲存」以寫入資料庫。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
-                        // 🟢 修正此處的呼叫，移除多餘參數
                         await LoadGridDataAsync(); 
                         MessageBox.Show("匯入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
