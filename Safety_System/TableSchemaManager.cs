@@ -73,8 +73,7 @@ namespace Safety_System
             if (tableName == "HazardStats" && columnName == "品項單位") 
                 return new[] { "公升", "公斤", "瓶" };
 
-            // 若沒有特定設定，回傳 null 代表維持一般文字方塊
-            return null;
+            return null; // 若沒有特定設定，回傳 null 代表維持一般文字方塊
         }
     }
 }
