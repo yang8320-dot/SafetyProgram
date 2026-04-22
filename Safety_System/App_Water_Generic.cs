@@ -164,7 +164,6 @@ namespace Safety_System
             
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            // 🟢 按鍵寬度 +20px
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
             _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
 
@@ -278,7 +277,6 @@ namespace Safety_System
 
             rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
             
-            // 🟢 將「條件搜尋」整併到「讀取指定筆數」的同一行 (rowAdv2)
             FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0), WrapContents = false };
             TextBox txtLimit = new TextBox { Width = 100, Text = "100" };
             Button bLimitRead = new Button { Text = "讀取指定筆數", Size = new Size(140, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
@@ -315,22 +313,27 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
+            // 🟢 加入 AutoSizeRowsMode.AllCells，自動適應列高
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
                 AllowUserToOrderColumns = true,
                 Margin = new Padding(0, 10, 0, 10)
             };
             
-            _dgv.RowTemplate.Height = 35;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
             _dgv.CellFormatting += Dgv_CellFormatting;
             _dgv.CellClick += Dgv_CellClick;
             _dgv.KeyDown += Dgv_KeyDown;
-            
+
+            // 🟢 加入直接鍵盤輸入支援與 Alt+Enter 換行
+            _dgv.KeyPress += Dgv_KeyPress;
+            _dgv.EditingControlShowing += Dgv_EditingControlShowing;
+
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
             main.Controls.Add(boxTop, 0, 0); 
@@ -341,6 +344,55 @@ namespace Safety_System
             _ = LoadGridDataAsync(); 
             return main;
         }
+
+        // ==========================================
+        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
+        // ==========================================
+        private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
+            {
+                if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar))
+                {
+                    _dgv.BeginEdit(true);
+                    if (_dgv.EditingControl is TextBox txt)
+                    {
+                        txt.Text = e.KeyChar.ToString();
+                        txt.SelectionStart = txt.Text.Length;
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            if (e.Control is ComboBox cbo)
+            {
+                cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+            }
+            else if (e.Control is TextBox txt)
+            {
+                txt.Multiline = true;
+                txt.KeyDown -= TextBox_KeyDown;
+                txt.KeyDown += TextBox_KeyDown;
+            }
+        }
+
+        private void TextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Alt && e.KeyCode == Keys.Enter)
+            {
+                if (sender is TextBox txt)
+                {
+                    int selectionStart = txt.SelectionStart;
+                    txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine);
+                    txt.SelectionStart = selectionStart + Environment.NewLine.Length;
+                    e.Handled = true;
+                }
+            }
+        }
+        // ==========================================
 
         private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
@@ -378,6 +430,54 @@ namespace Safety_System
                     col.DefaultCellStyle.ForeColor = Color.Blue;
                     col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                }
+                else 
+                {
+                    // 🟢 讓一般欄位支援換行顯示
+                    col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                }
+            }
+
+            SetupDropdownColumns();
+            
+            // 🟢 強制觸發列高重新計算
+            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+        }
+
+        private void SetupDropdownColumns()
+        {
+            foreach (DataGridViewColumn col in _dgv.Columns.Cast<DataGridViewColumn>().ToList())
+            {
+                string[] items = TableSchemaManager.GetDropdownList(_tableName, col.Name);
+                if (items != null && !(_dgv.Columns[col.Name] is DataGridViewComboBoxColumn))
+                {
+                    int colIndex = col.Index;
+                    _dgv.Columns.RemoveAt(colIndex);
+
+                    DataGridViewComboBoxColumn cboCol = new DataGridViewComboBoxColumn
+                    {
+                        Name = col.Name,
+                        HeaderText = col.HeaderText,
+                        DataPropertyName = col.DataPropertyName,
+                        DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox,
+                        FlatStyle = FlatStyle.Flat,
+                        SortMode = DataGridViewColumnSortMode.Automatic
+                    };
+
+                    List<string> finalItems = new List<string>(items);
+                    if (_dgv.DataSource is DataTable dt)
+                    {
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            string val = row[col.Name]?.ToString().Trim();
+                            if (!string.IsNullOrEmpty(val) && !finalItems.Contains(val))
+                            {
+                                finalItems.Add(val);
+                            }
+                        }
+                    }
+                    cboCol.Items.AddRange(finalItems.ToArray());
+                    _dgv.Columns.Insert(colIndex, cboCol);
                 }
             }
         }
