@@ -49,12 +49,12 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
-        // 🟢 徹底解決視窗關閉卡住問題
+        // 🟢 徹底解決視窗按 X 關閉時卡住的問題
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             base.OnFormClosing(e);
             
-            // 強制終止所有背景執行緒與行程，確保應用程式秒退
+            // 強制終止所有背景執行緒與行程，確保應用程式秒退不殘留
             Environment.Exit(0);
         }
 
