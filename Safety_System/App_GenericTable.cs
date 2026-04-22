@@ -68,7 +68,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 🟢 改為從 TableSchemaManager 讀取 Schema
             string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) ? TableSchemaManager.SchemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
@@ -347,7 +346,10 @@ namespace Safety_System
             _dgv.CellClick += Dgv_CellClick;
             _dgv.KeyDown += Dgv_KeyDown;
             
-            // 🟢 防止資料行在下拉選單找不到對應數值時報錯
+            // 🟢 加入直接鍵盤輸入支援
+            _dgv.KeyPress += Dgv_KeyPress;
+            _dgv.EditingControlShowing += Dgv_EditingControlShowing;
+
             _dgv.DataError += (s, e) => { e.ThrowException = false; };
             
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
@@ -360,6 +362,55 @@ namespace Safety_System
             _ = LoadGridDataAsync(); 
             return main;
         }
+
+        // ==========================================
+        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
+        // ==========================================
+        private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
+            {
+                if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar))
+                {
+                    _dgv.BeginEdit(true);
+                    if (_dgv.EditingControl is TextBox txt)
+                    {
+                        txt.Text = e.KeyChar.ToString();
+                        txt.SelectionStart = txt.Text.Length;
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            if (e.Control is ComboBox cbo)
+            {
+                cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+            }
+            else if (e.Control is TextBox txt)
+            {
+                txt.Multiline = true;
+                txt.KeyDown -= TextBox_KeyDown;
+                txt.KeyDown += TextBox_KeyDown;
+            }
+        }
+
+        private void TextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Alt && e.KeyCode == Keys.Enter)
+            {
+                if (sender is TextBox txt)
+                {
+                    int selectionStart = txt.SelectionStart;
+                    txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine);
+                    txt.SelectionStart = selectionStart + Environment.NewLine.Length;
+                    e.Handled = true;
+                }
+            }
+        }
+        // ==========================================
 
         private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
@@ -399,13 +450,16 @@ namespace Safety_System
                     col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 }
+                else 
+                {
+                    // 讓一般欄位支援換行顯示
+                    col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                }
             }
 
-            // 🟢 呼叫設定下拉式選單的核心邏輯
             SetupDropdownColumns();
         }
 
-        // 🟢 將一般欄位自動替換為下拉式選單 (如果 TableSchemaManager 有定義)
         private void SetupDropdownColumns()
         {
             foreach (DataGridViewColumn col in _dgv.Columns.Cast<DataGridViewColumn>().ToList())
@@ -427,8 +481,6 @@ namespace Safety_System
                     };
 
                     List<string> finalItems = new List<string>(items);
-                    
-                    // 防呆設計：把已經存在於資料庫但「不在預設清單內」的舊有資料加入，避免 DataError 報錯
                     if (_dgv.DataSource is DataTable dt)
                     {
                         foreach (DataRow row in dt.Rows)
@@ -440,7 +492,6 @@ namespace Safety_System
                             }
                         }
                     }
-                    
                     cboCol.Items.AddRange(finalItems.ToArray());
                     _dgv.Columns.Insert(colIndex, cboCol);
                 }
@@ -503,10 +554,7 @@ namespace Safety_System
                 foreach (DataRow row in dt.Rows) 
                 {
                     string val = row["附件檔案"]?.ToString();
-                    if (!string.IsNullOrEmpty(val) && val.Contains(relativePath)) 
-                    {
-                        return true;
-                    }
+                    if (!string.IsNullOrEmpty(val) && val.Contains(relativePath)) return true;
                 }
                 return false;
             } 
@@ -521,27 +569,18 @@ namespace Safety_System
             foreach (DataGridViewRow row in _dgv.Rows) 
             {
                 if (row.Index == currentRowIndex || row.IsNewRow) continue;
-                
                 if (_dgv.Columns.Contains("附件檔案")) 
                 {
                     string cellVal = row.Cells["附件檔案"].Value?.ToString();
                     if (!string.IsNullOrEmpty(cellVal)) 
                     {
                         string[] paths = cellVal.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (paths.Contains(relativePath)) 
-                        { 
-                            isUsedByOthers = true; 
-                            break; 
-                        }
+                        if (paths.Contains(relativePath)) { isUsedByOthers = true; break; }
                     }
                 }
             }
             
-            if (!isUsedByOthers && IsFileUsedInDatabase(relativePath)) 
-            {
-                isUsedByOthers = true;
-            }
-            
+            if (!isUsedByOthers && IsFileUsedInDatabase(relativePath)) isUsedByOthers = true;
             if (isUsedByOthers) return;
             
             try 
@@ -557,13 +596,9 @@ namespace Safety_System
                     {
                         if (dir.Exists && dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) 
                         {
-                            dir.Delete(); 
-                            dir = dir.Parent;
+                            dir.Delete(); dir = dir.Parent;
                         } 
-                        else 
-                        { 
-                            break; 
-                        }
+                        else break; 
                     }
                 }
             } 
@@ -1203,7 +1238,6 @@ namespace Safety_System
                                 destPath = Path.Combine(destDir, destName); 
                             }
                             
-                            // 呼叫智慧壓縮處理
                             compressor.ProcessAndSave(src, destPath);
                             
                             _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
@@ -1218,7 +1252,6 @@ namespace Safety_System
             }
         }
         
-        // 🟢 圖片高品質壓縮獨立模組 (資源安全封裝)
         private class ImageCompressionHelper : IDisposable
         {
             private readonly string[] _imageExts = { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
@@ -1236,7 +1269,6 @@ namespace Safety_System
             {
                 string ext = Path.GetExtension(srcPath).ToLower();
 
-                // 若非圖片則直接複製
                 if (!_imageExts.Contains(ext))
                 {
                     File.Copy(srcPath, destPath);
@@ -1249,7 +1281,6 @@ namespace Safety_System
                     int origWidth = originalImg.Width;
                     int origHeight = originalImg.Height;
 
-                    // 若長邊大於 1024 才進行壓縮
                     if (origWidth > maxSide || origHeight > maxSide)
                     {
                         float ratio = Math.Min((float)maxSide / origWidth, (float)maxSide / origHeight);
@@ -1268,7 +1299,6 @@ namespace Safety_System
                                 g.DrawImage(originalImg, 0, 0, newWidth, newHeight);
                             }
 
-                            // JPEG/JPG 採用高質量參數存檔
                             if ((ext == ".jpg" || ext == ".jpeg") && _jpgEncoder != null)
                             {
                                 resizedImg.Save(destPath, _jpgEncoder, _encoderParams);
@@ -1281,7 +1311,6 @@ namespace Safety_System
                     }
                     else
                     {
-                        // 原圖已經小於等於 1024，直接複製
                         File.Copy(srcPath, destPath);
                     }
                 }
