@@ -59,7 +59,7 @@ namespace Safety_System
             
             // 統一高度、套用 FlatStyle 消除 3D 視差，並統一間距對齊
             Button btnPdf = new Button { 
-                Text = "📤 導出 SDS 清冊 PDF", 
+                Text = "📤 導出 SDS 清冊", 
                 Size = new Size(230, 45), 
                 BackColor = Color.DarkCyan, 
                 ForeColor = Color.White, 
@@ -72,7 +72,7 @@ namespace Safety_System
             btnPdf.Click += (s, e) => ExportToPdf();
 
             Button btnHazardousPdf = new Button { 
-                Text = "📄 導出：危害性化學品清單", 
+                Text = "📄 導出 化學品清單", 
                 Size = new Size(280, 45), 
                 BackColor = Color.IndianRed, 
                 ForeColor = Color.White, 
@@ -145,13 +145,14 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
 
+            // 🟢 修改點：從 AllCells 改回 Fill，讓欄位自動撐滿視窗
             _dgvSDS = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = false, 
                 ReadOnly = true, 
                 RowHeadersVisible = false, 
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
                 BorderStyle = BorderStyle.None 
             };
             _dgvSDS.RowTemplate.Height = 35;
@@ -196,9 +197,12 @@ namespace Safety_System
                     
                     if (_dgvSDS.Columns.Contains("項次")) {
                         _dgvSDS.Columns["項次"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                        // 讓項次維持適當寬度，不會因為 Fill 而變得過大
+                        _dgvSDS.Columns["項次"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                        _dgvSDS.Columns["項次"].Width = 60;
                     }
 
-                    // 🟢 傳入 DataTable 進行結構對齊與介面初始化
+                    // 傳入 DataTable 進行結構對齊與介面初始化
                     ApplyVisibility(dt); 
                 }
                 else
@@ -209,7 +213,7 @@ namespace Safety_System
             catch { _dgvSDS.DataSource = null; }
         }
 
-        // 🟢 修復：確保即使資料表沒有資料列，也能根據 DataTable 欄位初始化並顯示設定選單
+        // 修復：確保即使資料表沒有資料列，也能根據 DataTable 欄位初始化並顯示設定選單
         private void ApplyVisibility(DataTable dt)
         {
             if (dt == null) return;
@@ -437,7 +441,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁)
+        // 導出 A4 化學品清單 PDF 功能 (直式，每筆一頁，不預覽直接存檔)
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -446,7 +450,7 @@ namespace Safety_System
                 MessageBox.Show("目前沒有數據可供導出。"); return;
             }
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "危害性化學品清單_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "化學品清單_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
@@ -484,7 +488,7 @@ namespace Safety_System
                             return "";
                         }
 
-                        g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
+                        g.DrawString("化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
                         y += 60;
 
                         g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
@@ -563,7 +567,7 @@ namespace Safety_System
 
                     try {
                         pd.Print();
-                        MessageBox.Show("危害性化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
@@ -573,6 +577,9 @@ namespace Safety_System
             }
         }
 
+        // =========================================================================
+        // 🟢 導出 SDS 清冊 PDF 功能 (改為直接存檔，不顯示預覽視窗)
+        // =========================================================================
         private void ExportToPdf()
         {
             if (_dgvSDS.DataSource == null || _dgvSDS.Rows.Count == 0)
@@ -581,86 +588,97 @@ namespace Safety_System
                 return;
             }
 
-            PrintDocument pd = new PrintDocument();
-            pd.DefaultPageSettings.Landscape = true; 
-            pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
-            
-            int rowIndex = 0;
-
-            pd.PrintPage += (s, e) => {
-                Graphics g = e.Graphics;
-                float x = e.MarginBounds.Left;
-                float y = e.MarginBounds.Top;
-                float pageWidth = e.MarginBounds.Width;
-
-                Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
-                Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
-                Font fBody = new Font("Microsoft JhengHei UI", 9F);
-                Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
-
-                StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-
-                string mainTitle = "台灣玻璃工業股份有限公司 - 彰濱廠";
-                string subTitle = "化學品清單一覽表";
-                string pageInfo = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}";
-
-                g.DrawString(mainTitle, fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter); y += 40;
-                g.DrawString(subTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 35), sfCenter); y += 35;
-                g.DrawString(pageInfo, fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 30), sfCenter); y += 30;
-
-                var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
-                if (visCols.Count == 0) return;
-
-                float totalGridWidth = visCols.Sum(c => c.Width);
-                float scale = e.MarginBounds.Width / totalGridWidth;
-                if (scale > 1.2f) scale = 1.2f; 
-
-                float currX = x;
-                float rowH = 32;
-                foreach (var col in visCols)
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "SDS清冊_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
                 {
-                    RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
-                    g.FillRectangle(Brushes.DimGray, rect);
-                    g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                    g.DrawString(col.HeaderText, fHead, Brushes.White, rect, sfCenter);
-                    currX += col.Width * scale;
-                }
-                y += rowH;
+                    if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                while (rowIndex < _dgvSDS.Rows.Count)
-                {
-                    currX = x;
-                    foreach (var col in visCols)
-                    {
-                        RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
-                        g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                        string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
-                        g.DrawString(val, fBody, Brushes.Black, rect, sfBody);
-                        currX += col.Width * scale;
+                    PrintDocument pd = new PrintDocument();
+                    pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                    pd.PrinterSettings.PrintToFile = true;
+                    pd.PrinterSettings.PrintFileName = sfd.FileName;
+                    pd.DefaultPageSettings.Landscape = true; 
+                    pd.DefaultPageSettings.Margins = new Margins(30, 30, 30, 30);
+                    
+                    int rowIndex = 0;
+
+                    pd.PrintPage += (s, e) => {
+                        Graphics g = e.Graphics;
+                        float x = e.MarginBounds.Left;
+                        float y = e.MarginBounds.Top;
+                        float pageWidth = e.MarginBounds.Width;
+
+                        Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
+                        Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
+                        Font fBody = new Font("Microsoft JhengHei UI", 9F);
+                        Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
+
+                        StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                        string mainTitle = "台灣玻璃工業股份有限公司 - 彰濱廠";
+                        string subTitle = "化學品清單一覽表";
+                        string pageInfo = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}";
+
+                        g.DrawString(mainTitle, fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter); y += 40;
+                        g.DrawString(subTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 35), sfCenter); y += 35;
+                        g.DrawString(pageInfo, fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 30), sfCenter); y += 30;
+
+                        var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
+                        if (visCols.Count == 0) return;
+
+                        float totalGridWidth = visCols.Sum(c => c.Width);
+                        float scale = e.MarginBounds.Width / totalGridWidth;
+                        if (scale > 1.2f) scale = 1.2f; 
+
+                        float currX = x;
+                        float rowH = 32;
+                        foreach (var col in visCols)
+                        {
+                            RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
+                            g.FillRectangle(Brushes.DimGray, rect);
+                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                            g.DrawString(col.HeaderText, fHead, Brushes.White, rect, sfCenter);
+                            currX += col.Width * scale;
+                        }
+                        y += rowH;
+
+                        while (rowIndex < _dgvSDS.Rows.Count)
+                        {
+                            currX = x;
+                            foreach (var col in visCols)
+                            {
+                                RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
+                                g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                                string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
+                                g.DrawString(val, fBody, Brushes.Black, rect, sfBody);
+                                currX += col.Width * scale;
+                            }
+                            y += rowH;
+                            rowIndex++;
+
+                            if (y + rowH > e.MarginBounds.Bottom)
+                            {
+                                e.HasMorePages = true;
+                                return;
+                            }
+                        }
+                        
+                        e.HasMorePages = false;
+                        rowIndex = 0; 
+                    };
+
+                    try {
+                        pd.Print();
+                        MessageBox.Show("SDS 清冊 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
                     }
-                    y += rowH;
-                    rowIndex++;
-
-                    if (y + rowH > e.MarginBounds.Bottom)
-                    {
-                        e.HasMorePages = true;
-                        return;
-                    }
                 }
-                
-                e.HasMorePages = false;
-                rowIndex = 0; 
-            };
-
-            PrintPreviewDialog ppd = new PrintPreviewDialog { 
-                Document = pd, 
-                Width = 1024, 
-                Height = 768, 
-                WindowState = FormWindowState.Maximized,
-                UseAntiAlias = true
-            };
-            ppd.ShowDialog();
+            }
         }
     }
 }
