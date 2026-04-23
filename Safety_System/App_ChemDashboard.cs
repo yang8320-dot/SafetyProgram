@@ -455,7 +455,9 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
-                    if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                    // 🟢 鎖定當下視窗實體，避免游標狀態切換錯誤
+                    Form activeForm = Form.ActiveForm;
+                    if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
                     
                     PrintDocument pd = new PrintDocument();
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
@@ -570,11 +572,15 @@ namespace Safety_System
 
                     try {
                         pd.Print();
+                        // 🟢 修復：在彈出視窗前先將游標還原
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("危害性化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                        // 🟢 最終確保還原游標
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
                 }
             }
@@ -595,7 +601,9 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
-                    if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                    // 🟢 鎖定當下視窗實體
+                    Form activeForm = Form.ActiveForm;
+                    if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
 
                     PrintDocument pd = new PrintDocument();
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
@@ -678,11 +686,15 @@ namespace Safety_System
 
                     try {
                         pd.Print();
+                        // 🟢 修復：在彈出視窗前先將游標還原
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("SDS 清冊 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                        // 🟢 最終確保還原游標
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
                 }
             }
