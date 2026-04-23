@@ -20,8 +20,8 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 升級為 v3：支援順序記憶與顯示狀態的全新設定檔
-        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Columns_v3.txt");
+        // 🟢 升級為 v4：確保新的 10 個預設欄位直接生效
+        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Columns_v4.txt");
         
         // 用於儲存欄位順序與可見性的結構
         private class ColConfig {
@@ -30,8 +30,8 @@ namespace Safety_System
         }
         private List<ColConfig> _columnSettings = new List<ColConfig>();
 
-        // 預設 7 個顯示欄位與初始排序
-        private readonly string[] _defaultVisibleCols = { "項次", "廠內編號", "化學物質名稱", "危害標示", "供應商", "供應商電話", "SDS版本日期" };
+        // 🟢 更新為您指定的 10 個預設顯示欄位與排序 (對應真實欄位名稱)
+        private readonly string[] _defaultVisibleCols = { "項次", "化學物質名稱", "危害標示", "供應商", "供應商電話", "使用單位", "貯存地點", "使用最大量", "SDS版本日期", "備註" };
 
         public Control GetView()
         {
@@ -71,8 +71,9 @@ namespace Safety_System
             btnPdf.FlatAppearance.BorderSize = 0;
             btnPdf.Click += (s, e) => ExportToPdf();
 
+            // 🟢 更名為 導出 危害性化學品清單
             Button btnHazardousPdf = new Button { 
-                Text = "📄 導出 化學品清單", 
+                Text = "📄 導出 危害性化學品清單", 
                 Size = new Size(280, 45), 
                 BackColor = Color.IndianRed, 
                 ForeColor = Color.White, 
@@ -145,7 +146,6 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
 
-            // 🟢 修改點：從 AllCells 改回 Fill，讓欄位自動撐滿視窗
             _dgvSDS = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
@@ -441,7 +441,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 A4 化學品清單 PDF 功能 (直式，每筆一頁，不預覽直接存檔)
+        // 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁，不預覽直接存檔)
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -450,7 +450,8 @@ namespace Safety_System
                 MessageBox.Show("目前沒有數據可供導出。"); return;
             }
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "化學品清單_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            // 🟢 檔名更名：危害性化學品清單
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "危害性化學品清單_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
@@ -488,7 +489,8 @@ namespace Safety_System
                             return "";
                         }
 
-                        g.DrawString("化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
+                        // 🟢 標題更名：危害性化學品清單
+                        g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
                         y += 60;
 
                         g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
@@ -554,7 +556,8 @@ namespace Safety_System
                         string dateStr = $"製單日期：{DateTime.Now.Year} 年 {DateTime.Now.Month:D2} 月 {DateTime.Now.Day:D2} 日";
                         g.DrawString(dateStr, fBody, Brushes.Black, x, y);
 
-                        g.DrawString("8-ES-B09-01", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
+                        // 🟢 頁尾更名：危害性化學品清單
+                        g.DrawString("8-ES-B09-01 危害性化學品清單", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
 
                         currentRow++;
                         if (currentRow < _dgvSDS.Rows.Count) {
@@ -567,7 +570,7 @@ namespace Safety_System
 
                     try {
                         pd.Print();
-                        MessageBox.Show("化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("危害性化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
@@ -578,7 +581,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 🟢 導出 SDS 清冊 PDF 功能 (改為直接存檔，不顯示預覽視窗)
+        // 導出 SDS 清冊 PDF 功能 (改為直接存檔，不顯示預覽視窗)
         // =========================================================================
         private void ExportToPdf()
         {
@@ -660,11 +663,15 @@ namespace Safety_System
 
                             if (y + rowH > e.MarginBounds.Bottom)
                             {
+                                // 🟢 跨頁時寫入左下角頁尾：化學品清冊一覽表
+                                g.DrawString("8-ES-B09-01 化學品清冊一覽表", fBody, Brushes.Black, x, e.MarginBounds.Bottom + 5);
                                 e.HasMorePages = true;
                                 return;
                             }
                         }
                         
+                        // 🟢 最後一頁寫入左下角頁尾：化學品清冊一覽表
+                        g.DrawString("8-ES-B09-01 化學品清冊一覽表", fBody, Brushes.Black, x, e.MarginBounds.Bottom + 5);
                         e.HasMorePages = false;
                         rowIndex = 0; 
                     };
