@@ -330,30 +330,29 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 修改點：加入 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells 自動適應列高
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 🟢 新增此行
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
                 AllowUserToOrderColumns = true,
                 Margin = new Padding(0, 10, 0, 10)
             };
             
-            // 註解掉固定的 RowTemplate 高度，避免干擾自動換行展開
-            // _dgv.RowTemplate.Height = 35;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
             _dgv.CellFormatting += Dgv_CellFormatting;
             _dgv.CellClick += Dgv_CellClick;
             _dgv.KeyDown += Dgv_KeyDown;
             
-            // 加入直接鍵盤輸入支援
             _dgv.KeyPress += Dgv_KeyPress;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
 
+            // 🟢 加入防呆與連動觸發事件
             _dgv.DataError += (s, e) => { e.ThrowException = false; };
+            _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
+            _dgv.CellValueChanged += Dgv_CellValueChanged;
             
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
@@ -367,7 +366,40 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 支援按鍵直接輸入 & Alt+Enter 換行
+        // 🟢 連動下拉選單即時觸發與重置邏輯
+        // ==========================================
+        private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            // 只要下拉選單一改變，立刻 Commit Edit 以觸發 CellValueChanged
+            if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell)
+            {
+                _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        }
+
+        private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            
+            string colName = _dgv.Columns[e.ColumnIndex].Name;
+
+            // 當父階層改變時，自動清空所有關聯的子階層
+            if (_tableName == "SafetyInspection")
+            {
+                if (colName == "危害類型主項")
+                {
+                    if (_dgv.Columns.Contains("危害類型細分類")) _dgv.Rows[e.RowIndex].Cells["危害類型細分類"].Value = "";
+                    if (_dgv.Columns.Contains("違規樣態類型")) _dgv.Rows[e.RowIndex].Cells["違規樣態類型"].Value = "";
+                }
+                else if (colName == "危害類型細分類")
+                {
+                    if (_dgv.Columns.Contains("違規樣態類型")) _dgv.Rows[e.RowIndex].Cells["違規樣態類型"].Value = "";
+                }
+            }
+        }
+
+        // ==========================================
+        // 支援按鍵直接輸入 & Alt+Enter 換行 & 下拉過濾
         // ==========================================
         private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -391,6 +423,33 @@ namespace Safety_System
             if (e.Control is ComboBox cbo)
             {
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+
+                // 🟢 連動選單：進入編輯模式時，依據父層選項即時過濾當下 ComboBox 的選單項目
+                if (_tableName == "SafetyInspection" && _dgv.CurrentCell != null)
+                {
+                    string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
+                    
+                    if (colName == "危害類型細分類")
+                    {
+                        string parentVal = _dgv.CurrentRow.Cells["危害類型主項"].Value?.ToString() ?? "";
+                        var items = TableSchemaManager.GetDependentDropdownList(_tableName, colName, parentVal);
+                        
+                        object currentVal = _dgv.CurrentCell.Value;
+                        cbo.Items.Clear();
+                        cbo.Items.AddRange(items);
+                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal;
+                    }
+                    else if (colName == "違規樣態類型")
+                    {
+                        string parentVal = _dgv.CurrentRow.Cells["危害類型細分類"].Value?.ToString() ?? "";
+                        var items = TableSchemaManager.GetDependentDropdownList(_tableName, colName, parentVal);
+                        
+                        object currentVal = _dgv.CurrentCell.Value;
+                        cbo.Items.Clear();
+                        cbo.Items.AddRange(items);
+                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal;
+                    }
+                }
             }
             else if (e.Control is TextBox txt)
             {
@@ -455,14 +514,12 @@ namespace Safety_System
                 }
                 else 
                 {
-                    // 讓一般欄位支援換行顯示
                     col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
 
             SetupDropdownColumns();
 
-            // 🟢 修改點：確保套用樣式後觸發重新計算列高，讓畫面自動撐開
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
