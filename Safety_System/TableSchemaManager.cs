@@ -129,7 +129,15 @@ namespace Safety_System
                     return new[] { "危險之虞", "廠內規範", "環境管理", "勞檢曾開立之缺失", "與法規抵觸", "工安建議改善項目"};             
                 if (columnName == "危害類型主項") 
                     return new[] { "物理性", "化學性", "生物性", "人因工程", "社會性", "其他"};     
-                
+                if (columnName == "列入安全觀查事項") 
+                    return new[] { "", "v"}; 
+                if (columnName == "列入虛驚事項") 
+                    return new[] { "", "v"}; 
+                if (columnName == "不安全行為") 
+                    return new[] { "", "v"}; 
+                if (columnName == "廠內曾發生工傷事件項目") 
+                    return new[] { "", "v"}; 
+
                 // 🟢 針對第二層連動，提供所有選項總集，避免非編輯列產生 DataError
                 if (columnName == "危害類型細分類")
                 {
