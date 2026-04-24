@@ -11,7 +11,7 @@ namespace Safety_System
             { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             //巡檢異常單
-			{ "SafetyInspection", "[日期] TEXT, [單位] TEXT, [表單單號] TEXT, [表單主題] TEXT, [重要性] TEXT, [狀態] TEXT, [申請者] TEXT, [承辦人] TEXT, [目前處理者] TEXT, [	申請時間] TEXT, [修改時間] TEXT, [到期時間] TEXT, [缺失責任人] TEXT, [危害類型主項] TEXT, [危害類型細分類] TEXT, [違規樣態類型] TEXT, [列入安全觀查事項] TEXT, [列入虛驚事項] TEXT, [不安全行為] TEXT, [廠內曾發生工傷事件項目] TEXT, [違規分類] TEXT, [違反規定名稱] TEXT, [違反規定條款] TEXT, [建議改善事項] TEXT, [追蹤改善狀況] TEXT, [改善進度] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+			{ "SafetyInspection", "[日期] TEXT, [單位] TEXT, [表單單號] TEXT, [表單主題] TEXT, [申請者] TEXT, [申請時間] TEXT, [缺失責任人] TEXT, [危害類型主項] TEXT, [危害類型細分類] TEXT, [違規樣態類型] TEXT, [列入安全觀查事項] TEXT, [列入虛驚事項] TEXT, [不安全行為] TEXT, [廠內曾發生工傷事件項目] TEXT, [違規分類] TEXT, [違反規定名稱] TEXT, [違反規定條款] TEXT, [建議改善事項] TEXT, [追蹤改善狀況] TEXT, [改善進度] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjury", "[日期] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -83,7 +83,11 @@ namespace Safety_System
 			if (tableName == "SafetyInspection" && columnName == "單位") 
 				return new[] { "改切", "磨邊", "強化", "膠合", "複層", "鍍板", "儲運", "品管", "物料", "事務", "工安", "維修", "儀電", "廠務", "製程", "加工" };
 			if (tableName == "SafetyInspection" && columnName == "改善進度") 
-				return new[] { "未結案", "已結案"};            
+				return new[] { "未結案", "已結案"};    
+			if (tableName == "SafetyInspection" && columnName == "違規分類") 
+				return new[] { "危險之虞", "廠內規範", "環境管理", "勞檢曾開立之缺失", "與法規抵觸", "工安建議改善項目"}; 			
+			if (tableName == "SafetyInspection" && columnName == "危害類型主項") 
+				return new[] { "物理性", "化學性", "生物性", "人因工程", "社會性", "其他"}; 	
 			return null; // 若沒有特定設定，回傳 null 代表維持一般文字方塊
         }
     }
