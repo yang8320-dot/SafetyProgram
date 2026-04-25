@@ -36,6 +36,7 @@ namespace Safety_System
         private Button _btnAdvancedSearch;
 
         private bool _isFirstLoad = true;
+        private bool _isApplyingWidths = false; // 🟢 用於防止套用寬度時觸發儲存事件
         
         private readonly string _dbName; 
         private readonly string _tableName; 
@@ -45,8 +46,9 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 🟢 紀錄使用者隱藏欄位的設定
+        // 🟢 紀錄使用者隱藏欄位與自訂欄寬的設定
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
+        private Dictionary<string, int> _columnWidths = new Dictionary<string, int>();
 
         public App_GenericTable(string dbName, string tableName, string chineseTitle)
         {
@@ -77,6 +79,7 @@ namespace Safety_System
             DataManager.InitTable(_dbName, _tableName, createSql);
 
             LoadVisibilitySettings();
+            LoadColumnWidths(); // 🟢 載入欄寬記憶設定
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             if (columns.Contains("月份")) 
@@ -192,7 +195,6 @@ namespace Safety_System
             _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35) }; 
             _btnImport.Click += BtnImportExcel_Click;
 
-            // 🟢 移至進階管理的按鈕先在此實例化，並加入對齊的 Margin
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 10, 0) };
             _btnExportPdf.Click += BtnExportPdf_Click;
 
@@ -234,15 +236,11 @@ namespace Safety_System
 
             boxTop.Controls.Add(row1);
 
-            // ==========================================
-            // 🟢 進階管理區：修正高度對齊與間距
-            // ==========================================
             _boxAdvanced = new GroupBox { Text = "進階欄位與權限操作", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray, Margin = new Padding(0, 0, 0, 10) };
             FlowLayoutPanel flpAdv = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
             
-            // 第一列元件：套用精準的 Margin 上下偏移，解決對齊問題
             Label lblAdvOps = new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             _txtNewColName = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35), Margin = new Padding(0, 0, 15, 0) };
@@ -291,10 +289,8 @@ namespace Safety_System
                 }
             };
 
-            // 組合第一列
             rowAdv1.Controls.AddRange(new Control[] { lblAdvOps, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow, _btnExportPdf, _btnColSettings });
             
-            // 第二列：縮減與上方的間距 (Margin Top 設為 5)
             FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 5, 0, 0), WrapContents = false };
             
             Label lblLimit = new Label { Text = "調閱最近寫入筆數:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
@@ -320,7 +316,6 @@ namespace Safety_System
             _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 0, 0) };
             _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
             
-            // 組合第二列
             rowAdv2.Controls.AddRange(new Control[] { lblLimit, txtLimit, bLimitRead, lblSearchData, _cboSearchColumn, lblKeyword, _txtSearchKeyword, _btnAdvancedSearch });
 
             flpAdv.Controls.Add(rowAdv1); 
@@ -329,14 +324,12 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // ==========================================
             // 🟢 開放手動拖拉欄寬功能
-            // ==========================================
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = true, 
-                AllowUserToResizeColumns = true, // 允許手動調整欄寬
+                AllowUserToResizeColumns = true, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
                 AllowUserToOrderColumns = true,
                 Margin = new Padding(0, 10, 0, 10)
@@ -355,6 +348,9 @@ namespace Safety_System
             _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
             _dgv.CellValueChanged += Dgv_CellValueChanged;
             
+            // 🟢 掛載手動調整欄寬的儲存事件
+            _dgv.ColumnWidthChanged += Dgv_ColumnWidthChanged;
+
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
             main.Controls.Add(boxTop, 0, 0); 
@@ -364,6 +360,44 @@ namespace Safety_System
 
             _ = LoadGridDataAsync(); 
             return main;
+        }
+
+        // ==========================================
+        // 🟢 欄寬記憶存取與事件
+        // ==========================================
+        private void LoadColumnWidths()
+        {
+            _columnWidths.Clear();
+            string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColWidths_{_dbName}_{_tableName}.txt");
+            if (File.Exists(file)) {
+                try {
+                    foreach (var line in File.ReadAllLines(file, Encoding.UTF8)) {
+                        var parts = line.Split('|');
+                        if (parts.Length == 2 && int.TryParse(parts[1], out int w)) {
+                            _columnWidths[parts[0]] = w;
+                        }
+                    }
+                } catch { }
+            }
+        }
+
+        private void SaveColumnWidths()
+        {
+            try {
+                string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColWidths_{_dbName}_{_tableName}.txt");
+                var lines = _columnWidths.Select(kvp => $"{kvp.Key}|{kvp.Value}").ToArray();
+                File.WriteAllLines(file, lines, Encoding.UTF8);
+            } catch { }
+        }
+
+        private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e)
+        {
+            // 避免在剛啟動載入或套用設定時觸發寫入
+            if (_isFirstLoad || _isApplyingWidths) return;
+            if (e.Column != null) {
+                _columnWidths[e.Column.Name] = e.Column.Width;
+                SaveColumnWidths();
+            }
         }
 
         // ==========================================
@@ -544,7 +578,6 @@ namespace Safety_System
                     int rowIndex = 0;
                     int pageNumber = 1;
 
-                    // 預先計算總頁數估值
                     int rowsPerPageEstimate = 20; 
                     int totalPages = (int)Math.Ceiling((double)(_dgv.Rows.Count - 1) / rowsPerPageEstimate);
 
@@ -562,13 +595,9 @@ namespace Safety_System
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                         StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                        // 1. 頁首：台灣玻璃工業股份有限公司-彰濱廠
                         g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter); y += 35;
-                        
-                        // 2. 子標題：當下的選單名稱
                         g.DrawString(_chineseTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 30), sfCenter); y += 30;
                         
-                        // 3. 導出日期與當下過濾條件
                         string filterStr = "";
                         if (!string.IsNullOrEmpty(_txtSearchKeyword.Text)) filterStr = $" | 關鍵字: {_txtSearchKeyword.Text}";
                         g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}{filterStr}", fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 25), sfLeft); y += 25;
@@ -576,18 +605,17 @@ namespace Safety_System
                         var visCols = _dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
                         if (visCols.Count == 0) return;
 
+                        // 🟢 自動計算等比例寬度，讓所有欄位填滿整個 A4 寬度
                         float totalGridWidth = visCols.Sum(c => c.Width);
                         float[] actualColWidths = new float[visCols.Count];
                         
                         for (int i = 0; i < visCols.Count; i++) {
-                            // 按原始比例重新分配在 A4 上的實際列印寬度
                             actualColWidths[i] = (visCols[i].Width / totalGridWidth) * pageWidth;
                         }
 
                         float currX = x;
                         float rowH = 32;
 
-                        // 繪製表頭
                         for (int i = 0; i < visCols.Count; i++)
                         {
                             RectangleF rect = new RectangleF(currX, y, actualColWidths[i], rowH);
@@ -598,12 +626,10 @@ namespace Safety_System
                         }
                         y += rowH;
 
-                        // 繪製資料列
                         while (rowIndex < _dgv.Rows.Count)
                         {
                             if (_dgv.Rows[rowIndex].IsNewRow) { rowIndex++; continue; }
 
-                            // 計算這列最高需要多少高度 (支援自動換行)
                             float maxRowH = rowH;
                             for (int i = 0; i < visCols.Count; i++) {
                                 string val = _dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? "";
@@ -611,9 +637,8 @@ namespace Safety_System
                                 if (sSize.Height + 10 > maxRowH) maxRowH = sSize.Height + 10;
                             }
 
-                            if (y + maxRowH > ev.MarginBounds.Bottom - 30) // 預留頁尾空間
+                            if (y + maxRowH > ev.MarginBounds.Bottom - 30) 
                             {
-                                // 跨頁前寫入頁尾
                                 g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
                                 pageNumber++;
                                 ev.HasMorePages = true;
@@ -635,7 +660,6 @@ namespace Safety_System
                             rowIndex++;
                         }
                         
-                        // 最後一頁寫入頁尾
                         g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
                         ev.HasMorePages = false;
                         rowIndex = 0; 
@@ -687,9 +711,11 @@ namespace Safety_System
             }
         }
 
-        // 🟢 需求 3：變更為先自動縮放一次，隨後開放手動調整
+        // 🟢 實作欄位寬度記憶套用
         private void ApplyGridStyles() 
         {
+            _isApplyingWidths = true; // 暫時封鎖事件，避免套用時寫入覆蓋設定檔
+
             if (_dgv.Columns.Contains("Id")) 
             {
                 _dgv.Columns["Id"].ReadOnly = true;
@@ -726,12 +752,23 @@ namespace Safety_System
 
             SetupDropdownColumns();
             
-            // 讓資料剛載入時，先依內容自動最適化一次
+            // 先讓表格針對內容做一次自動調整 (避免新出現的欄位縮成一團)
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
             
             // 緊接著解除鎖定，允許使用者手動拖拉
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+
+            // 如果記憶檔內有寬度設定，則覆蓋自動產生的寬度
+            foreach (DataGridViewColumn col in _dgv.Columns)
+            {
+                if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
+                {
+                    col.Width = _columnWidths[col.Name];
+                }
+            }
+
+            _isApplyingWidths = false; // 開放寫入
         }
 
         private void SetupDropdownColumns()
@@ -912,7 +949,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 預設改為載入最近寫入的 30 筆資料
         private async Task LoadGridDataAsync() 
         {
             SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
@@ -924,9 +960,7 @@ namespace Safety_System
             await Task.Run(() => {
                 if (_isFirstLoad) 
                 {
-                    // 改為預設讀取 30 筆最新寫入資料
                     dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
-                    _isFirstLoad = false;
                 } 
                 else 
                 {
@@ -940,6 +974,7 @@ namespace Safety_System
             UpdateCboColumns();
             RestoreColumnOrder();
 
+            _isFirstLoad = false;
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
