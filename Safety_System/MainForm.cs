@@ -244,11 +244,11 @@ namespace Safety_System
             // ======================================================
             // 🟢 新增需求 2：隱藏的個人選單 (預設 Visible = false)
             // ======================================================
-            _menu1 = new ToolStripMenuItem("選單1") { Visible = false };
-            _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_GenericTable("Menu1DB", "AccountManage", "帳密管理").GetView()));
+            _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_GenericTable("Menu1DB", "KPI", "KPI").GetView()));
             _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_GenericTable("Menu1DB", "CultureImprove", "文化改善").GetView()));
             _menu1.DropDownItems.Add(CreateItem("PBC", () => new App_GenericTable("Menu1DB", "PBC", "PBC").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_GenericTable("Menu1DB", "AccountManage", "帳密管理").GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
             _menu2.DropDownItems.Add(CreateItem("資料管理", () => new App_GenericTable("Menu2DB", "DataManage2", "資料管理").GetView()));
