@@ -208,9 +208,9 @@ namespace Safety_System
             // 🟢 新增需求 1：應用選單與呼叫外部程式
             // ======================================================
             var menuApp = new ToolStripMenuItem("應用");
-            var callExeItem = new ToolStripMenuItem("TgeOffice導入巡檢");
+            var callExeItem = new ToolStripMenuItem("tgeOffice導入巡檢");
             callExeItem.Click += (s, e) => {
-                string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\Tgeoffice_dw\FormCrawlerApp.exe");
+                string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\tgeoffice_dw\FormCrawlerApp.exe");
                 try
                 {
                     if (File.Exists(exePath))
