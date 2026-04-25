@@ -192,11 +192,9 @@ namespace Safety_System
             _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35) }; 
             _btnImport.Click += BtnImportExcel_Click;
 
-            // 🟢 新增：匯出 PDF
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            // 🟢 新增：欄位顯示設定
             _btnColSettings = new Button { Text = "👁️ 欄位顯示設定", Size = new Size(160, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White };
             _btnColSettings.Click += BtnColSettings_Click;
 
@@ -376,6 +374,92 @@ namespace Safety_System
 
             _ = LoadGridDataAsync(); 
             return main;
+        }
+
+        // ==========================================
+        // 🟢 狀態與控制 UI 輔助方法
+        // ==========================================
+        private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
+        {
+            _btnRead.Enabled = isEnabled; 
+            _btnSave.Enabled = isEnabled; 
+            _btnImport.Enabled = isEnabled; 
+            _btnExport.Enabled = isEnabled;
+            _btnExportPdf.Enabled = isEnabled;
+            _btnColSettings.Enabled = isEnabled;
+            _btnAdvancedSearch.Enabled = isEnabled;
+            
+            _lblStatus.Text = statusText; 
+            _lblStatus.ForeColor = statusColor;
+        }
+
+        // ==========================================
+        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
+        // ==========================================
+        private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
+            {
+                if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar))
+                {
+                    _dgv.BeginEdit(true);
+                    if (_dgv.EditingControl is TextBox txt)
+                    {
+                        txt.Text = e.KeyChar.ToString();
+                        txt.SelectionStart = txt.Text.Length;
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            if (e.Control is ComboBox cbo)
+            {
+                cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+
+                if (_tableName == "SafetyInspection" && _dgv.CurrentCell != null)
+                {
+                    string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
+                    if (colName == "危害類型細分類")
+                    {
+                        string parentVal = _dgv.CurrentRow.Cells["危害類型主項"].Value?.ToString() ?? "";
+                        var items = TableSchemaManager.GetDependentDropdownList(_tableName, colName, parentVal);
+                        object currentVal = _dgv.CurrentCell.Value;
+                        cbo.Items.Clear(); cbo.Items.AddRange(items);
+                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal;
+                    }
+                    else if (colName == "違規樣態類型")
+                    {
+                        string parentVal = _dgv.CurrentRow.Cells["危害類型細分類"].Value?.ToString() ?? "";
+                        var items = TableSchemaManager.GetDependentDropdownList(_tableName, colName, parentVal);
+                        object currentVal = _dgv.CurrentCell.Value;
+                        cbo.Items.Clear(); cbo.Items.AddRange(items);
+                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal;
+                    }
+                }
+            }
+            else if (e.Control is TextBox txt)
+            {
+                txt.Multiline = true;
+                txt.KeyDown -= TextBox_KeyDown;
+                txt.KeyDown += TextBox_KeyDown;
+            }
+        }
+
+        private void TextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Alt && e.KeyCode == Keys.Enter)
+            {
+                if (sender is TextBox txt)
+                {
+                    int selectionStart = txt.SelectionStart;
+                    txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine);
+                    txt.SelectionStart = selectionStart + Environment.NewLine.Length;
+                    e.Handled = true;
+                }
+            }
         }
 
         // ==========================================
