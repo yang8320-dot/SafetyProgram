@@ -109,6 +109,7 @@ namespace Safety_System
 
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_GenericTable("Safety", "SafetyInspection", "巡檢記錄管理").GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_GenericTable("Safety", "WorkInjury", "工傷事件管理").GetView()));
             menuSafety.DropDownItems.Add(CreateItem("輕傷事件", () => new App_GenericTable("Safety", "MinorInjury", "輕傷事件管理").GetView()));
@@ -119,6 +120,7 @@ namespace Safety_System
             var menuChemical = new ToolStripMenuItem("化學品");
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
             menuChemical.DropDownItems.Add(CreateItem("化學品快查", () => new App_ChemQuickSearch().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
 
             var menuChemReg = new ToolStripMenuItem("化學品要求及規範");
             menuChemReg.DropDownItems.Add(CreateItem("1. 環測項目", () => new App_GenericTable("Chemical", "EnvTesting", "環測項目").GetView()));
@@ -139,15 +141,18 @@ namespace Safety_System
 
             var menuNursing = new ToolStripMenuItem("護理");
             menuNursing.DropDownItems.Add(CreateItem("護理看板", () => new App_NursingDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_GenericTable("Nursing", "HealthPromotion", "健康促進活動").GetView()));
             menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_GenericTable("Nursing", "WorkInjuryReport", "職災申報紀錄").GetView()));
 
             var menuAir = new ToolStripMenuItem("空污");
             menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_GenericTable("Air", "AirPollution", "空污申報紀錄").GetView()));
 
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_Water_Generic("Water", "WaterMeterReadings", "【日】廢水處理水量記錄").GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_Water_Generic("Water", "WaterChemicals", "【日】廢水處理用藥記錄").GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_Water_Generic("Water", "WaterUsageDaily", "【日】自來水使用量").GetView()));
@@ -156,6 +161,7 @@ namespace Safety_System
 
             var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("產能及廢棄物看板", () => new App_WasteDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuWaste.DropDownItems.Add(CreateItem("【月】複層月表", () => new App_GenericTable("Waste", "Waste_IL", "【月】複層月表").GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】膠合月表", () => new App_GenericTable("Waste", "Waste_LM", "【月】膠合月表").GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】鍍板月表", () => new App_GenericTable("Waste", "Waste_CR", "【月】鍍板月表").GetView()));
@@ -166,6 +172,7 @@ namespace Safety_System
 
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_GenericTable("Fire", "FireResponsible", "火源責任人管理").GetView()));
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_GenericTable("Fire", "HazardStats", "公共危險物統計").GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_GenericTable("Fire", "FireEquip", "消防設備巡檢").GetView()));
@@ -173,6 +180,7 @@ namespace Safety_System
 
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_GenericTable("TestData", "EnvMonitor", "環境監測").GetView()));
             menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_GenericTable("TestData", "WastewaterPeriodic", "廢水定申檢").GetView()));
             menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_GenericTable("TestData", "DrinkingWater", "飲用水檢測").GetView()));
@@ -187,10 +195,12 @@ namespace Safety_System
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_GenericTable("教育訓練", "訓練時數", "教育訓練時數").GetView()));
 
             var menuLaw = new ToolStripMenuItem("法規");
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
@@ -198,10 +208,12 @@ namespace Safety_System
 
             var menuESG = new ToolStripMenuItem("ESG");
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_GenericTable("ESG", "ESG_Performance", "ESG績效管理").GetView()));
 
             var menuISO = new ToolStripMenuItem("ISO14001");
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
             menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
 
             // ======================================================
