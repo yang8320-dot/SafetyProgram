@@ -1,6 +1,8 @@
 /// FILE: Safety_System/MainForm.cs ///
 using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -10,6 +12,12 @@ namespace Safety_System
         private MenuStrip _mainMenu;
         private Panel _contentPanel;
 
+        // 隱藏的個人選單
+        private ToolStripMenuItem _menu1;
+        private ToolStripMenuItem _menu2;
+        private ToolStripMenuItem _menu3;
+        private ToolStripMenuItem _menu4;
+
         public MainForm()
         {
             InitializeComponent();
@@ -17,7 +25,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v7.0 - 化學品快查中心重構)";
+            this.Text = "工安系統看板 (v8.0 - 個人選單與PDF匯出強化)";
             
             // 設定初始視窗為最大化
             this.WindowState = FormWindowState.Maximized;
@@ -31,6 +39,9 @@ namespace Safety_System
             
             // 啟動時自動檢查是否需要執行備份
             BackupManager.RunAutoBackup();
+
+            // 確保密碼資料表存在
+            App_PasswordManager.InitDatabase();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
             BuildMenu();
@@ -193,6 +204,50 @@ namespace Safety_System
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
             menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
 
+            // ======================================================
+            // 🟢 新增需求 1：應用選單與呼叫外部程式
+            // ======================================================
+            var menuApp = new ToolStripMenuItem("應用");
+            var callExeItem = new ToolStripMenuItem("TgeOffice導入巡檢");
+            callExeItem.Click += (s, e) => {
+                string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\Tgeoffice_dw\FormCrawlerApp.exe");
+                try
+                {
+                    if (File.Exists(exePath))
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = exePath, UseShellExecute = true });
+                    }
+                    else
+                    {
+                        MessageBox.Show($"找不到外部程式：\n{exePath}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"執行外部程式失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuApp.DropDownItems.Add(callExeItem);
+
+            // ======================================================
+            // 🟢 新增需求 2：隱藏的個人選單 (預設 Visible = false)
+            // ======================================================
+            _menu1 = new ToolStripMenuItem("選單1") { Visible = false };
+            _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_GenericTable("Menu1DB", "AccountManage", "帳密管理").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_GenericTable("Menu1DB", "KPI", "KPI").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_GenericTable("Menu1DB", "CultureImprove", "文化改善").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("PBC", () => new App_GenericTable("Menu1DB", "PBC", "PBC").GetView()));
+
+            _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
+            _menu2.DropDownItems.Add(CreateItem("資料管理", () => new App_GenericTable("Menu2DB", "DataManage2", "資料管理").GetView()));
+
+            _menu3 = new ToolStripMenuItem("選單3") { Visible = false };
+            _menu3.DropDownItems.Add(CreateItem("資料管理3", () => new App_GenericTable("Menu3DB", "DataManage3", "資料管理3").GetView()));
+
+            _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
+            _menu4.DropDownItems.Add(CreateItem("資料管理4", () => new App_GenericTable("Menu4DB", "DataManage4", "資料管理4").GetView()));
+
+
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
             
@@ -217,10 +272,69 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
+            // ======================================================
+            // 🟢 設定選單下方：分隔線與開啟個人選單
+            // ======================================================
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
+            
+            var unlockMenuItem = new ToolStripMenuItem("開啟個人選單");
+            unlockMenuItem.Click += UnlockMenu_Click;
+            menuSettings.DropDownItems.Add(unlockMenuItem);
+
+            var pwdMgmtItem = new ToolStripMenuItem("密碼管理");
+            pwdMgmtItem.Click += (s, e) => {
+                new App_PasswordManager().ShowDialog(this);
+            };
+            menuSettings.DropDownItems.Add(pwdMgmtItem);
+
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
-                menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, menuSettings 
+                menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, 
+                menuApp, // 應用放在設定前
+                _menu1, _menu2, _menu3, _menu4, // 隱藏選單緊接在應用之後
+                menuSettings 
             });
+        }
+
+        // ======================================================
+        // 🟢 個人選單解鎖邏輯
+        // ======================================================
+        private void UnlockMenu_Click(object sender, EventArgs e)
+        {
+            using (Form p = new Form())
+            {
+                p.Width = 400; 
+                p.Height = 220;
+                p.Text = "解鎖個人選單";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+
+                Label lbl = new Label() { Left = 30, Top = 30, Text = "請輸入個人選單密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認解鎖", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor=Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog(this) == DialogResult.OK)
+                {
+                    string input = txt.Text.Trim();
+                    string menuToUnlock = App_PasswordManager.CheckUnlockMenu(input);
+
+                    if (menuToUnlock == "選單1") { _menu1.Visible = true; MessageBox.Show("「選單1」已解鎖！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+                    else if (menuToUnlock == "選單2") { _menu2.Visible = true; MessageBox.Show("「選單2」已解鎖！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+                    else if (menuToUnlock == "選單3") { _menu3.Visible = true; MessageBox.Show("「選單3」已解鎖！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+                    else if (menuToUnlock == "選單4") { _menu4.Visible = true; MessageBox.Show("「選單4」已解鎖！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+                    else
+                    {
+                        MessageBox.Show("密碼錯誤或無對應之個人選單！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
         }
 
         private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
