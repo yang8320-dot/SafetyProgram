@@ -17,7 +17,7 @@ namespace Safety_System
 {
     public class App_Water_Generic
     {
-        private enum TimeMode { Date, YearMonth }
+        private enum TimeMode { Date, YearMonth, Year }
         private TimeMode _timeMode = TimeMode.Date;
 
         private DataGridView _dgv;
