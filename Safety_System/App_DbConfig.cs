@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -24,7 +25,7 @@ namespace Safety_System
             public override string ToString() => ChName; // UI 顯示中文
         }
 
-        // 定義資料庫與資料表的中文對照關係
+        // 定義資料庫與資料表的中文對照關係 (加入個人隱藏選單)
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
             { "Safety", ("工安", new Dictionary<string, string> { 
                 { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
@@ -60,7 +61,12 @@ namespace Safety_System
             { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
             { "ESG", ("ESG", new Dictionary<string, string> { { "ESG_Performance", "ESG績效管理" } })},
             { "ISO14001", ("ISO14001", new Dictionary<string, string> { { "TargetManagement", "目標管理" } })},
-            { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })} 
+            { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
+            // 🟢 新增個人選單資料庫映射
+            { "Menu1DB", ("選單1", new Dictionary<string, string> { { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
+            { "Menu2DB", ("選單2", new Dictionary<string, string> { { "DataManage2", "資料管理" } })},
+            { "Menu3DB", ("選單3", new Dictionary<string, string> { { "DataManage3", "資料管理3" } })},
+            { "Menu4DB", ("選單4", new Dictionary<string, string> { { "DataManage4", "資料管理4" } })}
         };
 
         public Control GetView()
@@ -167,7 +173,7 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 🟢 4. 刪除資料表設定 (危險操作區)
+            // 4. 刪除資料表設定 (危險操作區)
             // ==========================================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
@@ -294,7 +300,6 @@ namespace Safety_System
             MessageBox.Show($"【{chTableName}】 防重寫規則儲存成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        // 🟢 執行雙重驗證的資料表刪除邏輯
         private void BtnExecuteDelete_Click(object sender, EventArgs e)
         {
             if (_cboDelDb.SelectedItem == null || _cboDelTable.SelectedItem == null) {
