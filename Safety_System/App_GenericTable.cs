@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -27,7 +28,7 @@ namespace Safety_System
         private ComboBox _cboColumns;
         private GroupBox _boxAdvanced; 
         
-        private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport;
+        private Button _btnToggle, _btnRead, _btnSave, _btnExport, _btnImport, _btnExportPdf, _btnColSettings;
         private Label _lblStatus;     
 
         private ComboBox _cboSearchColumn;
@@ -43,6 +44,9 @@ namespace Safety_System
         private string _dateColumnName = "日期";
 
         private DataGridViewAutoCalcHelper _calcHelper; 
+
+        // 🟢 紀錄使用者隱藏欄位的設定
+        private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
         public App_GenericTable(string dbName, string tableName, string chineseTitle)
         {
@@ -71,6 +75,8 @@ namespace Safety_System
             string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) ? TableSchemaManager.SchemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
+
+            LoadVisibilitySettings();
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             if (columns.Contains("月份")) 
@@ -174,19 +180,27 @@ namespace Safety_System
             
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(150, 35), BackColor = Color.WhiteSmoke };
+            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
             _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
 
-            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(150, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.Click += BtnSave_Click; 
             
-            _btnExport = new Button { Text = "📤 匯出Excel", Size = new Size(150, 35) }; 
+            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(130, 35) }; 
             _btnExport.Click += BtnExport_Click;
 
-            _btnImport = new Button { Text = "📥 匯入Excel", Size = new Size(150, 35) }; 
+            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35) }; 
             _btnImport.Click += BtnImportExcel_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(150, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            // 🟢 新增：匯出 PDF
+            _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 35), BackColor = Color.IndianRed, ForeColor = Color.White };
+            _btnExportPdf.Click += BtnExportPdf_Click;
+
+            // 🟢 新增：欄位顯示設定
+            _btnColSettings = new Button { Text = "👁️ 欄位顯示設定", Size = new Size(160, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White };
+            _btnColSettings.Click += BtnColSettings_Click;
+
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(140, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnToggle.Click += (s, e) => {
                 _boxAdvanced.Visible = !_boxAdvanced.Visible;
                 _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理";
@@ -216,7 +230,7 @@ namespace Safety_System
             row1.Controls.AddRange(new Control[] {
                 lblRange, _cboStartYear, lblSY, _cboStartMonth, lblSM, _cboStartDay, lblSD,
                 lblTilde, _cboEndYear, lblEY, _cboEndMonth, lblEM, _cboEndDay, lblED,
-                _btnRead, _btnExport, _btnImport, _btnToggle, _btnSave
+                _btnRead, _btnExport, _btnImport, _btnExportPdf, _btnColSettings, _btnToggle, _btnSave
             });
 
             boxTop.Controls.Add(row1);
@@ -349,7 +363,6 @@ namespace Safety_System
             _dgv.KeyPress += Dgv_KeyPress;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
 
-            // 🟢 加入防呆與連動觸發事件
             _dgv.DataError += (s, e) => { e.ThrowException = false; };
             _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
             _dgv.CellValueChanged += Dgv_CellValueChanged;
@@ -366,11 +379,212 @@ namespace Safety_System
         }
 
         // ==========================================
+        // 🟢 欄位顯示設定系統
+        // ==========================================
+        private void LoadVisibilitySettings()
+        {
+            _columnVisibility.Clear();
+            string visibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColVisibility_{_dbName}_{_tableName}.txt");
+            if (File.Exists(visibilityFile)) {
+                try {
+                    foreach (var line in File.ReadAllLines(visibilityFile, Encoding.UTF8)) {
+                        var parts = line.Split('|');
+                        if (parts.Length == 2) {
+                            _columnVisibility[parts[0]] = (parts[1] == "1");
+                        }
+                    }
+                } catch { }
+            }
+        }
+
+        private void SaveVisibilitySettings()
+        {
+            try {
+                string visibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColVisibility_{_dbName}_{_tableName}.txt");
+                var lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
+                File.WriteAllLines(visibilityFile, lines, Encoding.UTF8);
+            } catch { }
+        }
+
+        private void BtnColSettings_Click(object sender, EventArgs e)
+        {
+            if (_dgv.Columns.Count == 0) return;
+
+            using (Form f = new Form { Text = "👁️ 欄位顯示設定", Size = new Size(350, 500), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false }) {
+                
+                Label lblTop = new Label { Text = "請勾選欲顯示在表格中的欄位：", Dock = DockStyle.Top, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.SteelBlue };
+                f.Controls.Add(lblTop);
+
+                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.None, Padding = new Padding(10) };
+                
+                foreach (DataGridViewColumn col in _dgv.Columns) {
+                    if (col.Name == "Id") continue;
+                    bool isChecked = _columnVisibility.ContainsKey(col.Name) ? _columnVisibility[col.Name] : true;
+                    clbCols.Items.Add(col.Name, isChecked);
+                }
+
+                f.Controls.Add(clbCols);
+
+                Button btnSave = new Button { Text = "💾 儲存並套用設定", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnSave.Click += (s, ev) => {
+                    for (int i = 0; i < clbCols.Items.Count; i++) {
+                        string colName = clbCols.Items[i].ToString();
+                        bool isChecked = clbCols.GetItemChecked(i);
+                        _columnVisibility[colName] = isChecked;
+                        if (_dgv.Columns.Contains(colName)) {
+                            _dgv.Columns[colName].Visible = isChecked;
+                        }
+                    }
+                    SaveVisibilitySettings();
+                    f.DialogResult = DialogResult.OK;
+                };
+
+                f.Controls.Add(btnSave);
+                f.ShowDialog();
+            }
+        }
+
+        // ==========================================
+        // 🟢 導出 PDF 報表功能
+        // ==========================================
+        private void BtnExportPdf_Click(object sender, EventArgs e)
+        {
+            if (_dgv.Rows.Count <= 1) {
+                MessageBox.Show("目前沒有資料可供導出。");
+                return;
+            }
+
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"{_chineseTitle}_{DateTime.Now:yyyyMMdd}" }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    Form activeForm = Form.ActiveForm;
+                    if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
+
+                    PrintDocument pd = new PrintDocument();
+                    pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                    pd.PrinterSettings.PrintToFile = true;
+                    pd.PrinterSettings.PrintFileName = sfd.FileName;
+                    pd.DefaultPageSettings.Landscape = true; 
+                    pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
+                    
+                    int rowIndex = 0;
+                    int pageNumber = 1;
+
+                    // 預先計算總頁數估值
+                    int rowsPerPageEstimate = 20; 
+                    int totalPages = (int)Math.Ceiling((double)(_dgv.Rows.Count - 1) / rowsPerPageEstimate);
+
+                    pd.PrintPage += (s, ev) => {
+                        Graphics g = ev.Graphics;
+                        float x = ev.MarginBounds.Left;
+                        float y = ev.MarginBounds.Top;
+                        float pageWidth = ev.MarginBounds.Width;
+
+                        Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
+                        Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
+                        Font fBody = new Font("Microsoft JhengHei UI", 9F);
+                        Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
+
+                        StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                        // 1. 頁首：台灣玻璃工業股份有限公司-彰濱廠
+                        g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter); y += 35;
+                        
+                        // 2. 子標題：當下的選單名稱
+                        g.DrawString(_chineseTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 30), sfCenter); y += 30;
+                        
+                        // 3. 導出日期與當下過濾條件
+                        string filterStr = "";
+                        if (!string.IsNullOrEmpty(_txtSearchKeyword.Text)) filterStr = $" | 關鍵字: {_txtSearchKeyword.Text}";
+                        g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}{filterStr}", fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 25), sfLeft); y += 25;
+
+                        var visCols = _dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
+                        if (visCols.Count == 0) return;
+
+                        // 確保表格能塞進 A4
+                        float totalGridWidth = visCols.Sum(c => c.Width);
+                        float scale = ev.MarginBounds.Width / totalGridWidth;
+                        if (scale > 1.0f) scale = 1.0f; // 若本身寬度小於A4則不放大，避免變形
+
+                        float currX = x;
+                        float rowH = 32;
+
+                        // 繪製表頭
+                        foreach (var col in visCols)
+                        {
+                            RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
+                            g.FillRectangle(Brushes.LightGray, rect);
+                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                            g.DrawString(col.HeaderText, fHead, Brushes.Black, rect, sfCenter);
+                            currX += col.Width * scale;
+                        }
+                        y += rowH;
+
+                        // 繪製資料列
+                        while (rowIndex < _dgv.Rows.Count)
+                        {
+                            if (_dgv.Rows[rowIndex].IsNewRow) { rowIndex++; continue; }
+
+                            // 計算這列最高需要多少高度 (支援自動換行)
+                            float maxRowH = rowH;
+                            for (int i = 0; i < visCols.Count; i++) {
+                                string val = _dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? "";
+                                SizeF sSize = g.MeasureString(val, fBody, (int)(visCols[i].Width * scale), sfLeft);
+                                if (sSize.Height + 10 > maxRowH) maxRowH = sSize.Height + 10;
+                            }
+
+                            if (y + maxRowH > ev.MarginBounds.Bottom - 30) // 預留頁尾空間
+                            {
+                                // 跨頁前寫入頁尾
+                                g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
+                                pageNumber++;
+                                ev.HasMorePages = true;
+                                return;
+                            }
+
+                            currX = x;
+                            foreach (var col in visCols)
+                            {
+                                RectangleF rect = new RectangleF(currX, y, col.Width * scale, maxRowH);
+                                g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                                string val = _dgv[col.Index, rowIndex].Value?.ToString() ?? "";
+                                
+                                RectangleF textRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+                                g.DrawString(val, fBody, Brushes.Black, textRect, sfLeft);
+                                currX += col.Width * scale;
+                            }
+                            y += maxRowH;
+                            rowIndex++;
+                        }
+                        
+                        // 最後一頁寫入頁尾
+                        g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
+                        ev.HasMorePages = false;
+                        rowIndex = 0; 
+                        pageNumber = 1;
+                    };
+
+                    try {
+                        pd.Print();
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
+                        MessageBox.Show("PDF 報表匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } finally {
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
+                    }
+                }
+            }
+        }
+
+        // ==========================================
         // 🟢 連動下拉選單即時觸發與重置邏輯
         // ==========================================
         private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e)
         {
-            // 只要下拉選單一改變，立刻 Commit Edit 以觸發 CellValueChanged
             if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell)
             {
                 _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
@@ -383,7 +597,6 @@ namespace Safety_System
             
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            // 當父階層改變時，自動清空所有關聯的子階層
             if (_tableName == "SafetyInspection")
             {
                 if (colName == "危害類型主項")
@@ -396,94 +609,6 @@ namespace Safety_System
                     if (_dgv.Columns.Contains("違規樣態類型")) _dgv.Rows[e.RowIndex].Cells["違規樣態類型"].Value = "";
                 }
             }
-        }
-
-        // ==========================================
-        // 支援按鍵直接輸入 & Alt+Enter 換行 & 下拉過濾
-        // ==========================================
-        private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
-            {
-                if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar))
-                {
-                    _dgv.BeginEdit(true);
-                    if (_dgv.EditingControl is TextBox txt)
-                    {
-                        txt.Text = e.KeyChar.ToString();
-                        txt.SelectionStart = txt.Text.Length;
-                        e.Handled = true;
-                    }
-                }
-            }
-        }
-
-        private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
-        {
-            if (e.Control is ComboBox cbo)
-            {
-                cbo.DropDownStyle = ComboBoxStyle.DropDownList;
-
-                // 🟢 連動選單：進入編輯模式時，依據父層選項即時過濾當下 ComboBox 的選單項目
-                if (_tableName == "SafetyInspection" && _dgv.CurrentCell != null)
-                {
-                    string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
-                    
-                    if (colName == "危害類型細分類")
-                    {
-                        string parentVal = _dgv.CurrentRow.Cells["危害類型主項"].Value?.ToString() ?? "";
-                        var items = TableSchemaManager.GetDependentDropdownList(_tableName, colName, parentVal);
-                        
-                        object currentVal = _dgv.CurrentCell.Value;
-                        cbo.Items.Clear();
-                        cbo.Items.AddRange(items);
-                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal;
-                    }
-                    else if (colName == "違規樣態類型")
-                    {
-                        string parentVal = _dgv.CurrentRow.Cells["危害類型細分類"].Value?.ToString() ?? "";
-                        var items = TableSchemaManager.GetDependentDropdownList(_tableName, colName, parentVal);
-                        
-                        object currentVal = _dgv.CurrentCell.Value;
-                        cbo.Items.Clear();
-                        cbo.Items.AddRange(items);
-                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal;
-                    }
-                }
-            }
-            else if (e.Control is TextBox txt)
-            {
-                txt.Multiline = true;
-                txt.KeyDown -= TextBox_KeyDown;
-                txt.KeyDown += TextBox_KeyDown;
-            }
-        }
-
-        private void TextBox_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Alt && e.KeyCode == Keys.Enter)
-            {
-                if (sender is TextBox txt)
-                {
-                    int selectionStart = txt.SelectionStart;
-                    txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine);
-                    txt.SelectionStart = selectionStart + Environment.NewLine.Length;
-                    e.Handled = true;
-                }
-            }
-        }
-        // ==========================================
-
-        private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
-        {
-            _btnRead.Enabled = isEnabled; 
-            _btnSave.Enabled = isEnabled; 
-            _btnImport.Enabled = isEnabled; 
-            _btnExport.Enabled = isEnabled;
-            _btnAdvancedSearch.Enabled = isEnabled;
-            
-            _lblStatus.Text = statusText; 
-            _lblStatus.ForeColor = statusColor;
         }
 
         private void ApplyGridStyles() 
@@ -505,6 +630,11 @@ namespace Safety_System
             
             foreach (DataGridViewColumn col in _dgv.Columns) 
             {
+                // 🟢 檢查可見性狀態，套用使用者的欄位顯示設定
+                if (_columnVisibility.ContainsKey(col.Name)) {
+                    col.Visible = _columnVisibility[col.Name];
+                }
+
                 if (col.Name.Contains("附件檔案")) 
                 {
                     col.ReadOnly = true; 
@@ -519,7 +649,6 @@ namespace Safety_System
             }
 
             SetupDropdownColumns();
-
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
         }
 
@@ -542,6 +671,9 @@ namespace Safety_System
                         FlatStyle = FlatStyle.Flat,
                         SortMode = DataGridViewColumnSortMode.Automatic
                     };
+
+                    // 維持隱藏狀態
+                    if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
 
                     List<string> finalItems = new List<string>(items);
                     if (_dgv.DataSource is DataTable dt)
@@ -698,6 +830,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 預設改為載入最近寫入的 30 筆資料
         private async Task LoadGridDataAsync() 
         {
             SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
@@ -709,6 +842,7 @@ namespace Safety_System
             await Task.Run(() => {
                 if (_isFirstLoad) 
                 {
+                    // 改為預設讀取 30 筆最新寫入資料
                     dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
                     _isFirstLoad = false;
                 } 
