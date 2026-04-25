@@ -93,7 +93,7 @@ namespace Safety_System
 
             // 🟢 調整版面間距
             Label lbl1 = new Label { Text = "選擇選單：", Location = new Point(40, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboMenu = new ComboBox { Location = new Point(160, 77), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboMenu = new ComboBox { Location = new Point(160, 77), Width = 270, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboMenu.Items.AddRange(new string[] { "選單1", "選單2", "選單3", "選單4" });
             _cboMenu.SelectedIndex = 0;
             _cboMenu.SelectedIndexChanged += CboMenu_SelectedIndexChanged;
@@ -103,10 +103,10 @@ namespace Safety_System
             _txtOldPwd = new TextBox { Location = new Point(160, 137), Width = 280, Font = new Font("Microsoft JhengHei UI", 12F), PasswordChar = '*' };
 
             Label lblNew = new Label { Text = "新密碼：", Location = new Point(40, 200), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _txtNewPwd = new TextBox { Location = new Point(160, 197), Width = 280, Font = new Font("Microsoft JhengHei UI", 12F), PasswordChar = '*' };
+            _txtNewPwd = new TextBox { Location = new Point(160, 197), Width = 270, Font = new Font("Microsoft JhengHei UI", 12F), PasswordChar = '*' };
 
             Label lblHint = new Label { Text = "提示詞：", Location = new Point(40, 260), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _txtHint = new TextBox { Location = new Point(160, 257), Width = 280, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtHint = new TextBox { Location = new Point(160, 257), Width = 270, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             Label lblDesc = new Label { Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼以查詢。\n※ 變更密碼：請務必正確填寫原密碼、新密碼及新提示詞。", Location = new Point(40, 315), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 10F) };
 
