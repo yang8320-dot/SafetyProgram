@@ -15,7 +15,6 @@ namespace Safety_System
         private ComboBox _cboMenu;
         private TextBox _txtNewPwd;
         private TextBox _txtHint;
-        private Label _lblCurrentHint;
 
         // 預設密碼字典
         public static readonly Dictionary<string, string> DefaultPasswords = new Dictionary<string, string>
