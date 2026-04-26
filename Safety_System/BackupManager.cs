@@ -2,32 +2,28 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 
 namespace Safety_System
 {
     public static class BackupManager
     {
-        // 設定檔存放路徑
-        private static readonly string ConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "backup_config.txt");
-        
         // 預設值
         public static string BackupPath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Backups");
         public static int KeepCount { get; private set; } = 4; // 預設保留 4 份 (約一個月)
         public static DateTime LastBackupDate { get; private set; } = DateTime.MinValue;
 
+        // 🟢 改用 DataManager 全新 DB 存取機制
         public static void LoadConfig()
         {
-            if (File.Exists(ConfigFile))
-            {
-                try {
-                    string[] lines = File.ReadAllLines(ConfigFile, Encoding.UTF8);
-                    if (lines.Length >= 1 && !string.IsNullOrWhiteSpace(lines[0])) BackupPath = lines[0];
-                    if (lines.Length >= 2 && int.TryParse(lines[1], out int count)) KeepCount = count;
-                    if (lines.Length >= 3 && DateTime.TryParse(lines[2], out DateTime date)) LastBackupDate = date;
-                } catch { }
-            }
+            string dbPath = DataManager.GetSysSetting("BackupPath", "");
+            string dbKeep = DataManager.GetSysSetting("BackupKeepCount", "");
+            string dbDate = DataManager.GetSysSetting("LastBackupDate", "");
+
+            if (!string.IsNullOrEmpty(dbPath)) BackupPath = dbPath;
+            if (int.TryParse(dbKeep, out int count)) KeepCount = count;
+            if (DateTime.TryParse(dbDate, out DateTime date)) LastBackupDate = date;
+
             if (!Directory.Exists(BackupPath)) Directory.CreateDirectory(BackupPath);
         }
 
@@ -35,6 +31,8 @@ namespace Safety_System
         {
             BackupPath = path;
             KeepCount = count;
+            DataManager.SetSysSetting("BackupPath", path);
+            DataManager.SetSysSetting("BackupKeepCount", count.ToString());
             UpdateConfigDate(LastBackupDate);
             if (!Directory.Exists(BackupPath)) Directory.CreateDirectory(BackupPath);
         }
@@ -42,10 +40,9 @@ namespace Safety_System
         private static void UpdateConfigDate(DateTime date)
         {
             LastBackupDate = date;
-            File.WriteAllLines(ConfigFile, new[] { BackupPath, KeepCount.ToString(), LastBackupDate.ToString("yyyy-MM-dd") }, Encoding.UTF8);
+            DataManager.SetSysSetting("LastBackupDate", date.ToString("yyyy-MM-dd"));
         }
 
-        // 🟢 給 MainForm 呼叫：程式啟動時自動檢查
         public static void RunAutoBackup()
         {
             LoadConfig();
@@ -57,14 +54,13 @@ namespace Safety_System
             }
         }
 
-        // 🟢 執行備份的核心邏輯 (包含建立資料夾與複製)
         public static void ExecuteBackup()
         {
             try
             {
                 if (!Directory.Exists(DataManager.BasePath)) return;
 
-                // 1. 建立當天日期的資料夾 (例如: 20231027_0930)
+                // 1. 建立當天日期的資料夾
                 string folderName = DateTime.Now.ToString("yyyyMMdd_HHmm");
                 string targetDir = Path.Combine(BackupPath, folderName);
                 Directory.CreateDirectory(targetDir);
@@ -75,6 +71,13 @@ namespace Safety_System
                 {
                     string destFile = Path.Combine(targetDir, Path.GetFileName(file));
                     File.Copy(file, destFile, true);
+                }
+
+                // 🟢 將系統核心配置也一併備份
+                string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
+                if (File.Exists(sysDbPath))
+                {
+                    File.Copy(sysDbPath, Path.Combine(targetDir, "SystemConfig.sqlite"), true);
                 }
 
                 // 3. 更新備份紀錄日期為今天
@@ -89,7 +92,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 清理超過保留份數的舊資料夾
         private static void CleanupOldBackups()
         {
             try
@@ -98,7 +100,6 @@ namespace Safety_System
                                     .OrderByDescending(d => d.CreationTime)
                                     .ToList();
 
-                // 如果資料夾數量超過保留數量，刪除較舊的
                 if (directories.Count > KeepCount)
                 {
                     for (int i = KeepCount; i < directories.Count; i++)
