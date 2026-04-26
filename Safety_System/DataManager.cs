@@ -13,12 +13,14 @@ namespace Safety_System
     public static class DataManager
     {
         private static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
-        // 🟢 系統核心設定資料庫，取代所有 TXT 檔
         private static readonly string SysConfigDbPath = Path.Combine(AppDir, "SystemConfig.sqlite");
 
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
-        // 靜態建構子：確保系統啟動時配置資料庫存在
+        // 🟢 防止雙向同步造成的無限迴圈
+        [ThreadStatic]
+        private static bool _isSyncing = false;
+
         static DataManager()
         {
             InitSysConfigDB();
@@ -32,35 +34,37 @@ namespace Safety_System
                 conn.Open();
                 using (var cmd = new SQLiteCommand(conn))
                 {
-                    // 系統基礎變數 (取代 sys_config.txt, backup_config.txt)
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS SysSettings (KeyName TEXT PRIMARY KEY, KeyValue TEXT);";
                     cmd.ExecuteNonQuery();
 
-                    // 防呆金鑰設定 (取代 table_keys.txt)
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS TableKeys (DbName TEXT, TableName TEXT, Col1 TEXT, Col2 TEXT, Col3 TEXT, Col4 TEXT, PRIMARY KEY(DbName, TableName));";
                     cmd.ExecuteNonQuery();
 
-                    // 表格UI設定：顯示、寬度、順序 (取代 ColVisibility_...txt, ColWidths_...txt, ColOrder_...txt)
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS GridConfigs (DbName TEXT, TableName TEXT, ConfigType TEXT, ColName TEXT, ColValue TEXT, PRIMARY KEY(DbName, TableName, ConfigType, ColName));";
                     cmd.ExecuteNonQuery();
 
-                    // 水資源自訂公式 (取代 WaterCustomStats.txt)
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomStats (Module TEXT, StatName TEXT, Unit TEXT, Formula TEXT, PRIMARY KEY(Module, StatName));";
                     cmd.ExecuteNonQuery();
 
-                    // 資料同步規則設定表
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS SyncRules (
                                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                                         SrcDb TEXT, SrcTable TEXT, SrcMatchCol TEXT, SrcSyncCol TEXT,
-                                        TgtDb TEXT, TgtTable TEXT, TgtMatchCol TEXT, TgtSyncCol TEXT);";
+                                        TgtDb TEXT, TgtTable TEXT, TgtMatchCol TEXT, TgtSyncCol TEXT,
+                                        SyncType TEXT DEFAULT '單向同步');";
                     cmd.ExecuteNonQuery();
+
+                    // 檢查是否包含 SyncType 欄位 (舊版升級相容)
+                    bool hasSyncType = false;
+                    using (var reader = new SQLiteCommand("PRAGMA table_info(SyncRules)", conn).ExecuteReader()) {
+                        while (reader.Read()) { if (reader["name"].ToString() == "SyncType") hasSyncType = true; }
+                    }
+                    if (!hasSyncType) {
+                        new SQLiteCommand("ALTER TABLE SyncRules ADD COLUMN SyncType TEXT DEFAULT '單向同步'", conn).ExecuteNonQuery();
+                    }
                 }
             }
         }
 
-        // ==============================================================
-        // 🟢 系統設定讀寫區 (SysSettings)
-        // ==============================================================
         public static string GetSysSetting(string key, string defaultValue = "")
         {
             try {
@@ -103,9 +107,6 @@ namespace Safety_System
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
-        // ==============================================================
-        // 🟢 DataGridView UI 設定記憶區 (GridConfigs)
-        // ==============================================================
         public static void SaveGridConfig(string dbName, string tableName, string configType, string colName, string value)
         {
             try {
@@ -151,9 +152,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // ==============================================================
-        // 🟢 資料表資料庫連線與基本操作
-        // ==============================================================
         private static string GetConnString(string dbName)
         {
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
@@ -177,9 +175,6 @@ namespace Safety_System
             }
         }
 
-        // ==============================================================
-        // 🟢 防重寫欄位操作 (TableKeys)
-        // ==============================================================
         public static (string col1, string col2, string col3, string col4) GetTableKeys(string dbName, string tableName)
         {
             try {
@@ -214,9 +209,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // ==============================================================
-        // 🟢 智慧型批次存檔與同步機制 (BulkSaveTable)
-        // ==============================================================
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt)
         {
             try {
@@ -299,9 +291,7 @@ namespace Safety_System
                     }
                 }
                 
-                // 🟢 儲存成功後，呼叫全域同步引擎
                 RunSyncEngine(dbName, tableName);
-
                 return true;
             } catch (Exception ex) {
                 MessageBox.Show("批次儲存失敗：" + ex.Message);
@@ -337,8 +327,6 @@ namespace Safety_System
                 }
                 cmd.ExecuteNonQuery();
             });
-
-            // 🟢 儲存成功後，呼叫全域同步引擎
             RunSyncEngine(dbName, tableName);
         }
 
@@ -347,26 +335,29 @@ namespace Safety_System
             ExecuteWithRetry(dbName, conn => {
                 using (var cmd = new SQLiteCommand($"DELETE FROM [{tableName}] WHERE Id=@Id", conn)) { cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery(); }
             });
-
-            // 🟢 刪除成功後，呼叫全域同步引擎重新計算
             RunSyncEngine(dbName, tableName);
         }
 
         // ==============================================================
-        // 🟢 全域自動同步引擎 (SyncEngine)
+        // 🟢 全域自動同步引擎 (支援單向與雙向 1:1)
         // ==============================================================
-        public static void RunSyncEngine(string srcDb, string srcTable)
+        public static void RunSyncEngine(string triggerDb, string triggerTable)
         {
+            if (_isSyncing) return;
+
             try
             {
+                _isSyncing = true;
                 DataTable rules = new DataTable();
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;"))
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT * FROM SyncRules WHERE SrcDb=@DB AND SrcTable=@TB", conn))
+                    // 撈出：來源是觸發表(單向或雙向)，或者是目標為觸發表(僅限雙向) 的規則
+                    string sqlFetch = "SELECT * FROM SyncRules WHERE (SrcDb=@DB AND SrcTable=@TB) OR (TgtDb=@DB AND TgtTable=@TB AND SyncType='雙向同步')";
+                    using (var cmd = new SQLiteCommand(sqlFetch, conn))
                     {
-                        cmd.Parameters.AddWithValue("@DB", srcDb);
-                        cmd.Parameters.AddWithValue("@TB", srcTable);
+                        cmd.Parameters.AddWithValue("@DB", triggerDb);
+                        cmd.Parameters.AddWithValue("@TB", triggerTable);
                         using (var da = new SQLiteDataAdapter(cmd)) da.Fill(rules);
                     }
                 }
@@ -375,27 +366,42 @@ namespace Safety_System
 
                 foreach (DataRow rule in rules.Rows)
                 {
-                    string srcMatchCol = rule["SrcMatchCol"].ToString();
-                    string srcSyncCol = rule["SrcSyncCol"].ToString();
-                    string tgtDb = rule["TgtDb"].ToString();
-                    string tgtTable = rule["TgtTable"].ToString();
-                    string tgtMatchCol = rule["TgtMatchCol"].ToString();
-                    string tgtSyncCol = rule["TgtSyncCol"].ToString();
+                    // 判斷這次是順向還是反向同步
+                    bool isReverse = (rule["TgtDb"].ToString() == triggerDb && rule["TgtTable"].ToString() == triggerTable);
 
-                    // 取得來源的所有聚合統計資料
+                    string actualSrcDb = isReverse ? rule["TgtDb"].ToString() : rule["SrcDb"].ToString();
+                    string actualSrcTable = isReverse ? rule["TgtTable"].ToString() : rule["SrcTable"].ToString();
+                    string actualSrcMatchCol = isReverse ? rule["TgtMatchCol"].ToString() : rule["SrcMatchCol"].ToString();
+                    string actualSrcSyncCol = isReverse ? rule["TgtSyncCol"].ToString() : rule["SrcSyncCol"].ToString();
+
+                    string actualTgtDb = isReverse ? rule["SrcDb"].ToString() : rule["TgtDb"].ToString();
+                    string actualTgtTable = isReverse ? rule["SrcTable"].ToString() : rule["TgtTable"].ToString();
+                    string actualTgtMatchCol = isReverse ? rule["SrcMatchCol"].ToString() : rule["TgtMatchCol"].ToString();
+                    string actualTgtSyncCol = isReverse ? rule["SrcSyncCol"].ToString() : rule["TgtSyncCol"].ToString();
+
                     DataTable aggregatedData = new DataTable();
-                    ExecuteWithRetry(srcDb, connSrc => {
-                        // 判斷是否為「日」同步到「月」(假設日格式為 YYYY-MM-DD，月為 YYYY-MM)
-                        bool isDateToMonth = srcMatchCol.Contains("日") && tgtMatchCol.Contains("月");
+                    ExecuteWithRetry(actualSrcDb, connSrc => {
+                        // 如果欄位名稱不同 (例如 日期 -> 年月)，代表需要聚合加總 N:1
+                        bool isGrouping = (actualSrcMatchCol != actualTgtMatchCol) && (actualSrcMatchCol.Contains("日") && actualTgtMatchCol.Contains("月"));
                         
-                        string groupColSql = isDateToMonth ? $"substr([{srcMatchCol}], 1, 7)" : $"[{srcMatchCol}]";
-                        
-                        // 將來源字串數值(可能含逗號)轉為浮點數進行加總
-                        string sql = $@"
-                            SELECT {groupColSql} as MatchVal, SUM(CAST(REPLACE([{srcSyncCol}], ',', '') AS REAL)) as SyncVal 
-                            FROM [{srcTable}] 
-                            WHERE [{srcMatchCol}] IS NOT NULL AND [{srcMatchCol}] != '' 
-                            GROUP BY {groupColSql}";
+                        string sql = "";
+                        if (isGrouping)
+                        {
+                            string groupColSql = $"substr([{actualSrcMatchCol}], 1, 7)";
+                            sql = $@"
+                                SELECT {groupColSql} as MatchVal, SUM(CAST(REPLACE(IFNULL([{actualSrcSyncCol}], '0'), ',', '') AS REAL)) as SyncVal 
+                                FROM [{actualSrcTable}] 
+                                WHERE [{actualSrcMatchCol}] IS NOT NULL AND [{actualSrcMatchCol}] != '' 
+                                GROUP BY {groupColSql}";
+                        }
+                        else
+                        {
+                            // 1:1 單純傳遞
+                            sql = $@"
+                                SELECT [{actualSrcMatchCol}] as MatchVal, [{actualSrcSyncCol}] as SyncVal 
+                                FROM [{actualSrcTable}] 
+                                WHERE [{actualSrcMatchCol}] IS NOT NULL AND [{actualSrcMatchCol}] != ''";
+                        }
 
                         using (var cmd = new SQLiteCommand(sql, connSrc))
                         {
@@ -403,15 +409,13 @@ namespace Safety_System
                         }
                     });
 
-                    // 確保目標資料表存在該欄位 (如果沒有，嘗試建立)
-                    var targetCols = GetColumnNames(tgtDb, tgtTable);
-                    if (targetCols.Count > 0 && !targetCols.Contains(tgtSyncCol))
+                    var targetCols = GetColumnNames(actualTgtDb, actualTgtTable);
+                    if (targetCols.Count > 0 && !targetCols.Contains(actualTgtSyncCol))
                     {
-                        AddColumn(tgtDb, tgtTable, tgtSyncCol);
+                        AddColumn(actualTgtDb, actualTgtTable, actualTgtSyncCol);
                     }
 
-                    // 執行目標資料庫的 Upsert 寫入
-                    ExecuteWithRetry(tgtDb, connTgt => {
+                    ExecuteWithRetry(actualTgtDb, connTgt => {
                         using (var trans = connTgt.BeginTransaction())
                         {
                             foreach (DataRow row in aggregatedData.Rows)
@@ -419,8 +423,7 @@ namespace Safety_System
                                 string matchVal = row["MatchVal"].ToString();
                                 string syncVal = row["SyncVal"].ToString();
 
-                                // 確認目標表是否存在該筆 MatchVal
-                                string checkSql = $"SELECT Id FROM [{tgtTable}] WHERE [{tgtMatchCol}] = @M";
+                                string checkSql = $"SELECT Id FROM [{actualTgtTable}] WHERE [{actualTgtMatchCol}] = @M";
                                 int tgtId = -1;
                                 using (var checkCmd = new SQLiteCommand(checkSql, connTgt, trans))
                                 {
@@ -434,14 +437,13 @@ namespace Safety_System
                                     cmd.Transaction = trans;
                                     if (tgtId != -1)
                                     {
-                                        cmd.CommandText = $"UPDATE [{tgtTable}] SET [{tgtSyncCol}] = @V WHERE Id = @Id";
+                                        cmd.CommandText = $"UPDATE [{actualTgtTable}] SET [{actualTgtSyncCol}] = @V WHERE Id = @Id";
                                         cmd.Parameters.AddWithValue("@V", syncVal);
                                         cmd.Parameters.AddWithValue("@Id", tgtId);
                                     }
                                     else
                                     {
-                                        // 若無資料，則新增該月份的紀錄
-                                        cmd.CommandText = $"INSERT INTO [{tgtTable}] ([{tgtMatchCol}], [{tgtSyncCol}]) VALUES (@M, @V)";
+                                        cmd.CommandText = $"INSERT INTO [{actualTgtTable}] ([{actualTgtMatchCol}], [{actualTgtSyncCol}]) VALUES (@M, @V)";
                                         cmd.Parameters.AddWithValue("@M", matchVal);
                                         cmd.Parameters.AddWithValue("@V", syncVal);
                                     }
@@ -454,11 +456,12 @@ namespace Safety_System
                 }
             }
             catch { }
+            finally
+            {
+                _isSyncing = false; // 解除鎖定
+            }
         }
 
-        // ==============================================================
-        // 🟢 基礎架構輔助操作
-        // ==============================================================
         public static List<string> GetColumnNames(string dbName, string tableName)
         {
             var cols = new List<string>();
