@@ -183,62 +183,77 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 🟢 4. 資料同步設定 (全新需求)
+            // 🟢 4. 資料同步設定 (全新表格動態排版)
             // ==========================================
-            GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, Height = 480, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxSync.Margin = new Padding(0, 30, 0, 0);
 
-            FlowLayoutPanel flpSyncHeaders = new FlowLayoutPanel { AutoSize = true, Width = boxSync.Width - 40, Location = new Point(30, 40) };
-            flpSyncHeaders.Controls.Add(new Label { Text = "【資料來源】資料庫", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "資料表", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "比對欄位(如:日期)", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "要統計同步之欄位", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "➡️", Width = 50, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.DimGray });
-            flpSyncHeaders.Controls.Add(new Label { Text = "【寫入目標】資料庫", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "資料表", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "比對欄位(如:年月)", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            flpSyncHeaders.Controls.Add(new Label { Text = "接收寫入之欄位", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
-            boxSync.Controls.Add(flpSyncHeaders);
+            // 使用 TableLayoutPanel 自動分配 9 欄寬度
+            TableLayoutPanel tlpSync = new TableLayoutPanel {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                ColumnCount = 9,
+                Padding = new Padding(15, 20, 15, 10)
+            };
+            
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F)); // 中間箭頭固定寬
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
 
+            // 加入標題列
+            string[] headers = { "【來源】庫", "來源表", "來源比對欄(如:日期)", "要計算同步之欄位", "➡️", "【目標】庫", "寫入目標表", "目標比對欄(如:年月)", "接收寫入之欄位" };
+            for(int i=0; i<9; i++) {
+                tlpSync.Controls.Add(new Label { Text = headers[i], TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) }, i, 0);
+            }
+
+            // 產生 5 列下拉選單
             for (int i = 0; i < 5; i++)
             {
                 var rowUi = new SyncRowUI();
-                FlowLayoutPanel flpRow = new FlowLayoutPanel { Width = boxSync.Width - 40, AutoSize = true, Location = new Point(30, 80 + (i * 45)) };
-                
-                rowUi.CboSrcDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboSrcTable = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboSrcMatchCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboSrcSyncCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcDb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcTable = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcMatchCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcSyncCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
 
-                Label lblArrow = new Label { Text = "➡️", Width = 50, TextAlign = ContentAlignment.MiddleCenter, Padding = new Padding(0,5,0,0) };
+                Label lblArrow = new Label { Text = "➡️", TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
 
-                rowUi.CboTgtDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboTgtTable = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboTgtMatchCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboTgtSyncCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtDb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtTable = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtMatchCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtSyncCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; // 允許手動輸入新欄位
 
                 BindSyncRowEvents(rowUi);
 
-                flpRow.Controls.Add(rowUi.CboSrcDb);
-                flpRow.Controls.Add(rowUi.CboSrcTable);
-                flpRow.Controls.Add(rowUi.CboSrcMatchCol);
-                flpRow.Controls.Add(rowUi.CboSrcSyncCol);
-                flpRow.Controls.Add(lblArrow);
-                flpRow.Controls.Add(rowUi.CboTgtDb);
-                flpRow.Controls.Add(rowUi.CboTgtTable);
-                flpRow.Controls.Add(rowUi.CboTgtMatchCol);
-                flpRow.Controls.Add(rowUi.CboTgtSyncCol);
+                tlpSync.Controls.Add(rowUi.CboSrcDb, 0, i+1);
+                tlpSync.Controls.Add(rowUi.CboSrcTable, 1, i+1);
+                tlpSync.Controls.Add(rowUi.CboSrcMatchCol, 2, i+1);
+                tlpSync.Controls.Add(rowUi.CboSrcSyncCol, 3, i+1);
+                tlpSync.Controls.Add(lblArrow, 4, i+1);
+                tlpSync.Controls.Add(rowUi.CboTgtDb, 5, i+1);
+                tlpSync.Controls.Add(rowUi.CboTgtTable, 6, i+1);
+                tlpSync.Controls.Add(rowUi.CboTgtMatchCol, 7, i+1);
+                tlpSync.Controls.Add(rowUi.CboTgtSyncCol, 8, i+1);
 
                 _syncRows.Add(rowUi);
-                boxSync.Controls.Add(flpRow);
             }
 
-            Button btnSaveSync = new Button { Text = "儲存資料同步設定", Location = new Point(30, 320), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
-            btnSaveSync.Click += BtnSaveSync_Click;
-            boxSync.Controls.Add(btnSaveSync);
+            boxSync.Controls.Add(tlpSync);
 
-            Label lblSyncInfo = new Label { Text = "※ 僅需填入要啟用的列即可，空列系統自動忽略。若目標表無該接收欄位，系統會自動新增欄位。\n※ 同步機制支援【日期】自動轉聚合至【年月】之計算。", Location = new Point(30, 380), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
-            boxSync.Controls.Add(lblSyncInfo);
+            // 將儲存按鈕放在底部面板，避免跑版
+            Panel pnlSyncBottom = new Panel { Dock = DockStyle.Bottom, Height = 120, Padding = new Padding(15) };
+            Button btnSaveSync = new Button { Text = "儲存資料同步設定", Location = new Point(15, 10), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnSaveSync.Click += BtnSaveSync_Click;
+            Label lblSyncInfo = new Label { Text = "※ 僅需填入要啟用的列即可，空列系統自動忽略。若目標表無該接收欄位，系統會自動新增欄位。\n※ 同步機制支援【日期】自動轉聚合至【年月】之加總計算。", Location = new Point(15, 65), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+            
+            pnlSyncBottom.Controls.Add(btnSaveSync);
+            pnlSyncBottom.Controls.Add(lblSyncInfo);
+            boxSync.Controls.Add(pnlSyncBottom);
 
             // ==========================================
             // 5. 刪除資料表設定 (危險操作區，移至最後)
