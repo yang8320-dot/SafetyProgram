@@ -78,8 +78,9 @@ namespace Safety_System
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
+            // 🟢 全面改用 DB 讀取 UI 設定
             LoadVisibilitySettings();
-            LoadColumnWidths(); // 🟢 載入欄寬記憶設定
+            LoadColumnWidths(); 
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
             if (columns.Contains("月份")) 
@@ -324,7 +325,6 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 開放手動拖拉欄寬功能
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
@@ -348,7 +348,6 @@ namespace Safety_System
             _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
             _dgv.CellValueChanged += Dgv_CellValueChanged;
             
-            // 🟢 掛載手動調整欄寬的儲存事件
             _dgv.ColumnWidthChanged += Dgv_ColumnWidthChanged;
 
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
@@ -363,36 +362,26 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 欄寬記憶存取與事件
+        // 🟢 改用 SystemConfig DB 的 GridConfigs 表讀取寫入
         // ==========================================
         private void LoadColumnWidths()
         {
             _columnWidths.Clear();
-            string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColWidths_{_dbName}_{_tableName}.txt");
-            if (File.Exists(file)) {
-                try {
-                    foreach (var line in File.ReadAllLines(file, Encoding.UTF8)) {
-                        var parts = line.Split('|');
-                        if (parts.Length == 2 && int.TryParse(parts[1], out int w)) {
-                            _columnWidths[parts[0]] = w;
-                        }
-                    }
-                } catch { }
+            var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Width");
+            foreach (var kvp in dict) {
+                if (int.TryParse(kvp.Value, out int w)) _columnWidths[kvp.Key] = w;
             }
         }
 
         private void SaveColumnWidths()
         {
-            try {
-                string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColWidths_{_dbName}_{_tableName}.txt");
-                var lines = _columnWidths.Select(kvp => $"{kvp.Key}|{kvp.Value}").ToArray();
-                File.WriteAllLines(file, lines, Encoding.UTF8);
-            } catch { }
+            foreach (var kvp in _columnWidths) {
+                DataManager.SaveGridConfig(_dbName, _tableName, "Width", kvp.Key, kvp.Value.ToString());
+            }
         }
 
         private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e)
         {
-            // 避免在剛啟動載入或套用設定時觸發寫入
             if (_isFirstLoad || _isApplyingWidths) return;
             if (e.Column != null) {
                 _columnWidths[e.Column.Name] = e.Column.Width;
@@ -400,8 +389,84 @@ namespace Safety_System
             }
         }
 
+        private void LoadVisibilitySettings()
+        {
+            _columnVisibility.Clear();
+            var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Visibility");
+            foreach (var kvp in dict) {
+                _columnVisibility[kvp.Key] = (kvp.Value == "1");
+            }
+        }
+
+        private void SaveVisibilitySettings()
+        {
+            DataManager.ClearGridConfig(_dbName, _tableName, "Visibility");
+            foreach (var kvp in _columnVisibility) {
+                DataManager.SaveGridConfig(_dbName, _tableName, "Visibility", kvp.Key, kvp.Value ? "1" : "0");
+            }
+        }
+
+        private void SaveColumnOrder() 
+        { 
+            try { 
+                var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray(); 
+                DataManager.SaveGridConfig(_dbName, _tableName, "Order", "All", string.Join(",", ordered));
+            } catch { } 
+        }
+        
+        private void RestoreColumnOrder() 
+        { 
+            try { 
+                var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Order");
+                if (dict.ContainsKey("All")) { 
+                    string[] saved = dict["All"].Split(','); 
+                    for (int i = 0; i < saved.Length; i++) {
+                        if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i; 
+                    }
+                } 
+            } catch { } 
+        }
+
+        private void BtnColSettings_Click(object sender, EventArgs e)
+        {
+            if (_dgv.Columns.Count == 0) return;
+
+            using (Form f = new Form { Text = "👁️ 欄位顯示設定", Size = new Size(350, 500), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false }) {
+                
+                Label lblTop = new Label { Text = "請勾選欲顯示在表格中的欄位：", Dock = DockStyle.Top, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.SteelBlue };
+                f.Controls.Add(lblTop);
+
+                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.None, Padding = new Padding(10) };
+                
+                foreach (DataGridViewColumn col in _dgv.Columns) {
+                    if (col.Name == "Id") continue;
+                    bool isChecked = _columnVisibility.ContainsKey(col.Name) ? _columnVisibility[col.Name] : true;
+                    clbCols.Items.Add(col.Name, isChecked);
+                }
+
+                f.Controls.Add(clbCols);
+
+                Button btnSave = new Button { Text = "💾 儲存並套用設定", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnSave.Click += (s, ev) => {
+                    for (int i = 0; i < clbCols.Items.Count; i++) {
+                        string colName = clbCols.Items[i].ToString();
+                        bool isChecked = clbCols.GetItemChecked(i);
+                        _columnVisibility[colName] = isChecked;
+                        if (_dgv.Columns.Contains(colName)) {
+                            _dgv.Columns[colName].Visible = isChecked;
+                        }
+                    }
+                    SaveVisibilitySettings();
+                    f.DialogResult = DialogResult.OK;
+                };
+
+                f.Controls.Add(btnSave);
+                f.ShowDialog();
+            }
+        }
+
         // ==========================================
-        // 🟢 狀態與控制 UI 輔助方法
+        // UI 及其他輔助方法
         // ==========================================
         private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
@@ -417,9 +482,6 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
-        // ==========================================
-        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
-        // ==========================================
         private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode)
@@ -485,75 +547,7 @@ namespace Safety_System
                 }
             }
         }
-        // ==========================================
-        // 🟢 欄位顯示設定系統
-        // ==========================================
-        private void LoadVisibilitySettings()
-        {
-            _columnVisibility.Clear();
-            string visibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColVisibility_{_dbName}_{_tableName}.txt");
-            if (File.Exists(visibilityFile)) {
-                try {
-                    foreach (var line in File.ReadAllLines(visibilityFile, Encoding.UTF8)) {
-                        var parts = line.Split('|');
-                        if (parts.Length == 2) {
-                            _columnVisibility[parts[0]] = (parts[1] == "1");
-                        }
-                    }
-                } catch { }
-            }
-        }
 
-        private void SaveVisibilitySettings()
-        {
-            try {
-                string visibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"ColVisibility_{_dbName}_{_tableName}.txt");
-                var lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
-                File.WriteAllLines(visibilityFile, lines, Encoding.UTF8);
-            } catch { }
-        }
-
-        private void BtnColSettings_Click(object sender, EventArgs e)
-        {
-            if (_dgv.Columns.Count == 0) return;
-
-            using (Form f = new Form { Text = "👁️ 欄位顯示設定", Size = new Size(350, 500), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false }) {
-                
-                Label lblTop = new Label { Text = "請勾選欲顯示在表格中的欄位：", Dock = DockStyle.Top, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.SteelBlue };
-                f.Controls.Add(lblTop);
-
-                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.None, Padding = new Padding(10) };
-                
-                foreach (DataGridViewColumn col in _dgv.Columns) {
-                    if (col.Name == "Id") continue;
-                    bool isChecked = _columnVisibility.ContainsKey(col.Name) ? _columnVisibility[col.Name] : true;
-                    clbCols.Items.Add(col.Name, isChecked);
-                }
-
-                f.Controls.Add(clbCols);
-
-                Button btnSave = new Button { Text = "💾 儲存並套用設定", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
-                btnSave.Click += (s, ev) => {
-                    for (int i = 0; i < clbCols.Items.Count; i++) {
-                        string colName = clbCols.Items[i].ToString();
-                        bool isChecked = clbCols.GetItemChecked(i);
-                        _columnVisibility[colName] = isChecked;
-                        if (_dgv.Columns.Contains(colName)) {
-                            _dgv.Columns[colName].Visible = isChecked;
-                        }
-                    }
-                    SaveVisibilitySettings();
-                    f.DialogResult = DialogResult.OK;
-                };
-
-                f.Controls.Add(btnSave);
-                f.ShowDialog();
-            }
-        }
-
-        // ==========================================
-        // 🟢 導出 PDF 報表功能 (自動比例調寬)
-        // ==========================================
         private void BtnExportPdf_Click(object sender, EventArgs e)
         {
             if (_dgv.Rows.Count <= 1) {
@@ -605,7 +599,6 @@ namespace Safety_System
                         var visCols = _dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
                         if (visCols.Count == 0) return;
 
-                        // 🟢 自動計算等比例寬度，讓所有欄位填滿整個 A4 寬度
                         float totalGridWidth = visCols.Sum(c => c.Width);
                         float[] actualColWidths = new float[visCols.Count];
                         
@@ -680,9 +673,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 🟢 連動下拉選單即時觸發與重置邏輯
-        // ==========================================
         private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e)
         {
             if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell)
@@ -711,10 +701,9 @@ namespace Safety_System
             }
         }
 
-        // 🟢 實作欄位寬度記憶套用
         private void ApplyGridStyles() 
         {
-            _isApplyingWidths = true; // 暫時封鎖事件，避免套用時寫入覆蓋設定檔
+            _isApplyingWidths = true; 
 
             if (_dgv.Columns.Contains("Id")) 
             {
@@ -752,14 +741,11 @@ namespace Safety_System
 
             SetupDropdownColumns();
             
-            // 先讓表格針對內容做一次自動調整 (避免新出現的欄位縮成一團)
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
             
-            // 緊接著解除鎖定，允許使用者手動拖拉
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
-            // 如果記憶檔內有寬度設定，則覆蓋自動產生的寬度
             foreach (DataGridViewColumn col in _dgv.Columns)
             {
                 if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
@@ -768,7 +754,7 @@ namespace Safety_System
                 }
             }
 
-            _isApplyingWidths = false; // 開放寫入
+            _isApplyingWidths = false; 
         }
 
         private void SetupDropdownColumns()
@@ -791,7 +777,6 @@ namespace Safety_System
                         SortMode = DataGridViewColumnSortMode.Automatic
                     };
 
-                    // 維持隱藏狀態
                     if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
 
                     List<string> finalItems = new List<string>(items);
@@ -1052,33 +1037,6 @@ namespace Safety_System
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
             m.SelectedItem = date.Month.ToString("D2"); 
             d.SelectedItem = date.Day.ToString("D2");
-        }
-
-        private void SaveColumnOrder() 
-        { 
-            try 
-            { 
-                var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray(); 
-                File.WriteAllText($"ColOrder_{_dbName}_{_tableName}.txt", string.Join(",", ordered), Encoding.UTF8); 
-            } 
-            catch { } 
-        }
-        
-        private void RestoreColumnOrder() 
-        { 
-            try 
-            { 
-                string fn = $"ColOrder_{_dbName}_{_tableName}.txt"; 
-                if (File.Exists(fn)) 
-                { 
-                    string[] saved = File.ReadAllText(fn, Encoding.UTF8).Split(','); 
-                    for (int i = 0; i < saved.Length; i++) 
-                    {
-                        if (_dgv.Columns.Contains(saved[i])) _dgv.Columns[saved[i]].DisplayIndex = i; 
-                    }
-                } 
-            } 
-            catch { } 
         }
 
         private void SyncAttachmentPaths(DataTable dt) 
