@@ -26,6 +26,7 @@ namespace Safety_System
         private class SyncRowUI {
             public ComboBox CboSrcDb, CboSrcTable, CboSrcMatchCol, CboSrcSyncCol;
             public ComboBox CboTgtDb, CboTgtTable, CboTgtMatchCol, CboTgtSyncCol;
+            public ComboBox CboSyncType; // 🟢 新增：單向/雙向選擇
         }
         private List<SyncRowUI> _syncRows = new List<SyncRowUI>();
 
@@ -183,32 +184,33 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 🟢 4. 資料同步設定 (全新表格動態排版)
+            // 🟢 4. 資料同步設定 (支援雙向防呆檢查與自適應寬度)
             // ==========================================
             GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxSync.Margin = new Padding(0, 30, 0, 0);
 
-            // 使用 TableLayoutPanel 自動分配 9 欄寬度
+            // 使用 TableLayoutPanel 自動分配 10 欄寬度，防止視窗縮小時元件消失
             TableLayoutPanel tlpSync = new TableLayoutPanel {
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                ColumnCount = 9,
+                ColumnCount = 10,
                 Padding = new Padding(15, 20, 15, 10)
             };
             
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F)); // 中間箭頭固定寬
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F)); // 🟢 同步方向欄位
 
             // 加入標題列
-            string[] headers = { "【來源】庫", "來源表", "來源比對欄(如:日期)", "要計算同步之欄位", "➡️", "【目標】庫", "寫入目標表", "目標比對欄(如:年月)", "接收寫入之欄位" };
-            for(int i=0; i<9; i++) {
+            string[] headers = { "【來源】庫", "來源表", "比對欄(如:日期)", "要同步之欄位", "➡️", "【目標】庫", "寫入目標表", "比對欄(如:年月)", "接收寫入之欄位", "同步方向" };
+            for(int i=0; i<10; i++) {
                 tlpSync.Controls.Add(new Label { Text = headers[i], TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) }, i, 0);
             }
 
@@ -226,7 +228,11 @@ namespace Safety_System
                 rowUi.CboTgtDb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
                 rowUi.CboTgtTable = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
                 rowUi.CboTgtMatchCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboTgtSyncCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; // 允許手動輸入新欄位
+                rowUi.CboTgtSyncCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; // 允許手動輸入
+                
+                rowUi.CboSyncType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSyncType.Items.AddRange(new string[] { "單向同步", "雙向同步" });
+                rowUi.CboSyncType.SelectedIndex = 0;
 
                 BindSyncRowEvents(rowUi);
 
@@ -239,17 +245,18 @@ namespace Safety_System
                 tlpSync.Controls.Add(rowUi.CboTgtTable, 6, i+1);
                 tlpSync.Controls.Add(rowUi.CboTgtMatchCol, 7, i+1);
                 tlpSync.Controls.Add(rowUi.CboTgtSyncCol, 8, i+1);
+                tlpSync.Controls.Add(rowUi.CboSyncType, 9, i+1);
 
                 _syncRows.Add(rowUi);
             }
 
             boxSync.Controls.Add(tlpSync);
 
-            // 將儲存按鈕放在底部面板，避免跑版
-            Panel pnlSyncBottom = new Panel { Dock = DockStyle.Bottom, Height = 120, Padding = new Padding(15) };
+            // 將儲存按鈕放在底部面板
+            Panel pnlSyncBottom = new Panel { Dock = DockStyle.Bottom, Height = 140, Padding = new Padding(15) };
             Button btnSaveSync = new Button { Text = "儲存資料同步設定", Location = new Point(15, 10), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveSync.Click += BtnSaveSync_Click;
-            Label lblSyncInfo = new Label { Text = "※ 僅需填入要啟用的列即可，空列系統自動忽略。若目標表無該接收欄位，系統會自動新增欄位。\n※ 同步機制支援【日期】自動轉聚合至【年月】之加總計算。", Location = new Point(15, 65), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+            Label lblSyncInfo = new Label { Text = "※ 僅需填入要啟用的列即可，空列系統自動忽略。若目標表無該接收欄位，系統會自動新增。\n※ 同步支援【雙向同步】(限1:1對應)，若比對欄位不一致(如 日期 vs 年月)，為防呆將強制設為單向聚合加總。", Location = new Point(15, 65), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
             
             pnlSyncBottom.Controls.Add(btnSaveSync);
             pnlSyncBottom.Controls.Add(lblSyncInfo);
@@ -318,6 +325,20 @@ namespace Safety_System
 
         private void BindSyncRowEvents(SyncRowUI r)
         {
+            Action checkSyncType = () => {
+                string srcM = r.CboSrcMatchCol.Text;
+                string tgtM = r.CboTgtMatchCol.Text;
+                if (!string.IsNullOrEmpty(srcM) && !string.IsNullOrEmpty(tgtM)) {
+                    // 若比對欄位不一致 (例如：日期 vs 年月)，強制鎖定為單向同步
+                    if (srcM != tgtM || (srcM.Contains("日") && tgtM.Contains("月"))) {
+                        r.CboSyncType.SelectedIndex = 0; 
+                        r.CboSyncType.Enabled = false;
+                    } else {
+                        r.CboSyncType.Enabled = true;
+                    }
+                }
+            };
+
             r.CboSrcDb.SelectedIndexChanged += (s, e) => {
                 r.CboSrcTable.Items.Clear(); r.CboSrcMatchCol.Items.Clear(); r.CboSrcSyncCol.Items.Clear();
                 if (r.CboSrcDb.SelectedItem != null) {
@@ -344,7 +365,6 @@ namespace Safety_System
             };
             r.CboTgtTable.SelectedIndexChanged += (s, e) => {
                 r.CboTgtMatchCol.Items.Clear(); r.CboTgtSyncCol.Items.Clear();
-                // 目標接收欄位允許手動輸入新欄位名稱 (因系統會自動建表建欄位)
                 r.CboTgtSyncCol.DropDownStyle = ComboBoxStyle.DropDown;
                 if (r.CboTgtTable.SelectedItem != null) {
                     var map = (ItemMap)r.CboTgtDb.SelectedItem;
@@ -353,6 +373,9 @@ namespace Safety_System
                     foreach (var c in cols) if (c != "Id") { r.CboTgtMatchCol.Items.Add(c); r.CboTgtSyncCol.Items.Add(c); }
                 }
             };
+
+            r.CboSrcMatchCol.TextChanged += (s, e) => checkSyncType();
+            r.CboTgtMatchCol.TextChanged += (s, e) => checkSyncType();
         }
 
         private void LoadSyncRules()
@@ -380,6 +403,10 @@ namespace Safety_System
                     if (r.CboTgtDb.SelectedItem != null) SelectComboItemByEnName(r.CboTgtTable, dr["TgtTable"].ToString());
                     r.CboTgtMatchCol.Text = dr["TgtMatchCol"].ToString();
                     r.CboTgtSyncCol.Text = dr["TgtSyncCol"].ToString();
+
+                    if (dr.Table.Columns.Contains("SyncType")) {
+                        r.CboSyncType.Text = dr["SyncType"].ToString();
+                    }
                 }
             } catch { }
         }
@@ -414,19 +441,20 @@ namespace Safety_System
                             string tgtDb = ((ItemMap)r.CboTgtDb.SelectedItem).EnName;
                             string tgtTbl = ((ItemMap)r.CboTgtTable.SelectedItem).EnName;
 
-                            string sql = "INSERT INTO SyncRules (SrcDb, SrcTable, SrcMatchCol, SrcSyncCol, TgtDb, TgtTable, TgtMatchCol, TgtSyncCol) VALUES (@SD, @ST, @SMC, @SSC, @TD, @TT, @TMC, @TSC)";
+                            string sql = "INSERT INTO SyncRules (SrcDb, SrcTable, SrcMatchCol, SrcSyncCol, TgtDb, TgtTable, TgtMatchCol, TgtSyncCol, SyncType) VALUES (@SD, @ST, @SMC, @SSC, @TD, @TT, @TMC, @TSC, @Type)";
                             using (var cmd = new SQLiteCommand(sql, conn, trans)) {
                                 cmd.Parameters.AddWithValue("@SD", srcDb); cmd.Parameters.AddWithValue("@ST", srcTbl);
                                 cmd.Parameters.AddWithValue("@SMC", r.CboSrcMatchCol.Text); cmd.Parameters.AddWithValue("@SSC", r.CboSrcSyncCol.Text);
                                 cmd.Parameters.AddWithValue("@TD", tgtDb); cmd.Parameters.AddWithValue("@TT", tgtTbl);
                                 cmd.Parameters.AddWithValue("@TMC", r.CboTgtMatchCol.Text); cmd.Parameters.AddWithValue("@TSC", r.CboTgtSyncCol.Text);
+                                cmd.Parameters.AddWithValue("@Type", r.CboSyncType.Text);
                                 cmd.ExecuteNonQuery();
                             }
                         }
                         trans.Commit();
                     }
                 }
-                MessageBox.Show("資料同步設定已成功儲存！後續於該來源表儲存時將自動生效。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("資料同步設定已成功儲存！後續於相關表單儲存時將自動雙向或單向生效。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } catch (Exception ex) {
                 MessageBox.Show("儲存失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
