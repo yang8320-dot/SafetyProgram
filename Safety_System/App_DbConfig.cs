@@ -1,7 +1,11 @@
 /// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
+using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -12,20 +16,27 @@ namespace Safety_System
         private TextBox _txtBackupPath;
         private NumericUpDown _numKeepCount;
         
-        // 🟢 防重寫欄位變數
+        // 防重寫欄位變數
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2, _cboCol3, _cboCol4;
         
-        // 🟢 刪除資料表變數
+        // 刪除資料表變數 (移至最下方)
         private ComboBox _cboDelDb, _cboDelTable;
 
-        // 🟢 用於中文化顯示的字典結構
+        // 🟢 資料同步設定變數 (5行)
+        private class SyncRowUI {
+            public ComboBox CboSrcDb, CboSrcTable, CboSrcMatchCol, CboSrcSyncCol;
+            public ComboBox CboTgtDb, CboTgtTable, CboTgtMatchCol, CboTgtSyncCol;
+        }
+        private List<SyncRowUI> _syncRows = new List<SyncRowUI>();
+
+        // 用於中文化顯示的字典結構
         private class ItemMap {
             public string EnName;
             public string ChName;
             public override string ToString() => ChName; // UI 顯示中文
         }
 
-        // 定義資料庫與資料表的中文對照關係 (加入個人隱藏選單)
+        // 定義資料庫與資料表的中文對照關係
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
             { "Safety", ("工安", new Dictionary<string, string> { 
                 { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
@@ -62,7 +73,6 @@ namespace Safety_System
             { "ESG", ("ESG", new Dictionary<string, string> { { "ESG_Performance", "ESG績效管理" } })},
             { "ISO14001", ("ISO14001", new Dictionary<string, string> { { "TargetManagement", "目標管理" } })},
             { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
-            // 🟢 新增個人選單資料庫映射
             { "Menu1DB", ("選單1", new Dictionary<string, string> { { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
             { "Menu2DB", ("選單2", new Dictionary<string, string> { { "DataManage2", "資料管理" } })},
             { "Menu3DB", ("選單3", new Dictionary<string, string> { { "DataManage3", "資料管理3" } })},
@@ -173,7 +183,65 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 4. 刪除資料表設定 (危險操作區)
+            // 🟢 4. 資料同步設定 (全新需求)
+            // ==========================================
+            GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, Height = 480, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            boxSync.Margin = new Padding(0, 30, 0, 0);
+
+            FlowLayoutPanel flpSyncHeaders = new FlowLayoutPanel { AutoSize = true, Width = boxSync.Width - 40, Location = new Point(30, 40) };
+            flpSyncHeaders.Controls.Add(new Label { Text = "【資料來源】資料庫", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "資料表", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "比對欄位(如:日期)", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "要統計同步之欄位", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "➡️", Width = 50, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.DimGray });
+            flpSyncHeaders.Controls.Add(new Label { Text = "【寫入目標】資料庫", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "資料表", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "比對欄位(如:年月)", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            flpSyncHeaders.Controls.Add(new Label { Text = "接收寫入之欄位", Width = 150, TextAlign = ContentAlignment.MiddleCenter });
+            boxSync.Controls.Add(flpSyncHeaders);
+
+            for (int i = 0; i < 5; i++)
+            {
+                var rowUi = new SyncRowUI();
+                FlowLayoutPanel flpRow = new FlowLayoutPanel { Width = boxSync.Width - 40, AutoSize = true, Location = new Point(30, 80 + (i * 45)) };
+                
+                rowUi.CboSrcDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcTable = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcMatchCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboSrcSyncCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+
+                Label lblArrow = new Label { Text = "➡️", Width = 50, TextAlign = ContentAlignment.MiddleCenter, Padding = new Padding(0,5,0,0) };
+
+                rowUi.CboTgtDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtTable = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtMatchCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+                rowUi.CboTgtSyncCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
+
+                BindSyncRowEvents(rowUi);
+
+                flpRow.Controls.Add(rowUi.CboSrcDb);
+                flpRow.Controls.Add(rowUi.CboSrcTable);
+                flpRow.Controls.Add(rowUi.CboSrcMatchCol);
+                flpRow.Controls.Add(rowUi.CboSrcSyncCol);
+                flpRow.Controls.Add(lblArrow);
+                flpRow.Controls.Add(rowUi.CboTgtDb);
+                flpRow.Controls.Add(rowUi.CboTgtTable);
+                flpRow.Controls.Add(rowUi.CboTgtMatchCol);
+                flpRow.Controls.Add(rowUi.CboTgtSyncCol);
+
+                _syncRows.Add(rowUi);
+                boxSync.Controls.Add(flpRow);
+            }
+
+            Button btnSaveSync = new Button { Text = "儲存資料同步設定", Location = new Point(30, 320), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnSaveSync.Click += BtnSaveSync_Click;
+            boxSync.Controls.Add(btnSaveSync);
+
+            Label lblSyncInfo = new Label { Text = "※ 僅需填入要啟用的列即可，空列系統自動忽略。若目標表無該接收欄位，系統會自動新增欄位。\n※ 同步機制支援【日期】自動轉聚合至【年月】之計算。", Location = new Point(30, 380), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+            boxSync.Controls.Add(lblSyncInfo);
+
+            // ==========================================
+            // 5. 刪除資料表設定 (危險操作區，移至最後)
             // ==========================================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
@@ -191,11 +259,17 @@ namespace Safety_System
 
             boxDelete.Controls.AddRange(new Control[] { lblDelDesc, lblDelDb, _cboDelDb, lblDelTable, _cboDelTable, btnExecuteDelete });
 
+
+            // 加入畫面容器
             Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer3 = new Panel { Dock = DockStyle.Top, Height = 30 };
+            Panel spacer4 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
+            // 調整順序，由下往上 Add 到 Dock=Top 的容器
             main.Controls.Add(boxDelete);
+            main.Controls.Add(spacer4);
+            main.Controls.Add(boxSync);
             main.Controls.Add(spacer3);
             main.Controls.Add(boxKeys);
             main.Controls.Add(spacer1);
@@ -207,6 +281,11 @@ namespace Safety_System
             foreach (var kvp in _dbMap) {
                 _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                 _cboDelDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                
+                foreach (var sr in _syncRows) {
+                    sr.CboSrcDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                    sr.CboTgtDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                }
             }
             
             _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
@@ -216,7 +295,126 @@ namespace Safety_System
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
             if (_cboDelDb.Items.Count > 0) _cboDelDb.SelectedIndex = 0;
 
+            // 🟢 載入資料同步規則記憶
+            LoadSyncRules();
+
             return main;
+        }
+
+        private void BindSyncRowEvents(SyncRowUI r)
+        {
+            r.CboSrcDb.SelectedIndexChanged += (s, e) => {
+                r.CboSrcTable.Items.Clear(); r.CboSrcMatchCol.Items.Clear(); r.CboSrcSyncCol.Items.Clear();
+                if (r.CboSrcDb.SelectedItem != null) {
+                    var map = (ItemMap)r.CboSrcDb.SelectedItem;
+                    foreach (var tbl in _dbMap[map.EnName].Tables) r.CboSrcTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                }
+            };
+            r.CboSrcTable.SelectedIndexChanged += (s, e) => {
+                r.CboSrcMatchCol.Items.Clear(); r.CboSrcSyncCol.Items.Clear();
+                if (r.CboSrcTable.SelectedItem != null) {
+                    var map = (ItemMap)r.CboSrcDb.SelectedItem;
+                    var tmap = (ItemMap)r.CboSrcTable.SelectedItem;
+                    var cols = DataManager.GetColumnNames(map.EnName, tmap.EnName);
+                    foreach (var c in cols) if (c != "Id") { r.CboSrcMatchCol.Items.Add(c); r.CboSrcSyncCol.Items.Add(c); }
+                }
+            };
+
+            r.CboTgtDb.SelectedIndexChanged += (s, e) => {
+                r.CboTgtTable.Items.Clear(); r.CboTgtMatchCol.Items.Clear(); r.CboTgtSyncCol.Items.Clear();
+                if (r.CboTgtDb.SelectedItem != null) {
+                    var map = (ItemMap)r.CboTgtDb.SelectedItem;
+                    foreach (var tbl in _dbMap[map.EnName].Tables) r.CboTgtTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                }
+            };
+            r.CboTgtTable.SelectedIndexChanged += (s, e) => {
+                r.CboTgtMatchCol.Items.Clear(); r.CboTgtSyncCol.Items.Clear();
+                // 目標接收欄位允許手動輸入新欄位名稱 (因系統會自動建表建欄位)
+                r.CboTgtSyncCol.DropDownStyle = ComboBoxStyle.DropDown;
+                if (r.CboTgtTable.SelectedItem != null) {
+                    var map = (ItemMap)r.CboTgtDb.SelectedItem;
+                    var tmap = (ItemMap)r.CboTgtTable.SelectedItem;
+                    var cols = DataManager.GetColumnNames(map.EnName, tmap.EnName);
+                    foreach (var c in cols) if (c != "Id") { r.CboTgtMatchCol.Items.Add(c); r.CboTgtSyncCol.Items.Add(c); }
+                }
+            };
+        }
+
+        private void LoadSyncRules()
+        {
+            try {
+                DataTable rules = new DataTable();
+                string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
+                using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM SyncRules", conn)) {
+                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(rules);
+                    }
+                }
+
+                for (int i = 0; i < Math.Min(rules.Rows.Count, _syncRows.Count); i++) {
+                    DataRow dr = rules.Rows[i];
+                    var r = _syncRows[i];
+
+                    SelectComboItemByEnName(r.CboSrcDb, dr["SrcDb"].ToString());
+                    if (r.CboSrcDb.SelectedItem != null) SelectComboItemByEnName(r.CboSrcTable, dr["SrcTable"].ToString());
+                    r.CboSrcMatchCol.Text = dr["SrcMatchCol"].ToString();
+                    r.CboSrcSyncCol.Text = dr["SrcSyncCol"].ToString();
+
+                    SelectComboItemByEnName(r.CboTgtDb, dr["TgtDb"].ToString());
+                    if (r.CboTgtDb.SelectedItem != null) SelectComboItemByEnName(r.CboTgtTable, dr["TgtTable"].ToString());
+                    r.CboTgtMatchCol.Text = dr["TgtMatchCol"].ToString();
+                    r.CboTgtSyncCol.Text = dr["TgtSyncCol"].ToString();
+                }
+            } catch { }
+        }
+
+        private void SelectComboItemByEnName(ComboBox cbo, string enName)
+        {
+            foreach (var item in cbo.Items) {
+                if (item is ItemMap map && map.EnName == enName) {
+                    cbo.SelectedItem = item; return;
+                }
+            }
+        }
+
+        private void BtnSaveSync_Click(object sender, EventArgs e)
+        {
+            if (!AuthManager.VerifyAdmin()) return;
+
+            try {
+                string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
+                using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM SyncRules", conn, trans).ExecuteNonQuery();
+
+                        foreach (var r in _syncRows) {
+                            if (r.CboSrcDb.SelectedItem == null || r.CboSrcTable.SelectedItem == null || string.IsNullOrWhiteSpace(r.CboSrcMatchCol.Text) || string.IsNullOrWhiteSpace(r.CboSrcSyncCol.Text) ||
+                                r.CboTgtDb.SelectedItem == null || r.CboTgtTable.SelectedItem == null || string.IsNullOrWhiteSpace(r.CboTgtMatchCol.Text) || string.IsNullOrWhiteSpace(r.CboTgtSyncCol.Text))
+                                continue;
+
+                            string srcDb = ((ItemMap)r.CboSrcDb.SelectedItem).EnName;
+                            string srcTbl = ((ItemMap)r.CboSrcTable.SelectedItem).EnName;
+                            string tgtDb = ((ItemMap)r.CboTgtDb.SelectedItem).EnName;
+                            string tgtTbl = ((ItemMap)r.CboTgtTable.SelectedItem).EnName;
+
+                            string sql = "INSERT INTO SyncRules (SrcDb, SrcTable, SrcMatchCol, SrcSyncCol, TgtDb, TgtTable, TgtMatchCol, TgtSyncCol) VALUES (@SD, @ST, @SMC, @SSC, @TD, @TT, @TMC, @TSC)";
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@SD", srcDb); cmd.Parameters.AddWithValue("@ST", srcTbl);
+                                cmd.Parameters.AddWithValue("@SMC", r.CboSrcMatchCol.Text); cmd.Parameters.AddWithValue("@SSC", r.CboSrcSyncCol.Text);
+                                cmd.Parameters.AddWithValue("@TD", tgtDb); cmd.Parameters.AddWithValue("@TT", tgtTbl);
+                                cmd.Parameters.AddWithValue("@TMC", r.CboTgtMatchCol.Text); cmd.Parameters.AddWithValue("@TSC", r.CboTgtSyncCol.Text);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
+                MessageBox.Show("資料同步設定已成功儲存！後續於該來源表儲存時將自動生效。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("儲存失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
@@ -310,10 +508,8 @@ namespace Safety_System
             string tableName = ((ItemMap)_cboDelTable.SelectedItem).EnName;
             string chTableName = ((ItemMap)_cboDelTable.SelectedItem).ChName;
 
-            // 驗證 1：管理者密碼
             if (!AuthManager.VerifyAdmin("此為毀滅性操作，請輸入管理者密碼：")) return;
 
-            // 驗證 2：手動輸入 admin 確認
             string prompt = $"即將永久刪除【{chTableName}】所有資料及欄位結構！\n如果您確定，請在下方輸入 admin 進行最終確認：";
             
             using (Form p = new Form { Width = 500, Height = 280, Text = "最終確認", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
