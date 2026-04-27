@@ -165,13 +165,10 @@ namespace Safety_System
             }
 
             // 🟢 密碼驗證邏輯：如果原密碼輸入的是 Lv2 密碼，允許直接覆蓋 (特權變更)
-            bool isPrivileged = false;
-            
             if (_txtOldPwd.Text != currentPwd)
             {
                 if (_txtOldPwd.Text == "11914002") // 判斷是否為 Lv2
                 {
-                    isPrivileged = true;
                     MessageBox.Show("已使用【管理者權限 Lv2】放行變更！", "特權授權", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
