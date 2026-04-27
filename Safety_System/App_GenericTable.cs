@@ -36,7 +36,7 @@ namespace Safety_System
         private Button _btnAdvancedSearch;
 
         private bool _isFirstLoad = true;
-        private bool _isApplyingWidths = false; // 🟢 用於防止套用寬度時觸發儲存事件
+        private bool _isApplyingWidths = false; 
         
         private readonly string _dbName; 
         private readonly string _tableName; 
@@ -46,7 +46,6 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
-        // 🟢 紀錄使用者隱藏欄位與自訂欄寬的設定
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
         private Dictionary<string, int> _columnWidths = new Dictionary<string, int>();
 
@@ -74,11 +73,11 @@ namespace Safety_System
 
         public Control GetView()
         {
-            string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) ? TableSchemaManager.SchemaMap[_tableName] : "[日期] TEXT, [備註] TEXT";
+            // 🟢 修改：將未記錄在 SchemaMap 中(自訂選單)的預設結構更新為包含 [內容] 與 [附件檔案]
+            string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) ? TableSchemaManager.SchemaMap[_tableName] : "[日期] TEXT, [內容] TEXT, [附件檔案] TEXT, [備註] TEXT";
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
-            // 🟢 全面改用 DB 讀取 UI 設定
             LoadVisibilitySettings();
             LoadColumnWidths(); 
 
@@ -246,7 +245,7 @@ namespace Safety_System
             _txtNewColName = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35), Margin = new Padding(0, 0, 15, 0) };
             bAdd.Click += async (s, e) => { 
-                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
+                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyUser()) 
                 { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await LoadGridDataAsync(); _txtNewColName.Clear(); } 
             };
             
@@ -254,13 +253,13 @@ namespace Safety_System
             _txtRenameCol = new TextBox { Width = 110, Margin = new Padding(0, 4, 5, 0) };
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35), Margin = new Padding(0, 0, 5, 0) };
             bRen.Click += async (s, e) => { 
-                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
+                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyUser()) 
                 { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await LoadGridDataAsync(); _txtRenameCol.Clear(); } 
             };
             
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
             bDelCol.Click += async (s, e) => { 
-                if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
+                if (_cboColumns.SelectedItem != null && AuthManager.VerifyUser()) 
                 { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
                   { DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await LoadGridDataAsync(); } } 
             };
@@ -361,9 +360,6 @@ namespace Safety_System
             return main;
         }
 
-        // ==========================================
-        // 🟢 改用 SystemConfig DB 的 GridConfigs 表讀取寫入
-        // ==========================================
         private void LoadColumnWidths()
         {
             _columnWidths.Clear();
@@ -465,9 +461,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // UI 及其他輔助方法
-        // ==========================================
         private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
             _btnRead.Enabled = isEnabled; 
@@ -1041,6 +1034,9 @@ namespace Safety_System
 
         private void SyncAttachmentPaths(DataTable dt) 
         {
+            // 🟢 防呆保護：若資料表沒有附件檔案欄位，則直接跳過附件同步處理，以免發生 Exception
+            if (!dt.Columns.Contains("附件檔案")) return;
+
             foreach (DataRow row in dt.Rows) 
             {
                 if (row.RowState == DataRowState.Deleted) continue;
