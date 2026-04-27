@@ -180,11 +180,41 @@ namespace Safety_System
             }
         }
 
+        // 🟢 自製的輸入對話框，不依賴 Microsoft.VisualBasic
+        private string ShowInputBox(string prompt, string title, string defaultValue)
+        {
+            using (Form form = new Form())
+            {
+                form.Width = 400;
+                form.Height = 220;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.Text = title;
+                form.StartPosition = FormStartPosition.CenterParent;
+                form.MaximizeBox = false;
+                form.MinimizeBox = false;
+                form.BackColor = Color.White;
+
+                Label label = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox textBox = new TextBox() { Left = 20, Top = 60, Width = 340, Text = defaultValue, Font = new Font("Microsoft JhengHei UI", 12F) };
+                
+                Button confirmation = new Button() { Text = "確認", Left = 160, Width = 90, Height = 35, Top = 120, DialogResult = DialogResult.OK, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button cancel = new Button() { Text = "取消", Left = 270, Width = 90, Height = 35, Top = 120, DialogResult = DialogResult.Cancel, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+                form.Controls.Add(label);
+                form.Controls.Add(textBox);
+                form.Controls.Add(confirmation);
+                form.Controls.Add(cancel);
+                form.AcceptButton = confirmation;
+
+                return form.ShowDialog(this) == DialogResult.OK ? textBox.Text : "";
+            }
+        }
+
         private void ExecuteRename(int id, string dbName, string oldTableName)
         {
             if (!AuthManager.VerifyUser("更名需要授權，請輸入密碼：")) return;
 
-            string newName = Microsoft.VisualBasic.Interaction.InputBox($"請輸入【{oldTableName}】的新名稱：", "重新命名選單", oldTableName);
+            string newName = ShowInputBox($"請輸入【{oldTableName}】的新名稱：", "重新命名選單", oldTableName);
             if (string.IsNullOrWhiteSpace(newName) || newName == oldTableName) return;
 
             try
@@ -226,7 +256,7 @@ namespace Safety_System
                     DataManager.DropTable(dbName, tableName);
                     DataManager.DeleteRecord("SystemConfig", "CustomMenus", id);
 
-                    MessageBox.Show("選單及資料已成功刪除！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("選單及資料已成功刪除！(請重新開啟系統以更新畫面)", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshCustomMenusList();
                 }
                 catch (Exception ex)
