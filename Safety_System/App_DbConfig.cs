@@ -16,28 +16,23 @@ namespace Safety_System
         private TextBox _txtBackupPath;
         private NumericUpDown _numKeepCount;
         
-        // 防重寫欄位變數
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2, _cboCol3, _cboCol4;
-        
-        // 刪除資料表變數 (移至最下方)
         private ComboBox _cboDelDb, _cboDelTable;
 
-        // 🟢 資料同步設定變數 (5行)
         private class SyncRowUI {
             public ComboBox CboSrcDb, CboSrcTable, CboSrcMatchCol, CboSrcSyncCol;
             public ComboBox CboTgtDb, CboTgtTable, CboTgtMatchCol, CboTgtSyncCol;
-            public ComboBox CboSyncType; // 🟢 新增：單向/雙向選擇
+            public ComboBox CboSyncType; 
         }
         private List<SyncRowUI> _syncRows = new List<SyncRowUI>();
 
-        // 用於中文化顯示的字典結構
         private class ItemMap {
             public string EnName;
             public string ChName;
-            public override string ToString() => ChName; // UI 顯示中文
+            public override string ToString() => ChName; 
         }
 
-        // 定義資料庫與資料表的中文對照關係
+        // 定義資料庫與資料表的中文對照關係 (加入 ISO14001 環境溝通 4 張表)
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
             { "Safety", ("工安", new Dictionary<string, string> { 
                 { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
@@ -72,7 +67,13 @@ namespace Safety_System
             { "教育訓練", ("教育訓練", new Dictionary<string, string> { { "訓練時數", "教育訓練時數" } })},
             { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
             { "ESG", ("ESG", new Dictionary<string, string> { { "ESG_Performance", "ESG績效管理" } })},
-            { "ISO14001", ("ISO14001", new Dictionary<string, string> { { "TargetManagement", "目標管理" } })},
+            { "ISO14001", ("ISO14001", new Dictionary<string, string> { 
+                { "TargetManagement", "目標管理" }, 
+                { "EnvInfoReceive", "環境資訊接收管制表" }, 
+                { "InternalComm", "內文聯絡書管制表" }, 
+                { "MailReceive", "郵件收文管制表" }, 
+                { "VisitorRecord", "來賓拜訪紀錄表" }
+            })},
             { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
             { "Menu1DB", ("選單1", new Dictionary<string, string> { { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
             { "Menu2DB", ("選單2", new Dictionary<string, string> { { "DataManage2", "資料管理" } })},
@@ -82,6 +83,20 @@ namespace Safety_System
 
         public Control GetView()
         {
+            // 動態補入所有的 CustomMenus
+            try {
+                DataTable dtMenus = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
+                if (dtMenus != null) {
+                    foreach (DataRow r in dtMenus.Rows) {
+                        string dbName = r["資料庫名"].ToString();
+                        string tableName = r["資料表名"].ToString();
+                        if (_dbMap.ContainsKey(dbName)) {
+                            _dbMap[dbName].Tables[tableName] = tableName;
+                        }
+                    }
+                }
+            } catch { }
+
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0,0,0,50) };
 
             // ==========================================
@@ -101,7 +116,9 @@ namespace Safety_System
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += (s, e) => {
+                // 🟢 取代原密碼驗證
                 if (!AuthManager.VerifyAdmin()) return; 
+
                 if (System.IO.Directory.Exists(_txtPath.Text)) {
                     DataManager.SetBasePath(_txtPath.Text);
                     MessageBox.Show("路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -184,12 +201,11 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 🟢 4. 資料同步設定 (支援雙向防呆檢查與自適應寬度)
+            // 4. 資料同步設定
             // ==========================================
             GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxSync.Margin = new Padding(0, 30, 0, 0);
 
-            // 使用 TableLayoutPanel 自動分配 10 欄寬度，防止視窗縮小時元件消失
             TableLayoutPanel tlpSync = new TableLayoutPanel {
                 Dock = DockStyle.Top,
                 AutoSize = true,
@@ -201,20 +217,18 @@ namespace Safety_System
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F)); // 中間箭頭固定寬
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F)); 
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
-            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F)); // 🟢 同步方向欄位
+            tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F)); 
 
-            // 加入標題列
             string[] headers = { "【來源】庫", "來源表", "比對欄(如:日期)", "要同步之欄位", "➡️", "【目標】庫", "寫入目標表", "比對欄(如:年月)", "接收寫入之欄位", "同步方向" };
             for(int i=0; i<10; i++) {
                 tlpSync.Controls.Add(new Label { Text = headers[i], TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) }, i, 0);
             }
 
-            // 產生 5 列下拉選單
             for (int i = 0; i < 5; i++)
             {
                 var rowUi = new SyncRowUI();
@@ -228,7 +242,7 @@ namespace Safety_System
                 rowUi.CboTgtDb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
                 rowUi.CboTgtTable = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
                 rowUi.CboTgtMatchCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-                rowUi.CboTgtSyncCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; // 允許手動輸入
+                rowUi.CboTgtSyncCol = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; 
                 
                 rowUi.CboSyncType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
                 rowUi.CboSyncType.Items.AddRange(new string[] { "單向同步", "雙向同步" });
@@ -252,7 +266,6 @@ namespace Safety_System
 
             boxSync.Controls.Add(tlpSync);
 
-            // 將儲存按鈕放在底部面板
             Panel pnlSyncBottom = new Panel { Dock = DockStyle.Bottom, Height = 140, Padding = new Padding(15) };
             Button btnSaveSync = new Button { Text = "儲存資料同步設定", Location = new Point(15, 10), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveSync.Click += BtnSaveSync_Click;
@@ -263,7 +276,7 @@ namespace Safety_System
             boxSync.Controls.Add(pnlSyncBottom);
 
             // ==========================================
-            // 5. 刪除資料表設定 (危險操作區，移至最後)
+            // 5. 刪除資料表設定 (危險操作區)
             // ==========================================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
@@ -281,14 +294,11 @@ namespace Safety_System
 
             boxDelete.Controls.AddRange(new Control[] { lblDelDesc, lblDelDb, _cboDelDb, lblDelTable, _cboDelTable, btnExecuteDelete });
 
-
-            // 加入畫面容器
             Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer3 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer4 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
-            // 調整順序，由下往上 Add 到 Dock=Top 的容器
             main.Controls.Add(boxDelete);
             main.Controls.Add(spacer4);
             main.Controls.Add(boxSync);
@@ -299,7 +309,6 @@ namespace Safety_System
             main.Controls.Add(spacer2);
             main.Controls.Add(boxPath);
 
-            // 載入中文化資料庫選項
             foreach (var kvp in _dbMap) {
                 _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                 _cboDelDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
@@ -317,7 +326,6 @@ namespace Safety_System
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
             if (_cboDelDb.Items.Count > 0) _cboDelDb.SelectedIndex = 0;
 
-            // 🟢 載入資料同步規則記憶
             LoadSyncRules();
 
             return main;
@@ -329,7 +337,6 @@ namespace Safety_System
                 string srcM = r.CboSrcMatchCol.Text;
                 string tgtM = r.CboTgtMatchCol.Text;
                 if (!string.IsNullOrEmpty(srcM) && !string.IsNullOrEmpty(tgtM)) {
-                    // 若比對欄位不一致 (例如：日期 vs 年月)，強制鎖定為單向同步
                     if (srcM != tgtM || (srcM.Contains("日") && tgtM.Contains("月"))) {
                         r.CboSyncType.SelectedIndex = 0; 
                         r.CboSyncType.Enabled = false;
@@ -454,7 +461,7 @@ namespace Safety_System
                         trans.Commit();
                     }
                 }
-                MessageBox.Show("資料同步設定已成功儲存！後續於相關表單儲存時將自動雙向或單向生效。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("資料同步設定已成功儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } catch (Exception ex) {
                 MessageBox.Show("儲存失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -551,37 +558,14 @@ namespace Safety_System
             string tableName = ((ItemMap)_cboDelTable.SelectedItem).EnName;
             string chTableName = ((ItemMap)_cboDelTable.SelectedItem).ChName;
 
-            if (!AuthManager.VerifyAdmin("此為毀滅性操作，請輸入管理者密碼：")) return;
+            // 🟢 呼叫雙重權限防呆
+            if (!AuthManager.VerifyTableDelete()) return;
 
-            string prompt = $"即將永久刪除【{chTableName}】所有資料及欄位結構！\n如果您確定，請在下方輸入 admin 進行最終確認：";
-            
-            using (Form p = new Form { Width = 500, Height = 280, Text = "最終確認", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
-            {
-                Label lbl = new Label { Left = 30, Top = 30, Width = 430, Height = 60, Text = prompt, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson };
-                TextBox txt = new TextBox { Width = 370, Left = 30, Top = 100, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認刪除", DialogResult = DialogResult.OK, Left = 280, Top = 160, Width = 120, Height = 40, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-
-                p.Controls.Add(lbl); 
-                p.Controls.Add(txt); 
-                p.Controls.Add(btn);
-                p.AcceptButton = btn;
-
-                if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK) 
-                {
-                    if (txt.Text.Trim() == "admin") 
-                    {
-                        try {
-                            DataManager.DropTable(dbName, tableName);
-                            MessageBox.Show($"【{chTableName}】資料表已成功刪除。\n請從左側選單重新進入該模組以建立新結構。", "執行成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        } catch (Exception ex) {
-                            MessageBox.Show("刪除失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        }
-                    } 
-                    else 
-                    {
-                        MessageBox.Show("輸入錯誤，刪除操作已取消。", "安全取消", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
+            try {
+                DataManager.DropTable(dbName, tableName);
+                MessageBox.Show($"【{chTableName}】資料表已成功刪除。\n請從左側選單重新進入該模組以建立新結構。", "執行成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("刪除失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
