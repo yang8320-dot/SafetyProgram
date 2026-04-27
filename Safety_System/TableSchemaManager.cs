@@ -11,7 +11,7 @@ namespace Safety_System
         {
             { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
-            // 🟢 新增：ISO14001 環境溝通
+            // 🟢 新增：ISO14001 環境溝通 4 張表
             { "EnvInfoReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
             { "InternalComm", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
             { "MailReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [附件檔案] TEXT, [溝通方式] TEXT, [備註] TEXT, [連結] TEXT" },
@@ -73,7 +73,10 @@ namespace Safety_System
             { "DataManage4", "[日期] TEXT, [分類] TEXT, [標題] TEXT, [內容說明] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
-        // ... (以下維持原有下拉連動選單 Dictionary 不變) ...
+        // =========================================================================
+        // 🟢 下拉連動選單對應字典 (Mapping Dictionaries)
+        // ==========================================
+        // 1. 危害類型主項 -> 危害類型細分類
         public static readonly Dictionary<string, string[]> HazardSubCategoryMap = new Dictionary<string, string[]>
         {
             { "物理性", new[] { "PH1_物體飛落、掉落", "PH2_倒塌、崩塌", "PH3_物體破裂", "PH4_墜落、滾落", "PH5_跌倒、滑倒", "PH6_衝撞、被撞、碰撞", "PH7_夾、捲、壓傷", "PH8_切、割、刺、擦傷", "PH9_踩踏、踏穿", "PH10_溺斃", "PH11_與高低溫接觸、凍傷、灼燙傷", "PH12_噪音過高", "PH13_照明不足", "PH14_通風不良、缺氧、窒息", "PH16_游離輻射暴露", "PH17_非醫用游離輻射暴露", "PH18_振動、停電", "PH19_漏電、感電_含靜電及火花", "PH20_壓降", "PH21_漏水", "PH22_爆炸(塵爆)", "PH23_異常氣壓", "PH24_異物入眼" } },
@@ -84,6 +87,7 @@ namespace Safety_System
             { "其他", new[] { "OT1_交通事故", "OT2_設備、設施損壞", "OT3_影響環境", "OT4_未歸類安全項目", "OT5_其他非安全項目", "OT6_消防相關" } }
         };
 
+        // 2. 危害類型細分類 -> 違規樣態類型
         public static readonly Dictionary<string, string[]> ViolationTypeMap = new Dictionary<string, string[]>
         {
             { "PH1_物體飛落、掉落", new[] { "PH101-丟廢玻璃以拋丟方式【★★★】", "PH102-物件掉落【★★★】", "PH103-天車防滑蛇片失效【★★★★】", "PH104-吊掛作業未戴安全帽【★★★】", "PH105-天車燈座護網懸掛【★★★】", "PH106-其它未歸類物體飛落、掉落【★★★】" } },
@@ -105,6 +109,7 @@ namespace Safety_System
             { "OT3_影響環境", new[] { "OT301-水溝內菸蒂【★★★】" } }
         };
 
+        // 集中管理需顯示為下拉選單的資料表與欄位
         public static string[] GetDropdownList(string tableName, string columnName)
         {
             if (tableName == "PurchaseData" && columnName == "ESG分類") 
@@ -178,3 +183,4 @@ namespace Safety_System
             return new string[] { "" }; 
         }
     }
+}
