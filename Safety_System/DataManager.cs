@@ -17,7 +17,6 @@ namespace Safety_System
 
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
-        // 🟢 防止雙向同步造成的無限迴圈
         [ThreadStatic]
         private static bool _isSyncing = false;
 
@@ -53,14 +52,9 @@ namespace Safety_System
                                         SyncType TEXT DEFAULT '單向同步');";
                     cmd.ExecuteNonQuery();
 
-                    // 檢查是否包含 SyncType 欄位 (舊版升級相容)
-                    bool hasSyncType = false;
-                    using (var reader = new SQLiteCommand("PRAGMA table_info(SyncRules)", conn).ExecuteReader()) {
-                        while (reader.Read()) { if (reader["name"].ToString() == "SyncType") hasSyncType = true; }
-                    }
-                    if (!hasSyncType) {
-                        new SQLiteCommand("ALTER TABLE SyncRules ADD COLUMN SyncType TEXT DEFAULT '單向同步'", conn).ExecuteNonQuery();
-                    }
+                    // 支援自訂選單擴充表
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomMenus (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
+                    cmd.ExecuteNonQuery();
                 }
             }
         }
@@ -338,9 +332,7 @@ namespace Safety_System
             RunSyncEngine(dbName, tableName);
         }
 
-        // ==============================================================
-        // 🟢 全域自動同步引擎 (支援單向與雙向 1:1)
-        // ==============================================================
+        // 全域自動同步引擎
         public static void RunSyncEngine(string triggerDb, string triggerTable)
         {
             if (_isSyncing) return;
@@ -352,7 +344,6 @@ namespace Safety_System
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;"))
                 {
                     conn.Open();
-                    // 撈出：來源是觸發表(單向或雙向)，或者是目標為觸發表(僅限雙向) 的規則
                     string sqlFetch = "SELECT * FROM SyncRules WHERE (SrcDb=@DB AND SrcTable=@TB) OR (TgtDb=@DB AND TgtTable=@TB AND SyncType='雙向同步')";
                     using (var cmd = new SQLiteCommand(sqlFetch, conn))
                     {
@@ -366,7 +357,6 @@ namespace Safety_System
 
                 foreach (DataRow rule in rules.Rows)
                 {
-                    // 判斷這次是順向還是反向同步
                     bool isReverse = (rule["TgtDb"].ToString() == triggerDb && rule["TgtTable"].ToString() == triggerTable);
 
                     string actualSrcDb = isReverse ? rule["TgtDb"].ToString() : rule["SrcDb"].ToString();
@@ -381,7 +371,6 @@ namespace Safety_System
 
                     DataTable aggregatedData = new DataTable();
                     ExecuteWithRetry(actualSrcDb, connSrc => {
-                        // 如果欄位名稱不同 (例如 日期 -> 年月)，代表需要聚合加總 N:1
                         bool isGrouping = (actualSrcMatchCol != actualTgtMatchCol) && (actualSrcMatchCol.Contains("日") && actualTgtMatchCol.Contains("月"));
                         
                         string sql = "";
@@ -396,7 +385,6 @@ namespace Safety_System
                         }
                         else
                         {
-                            // 1:1 單純傳遞
                             sql = $@"
                                 SELECT [{actualSrcMatchCol}] as MatchVal, [{actualSrcSyncCol}] as SyncVal 
                                 FROM [{actualSrcTable}] 
@@ -458,7 +446,7 @@ namespace Safety_System
             catch { }
             finally
             {
-                _isSyncing = false; // 解除鎖定
+                _isSyncing = false; 
             }
         }
 
@@ -511,6 +499,11 @@ namespace Safety_System
 
         public static void RenameColumn(string dbName, string tableName, string oldN, string newN) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] RENAME COLUMN [{oldN}] TO [{newN}]", conn)) { cmd.ExecuteNonQuery(); }
+        });
+
+        // 🟢 支援重新命名資料表功能
+        public static void RenameTable(string dbName, string oldName, string newName) => ExecuteWithRetry(dbName, conn => {
+            using (var cmd = new SQLiteCommand($"ALTER TABLE [{oldName}] RENAME TO [{newName}]", conn)) { cmd.ExecuteNonQuery(); }
         });
 
         public static void DropColumn(string dbName, string tableName, string colName) => ExecuteWithRetry(dbName, conn => {
