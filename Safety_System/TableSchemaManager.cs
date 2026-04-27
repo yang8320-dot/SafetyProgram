@@ -10,8 +10,14 @@ namespace Safety_System
         public static readonly Dictionary<string, string> SchemaMap = new Dictionary<string, string>
         {
             { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 🟢 新增：ISO14001 環境溝通
+            { "EnvInfoReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
+            { "InternalComm", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
+            { "MailReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [附件檔案] TEXT, [溝通方式] TEXT, [備註] TEXT, [連結] TEXT" },
+            { "VisitorRecord", "[日期] TEXT, [發文單位] TEXT, [拜訪目的] TEXT, [拜訪人員] TEXT, [內容概述] TEXT, [會同人員] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
             { "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            //巡檢異常單
             { "SafetyInspection", "[日期] TEXT, [單位] TEXT, [表單單號] TEXT, [表單主題] TEXT, [申請者] TEXT, [缺失責任人] TEXT, [危害類型主項] TEXT, [危害類型細分類] TEXT, [違規樣態類型] TEXT, [列入安全觀查事項] TEXT, [列入虛驚事項] TEXT, [不安全行為] TEXT, [廠內曾發生工傷事件項目] TEXT, [違規分類] TEXT, [違反規定名稱] TEXT, [違反規定條款] TEXT, [建議改善事項] TEXT, [追蹤改善狀況] TEXT, [改善進度] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
             { "SafetyObservation", "[日期] TEXT, [區域] TEXT, [類別] TEXT, [描述] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -26,7 +32,6 @@ namespace Safety_System
             { "Waste_Water", "[年月] TEXT, [D0902MT] TEXT, [D0201MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            //公共危險物統計表
             { "HazardStats", "[年月] TEXT, [單位] TEXT, [品項] TEXT, [品項單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjuryReport", "[年月] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "EnvTesting", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [中文名稱] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -44,7 +49,6 @@ namespace Safety_System
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學物質名稱] TEXT, [其它化學物質名稱] TEXT, [危害標示] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [供應商地址] TEXT, [供應商電話] TEXT, [SDS版本日期] TEXT, [使用單位] TEXT, [使用地點] TEXT, [使用平均量] TEXT, [使用最大量] TEXT, [貯存地點] TEXT, [平均貯存量] TEXT, [最大貯存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [火源責任人] TEXT, [責任代理人] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireEquip", "[日期] TEXT, [設備名稱] TEXT, [編號] TEXT, [位置] TEXT, [有效日期] TEXT, [檢查結果] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            //各單位消防自主檢查表
             { "FireSelfInspection", "[日期] TEXT, [檢點表名稱] TEXT, [單位] TEXT, [檢查人] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "EnvMonitor", "[日期] TEXT, [SEG編號] TEXT, [測點名稱] TEXT, [噪音_db] TEXT, [粉塵_區域] TEXT, [粉塵_個人] TEXT, [一氧化鉛] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -59,10 +63,7 @@ namespace Safety_System
             { "WaterMeterCalibration", "[日期] TEXT, [水錶編號] TEXT, [水錶位置] TEXT, [校正前讀數] TEXT, [校正後讀數] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            //請購資料
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            
-            // 🟢 新增：個人隱藏選單 (Menu1 ~ Menu4) 的資料表預設結構
             { "AccountManage", "[日期] TEXT, [系統名稱] TEXT, [網址] TEXT, [登入帳號] TEXT, [登入密碼] TEXT, [使用者] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "KPI", "[年月] TEXT, [單位] TEXT, [指標名稱] TEXT, [目標值] TEXT, [實際值] TEXT, [達成狀況] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "CultureImprove", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [執行狀況] TEXT, [主責人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -72,10 +73,7 @@ namespace Safety_System
             { "DataManage4", "[日期] TEXT, [分類] TEXT, [標題] TEXT, [內容說明] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
-        // =========================================================================
-        // 🟢 下拉連動選單對應字典 (Mapping Dictionaries)
-        // ==========================================
-        // 1. 危害類型主項 -> 危害類型細分類
+        // ... (以下維持原有下拉連動選單 Dictionary 不變) ...
         public static readonly Dictionary<string, string[]> HazardSubCategoryMap = new Dictionary<string, string[]>
         {
             { "物理性", new[] { "PH1_物體飛落、掉落", "PH2_倒塌、崩塌", "PH3_物體破裂", "PH4_墜落、滾落", "PH5_跌倒、滑倒", "PH6_衝撞、被撞、碰撞", "PH7_夾、捲、壓傷", "PH8_切、割、刺、擦傷", "PH9_踩踏、踏穿", "PH10_溺斃", "PH11_與高低溫接觸、凍傷、灼燙傷", "PH12_噪音過高", "PH13_照明不足", "PH14_通風不良、缺氧、窒息", "PH16_游離輻射暴露", "PH17_非醫用游離輻射暴露", "PH18_振動、停電", "PH19_漏電、感電_含靜電及火花", "PH20_壓降", "PH21_漏水", "PH22_爆炸(塵爆)", "PH23_異常氣壓", "PH24_異物入眼" } },
@@ -86,7 +84,6 @@ namespace Safety_System
             { "其他", new[] { "OT1_交通事故", "OT2_設備、設施損壞", "OT3_影響環境", "OT4_未歸類安全項目", "OT5_其他非安全項目", "OT6_消防相關" } }
         };
 
-        // 2. 危害類型細分類 -> 違規樣態類型
         public static readonly Dictionary<string, string[]> ViolationTypeMap = new Dictionary<string, string[]>
         {
             { "PH1_物體飛落、掉落", new[] { "PH101-丟廢玻璃以拋丟方式【★★★】", "PH102-物件掉落【★★★】", "PH103-天車防滑蛇片失效【★★★★】", "PH104-吊掛作業未戴安全帽【★★★】", "PH105-天車燈座護網懸掛【★★★】", "PH106-其它未歸類物體飛落、掉落【★★★】" } },
@@ -108,9 +105,6 @@ namespace Safety_System
             { "OT3_影響環境", new[] { "OT301-水溝內菸蒂【★★★】" } }
         };
 
-        // =========================================================================
-
-        // 集中管理需顯示為下拉選單的資料表與欄位
         public static string[] GetDropdownList(string tableName, string columnName)
         {
             if (tableName == "PurchaseData" && columnName == "ESG分類") 
@@ -147,7 +141,6 @@ namespace Safety_System
                 if (columnName == "廠內曾發生工傷事件項目") 
                     return new[] { "", "v"}; 
 
-                // 🟢 針對第二層連動，提供所有選項總集，避免非編輯列產生 DataError
                 if (columnName == "危害類型細分類")
                 {
                     List<string> allSubCats = new List<string> { "" };
@@ -155,7 +148,6 @@ namespace Safety_System
                     return allSubCats.Distinct().ToArray();
                 }
 
-                // 🟢 針對第三層連動，提供所有選項總集，避免非編輯列產生 DataError
                 if (columnName == "違規樣態類型")
                 {
                     List<string> allViolations = new List<string> { "" };
@@ -164,10 +156,9 @@ namespace Safety_System
                 }
             }
 
-            return null; // 若沒有特定設定，回傳 null 代表維持一般文字方塊
+            return null; 
         }
 
-        // 🟢 供 UI 編輯時，依據父層選項動態取得子層選項陣列
         public static string[] GetDependentDropdownList(string tableName, string columnName, string parentValue)
         {
             if (tableName == "SafetyInspection")
@@ -179,14 +170,11 @@ namespace Safety_System
                 }
                 else if (columnName == "違規樣態類型")
                 {
-                    // 支援相容性比對 (倒塌、崩塌、掉落 vs 倒塌、崩塌)
                     string searchKey = parentValue == "PH2_倒塌、崩塌、掉落" ? "PH2_倒塌、崩塌" : parentValue;
-                    
                     if (ViolationTypeMap.ContainsKey(searchKey))
                         return ViolationTypeMap[searchKey];
                 }
             }
-            return new string[] { "" }; // 無對應項目時回傳空項目，容許清空
+            return new string[] { "" }; 
         }
     }
-}
