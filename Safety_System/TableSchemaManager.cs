@@ -15,9 +15,9 @@ namespace Safety_System
             { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
             // 🟢 ISO14001 環境溝通 4 張表
-            { "EnvInfoReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
-            { "InternalComm", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
-            { "MailReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [附件檔案] TEXT, [溝通方式] TEXT, [備註] TEXT, [連結] TEXT" },
+            { "EnvInfoReceive", "[日期] TEXT, [表單單號] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
+            { "InternalComm", "[日期] TEXT, [表單單號] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
+            { "MailReceive", "[日期] TEXT, [表單單號] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [附件檔案] TEXT, [溝通方式] TEXT, [備註] TEXT, [連結] TEXT" },
             { "VisitorRecord", "[日期] TEXT, [發文單位] TEXT, [拜訪目的] TEXT, [拜訪人員] TEXT, [內容概述] TEXT, [會同人員] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
             { "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
