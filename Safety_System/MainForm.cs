@@ -1,5 +1,6 @@
 /// FILE: Safety_System/MainForm.cs ///
 using System;
+using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -25,22 +26,16 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v8.0 - 個人選單與PDF匯出強化)";
+            this.Text = "工安系統看板 (v8.5 - 權限分級與選單動態擴充)";
             
-            // 設定初始視窗為最大化
             this.WindowState = FormWindowState.Maximized;
-            
             this.Size = new Size(1440, 810);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1280, 720);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
             
             DataManager.LoadConfig();
-            
-            // 啟動時自動檢查是否需要執行備份
             BackupManager.RunAutoBackup();
-
-            // 確保密碼資料表存在
             App_PasswordManager.InitDatabase();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
@@ -60,16 +55,12 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
-        // 🟢 徹底解決視窗按 X 關閉時卡住的問題
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             base.OnFormClosing(e);
-            
-            // 強制終止所有背景執行緒與行程，確保應用程式秒退不殘留
             Environment.Exit(0);
         }
 
-        // 支援全局 Ctrl+S 快捷存檔
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == (Keys.Control | Keys.S))
@@ -96,7 +87,6 @@ namespace Safety_System
             return null;
         }
 
-        // 建立主選單
         private void BuildMenu()
         {
             var menuHome = new ToolStripMenuItem("首頁");
@@ -109,7 +99,7 @@ namespace Safety_System
 
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
-            menuSafety.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuSafety.DropDownItems.Add(new ToolStripSeparator());
             menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_GenericTable("Safety", "SafetyInspection", "巡檢記錄管理").GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_GenericTable("Safety", "WorkInjury", "工傷事件管理").GetView()));
             menuSafety.DropDownItems.Add(CreateItem("輕傷事件", () => new App_GenericTable("Safety", "MinorInjury", "輕傷事件管理").GetView()));
@@ -120,7 +110,7 @@ namespace Safety_System
             var menuChemical = new ToolStripMenuItem("化學品");
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
             menuChemical.DropDownItems.Add(CreateItem("化學品快查", () => new App_ChemQuickSearch().GetView()));
-            menuChemical.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuChemical.DropDownItems.Add(new ToolStripSeparator());
 
             var menuChemReg = new ToolStripMenuItem("化學品要求及規範");
             menuChemReg.DropDownItems.Add(CreateItem("1. 環測項目", () => new App_GenericTable("Chemical", "EnvTesting", "環測項目").GetView()));
@@ -141,18 +131,18 @@ namespace Safety_System
 
             var menuNursing = new ToolStripMenuItem("護理");
             menuNursing.DropDownItems.Add(CreateItem("護理看板", () => new App_NursingDashboard().GetView()));
-            menuNursing.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuNursing.DropDownItems.Add(new ToolStripSeparator());
             menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_GenericTable("Nursing", "HealthPromotion", "健康促進活動").GetView()));
             menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_GenericTable("Nursing", "WorkInjuryReport", "職災申報紀錄").GetView()));
 
             var menuAir = new ToolStripMenuItem("空污");
             menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
-            menuAir.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuAir.DropDownItems.Add(new ToolStripSeparator());
             menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_GenericTable("Air", "AirPollution", "空污申報紀錄").GetView()));
 
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
-            menuWater.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuWater.DropDownItems.Add(new ToolStripSeparator());
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_Water_Generic("Water", "WaterMeterReadings", "【日】廢水處理水量記錄").GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_Water_Generic("Water", "WaterChemicals", "【日】廢水處理用藥記錄").GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_Water_Generic("Water", "WaterUsageDaily", "【日】自來水使用量").GetView()));
@@ -161,7 +151,7 @@ namespace Safety_System
 
             var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("產能及廢棄物看板", () => new App_WasteDashboard().GetView()));
-            menuWaste.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuWaste.DropDownItems.Add(new ToolStripSeparator());
             menuWaste.DropDownItems.Add(CreateItem("【月】複層月表", () => new App_GenericTable("Waste", "Waste_IL", "【月】複層月表").GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】膠合月表", () => new App_GenericTable("Waste", "Waste_LM", "【月】膠合月表").GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】鍍板月表", () => new App_GenericTable("Waste", "Waste_CR", "【月】鍍板月表").GetView()));
@@ -172,7 +162,7 @@ namespace Safety_System
 
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
-            menuFire.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuFire.DropDownItems.Add(new ToolStripSeparator());
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_GenericTable("Fire", "FireResponsible", "火源責任人管理").GetView()));
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_GenericTable("Fire", "HazardStats", "公共危險物統計").GetView()));
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_GenericTable("Fire", "FireEquip", "消防設備巡檢").GetView()));
@@ -180,7 +170,7 @@ namespace Safety_System
 
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
-            menuTest.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuTest.DropDownItems.Add(new ToolStripSeparator());
             menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_GenericTable("TestData", "EnvMonitor", "環境監測").GetView()));
             menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_GenericTable("TestData", "WastewaterPeriodic", "廢水定申檢").GetView()));
             menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_GenericTable("TestData", "DrinkingWater", "飲用水檢測").GetView()));
@@ -195,12 +185,12 @@ namespace Safety_System
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
-            menuEdu.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuEdu.DropDownItems.Add(new ToolStripSeparator());
             menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_GenericTable("教育訓練", "訓練時數", "教育訓練時數").GetView()));
 
             var menuLaw = new ToolStripMenuItem("法規");
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
-            menuLaw.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuLaw.DropDownItems.Add(new ToolStripSeparator());
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
@@ -208,17 +198,22 @@ namespace Safety_System
 
             var menuESG = new ToolStripMenuItem("ESG");
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
-            menuESG.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuESG.DropDownItems.Add(new ToolStripSeparator());
             menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_GenericTable("ESG", "ESG_Performance", "ESG績效管理").GetView()));
 
             var menuISO = new ToolStripMenuItem("ISO14001");
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
-            menuISO.DropDownItems.Add(new ToolStripSeparator());// 🟢 加入分隔線
+            menuISO.DropDownItems.Add(new ToolStripSeparator());
             menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
+            
+            // 🟢 新增：環境溝通 子分類
+            var menuISOComm = new ToolStripMenuItem("環境溝通");
+            menuISOComm.DropDownItems.Add(CreateItem("環境資訊接收管制表", () => new App_GenericTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表").GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("內文聯絡書管制表", () => new App_GenericTable("ISO14001", "InternalComm", "內文聯絡書管制表").GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("郵件收文管制表", () => new App_GenericTable("ISO14001", "MailReceive", "郵件收文管制表").GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("來賓拜訪紀錄表", () => new App_GenericTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表").GetView()));
+            menuISO.DropDownItems.Add(menuISOComm);
 
-            // ======================================================
-            // 🟢 新增需求 1：應用選單與呼叫外部程式
-            // ======================================================
             var menuApp = new ToolStripMenuItem("應用");
             var callExeItem = new ToolStripMenuItem("tgeOffice導入巡檢");
             callExeItem.Click += (s, e) => {
@@ -241,9 +236,6 @@ namespace Safety_System
             };
             menuApp.DropDownItems.Add(callExeItem);
 
-            // ======================================================
-            // 🟢 新增需求 2：隱藏的個人選單 (預設 Visible = false)
-            // ======================================================
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_GenericTable("Menu1DB", "KPI", "KPI").GetView()));
             _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_GenericTable("Menu1DB", "CultureImprove", "文化改善").GetView()));
@@ -259,15 +251,20 @@ namespace Safety_System
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
             _menu4.DropDownItems.Add(CreateItem("資料管理4", () => new App_GenericTable("Menu4DB", "DataManage4", "資料管理4").GetView()));
 
-
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
+
+            // 🟢 新增：選單管理
+            var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
+            menuManagerItem.Click += (s, e) => {
+                new App_MenuManager().ShowDialog(this);
+            };
+            menuSettings.DropDownItems.Add(menuManagerItem);
             
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
                     if (AuthManager.VerifyAdmin()) { LoadModule(new App_DbConfig().GetView()); } 
-                    else { MessageBox.Show("密碼錯誤或權限不足，拒絕存取。", "授權失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -284,10 +281,7 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
-            // ======================================================
-            // 🟢 設定選單下方：分隔線與開啟個人選單
-            // ======================================================
-            menuSettings.DropDownItems.Add(new ToolStripSeparator()); // 分隔線
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
             
             var unlockMenuItem = new ToolStripMenuItem("開啟個人選單");
             unlockMenuItem.Click += UnlockMenu_Click;
@@ -299,18 +293,53 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(pwdMgmtItem);
 
+            // 🟢 動態附加使用者建立的「自訂選單」
+            AttachCustomMenus(menuReports, menuSafety, menuChemical, menuChemReg, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, _menu1, _menu2, _menu3, _menu4);
+
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAir, 
                 menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, 
-                menuApp, // 應用放在設定前
-                _menu1, _menu2, _menu3, _menu4, // 隱藏選單緊接在應用之後
-                menuSettings 
+                menuApp, _menu1, _menu2, _menu3, _menu4, menuSettings 
             });
         }
 
-        // ======================================================
-        // 🟢 個人選單解鎖邏輯
-        // ======================================================
+        // 🟢 載入自訂選單並附加到對應的主選單節點底下
+        private void AttachCustomMenus(params ToolStripMenuItem[] mainNodes)
+        {
+            try {
+                DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
+                if (dt == null) return;
+
+                foreach (DataRow row in dt.Rows)
+                {
+                    string category = row["分類"].ToString();
+                    string dbName = row["資料庫名"].ToString();
+                    string tableName = row["資料表名"].ToString();
+
+                    // 找出對應的主選單節點
+                    foreach (var node in mainNodes)
+                    {
+                        if (node.Text == category)
+                        {
+                            // 若是第一次加自訂，先塞一條分隔線區隔原生選單
+                            bool hasSeparator = false;
+                            foreach (ToolStripItem item in node.DropDownItems) {
+                                if (item is ToolStripSeparator && item.Tag != null && item.Tag.ToString() == "CustomDivider") {
+                                    hasSeparator = true; break;
+                                }
+                            }
+                            if (!hasSeparator) {
+                                node.DropDownItems.Add(new ToolStripSeparator { Tag = "CustomDivider" });
+                            }
+
+                            node.DropDownItems.Add(CreateItem(tableName, () => new App_GenericTable(dbName, tableName, tableName).GetView()));
+                            break;
+                        }
+                    }
+                }
+            } catch { }
+        }
+
         private void UnlockMenu_Click(object sender, EventArgs e)
         {
             using (Form p = new Form())
