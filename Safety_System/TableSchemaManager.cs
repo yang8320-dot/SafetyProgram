@@ -6,12 +6,15 @@ namespace Safety_System
 {
     public static class TableSchemaManager
     {
+        // 🟢 統一管理自定義選單的預設欄位結構 (Single Source of Truth)
+        public const string DefaultCustomSchema = "[日期] TEXT, [內容] TEXT, [附件檔案] TEXT, [備註] TEXT";
+
         // 集中管理所有資料表的欄位定義 Schema
         public static readonly Dictionary<string, string> SchemaMap = new Dictionary<string, string>
         {
             { "TargetManagement", "[年度] TEXT, [修訂日] TEXT, [單位] TEXT, [目標名稱] TEXT, [管理目標計畫表編號] TEXT, [施實重點項目1] TEXT, [日程1] TEXT, [施實重點項目2] TEXT, [日程2] TEXT, [施實重點項目3] TEXT, [日程3] TEXT, [施實重點項目4] TEXT, [日程4] TEXT, [施實重點項目5] TEXT, [日程5] TEXT, [預估成本] TEXT, [預估成效] TEXT, [計畫績效指標] TEXT, [績效指標計算方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
-            // 🟢 新增：ISO14001 環境溝通 4 張表
+            // 🟢 ISO14001 環境溝通 4 張表
             { "EnvInfoReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
             { "InternalComm", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
             { "MailReceive", "[日期] TEXT, [來文發文] TEXT, [發文單位] TEXT, [主旨] TEXT, [內文] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [附件檔案] TEXT, [溝通方式] TEXT, [備註] TEXT, [連結] TEXT" },
@@ -64,6 +67,8 @@ namespace Safety_System
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 🟢 個人隱藏選單 (Menu1 ~ Menu4)
             { "AccountManage", "[日期] TEXT, [系統名稱] TEXT, [網址] TEXT, [登入帳號] TEXT, [登入密碼] TEXT, [使用者] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "KPI", "[年月] TEXT, [單位] TEXT, [指標名稱] TEXT, [目標值] TEXT, [實際值] TEXT, [達成狀況] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "CultureImprove", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [執行狀況] TEXT, [主責人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
