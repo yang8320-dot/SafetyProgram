@@ -55,12 +55,11 @@ namespace Safety_System
                 }
             }
 
-            // 2. 若資料庫無符合，則比對預設密碼 (前提是該選單還沒被自訂密碼覆蓋)
+            // 2. 若資料庫無符合，則比對預設密碼
             foreach (var kvp in DefaultPasswords)
             {
                 if (kvp.Value == inputPwd)
                 {
-                    // 確認資料庫內是否已經有設定過這組選單，若有設定過，預設密碼即失效
                     bool isCustomized = false;
                     foreach (DataRow row in dt.Rows)
                     {
@@ -81,7 +80,6 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "個人選單密碼管理";
-            // 🟢 需求 1：視窗寬度 +50 (改為 500)，調整高度容納新欄位
             this.Size = new Size(500, 520);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -91,14 +89,12 @@ namespace Safety_System
 
             Label lblTitle = new Label { Text = "🔐 變更個人選單密碼與提示詞", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Location = new Point(40, 20), AutoSize = true };
 
-            // 🟢 調整版面間距
             Label lbl1 = new Label { Text = "選擇選單：", Location = new Point(40, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboMenu = new ComboBox { Location = new Point(160, 77), Width = 270, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboMenu.Items.AddRange(new string[] { "選單1", "選單2", "選單3", "選單4" });
             _cboMenu.SelectedIndex = 0;
             _cboMenu.SelectedIndexChanged += CboMenu_SelectedIndexChanged;
 
-            // 🟢 需求 2：新增原密碼欄位，並加上密碼遮罩
             Label lblOld = new Label { Text = "原密碼：", Location = new Point(40, 140), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtOldPwd = new TextBox { Location = new Point(160, 137), Width = 280, Font = new Font("Microsoft JhengHei UI", 12F), PasswordChar = '*' };
 
@@ -108,7 +104,7 @@ namespace Safety_System
             Label lblHint = new Label { Text = "提示詞：", Location = new Point(40, 260), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtHint = new TextBox { Location = new Point(160, 257), Width = 270, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblDesc = new Label { Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼以查詢。\n※ 變更密碼：請務必正確填寫原密碼、新密碼及新提示詞。", Location = new Point(40, 315), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 10F) };
+            Label lblDesc = new Label { Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼以查詢。\n※ 特權變更：若您輸入的是管理者密碼(Lv2)，可忽略原密碼。", Location = new Point(40, 315), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 10F) };
 
             Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 385), Size = new Size(180, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnSave.Click += BtnSave_Click;
@@ -134,7 +130,6 @@ namespace Safety_System
 
         private void CboMenu_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // 🟢 需求 2：切換選單時，所有欄位維持空白
             ClearInputs();
         }
 
@@ -148,12 +143,11 @@ namespace Safety_System
         private void BtnSave_Click(object sender, EventArgs e)
         {
             string menuName = _cboMenu.SelectedItem.ToString();
-            string currentPwd = DefaultPasswords[menuName]; // 預設密碼
+            string currentPwd = DefaultPasswords[menuName]; 
             
             DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
             DataRow targetRow = null;
 
-            // 尋找資料庫是否已有設定的密碼
             foreach (DataRow row in dt.Rows)
             {
                 if (row["選單名稱"].ToString() == menuName)
@@ -164,17 +158,27 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 需求 2：變更前驗證「原密碼」是否正確
-            if (_txtOldPwd.Text != currentPwd)
-            {
-                MessageBox.Show("【原密碼】輸入錯誤！請確認後再試。", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
             if (string.IsNullOrWhiteSpace(_txtNewPwd.Text))
             {
                 MessageBox.Show("【新密碼】不能為空白！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
+            }
+
+            // 🟢 密碼驗證邏輯：如果原密碼輸入的是 Lv2 密碼，允許直接覆蓋 (特權變更)
+            bool isPrivileged = false;
+            
+            if (_txtOldPwd.Text != currentPwd)
+            {
+                if (_txtOldPwd.Text == "11914002") // 判斷是否為 Lv2
+                {
+                    isPrivileged = true;
+                    MessageBox.Show("已使用【管理者權限 Lv2】放行變更！", "特權授權", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("【原密碼】輸入錯誤！請確認後再試。", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
             }
 
             // 儲存邏輯
@@ -227,7 +231,6 @@ namespace Safety_System
             string actualHint = targetRow["提示詞"].ToString();
             string inputHint = _txtHint.Text.Trim();
 
-            // 🟢 需求 3：忘記密碼必須經過提示詞比對，正確才能查看密碼
             if (actualHint == inputHint)
             {
                 string actualPwd = targetRow["密碼"].ToString();
