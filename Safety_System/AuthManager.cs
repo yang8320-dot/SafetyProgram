@@ -55,7 +55,7 @@ namespace Safety_System
         }
 
         /// <summary>
-        /// 🟢 驗證刪除資料表權限 (要求依序輸入 Lv2 再輸入 Lv3)
+        /// 驗證刪除資料表權限 (要求依序輸入 Lv2 再輸入 Lv3)
         /// </summary>
         public static bool VerifyTableDelete()
         {
@@ -80,16 +80,17 @@ namespace Safety_System
             using (Form p = new Form())
             {
                 p.Width = 500; 
-                p.Height = 300;
+                p.Height = 280;
                 p.Text = "權限驗證";
                 p.StartPosition = FormStartPosition.CenterParent;
                 p.FormBorderStyle = FormBorderStyle.FixedDialog;
                 p.MaximizeBox = false; 
                 p.MinimizeBox = false;
 
-                Label lbl = new Label() { Left = 30, Top = 30, Text = prompt, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 80, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 150, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 將 AutoSize 設為 false，並指定 Width=420，確保長文字能自動換行
+                Label lbl = new Label() { Left = 30, Top = 25, Width = 420, Height = 60, Text = prompt, AutoSize = false, Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 95, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 160, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
 
                 p.Controls.Add(lbl); 
                 p.Controls.Add(txt); 
