@@ -13,7 +13,6 @@ namespace Safety_System
         private ComboBox _cboCategory;
         private TextBox _txtMenuName;
         private Button _btnAdd;
-        private Button _btnRename;
         
         private FlowLayoutPanel _flpCustomMenus;
 
@@ -61,30 +60,27 @@ namespace Safety_System
 
             Label lblTitle = new Label { Text = "📂 自訂選單新增與管理", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SteelBlue, Location = new Point(30, 20), AutoSize = true };
 
-            GroupBox boxAdd = new GroupBox { Text = "操作區 (新增 / 更名)", Location = new Point(30, 70), Size = new Size(520, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 🟢 修改 UI 佈局：移除上方更名按鈕，並向右平移 20px
+            GroupBox boxAdd = new GroupBox { Text = "操作區 (新增)", Location = new Point(30, 70), Size = new Size(520, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCat = new Label { Text = "目標分類：", Location = new Point(20, 40), AutoSize = true };
-            _cboCategory = new ComboBox { Location = new Point(120, 37), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblCat = new Label { Text = "目標分類：", Location = new Point(40, 40), AutoSize = true };
+            _cboCategory = new ComboBox { Location = new Point(140, 37), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboCategory.Items.AddRange(_categoryToDbMap.Keys.ToArray());
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
-            Label lblName = new Label { Text = "選單名稱：", Location = new Point(20, 95), AutoSize = true };
-            _txtMenuName = new TextBox { Location = new Point(120, 92), Width = 180 };
+            Label lblName = new Label { Text = "選單名稱：", Location = new Point(40, 95), AutoSize = true };
+            _txtMenuName = new TextBox { Location = new Point(140, 92), Width = 180 };
 
-            _btnAdd = new Button { Text = "➕ 新增", Location = new Point(320, 35), Size = new Size(80, 85), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
+            _btnAdd = new Button { Text = "➕ 新增", Location = new Point(350, 35), Size = new Size(130, 85), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
             _btnAdd.Click += BtnAdd_Click;
-
-            _btnRename = new Button { Text = "✏️ 更名", Location = new Point(410, 35), Size = new Size(80, 85), BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
-            _btnRename.Click += BtnRename_Click;
 
             boxAdd.Controls.Add(lblCat);
             boxAdd.Controls.Add(_cboCategory);
             boxAdd.Controls.Add(lblName);
             boxAdd.Controls.Add(_txtMenuName);
             boxAdd.Controls.Add(_btnAdd);
-            boxAdd.Controls.Add(_btnRename);
 
-            GroupBox boxList = new GroupBox { Text = "已建立之自訂選單 (刪除)", Location = new Point(30, 250), Size = new Size(520, 390), Font = new Font("Microsoft JhengHei UI", 12F) };
+            GroupBox boxList = new GroupBox { Text = "已建立之自訂選單 (更名 / 刪除)", Location = new Point(30, 250), Size = new Size(520, 390), Font = new Font("Microsoft JhengHei UI", 12F) };
             
             _flpCustomMenus = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
             boxList.Controls.Add(_flpCustomMenus);
@@ -121,7 +117,6 @@ namespace Safety_System
                 }
             }
 
-            // 建立一筆對應紀錄
             DataRow row = dt.NewRow();
             row["分類"] = category;
             row["資料庫名"] = targetDb;
@@ -130,19 +125,14 @@ namespace Safety_System
 
             if (DataManager.BulkSaveTable("SystemConfig", "CustomMenus", dt))
             {
-                // 在目標資料庫中建立基礎資料表
-                string createSql = $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [備註] TEXT);";
+                // 🟢 修正：預設加入完整基礎欄位，包含 [附件檔案]，解決不屬於資料表的錯誤
+                string createSql = $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [內容] TEXT, [附件檔案] TEXT, [備註] TEXT);";
                 DataManager.InitTable(targetDb, newName, createSql);
 
                 MessageBox.Show($"選單【{newName}】已新增至【{category}】分類下方！\n(請重新開啟系統以載入最新選單)", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _txtMenuName.Clear();
                 RefreshCustomMenusList();
             }
-        }
-
-        private void BtnRename_Click(object sender, EventArgs e)
-        {
-            MessageBox.Show("請直接點選下方清單中的【更名】按鈕進行操作。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void RefreshCustomMenusList()
@@ -180,7 +170,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 自製的輸入對話框，不依賴 Microsoft.VisualBasic
         private string ShowInputBox(string prompt, string title, string defaultValue)
         {
             using (Form form = new Form())
@@ -219,11 +208,9 @@ namespace Safety_System
 
             try
             {
-                // 1. 更新資料庫中的真實表名
                 DataManager.InitTable(dbName, newName, $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT);");
                 DataManager.RenameTable(dbName, oldTableName, newName);
 
-                // 2. 更新 CustomMenus 紀錄
                 DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
                 foreach (DataRow r in dt.Rows)
                 {
@@ -246,7 +233,6 @@ namespace Safety_System
 
         private void ExecuteDelete(int id, string dbName, string tableName)
         {
-            // 🟢 嚴格防護：刪除需要依序輸入 Lv2 與 Lv3
             if (!AuthManager.VerifyTableDelete()) return;
 
             if (MessageBox.Show($"您確定要永久刪除選單【{tableName}】及其所有資料嗎？\n(此操作無法復原)", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
