@@ -73,8 +73,11 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 🟢 修改：將未記錄在 SchemaMap 中(自訂選單)的預設結構更新為包含 [內容] 與 [附件檔案]
-            string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) ? TableSchemaManager.SchemaMap[_tableName] : "[日期] TEXT, [內容] TEXT, [附件檔案] TEXT, [備註] TEXT";
+            // 🟢 改為從 TableSchemaManager 讀取統一結構 (Fallback 邏輯)
+            string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) 
+                            ? TableSchemaManager.SchemaMap[_tableName] 
+                            : TableSchemaManager.DefaultCustomSchema;
+
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
@@ -1034,7 +1037,7 @@ namespace Safety_System
 
         private void SyncAttachmentPaths(DataTable dt) 
         {
-            // 🟢 防呆保護：若資料表沒有附件檔案欄位，則直接跳過附件同步處理，以免發生 Exception
+            // 🟢 防呆保護：若資料表沒有附件檔案欄位，則直接跳過附件同步處理
             if (!dt.Columns.Contains("附件檔案")) return;
 
             foreach (DataRow row in dt.Rows) 
