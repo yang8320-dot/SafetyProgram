@@ -60,7 +60,7 @@ namespace Safety_System
 
             Label lblTitle = new Label { Text = "📂 自訂選單新增與管理", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SteelBlue, Location = new Point(30, 20), AutoSize = true };
 
-            // 🟢 修改 UI 佈局：移除上方更名按鈕，並向右平移 20px
+            // 🟢 操作區：移除上方更名按鈕，並向右平移 20px
             GroupBox boxAdd = new GroupBox { Text = "操作區 (新增)", Location = new Point(30, 70), Size = new Size(520, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
 
             Label lblCat = new Label { Text = "目標分類：", Location = new Point(40, 40), AutoSize = true };
@@ -107,7 +107,6 @@ namespace Safety_System
             string targetDb = _categoryToDbMap[category];
             DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
             
-            // 檢查是否同名
             foreach (DataRow r in dt.Rows)
             {
                 if (r["分類"].ToString() == category && r["資料表名"].ToString() == newName)
@@ -125,8 +124,9 @@ namespace Safety_System
 
             if (DataManager.BulkSaveTable("SystemConfig", "CustomMenus", dt))
             {
-                // 🟢 修正：預設加入完整基礎欄位，包含 [附件檔案]，解決不屬於資料表的錯誤
-                string createSql = $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [日期] TEXT, [內容] TEXT, [附件檔案] TEXT, [備註] TEXT);";
+                // 🟢 改為從 TableSchemaManager 讀取統一結構
+                string schema = TableSchemaManager.DefaultCustomSchema;
+                string createSql = $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
                 DataManager.InitTable(targetDb, newName, createSql);
 
                 MessageBox.Show($"選單【{newName}】已新增至【{category}】分類下方！\n(請重新開啟系統以載入最新選單)", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
