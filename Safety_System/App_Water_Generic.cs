@@ -20,6 +20,11 @@ namespace Safety_System
         private enum TimeMode { Date, YearMonth, Year }
         private TimeMode _timeMode = TimeMode.Date;
 
+        // 🟢 搜尋模式列舉，用於保留使用者查詢狀態
+        private enum SearchMode { DateRange, Limit, Advanced }
+        private SearchMode _currentSearchMode = SearchMode.DateRange;
+        private int _currentLimit = 100;
+
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
@@ -37,7 +42,7 @@ namespace Safety_System
         private Label _lblStatus;
 
         private bool _isFirstLoad = true;
-        private bool _isApplyingWidths = false; 
+        private bool _isApplyingWidths = false; // 🟢 用於防止套用寬度時觸發儲存事件
         
         private readonly string _dbName; 
         private readonly string _tableName; 
@@ -47,6 +52,7 @@ namespace Safety_System
 
         private DataGridViewAutoCalcHelper _calcHelper; 
 
+        // 🟢 紀錄使用者隱藏欄位與自訂欄寬的設定
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
         private Dictionary<string, int> _columnWidths = new Dictionary<string, int>();
 
@@ -79,6 +85,7 @@ namespace Safety_System
             string createSql = $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
             DataManager.InitTable(_dbName, _tableName, createSql);
 
+            // 🟢 改用 SystemConfig DB 讀取 UI 設定
             LoadVisibilitySettings();
             LoadColumnWidths();
 
@@ -143,7 +150,7 @@ namespace Safety_System
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
-            _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
+            _btnRead.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.DateRange; await ReloadCurrentDataAsync(); };
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.Click += BtnSave_Click; 
@@ -193,7 +200,7 @@ namespace Safety_System
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35), Margin = new Padding(0, 0, 15, 0) };
             bAdd.Click += async (s, e) => { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
-                { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await LoadGridDataAsync(); _txtNewColName.Clear(); } 
+                { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await ReloadCurrentDataAsync(); _txtNewColName.Clear(); } 
             };
             
             _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
@@ -203,7 +210,7 @@ namespace Safety_System
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35), Margin = new Padding(0, 0, 5, 0) };
             bRen.Click += async (s, e) => { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
-                { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await LoadGridDataAsync(); _txtRenameCol.Clear(); } 
+                { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await ReloadCurrentDataAsync(); _txtRenameCol.Clear(); } 
             };
             
             // 🟢 刪除整欄 (需 Lv2 權限)
@@ -211,7 +218,7 @@ namespace Safety_System
             bDelCol.Click += async (s, e) => { 
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
                 { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                  { DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await LoadGridDataAsync(); } } 
+                  { DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await ReloadCurrentDataAsync(); } } 
             };
             
             // 🟢 刪除選取列 (維持 Lv1，並加入刪除後背景自動重算)
@@ -243,7 +250,7 @@ namespace Safety_System
                         // 刪除完成後，觸發背景重算並刷新畫面
                         SetUIState(false, "資料刪除並重新計算中...", Color.Orange);
                         await Task.Run(() => RunBackgroundRecalculationByDate(minDelDate));
-                        await LoadGridDataAsync(); 
+                        await ReloadCurrentDataAsync(); 
                         MessageBox.Show("刪除成功，相關數據已重新計算完成！");
                     }
                 }
@@ -259,11 +266,8 @@ namespace Safety_System
             bLimitRead.Click += async (s, e) => { 
                 if (int.TryParse(txtLimit.Text, out int l)) 
                 { 
-                    SetUIState(false, "讀取中...", Color.Orange);
-                    DataTable dt = null;
-                    await Task.Run(() => { dt = DataManager.GetLatestRecords(_dbName, _tableName, l); EnforceDateFormats(dt); });
-                    _dgv.DataSource = dt; ApplyGridStyles(); RestoreColumnOrder();
-                    SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
+                    _isFirstLoad = false; _currentSearchMode = SearchMode.Limit; _currentLimit = l;
+                    await ReloadCurrentDataAsync();
                 } 
             };
 
@@ -274,7 +278,7 @@ namespace Safety_System
             _txtSearchKeyword = new TextBox { Width = 180, Margin = new Padding(0, 4, 5, 0) };
             
             _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 0, 0) };
-            _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
+            _btnAdvancedSearch.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.Advanced; await ReloadCurrentDataAsync(); };
             
             rowAdv2.Controls.AddRange(new Control[] { lblLimit, txtLimit, bLimitRead, lblSearchData, _cboSearchColumn, lblKeyword, _txtSearchKeyword, _btnAdvancedSearch });
 
@@ -316,13 +320,12 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            _ = LoadGridDataAsync(); 
+            _ = ReloadCurrentDataAsync(); 
             return main;
         }
 
-        // =========================================================
         // ==========================================
-        // 🟢 智慧型背景水資源資料重算機制
+        // 🟢 智慧型背景水資源資料重算機制 (修正編譯錯誤)
         // ==========================================
         private void RunBackgroundRecalculationByDate(string triggerDateStr)
         {
@@ -330,12 +333,10 @@ namespace Safety_System
             
             try 
             {
-                // 1. 抓取資料庫中所有的資料，並依據日期排序
                 DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
                 allData.DefaultView.Sort = $"{_dateColumnName} ASC";
                 DataTable sortedData = allData.DefaultView.ToTable();
 
-                // 2. 找到觸發重算日期的位置，並往前推 10 筆（若不足 10 筆則取第一筆）
                 int startIndex = 0;
                 for (int i = 0; i < sortedData.Rows.Count; i++)
                 {
@@ -346,24 +347,22 @@ namespace Safety_System
                     }
                 }
 
-                // 3. 將從 startIndex 一直到最後一筆的資料，呼叫 _calcHelper 進行重新運算
                 DataTable dtToRecalc = sortedData.Clone();
                 for (int i = startIndex; i < sortedData.Rows.Count; i++)
                 {
                     dtToRecalc.ImportRow(sortedData.Rows[i]);
                 }
 
-                // 套用計算核心
                 if (_calcHelper != null) 
                 {
                     _calcHelper.RecalculateTable(dtToRecalc);
                 }
 
-                // 4. 將重新計算後的區間資料，更新回全域資料表中
                 for (int i = 0; i < dtToRecalc.Rows.Count; i++)
                 {
                     int targetRowId = Convert.ToInt32(dtToRecalc.Rows[i]["Id"]);
-                    DataRow targetRow = sortedData.AsEnumerable().FirstOrDefault(r => Convert.ToInt32(r["Id"]) == targetRowId);
+                    // 🟢 修正：使用 Rows.Cast<DataRow>() 替代 AsEnumerable()
+                    DataRow targetRow = sortedData.Rows.Cast<DataRow>().FirstOrDefault(r => Convert.ToInt32(r["Id"]) == targetRowId);
                     
                     if (targetRow != null)
                     {
@@ -375,10 +374,46 @@ namespace Safety_System
                     }
                 }
 
-                // 5. 將所有異動整批儲存回資料庫
                 DataManager.BulkSaveTable(_dbName, _tableName, sortedData);
             }
             catch { }
+        }
+
+        // ==========================================
+        // 🟢 狀態保持與重載機制 ( ReloadCurrentDataAsync )
+        // ==========================================
+        private async Task ReloadCurrentDataAsync()
+        {
+            int firstRowIndex = -1;
+            int selectedRowIndex = -1;
+            int selectedColIndex = -1;
+            
+            if (_dgv.Rows.Count > 0 && !_isFirstLoad) {
+                firstRowIndex = _dgv.FirstDisplayedScrollingRowIndex;
+                if (_dgv.CurrentCell != null) {
+                    selectedRowIndex = _dgv.CurrentCell.RowIndex;
+                    selectedColIndex = _dgv.CurrentCell.ColumnIndex;
+                }
+            }
+
+            if (_currentSearchMode == SearchMode.Advanced) {
+                await ExecuteAdvancedSearchAsync();
+            } else if (_currentSearchMode == SearchMode.Limit) {
+                await LoadLimitDataAsync(_currentLimit);
+            } else {
+                await LoadGridDataAsync();
+            }
+
+            try {
+                if (firstRowIndex >= 0 && firstRowIndex < _dgv.Rows.Count)
+                    _dgv.FirstDisplayedScrollingRowIndex = firstRowIndex;
+                
+                if (selectedRowIndex >= 0 && selectedRowIndex < _dgv.Rows.Count && selectedColIndex >= 0) {
+                    _dgv.ClearSelection();
+                    _dgv.CurrentCell = _dgv.Rows[selectedRowIndex].Cells[selectedColIndex];
+                    _dgv.Rows[selectedRowIndex].Selected = true;
+                }
+            } catch { } 
         }
 
         // ==========================================
@@ -972,6 +1007,21 @@ namespace Safety_System
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
+        private async Task LoadLimitDataAsync(int limit) 
+        {
+            SetUIState(false, "讀取中...", Color.Orange);
+            DataTable dt = null;
+            await Task.Run(() => { 
+                dt = DataManager.GetLatestRecords(_dbName, _tableName, limit); 
+                EnforceDateFormats(dt); 
+            });
+            _dgv.DataSource = dt; 
+            ApplyGridStyles(); 
+            UpdateCboColumns();
+            RestoreColumnOrder();
+            SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
+        }
+
         private async Task ExecuteAdvancedSearchAsync()
         {
             SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
@@ -987,6 +1037,7 @@ namespace Safety_System
 
                 if (!string.IsNullOrEmpty(searchCol)) 
                 {
+                    // 🟢 智慧空值搜尋邏輯
                     if (string.IsNullOrWhiteSpace(keyword)) {
                         dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
                     } else {
