@@ -64,13 +64,13 @@ namespace Safety_System
             // 🟢 操作區：拉長寬度並優化元件間距
             GroupBox boxAdd = new GroupBox { Text = "操作區 (新增)", Location = new Point(25, 70), Size = new Size(590, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCat = new Label { Text = "目標分類：", Location = new Point(30, 45), AutoSize = true };
-            _cboCategory = new ComboBox { Location = new Point(130, 42), Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblCat = new Label { Text = "目標分類：", Location = new Point(20, 45), AutoSize = true };
+            _cboCategory = new ComboBox { Location = new Point(150, 42), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboCategory.Items.AddRange(_categoryToDbMap.Keys.ToArray());
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
-            Label lblName = new Label { Text = "選單名稱：", Location = new Point(30, 100), AutoSize = true };
-            _txtMenuName = new TextBox { Location = new Point(130, 97), Width = 230 };
+            Label lblName = new Label { Text = "選單名稱：", Location = new Point(20, 100), AutoSize = true };
+            _txtMenuName = new TextBox { Location = new Point(150, 97), Width = 220 };
 
             _btnAdd = new Button { Text = "➕ 新增", Location = new Point(410, 38), Size = new Size(140, 90), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
             _btnAdd.Click += BtnAdd_Click;
