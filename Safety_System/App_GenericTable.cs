@@ -972,9 +972,15 @@ namespace Safety_System
                 DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
                 DataView dv = allData.DefaultView;
 
-                if (!string.IsNullOrEmpty(searchCol) && !string.IsNullOrWhiteSpace(keyword)) 
+                if (!string.IsNullOrEmpty(searchCol)) 
                 {
-                    dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+                    // 🟢 同步修正：如果關鍵字為空值，則搜尋該欄位為空或 NULL 的資料
+                    if (string.IsNullOrWhiteSpace(keyword)) {
+                        dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
+                    }
+                    else {
+                        dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+                    }
                 }
                 
                 dv.Sort = "Id DESC"; 
