@@ -51,27 +51,28 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "選單新增與管理";
-            this.Size = new Size(600, 700);
+            // 🟢 版面優化：加寬並加高視窗，提供更充裕的排版空間
+            this.Size = new Size(650, 750);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.BackColor = Color.White;
 
-            Label lblTitle = new Label { Text = "📂 自訂選單新增與管理", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SteelBlue, Location = new Point(30, 20), AutoSize = true };
+            Label lblTitle = new Label { Text = "📂 自訂選單新增與管理", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SteelBlue, Location = new Point(25, 20), AutoSize = true };
 
-            // 🟢 操作區：移除上方更名按鈕，並向右平移 20px
-            GroupBox boxAdd = new GroupBox { Text = "操作區 (新增)", Location = new Point(30, 70), Size = new Size(520, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 🟢 操作區：拉長寬度並優化元件間距
+            GroupBox boxAdd = new GroupBox { Text = "操作區 (新增)", Location = new Point(25, 70), Size = new Size(590, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCat = new Label { Text = "目標分類：", Location = new Point(40, 40), AutoSize = true };
-            _cboCategory = new ComboBox { Location = new Point(140, 37), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblCat = new Label { Text = "目標分類：", Location = new Point(30, 45), AutoSize = true };
+            _cboCategory = new ComboBox { Location = new Point(130, 42), Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboCategory.Items.AddRange(_categoryToDbMap.Keys.ToArray());
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
-            Label lblName = new Label { Text = "選單名稱：", Location = new Point(40, 95), AutoSize = true };
-            _txtMenuName = new TextBox { Location = new Point(140, 92), Width = 180 };
+            Label lblName = new Label { Text = "選單名稱：", Location = new Point(30, 100), AutoSize = true };
+            _txtMenuName = new TextBox { Location = new Point(130, 97), Width = 230 };
 
-            _btnAdd = new Button { Text = "➕ 新增", Location = new Point(350, 35), Size = new Size(130, 85), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
+            _btnAdd = new Button { Text = "➕ 新增", Location = new Point(410, 38), Size = new Size(140, 90), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
             _btnAdd.Click += BtnAdd_Click;
 
             boxAdd.Controls.Add(lblCat);
@@ -80,7 +81,8 @@ namespace Safety_System
             boxAdd.Controls.Add(_txtMenuName);
             boxAdd.Controls.Add(_btnAdd);
 
-            GroupBox boxList = new GroupBox { Text = "已建立之自訂選單 (更名 / 刪除)", Location = new Point(30, 250), Size = new Size(520, 390), Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 🟢 列表區：同步拉長
+            GroupBox boxList = new GroupBox { Text = "已建立之自訂選單 (更名 / 刪除)", Location = new Point(25, 250), Size = new Size(590, 430), Font = new Font("Microsoft JhengHei UI", 12F) };
             
             _flpCustomMenus = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
             boxList.Controls.Add(_flpCustomMenus);
@@ -124,7 +126,7 @@ namespace Safety_System
 
             if (DataManager.BulkSaveTable("SystemConfig", "CustomMenus", dt))
             {
-                // 🟢 改為從 TableSchemaManager 讀取統一結構
+                // 從 TableSchemaManager 讀取統一結構
                 string schema = TableSchemaManager.DefaultCustomSchema;
                 string createSql = $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
                 DataManager.InitTable(targetDb, newName, createSql);
@@ -153,13 +155,14 @@ namespace Safety_System
                 string dbName = row["資料庫名"].ToString();
                 string tableName = row["資料表名"].ToString();
 
-                Panel pItem = new Panel { Width = 460, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
+                // 🟢 列表項目：因應視窗加寬，將項目面寬加大至 540，按鈕往右移動避免擠壓文字
+                Panel pItem = new Panel { Width = 540, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                 Label lName = new Label { Text = $"[{category}] {tableName}", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
-                Button btnRename = new Button { Text = "✏️ 更名", Width = 75, Height = 35, Location = new Point(295, 5), BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
+                Button btnRename = new Button { Text = "✏️ 更名", Width = 80, Height = 35, Location = new Point(360, 5), BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
                 btnRename.Click += (s, e) => ExecuteRename(id, dbName, tableName);
 
-                Button btnDel = new Button { Text = "🗑️ 刪除", Width = 75, Height = 35, Location = new Point(375, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
+                Button btnDel = new Button { Text = "🗑️ 刪除", Width = 80, Height = 35, Location = new Point(450, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
                 btnDel.Click += (s, e) => ExecuteDelete(id, dbName, tableName);
 
                 pItem.Controls.Add(lName);
