@@ -372,11 +372,34 @@ namespace Safety_System
             }
         }
 
+        // 🟢 將傳入方法委派，綁定載入對應之模組
+        private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
+        {
+            var item = new ToolStripMenuItem(text);
+            item.Click += (s, e) => {
+                try { LoadModule(getViewFunc()); } 
+                catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
+            return item;
+        }
+
+        // 🟢 法規專屬的方法，統一綁定 LawLogic()
+        private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
+        {
+            var item = new ToolStripMenuItem(tableName);
+            item.Click += (s, e) => {
+                try { LoadModule(new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView()); } 
+                catch (Exception ex) { MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
+            return item;
+        }
+
         public void LoadModule(Control moduleControl)
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
             try {
+                // 安全且強制地將舊的畫面控制項 Dispose，釋放綁定的 DataTable 與事件
                 while (_contentPanel.Controls.Count > 0)
                 {
                     Control ctrl = _contentPanel.Controls[0];
@@ -384,6 +407,7 @@ namespace Safety_System
                     ctrl.Dispose();
                 }
                 
+                // 強制呼叫垃圾回收 (加快系統可用記憶體的釋放)
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
