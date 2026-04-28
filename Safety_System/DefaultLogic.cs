@@ -11,12 +11,12 @@ namespace Safety_System
 
         public virtual Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable savingData)
         {
-            return Task.FromResult(true); // 預設無須預處理，直接放行
+            return Task.FromResult(true); 
         }
 
         public virtual Task OnAfterSaveAsync(string dbName, string tableName, DataTable savedData)
         {
-            return Task.CompletedTask; // 預設無背景任務
+            return Task.CompletedTask; 
         }
 
         public virtual string[] GetDropdownList(string tableName, string columnName)
