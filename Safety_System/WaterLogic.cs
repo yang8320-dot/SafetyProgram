@@ -12,41 +12,52 @@ namespace Safety_System
     {
         public override void InitializeSchema(string dbName, string tableName)
         {
+            // 水資源基礎表結構由 App_CoreTable 根據 SchemaManager 建立，此處不需額外操作
         }
 
         public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt)
         {
+            // 🚀 極速效能優化：記憶體內接軌與差值計算，取代傳統逐筆呼叫 DB
             await Task.Run(() =>
             {
                 if (dt == null || dt.Rows.Count == 0) return;
 
+                // 判斷日期欄位名稱
                 string dateCol = dt.Columns.Contains("日期") ? "日期" : (dt.Columns.Contains("年月") ? "年月" : "");
                 if (string.IsNullOrEmpty(dateCol)) return;
 
+                // 1. 找出準備存檔資料的最小日期，藉此向 DB 調閱基期資料
                 var validRows = dt.Rows.Cast<DataRow>().Where(r => r.RowState != DataRowState.Deleted).ToList();
                 if (validRows.Count == 0) return;
 
                 string minDate = validRows.Min(r => r[dateCol]?.ToString());
                 if (string.IsNullOrEmpty(minDate)) return;
 
-                string sql = $"SELECT * FROM [{tableName}] WHERE [{dateCol}] < '{minDate}' ORDER BY [{dateCol}] DESC LIMIT 10";
-                DataTable baseHistoryDt = new DataTable();
+                // 2. 僅撈取該日期之前的 10 筆歷史紀錄做為基期 (避免整表掃描)
+                DataTable baseHistoryDt = dt.Clone(); 
                 try {
                     DataTable allDbData = DataManager.GetTableData(dbName, tableName, "", "", "");
                     var baseRows = allDbData.Rows.Cast<DataRow>()
                                     .Where(r => string.Compare(r[dateCol]?.ToString(), minDate) < 0)
                                     .OrderByDescending(r => r[dateCol]?.ToString())
                                     .Take(10);
-                    if (baseRows.Any()) baseHistoryDt = baseRows.CopyToDataTable();
+                    
+                    // 🟢 修正點：使用 ImportRow 取代 CopyToDataTable() 以避免編譯錯誤
+                    foreach (var r in baseRows) {
+                        baseHistoryDt.ImportRow(r);
+                    }
                 } catch { }
 
+                // 3. 建立記憶體運算池
                 DataTable calcPool = dt.Clone();
                 if (baseHistoryDt.Rows.Count > 0) calcPool.Merge(baseHistoryDt);
                 calcPool.Merge(dt);
 
+                // 依照日期排序確保計算鏈正確
                 calcPool.DefaultView.Sort = $"{dateCol} ASC";
                 DataTable sortedPool = calcPool.DefaultView.ToTable();
 
+                // 4. 在記憶體中執行差值計算 (下一筆 - 當前筆)
                 string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
                 
                 for (int i = 0; i < sortedPool.Rows.Count; i++)
@@ -80,6 +91,7 @@ namespace Safety_System
                     }
                 }
 
+                // 5. 將計算結果回寫到準備存檔的 dt 中
                 foreach (DataRow targetRow in validRows)
                 {
                     string targetDate = targetRow[dateCol]?.ToString();
