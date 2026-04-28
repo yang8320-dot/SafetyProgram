@@ -93,26 +93,46 @@ namespace Safety_System
             
             if (columns.Contains("月份")) 
             {
-                try { DataManager.RenameColumn(_dbName, _tableName, "月份", "年月"); columns = DataManager.GetColumnNames(_dbName, _tableName); } catch { }
+                try 
+                {
+                    DataManager.RenameColumn(_dbName, _tableName, "月份", "年月");
+                    columns = DataManager.GetColumnNames(_dbName, _tableName); 
+                } 
+                catch { }
             }
 
             if (columns.Contains("日期")) 
             { 
-                _timeMode = TimeMode.Date; _dateColumnName = "日期"; 
+                _timeMode = TimeMode.Date; 
+                _dateColumnName = "日期"; 
                 if (!columns.Contains("星期")) DataManager.AddColumn(_dbName, _tableName, "星期");
             }
             else if (columns.Contains("年月")) 
             { 
-                _timeMode = TimeMode.YearMonth; _dateColumnName = "年月"; 
+                _timeMode = TimeMode.YearMonth; 
+                _dateColumnName = "年月"; 
             }
             else 
             {
                 string altDate = columns.FirstOrDefault(c => c.Contains("日期"));
-                if (altDate != null) { _timeMode = TimeMode.Date; _dateColumnName = altDate; }
-                else {
+                if (altDate != null) 
+                { 
+                    _timeMode = TimeMode.Date; 
+                    _dateColumnName = altDate; 
+                }
+                else 
+                {
                     altDate = columns.FirstOrDefault(c => c.Contains("年月"));
-                    if (altDate != null) { _timeMode = TimeMode.YearMonth; _dateColumnName = altDate; }
-                    else { _timeMode = TimeMode.Date; _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id"; }
+                    if (altDate != null) 
+                    { 
+                        _timeMode = TimeMode.YearMonth; 
+                        _dateColumnName = altDate; 
+                    }
+                    else 
+                    { 
+                        _timeMode = TimeMode.Date; 
+                        _dateColumnName = columns.FirstOrDefault(c => c != "Id") ?? "Id"; 
+                    }
                 }
             }
 
@@ -136,31 +156,50 @@ namespace Safety_System
 
             int currentYear = DateTime.Now.Year;
             for (int i = currentYear - 25; i <= currentYear + 25; i++) {
-                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i);
+                _cboStartYear.Items.Add(i); 
+                _cboEndYear.Items.Add(i);
             }
             for (int i = 1; i <= 12; i++) {
-                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2"));
+                _cboStartMonth.Items.Add(i.ToString("D2")); 
+                _cboEndMonth.Items.Add(i.ToString("D2"));
             }
             for (int i = 1; i <= 31; i++) {
-                _cboStartDay.Items.Add(i.ToString("D2")); _cboEndDay.Items.Add(i.ToString("D2"));
+                _cboStartDay.Items.Add(i.ToString("D2")); 
+                _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
-            if (_timeMode == TimeMode.YearMonth) SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-6));
-            else SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+            if (_timeMode == TimeMode.YearMonth) 
+            {
+                SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddMonths(-6));
+            }
+            else 
+            {
+                SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddDays(-30));
+            }
+            
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
+            // 🟢 按鈕事件改為觸發保留狀態的重載
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
-            _btnRead.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.DateRange; await ReloadCurrentDataAsync(); };
+            _btnRead.Click += async (s, e) => { 
+                _isFirstLoad = false; 
+                _currentSearchMode = SearchMode.DateRange; 
+                await ReloadCurrentDataAsync(); 
+            };
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.Click += BtnSave_Click; 
             
-            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(130, 35) }; _btnExport.Click += BtnExport_Click;
-            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35) }; _btnImport.Click += BtnImportExcel_Click;
+            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(130, 35) }; 
+            _btnExport.Click += BtnExport_Click;
+
+            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35) }; 
+            _btnImport.Click += BtnImportExcel_Click;
+
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 10, 0) };
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            _btnColSettings = new Button { Text = "👁️ 欄位顯示設定", Size = new Size(180, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White };
+            _btnColSettings = new Button { Text = "👁️ 欄位顯示設定", Size = new Size(180, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, Margin = new Padding(0, 0, 0, 0) };
             _btnColSettings.Click += BtnColSettings_Click;
 
             _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(160, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
@@ -177,7 +216,8 @@ namespace Safety_System
             Label lblEM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblED = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
 
-            if (_timeMode == TimeMode.YearMonth) {
+            if (_timeMode == TimeMode.YearMonth) 
+            {
                 _cboStartDay.Visible = false; lblSD.Visible = false;
                 _cboEndDay.Visible = false; lblED.Visible = false;
             }
@@ -187,54 +227,91 @@ namespace Safety_System
                 lblTilde, _cboEndYear, lblEY, _cboEndMonth, lblEM, _cboEndDay, lblED,
                 _btnRead, _btnExport, _btnImport, _btnToggle, _btnSave
             });
+
             boxTop.Controls.Add(row1);
 
             _boxAdvanced = new GroupBox { Text = "進階欄位與權限操作", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray, Margin = new Padding(0, 0, 0, 10) };
             FlowLayoutPanel flpAdv = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+            
             Label lblAdvOps = new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             _txtNewColName = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
             
-            // 🟢 新增欄位 (需 Lv2 權限)
+            // 🟢 新增欄位 (無縫更新)
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35), Margin = new Padding(0, 0, 15, 0) };
-            bAdd.Click += async (s, e) => { 
+            bAdd.Click += (s, e) => { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
-                { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await ReloadCurrentDataAsync(); _txtNewColName.Clear(); } 
+                { 
+                    string newCol = _txtNewColName.Text;
+                    DataManager.AddColumn(_dbName, _tableName, newCol); 
+                    
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    if (!dt.Columns.Contains(newCol)) {
+                        dt.Columns.Add(newCol, typeof(string));
+                    }
+                    ApplyGridStyles();
+                    UpdateCboColumns();
+                    _txtNewColName.Clear(); 
+                    MessageBox.Show("欄位新增成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } 
             };
             
             _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
             _txtRenameCol = new TextBox { Width = 110, Margin = new Padding(0, 4, 5, 0) };
             
-            // 🟢 修改名稱 (需 Lv2 權限)
+            // 🟢 修改欄位名稱 (無縫更新)
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35), Margin = new Padding(0, 0, 5, 0) };
-            bRen.Click += async (s, e) => { 
+            bRen.Click += (s, e) => { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
-                { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await ReloadCurrentDataAsync(); _txtRenameCol.Clear(); } 
+                { 
+                    string oldName = _cboColumns.SelectedItem.ToString();
+                    string newName = _txtRenameCol.Text;
+                    DataManager.RenameColumn(_dbName, _tableName, oldName, newName); 
+                    
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    if (dt.Columns.Contains(oldName)) dt.Columns[oldName].ColumnName = newName;
+                    if (_dgv.Columns.Contains(oldName)) {
+                        _dgv.Columns[oldName].HeaderText = newName;
+                        _dgv.Columns[oldName].Name = newName;
+                    }
+                    UpdateCboColumns();
+                    _txtRenameCol.Clear(); 
+                    MessageBox.Show("欄位名稱修改成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } 
             };
             
-            // 🟢 刪除整欄 (需 Lv2 權限)
+            // 🟢 刪除整欄 (無縫更新)
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
-            bDelCol.Click += async (s, e) => { 
+            bDelCol.Click += (s, e) => { 
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
-                { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                  { DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await ReloadCurrentDataAsync(); } } 
+                { 
+                    string colToDrop = _cboColumns.SelectedItem.ToString();
+                    if(MessageBox.Show($"確定刪除整欄【{colToDrop}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    { 
+                        DataManager.DropColumn(_dbName, _tableName, colToDrop); 
+                        
+                        DataTable dt = (DataTable)_dgv.DataSource;
+                        if (dt.Columns.Contains(colToDrop)) dt.Columns.Remove(colToDrop);
+                        if (_dgv.Columns.Contains(colToDrop)) _dgv.Columns.Remove(colToDrop);
+                        
+                        UpdateCboColumns();
+                        MessageBox.Show("欄位刪除成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                } 
             };
             
-            // 🟢 刪除選取列 (維持 Lv1，並加入刪除後背景自動重算)
+            // 🟢 刪除選取列 (無縫更新)
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(130, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
-            bDelRow.Click += async (s, e) => {
+            bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
                 if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
                 {
                     if (AuthManager.VerifyUser()) 
                     {
-                        string minDelDate = "";
+                        DataTable dt = (DataTable)_dgv.DataSource;
                         foreach (var r in selectedRows) 
                         {
-                            string d = r.Cells[_dateColumnName].Value?.ToString();
-                            if (string.IsNullOrEmpty(minDelDate) || string.Compare(d, minDelDate) < 0) minDelDate = d;
-
                             if (_dgv.Columns.Contains("附件檔案")) 
                             {
                                 string relPathStr = r.Cells["附件檔案"].Value?.ToString();
@@ -244,14 +321,14 @@ namespace Safety_System
                                     foreach (var p in paths) DeletePhysicalFile(p, r.Index);
                                 }
                             }
-                            DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                            int id = Convert.ToInt32(r.Cells["Id"].Value);
+                            DataManager.DeleteRecord(_dbName, _tableName, id);
+                            
+                            DataRow rowToDelete = dt.Rows.Cast<DataRow>().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
+                            if (rowToDelete != null) rowToDelete.Delete();
                         }
-
-                        // 刪除完成後，觸發背景重算並刷新畫面
-                        SetUIState(false, "資料刪除並重新計算中...", Color.Orange);
-                        await Task.Run(() => RunBackgroundRecalculationByDate(minDelDate));
-                        await ReloadCurrentDataAsync(); 
-                        MessageBox.Show("刪除成功，相關數據已重新計算完成！");
+                        dt.AcceptChanges(); // 套用變更，讓畫面立刻刷新而不需要查 DB
+                        MessageBox.Show("刪除成功！");
                     }
                 }
             };
@@ -266,7 +343,9 @@ namespace Safety_System
             bLimitRead.Click += async (s, e) => { 
                 if (int.TryParse(txtLimit.Text, out int l)) 
                 { 
-                    _isFirstLoad = false; _currentSearchMode = SearchMode.Limit; _currentLimit = l;
+                    _isFirstLoad = false;
+                    _currentSearchMode = SearchMode.Limit;
+                    _currentLimit = l;
                     await ReloadCurrentDataAsync();
                 } 
             };
@@ -278,7 +357,11 @@ namespace Safety_System
             _txtSearchKeyword = new TextBox { Width = 180, Margin = new Padding(0, 4, 5, 0) };
             
             _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 0, 0) };
-            _btnAdvancedSearch.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.Advanced; await ReloadCurrentDataAsync(); };
+            _btnAdvancedSearch.Click += async (s, e) => {
+                _isFirstLoad = false;
+                _currentSearchMode = SearchMode.Advanced;
+                await ReloadCurrentDataAsync();
+            };
             
             rowAdv2.Controls.AddRange(new Control[] { lblLimit, txtLimit, bLimitRead, lblSearchData, _cboSearchColumn, lblKeyword, _txtSearchKeyword, _btnAdvancedSearch });
 
@@ -325,65 +408,11 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 智慧型背景水資源資料重算機制 (修正編譯錯誤)
-        // ==========================================
-        private void RunBackgroundRecalculationByDate(string triggerDateStr)
-        {
-            if (string.IsNullOrEmpty(triggerDateStr)) return;
-            
-            try 
-            {
-                DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
-                allData.DefaultView.Sort = $"{_dateColumnName} ASC";
-                DataTable sortedData = allData.DefaultView.ToTable();
-
-                int startIndex = 0;
-                for (int i = 0; i < sortedData.Rows.Count; i++)
-                {
-                    if (string.Compare(sortedData.Rows[i][_dateColumnName].ToString(), triggerDateStr) >= 0)
-                    {
-                        startIndex = Math.Max(0, i - 10);
-                        break;
-                    }
-                }
-
-                DataTable dtToRecalc = sortedData.Clone();
-                for (int i = startIndex; i < sortedData.Rows.Count; i++)
-                {
-                    dtToRecalc.ImportRow(sortedData.Rows[i]);
-                }
-
-                if (_calcHelper != null) 
-                {
-                    _calcHelper.RecalculateTable(dtToRecalc);
-                }
-
-                for (int i = 0; i < dtToRecalc.Rows.Count; i++)
-                {
-                    int targetRowId = Convert.ToInt32(dtToRecalc.Rows[i]["Id"]);
-                    // 🟢 修正：使用 Rows.Cast<DataRow>() 替代 AsEnumerable()
-                    DataRow targetRow = sortedData.Rows.Cast<DataRow>().FirstOrDefault(r => Convert.ToInt32(r["Id"]) == targetRowId);
-                    
-                    if (targetRow != null)
-                    {
-                        foreach (DataColumn col in dtToRecalc.Columns)
-                        {
-                            if (col.ColumnName == "Id" || col.ColumnName == _dateColumnName) continue;
-                            targetRow[col.ColumnName] = dtToRecalc.Rows[i][col.ColumnName];
-                        }
-                    }
-                }
-
-                DataManager.BulkSaveTable(_dbName, _tableName, sortedData);
-            }
-            catch { }
-        }
-
-        // ==========================================
         // 🟢 狀態保持與重載機制 ( ReloadCurrentDataAsync )
         // ==========================================
         private async Task ReloadCurrentDataAsync()
         {
+            // 1. 記錄目前的捲動位置與選取狀態
             int firstRowIndex = -1;
             int selectedRowIndex = -1;
             int selectedColIndex = -1;
@@ -396,6 +425,7 @@ namespace Safety_System
                 }
             }
 
+            // 2. 根據目前的查詢模式，重載資料庫
             if (_currentSearchMode == SearchMode.Advanced) {
                 await ExecuteAdvancedSearchAsync();
             } else if (_currentSearchMode == SearchMode.Limit) {
@@ -404,6 +434,7 @@ namespace Safety_System
                 await LoadGridDataAsync();
             }
 
+            // 3. 恢復捲動位置與選取狀態
             try {
                 if (firstRowIndex >= 0 && firstRowIndex < _dgv.Rows.Count)
                     _dgv.FirstDisplayedScrollingRowIndex = firstRowIndex;
@@ -413,7 +444,7 @@ namespace Safety_System
                     _dgv.CurrentCell = _dgv.Rows[selectedRowIndex].Cells[selectedColIndex];
                     _dgv.Rows[selectedRowIndex].Selected = true;
                 }
-            } catch { } 
+            } catch { } // 避免因為資料量變少導致索引越界
         }
 
         // ==========================================
@@ -1202,40 +1233,19 @@ namespace Safety_System
 
                 DataTable dt = (DataTable)_dgv.DataSource;
                 bool success = false;
-                string minDate = ""; // 紀錄最小的修改日期用作背景計算基準
                 
                 await Task.Run(() => {
                     EnforceDateFormats(dt); 
-
-                    // 找出所有修改中最早的那一天，從那天起往後重算
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        if (row.RowState == DataRowState.Added || row.RowState == DataRowState.Modified)
-                        {
-                            string d = row[_dateColumnName]?.ToString() ?? "";
-                            if (!string.IsNullOrEmpty(d) && (string.IsNullOrEmpty(minDate) || string.Compare(d, minDate) < 0))
-                            {
-                                minDate = d;
-                            }
-                        }
-                    }
-
                     SyncAttachmentPaths(dt); 
-                    
-                    // 執行寫入
                     success = DataManager.BulkSaveTable(_dbName, _tableName, dt);
-                    
-                    // 寫入成功且有更動日期，進行全表背景重算
-                    if (success && !string.IsNullOrEmpty(minDate))
-                    {
-                        RunBackgroundRecalculationByDate(minDate);
-                    }
                 });
 
                 if (success) 
                 {
-                    SetUIState(true, "資料儲存與計算成功！", Color.Green);
-                    MessageBox.Show("儲存與計算完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    SetUIState(true, "資料儲存成功！", Color.Green);
+                    MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    // 🟢 存檔後使用 ReloadCurrentDataAsync，保留使用者的查詢條件與 Scroll 位置
                     await ReloadCurrentDataAsync(); 
                 } 
                 else 
