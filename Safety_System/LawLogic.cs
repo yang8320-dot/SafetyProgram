@@ -14,12 +14,10 @@ namespace Safety_System
 
         public override void InitializeSchema(string dbName, string tableName)
         {
-            // 確保特有欄位存在
             var existingCols = DataManager.GetColumnNames(dbName, tableName);
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(dbName, tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(dbName, tableName, "有潛在不符合風險");
 
-            // 確保目錄表存在
             DataManager.InitTable(dbName, DirectoryTableName, $@"CREATE TABLE IF NOT EXISTS [{DirectoryTableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, [選項類別] TEXT, [流水號] TEXT, [法規名稱] TEXT, [日期] TEXT, 
                 [適用性] TEXT, [鑑別日期] TEXT, [再次確認日期] TEXT);");
@@ -27,7 +25,6 @@ namespace Safety_System
 
         public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt)
         {
-            // 🚀 防止重複寫入 (Upsert)：比對「法規名稱+條+內容」
             await Task.Run(() =>
             {
                 DataTable dbData = DataManager.GetTableData(dbName, tableName, "", "", "");
@@ -44,7 +41,6 @@ namespace Safety_System
                 foreach (DataRow row in dt.Rows) {
                     if (row.RowState == DataRowState.Deleted) continue;
                     
-                    // 若已有 ID 代表是更新，跳過
                     if (row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0)
                         continue;
 
@@ -54,7 +50,6 @@ namespace Safety_System
                     string key = $"{name}_|{article}_|{content}";
 
                     if (existingDict.ContainsKey(key)) {
-                        // 暫時解鎖 Id 欄位並填入現有 Id，讓 BulkSaveTable 知道要執行 Update
                         bool isReadOnly = row.Table.Columns["Id"].ReadOnly;
                         row.Table.Columns["Id"].ReadOnly = false;
                         row["Id"] = existingDict[key];
@@ -68,7 +63,6 @@ namespace Safety_System
 
         public override async Task OnAfterSaveAsync(string dbName, string tableName, DataTable dt)
         {
-            // 🚀 存檔後非同步彙整「法規目錄一覽表」
             await Task.Run(() =>
             {
                 DataTable dtMain = DataManager.GetTableData(dbName, tableName, "", "", "");
@@ -137,7 +131,6 @@ namespace Safety_System
                     index++;
                 }
 
-                // 刪除已不存在的法規目錄
                 foreach (var kvp in existingDirDict) {
                     if (!processedNames.Contains(kvp.Key)) {
                         int idToDelete = Convert.ToInt32(kvp.Value["Id"]);
