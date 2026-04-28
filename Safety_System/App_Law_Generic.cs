@@ -30,7 +30,7 @@ namespace Safety_System
         private Button _btnAdvancedSearch;
         private Button _btnRtfToExcel;
 
-        // 🟢 新增：UI 狀態提示列
+        // UI 狀態提示列
         private Label _lblStatus;
 
         private bool _isFirstLoad = true;
@@ -82,14 +82,12 @@ namespace Safety_System
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(_dbName, _tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(_dbName, _tableName, "有潛在不符合風險");
 
-            // 🟢 優化 1：TableLayoutPanel 加入 Padding，完美排版
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 給狀態列      
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 🟢 優化 2：Margin 下推 10px 隔開距離
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
             
             FlowLayoutPanel flpTopContainer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
@@ -224,10 +222,8 @@ namespace Safety_System
                 _btnToggle.BackColor = boxOps.Visible ? Color.LightCoral : Color.LightGray; 
             };
 
-            // 🟢 新增：UI 防呆狀態列
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 優化 3：支援自動適應列高 AutoSizeRowsMode.AllCells
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
@@ -242,7 +238,7 @@ namespace Safety_System
             _dgv.KeyDown += Dgv_KeyDown; 
             _dgv.CellClick += Dgv_CellClick;
             
-            // 🟢 支援鍵盤直接輸入與換行
+            // 支援鍵盤直接輸入與換行
             _dgv.KeyPress += Dgv_KeyPress;
 
             main.Controls.Add(boxTop, 0, 0); 
@@ -250,13 +246,12 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
             
-            // 🟢 啟動時非同步載入，加上棄洞消除警告
             _ = LoadGridDataAsync(); 
             return main;
         }
 
         // ==========================================
-        // 🟢 支援按鍵直接輸入 & Alt+Enter 換行
+        // 支援按鍵直接輸入 & Alt+Enter 換行
         // ==========================================
         private void Dgv_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -291,7 +286,7 @@ namespace Safety_System
         // ==========================================
 
         // ==========================================
-        // 🟢 狀態與日期強制格式化管理
+        // 狀態與日期強制格式化管理
         // ==========================================
         private void SetUIState(bool isEnabled, string statusText, Color statusColor)
         {
@@ -327,7 +322,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 核心資料載入 (加入非同步優化)
+        // 核心資料載入 (包含進階查詢修正)
         // ==========================================
         private async Task LoadGridDataAsync() {
             SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
@@ -373,10 +368,11 @@ namespace Safety_System
                     if (keyword == "有鍵入資料者") {
                         dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
                     }
-                    else if ((searchCol == "適用性" || searchCol == "鑑別日期") && string.IsNullOrWhiteSpace(keyword)) {
+                    // 🟢 核心修正：當關鍵字為空時，過濾出該欄位為空值或 NULL 的資料，且不限特定欄位
+                    else if (string.IsNullOrWhiteSpace(keyword)) {
                         dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
                     }
-                    else if (!string.IsNullOrWhiteSpace(keyword)) {
+                    else {
                         dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
                     }
                 }
@@ -416,7 +412,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 核心儲存邏輯 (完整保留原有法規目錄與重複比對)
+        // 核心儲存邏輯 (完整保留原有法規目錄與重複比對)
         // ==========================================
         private async void BtnSave_Click(object sender, EventArgs e)
         {
@@ -693,13 +689,11 @@ namespace Safety_System
                 if (_dgv.Columns.Contains(kvp.Key)) {
                     _dgv.Columns[kvp.Key].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                     _dgv.Columns[kvp.Key].Width = kvp.Value; 
-                    // 🟢 確保啟用換行
                     _dgv.Columns[kvp.Key].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
         }
 
-        // 🟢 將 TextBox_KeyDown 綁定到編輯中的控制項，支援 Alt+Enter
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
         {
             if (e.Control is ComboBox cbo) { cbo.DropDownStyle = ComboBoxStyle.DropDownList; }
