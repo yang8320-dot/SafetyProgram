@@ -14,6 +14,10 @@ namespace Safety_System
 {
     public class App_Law_Generic
     {
+        // 🟢 搜尋模式列舉，用於保留使用者查詢狀態
+        private enum SearchMode { DateRange, Advanced }
+        private SearchMode _currentSearchMode = SearchMode.DateRange;
+
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
@@ -21,7 +25,6 @@ namespace Safety_System
         private TextBox _txtNewColName, _txtRenameCol;
         private ComboBox _cboColumns;
         
-        // 將按鈕提至全域以利狀態控制
         private Button _btnToggle;     
         private Button _btnSave; 
         private Button _btnRead;
@@ -30,7 +33,6 @@ namespace Safety_System
         private Button _btnAdvancedSearch;
         private Button _btnRtfToExcel;
 
-        // UI 狀態提示列
         private Label _lblStatus;
 
         private bool _isFirstLoad = true;
@@ -85,7 +87,7 @@ namespace Safety_System
             TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize));      
-            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 給狀態列      
+            main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             GroupBox boxTop = new GroupBox { Text = $"法規管理 (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
@@ -119,8 +121,13 @@ namespace Safety_System
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, DateTime.Today.AddYears(-1));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
+            // 🟢 按鈕事件改為觸發保留狀態的重載
             _btnRead = new Button { Text = "區間讀取", Size = new Size(100, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
-            _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
+            _btnRead.Click += async (s, e) => { 
+                _isFirstLoad = false; 
+                _currentSearchMode = SearchMode.DateRange; 
+                await ReloadCurrentDataAsync(); 
+            };
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Margin = new Padding(5, 0, 0, 0) };
             _btnSave.Click += BtnSave_Click; 
@@ -157,8 +164,13 @@ namespace Safety_System
                 }
             };
 
+            // 🟢 按鈕事件改為觸發保留狀態的重載
             _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
-            _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
+            _btnAdvancedSearch.Click += async (s, e) => {
+                _isFirstLoad = false;
+                _currentSearchMode = SearchMode.Advanced;
+                await ReloadCurrentDataAsync();
+            };
 
             _btnRtfToExcel = new Button { Text = "📄 全國法規 RTF 轉 EXCEL", Size = new Size(240, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
             _btnRtfToExcel.Click += BtnRtfToExcel_Click;
@@ -182,19 +194,68 @@ namespace Safety_System
             FlowLayoutPanel row2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             _txtNewColName = new TextBox { Width = 120 };
             
+            // 🟢 新增欄位 (無縫更新)
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35) }; 
-            bAdd.Click += async (s, e) => { if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await LoadGridDataAsync(); _txtNewColName.Clear(); } };
+            bAdd.Click += (s, e) => { 
+                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { 
+                    string newCol = _txtNewColName.Text;
+                    DataManager.AddColumn(_dbName, _tableName, newCol); 
+                    
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    if (!dt.Columns.Contains(newCol)) {
+                        dt.Columns.Add(newCol, typeof(string));
+                    }
+                    ApplyGridFormatting(); 
+                    _txtNewColName.Clear(); 
+                    MessageBox.Show("欄位新增成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } 
+            };
             
             _cboColumns = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList }; _txtRenameCol = new TextBox { Width = 120 };
             
+            // 🟢 修改名稱 (無縫更新)
             Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35) }; 
-            bRen.Click += async (s, e) => { if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await LoadGridDataAsync(); _txtRenameCol.Clear(); } };
+            bRen.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { 
+                    string oldName = _cboColumns.SelectedItem.ToString();
+                    string newName = _txtRenameCol.Text;
+                    DataManager.RenameColumn(_dbName, _tableName, oldName, newName); 
+                    
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    if (dt.Columns.Contains(oldName)) dt.Columns[oldName].ColumnName = newName;
+                    if (_dgv.Columns.Contains(oldName)) {
+                        _dgv.Columns[oldName].HeaderText = newName;
+                        _dgv.Columns[oldName].Name = newName;
+                    }
+                    UpdateCboColumns();
+                    _txtRenameCol.Clear(); 
+                    MessageBox.Show("欄位名稱修改成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } 
+            };
             
+            // 🟢 刪除整欄 (無縫更新)
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White };
-            bDelCol.Click += async (s, e) => { if (_cboColumns.SelectedItem != null) { string colToDrop = _cboColumns.SelectedItem.ToString(); if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { if (AuthManager.VerifyAdmin()) { DataManager.DropColumn(_dbName, _tableName, colToDrop); await LoadGridDataAsync(); } } } };
+            bDelCol.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null) { 
+                    string colToDrop = _cboColumns.SelectedItem.ToString(); 
+                    if (MessageBox.Show(Form.ActiveForm, $"警告：確定要刪除整欄【{colToDrop}】嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) { 
+                        if (AuthManager.VerifyAdmin()) { 
+                            DataManager.DropColumn(_dbName, _tableName, colToDrop); 
+                            
+                            DataTable dt = (DataTable)_dgv.DataSource;
+                            if (dt.Columns.Contains(colToDrop)) dt.Columns.Remove(colToDrop);
+                            if (_dgv.Columns.Contains(colToDrop)) _dgv.Columns.Remove(colToDrop);
+                            
+                            UpdateCboColumns();
+                            MessageBox.Show("欄位刪除成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        } 
+                    } 
+                } 
+            };
             
+            // 🟢 刪除選取列 (無縫更新)
             Button bDelRow = new Button { Text = "🗑️ 刪除選取列", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White }; 
-            bDelRow.Click += async (s, e) => {
+            bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
                                        .Select(c => c.OwningRow)
                                        .Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value)
@@ -203,8 +264,15 @@ namespace Safety_System
                 if (selectedRows.Count > 0) {
                     if (MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後將立即生效)", "確認刪除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                         if (AuthManager.VerifyUser()) {
-                            foreach (var r in selectedRows) DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
-                            await LoadGridDataAsync();
+                            DataTable dt = (DataTable)_dgv.DataSource;
+                            foreach (var r in selectedRows) {
+                                int id = Convert.ToInt32(r.Cells["Id"].Value);
+                                DataManager.DeleteRecord(_dbName, _tableName, id);
+                                
+                                DataRow rowToDelete = dt.AsEnumerable().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
+                                if (rowToDelete != null) rowToDelete.Delete();
+                            }
+                            dt.AcceptChanges(); // 套用變更，讓畫面立刻刷新而不需要查 DB
                             MessageBox.Show("刪除成功！");
                         }
                     }
@@ -238,7 +306,6 @@ namespace Safety_System
             _dgv.KeyDown += Dgv_KeyDown; 
             _dgv.CellClick += Dgv_CellClick;
             
-            // 支援鍵盤直接輸入與換行
             _dgv.KeyPress += Dgv_KeyPress;
 
             main.Controls.Add(boxTop, 0, 0); 
@@ -246,8 +313,46 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
             
-            _ = LoadGridDataAsync(); 
+            _ = ReloadCurrentDataAsync(); 
             return main;
+        }
+
+        // ==========================================
+        // 🟢 狀態保持與重載機制 ( ReloadCurrentDataAsync )
+        // ==========================================
+        private async Task ReloadCurrentDataAsync()
+        {
+            // 1. 記錄目前的捲動位置與選取狀態
+            int firstRowIndex = -1;
+            int selectedRowIndex = -1;
+            int selectedColIndex = -1;
+            
+            if (_dgv.Rows.Count > 0 && !_isFirstLoad) {
+                firstRowIndex = _dgv.FirstDisplayedScrollingRowIndex;
+                if (_dgv.CurrentCell != null) {
+                    selectedRowIndex = _dgv.CurrentCell.RowIndex;
+                    selectedColIndex = _dgv.CurrentCell.ColumnIndex;
+                }
+            }
+
+            // 2. 根據目前的查詢模式，重載資料庫
+            if (_currentSearchMode == SearchMode.Advanced) {
+                await ExecuteAdvancedSearchAsync();
+            } else {
+                await LoadGridDataAsync();
+            }
+
+            // 3. 恢復捲動位置與選取狀態
+            try {
+                if (firstRowIndex >= 0 && firstRowIndex < _dgv.Rows.Count)
+                    _dgv.FirstDisplayedScrollingRowIndex = firstRowIndex;
+                
+                if (selectedRowIndex >= 0 && selectedRowIndex < _dgv.Rows.Count && selectedColIndex >= 0) {
+                    _dgv.ClearSelection();
+                    _dgv.CurrentCell = _dgv.Rows[selectedRowIndex].Cells[selectedColIndex];
+                    _dgv.Rows[selectedRowIndex].Selected = true;
+                }
+            } catch { } // 避免因為資料量變少導致索引越界
         }
 
         // ==========================================
@@ -368,7 +473,7 @@ namespace Safety_System
                     if (keyword == "有鍵入資料者") {
                         dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
                     }
-                    // 🟢 核心修正：當關鍵字為空時，過濾出該欄位為空值或 NULL 的資料，且不限特定欄位
+                    // 🟢 核心修正：當關鍵字為空時，過濾出該欄位為空值或 NULL 的資料
                     else if (string.IsNullOrWhiteSpace(keyword)) {
                         dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
                     }
@@ -438,7 +543,9 @@ namespace Safety_System
                 if (success) {
                     SetUIState(true, "儲存完成！(含法規目錄一覽表同步更新)", Color.Green);
                     MessageBox.Show(Form.ActiveForm, "儲存/更新 完成！(已啟用 Transaction 交易機制)\n\n✅ 背景執行寫入目錄一覽表完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadGridDataAsync(); 
+                    
+                    // 🟢 存檔後使用 ReloadCurrentDataAsync，保留使用者的查詢條件與 Scroll 位置
+                    await ReloadCurrentDataAsync(); 
                 } else {
                     SetUIState(true, "儲存失敗", Color.Red);
                 }
