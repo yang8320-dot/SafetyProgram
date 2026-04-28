@@ -20,6 +20,11 @@ namespace Safety_System
         private enum TimeMode { Date, YearMonth, Year }
         private TimeMode _timeMode = TimeMode.Date;
 
+        // 🟢 搜尋模式列舉，用於保留使用者查詢狀態
+        private enum SearchMode { DateRange, Limit, Advanced }
+        private SearchMode _currentSearchMode = SearchMode.DateRange;
+        private int _currentLimit = 100;
+
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
@@ -73,7 +78,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 🟢 改為從 TableSchemaManager 讀取統一結構 (Fallback 邏輯)
             string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) 
                             ? TableSchemaManager.SchemaMap[_tableName] 
                             : TableSchemaManager.DefaultCustomSchema;
@@ -186,8 +190,13 @@ namespace Safety_System
             
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
+            // 🟢 按鈕事件改為觸發保留狀態的重載
             _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
-            _btnRead.Click += async (s, e) => { _isFirstLoad = false; await LoadGridDataAsync(); };
+            _btnRead.Click += async (s, e) => { 
+                _isFirstLoad = false; 
+                _currentSearchMode = SearchMode.DateRange; 
+                await ReloadCurrentDataAsync(); 
+            };
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.Click += BtnSave_Click; 
@@ -246,34 +255,79 @@ namespace Safety_System
             
             Label lblAdvOps = new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             _txtNewColName = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
+            
+            // 🟢 新增欄位 (無縫更新)
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(100, 35), Margin = new Padding(0, 0, 15, 0) };
-            bAdd.Click += async (s, e) => { 
+            bAdd.Click += (s, e) => { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyUser()) 
-                { DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); await LoadGridDataAsync(); _txtNewColName.Clear(); } 
+                { 
+                    string newCol = _txtNewColName.Text;
+                    DataManager.AddColumn(_dbName, _tableName, newCol); 
+                    
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    if (!dt.Columns.Contains(newCol)) {
+                        dt.Columns.Add(newCol, typeof(string));
+                    }
+                    ApplyGridStyles();
+                    UpdateCboColumns();
+                    _txtNewColName.Clear(); 
+                    MessageBox.Show("欄位新增成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } 
             };
             
             _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
             _txtRenameCol = new TextBox { Width = 110, Margin = new Padding(0, 4, 5, 0) };
+            
+            // 🟢 修改欄位名稱 (無縫更新)
             Button bRen = new Button { Text = "修改名稱", Size = new Size(100, 35), Margin = new Padding(0, 0, 5, 0) };
-            bRen.Click += async (s, e) => { 
+            bRen.Click += (s, e) => { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyUser()) 
-                { DataManager.RenameColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString(), _txtRenameCol.Text); await LoadGridDataAsync(); _txtRenameCol.Clear(); } 
+                { 
+                    string oldName = _cboColumns.SelectedItem.ToString();
+                    string newName = _txtRenameCol.Text;
+                    DataManager.RenameColumn(_dbName, _tableName, oldName, newName); 
+                    
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    if (dt.Columns.Contains(oldName)) dt.Columns[oldName].ColumnName = newName;
+                    if (_dgv.Columns.Contains(oldName)) {
+                        _dgv.Columns[oldName].HeaderText = newName;
+                        _dgv.Columns[oldName].Name = newName;
+                    }
+                    UpdateCboColumns();
+                    _txtRenameCol.Clear(); 
+                    MessageBox.Show("欄位名稱修改成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } 
             };
             
+            // 🟢 刪除整欄 (無縫更新)
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(100, 35), BackColor = Color.DarkOrange, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
-            bDelCol.Click += async (s, e) => { 
+            bDelCol.Click += (s, e) => { 
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyUser()) 
-                { if(MessageBox.Show($"確定刪除整欄【{_cboColumns.SelectedItem}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                  { DataManager.DropColumn(_dbName, _tableName, _cboColumns.SelectedItem.ToString()); await LoadGridDataAsync(); } } 
+                { 
+                    string colToDrop = _cboColumns.SelectedItem.ToString();
+                    if(MessageBox.Show($"確定刪除整欄【{colToDrop}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    { 
+                        DataManager.DropColumn(_dbName, _tableName, colToDrop); 
+                        
+                        DataTable dt = (DataTable)_dgv.DataSource;
+                        if (dt.Columns.Contains(colToDrop)) dt.Columns.Remove(colToDrop);
+                        if (_dgv.Columns.Contains(colToDrop)) _dgv.Columns.Remove(colToDrop);
+                        
+                        UpdateCboColumns();
+                        MessageBox.Show("欄位刪除成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                } 
             };
             
+            // 🟢 刪除選取列 (無縫更新)
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(130, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
-            bDelRow.Click += async (s, e) => {
+            bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
                 if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(包含所屬的實體附件檔案也將被永久刪除)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
                 {
                     if (AuthManager.VerifyUser()) 
                     {
+                        DataTable dt = (DataTable)_dgv.DataSource;
                         foreach (var r in selectedRows) 
                         {
                             if (_dgv.Columns.Contains("附件檔案")) 
@@ -285,9 +339,14 @@ namespace Safety_System
                                     foreach (var p in paths) DeletePhysicalFile(p, r.Index);
                                 }
                             }
-                            DataManager.DeleteRecord(_dbName, _tableName, Convert.ToInt32(r.Cells["Id"].Value));
+                            int id = Convert.ToInt32(r.Cells["Id"].Value);
+                            DataManager.DeleteRecord(_dbName, _tableName, id);
+                            
+                            DataRow rowToDelete = dt.AsEnumerable().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
+                            if (rowToDelete != null) rowToDelete.Delete();
                         }
-                        await LoadGridDataAsync(); MessageBox.Show("刪除成功！");
+                        dt.AcceptChanges(); // 套用變更，讓畫面立刻刷新而不需要查 DB
+                        MessageBox.Show("刪除成功！");
                     }
                 }
             };
@@ -302,11 +361,10 @@ namespace Safety_System
             bLimitRead.Click += async (s, e) => { 
                 if (int.TryParse(txtLimit.Text, out int l)) 
                 { 
-                    SetUIState(false, "讀取中...", Color.Orange);
-                    DataTable dt = null;
-                    await Task.Run(() => { dt = DataManager.GetLatestRecords(_dbName, _tableName, l); EnforceDateFormats(dt); });
-                    _dgv.DataSource = dt; ApplyGridStyles(); RestoreColumnOrder();
-                    SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
+                    _isFirstLoad = false;
+                    _currentSearchMode = SearchMode.Limit;
+                    _currentLimit = l;
+                    await ReloadCurrentDataAsync();
                 } 
             };
 
@@ -317,7 +375,11 @@ namespace Safety_System
             _txtSearchKeyword = new TextBox { Width = 180, Margin = new Padding(0, 4, 5, 0) };
             
             _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 0, 0) };
-            _btnAdvancedSearch.Click += async (s, e) => await ExecuteAdvancedSearchAsync();
+            _btnAdvancedSearch.Click += async (s, e) => {
+                _isFirstLoad = false;
+                _currentSearchMode = SearchMode.Advanced;
+                await ReloadCurrentDataAsync();
+            };
             
             rowAdv2.Controls.AddRange(new Control[] { lblLimit, txtLimit, bLimitRead, lblSearchData, _cboSearchColumn, lblKeyword, _txtSearchKeyword, _btnAdvancedSearch });
 
@@ -359,10 +421,133 @@ namespace Safety_System
             main.Controls.Add(_lblStatus, 0, 2);
             main.Controls.Add(_dgv, 0, 3);
 
-            _ = LoadGridDataAsync(); 
+            _ = ReloadCurrentDataAsync(); 
             return main;
         }
 
+        // ==========================================
+        // 🟢 狀態保持與重載機制 ( ReloadCurrentDataAsync )
+        // ==========================================
+        private async Task ReloadCurrentDataAsync()
+        {
+            // 1. 記錄目前的捲動位置與選取狀態
+            int firstRowIndex = -1;
+            int selectedRowIndex = -1;
+            int selectedColIndex = -1;
+            
+            if (_dgv.Rows.Count > 0 && !_isFirstLoad) {
+                firstRowIndex = _dgv.FirstDisplayedScrollingRowIndex;
+                if (_dgv.CurrentCell != null) {
+                    selectedRowIndex = _dgv.CurrentCell.RowIndex;
+                    selectedColIndex = _dgv.CurrentCell.ColumnIndex;
+                }
+            }
+
+            // 2. 根據目前的查詢模式，重載資料庫
+            if (_currentSearchMode == SearchMode.Advanced) {
+                await ExecuteAdvancedSearchAsync();
+            } else if (_currentSearchMode == SearchMode.Limit) {
+                await LoadLimitDataAsync(_currentLimit);
+            } else {
+                await LoadGridDataAsync();
+            }
+
+            // 3. 恢復捲動位置與選取狀態
+            try {
+                if (firstRowIndex >= 0 && firstRowIndex < _dgv.Rows.Count)
+                    _dgv.FirstDisplayedScrollingRowIndex = firstRowIndex;
+                
+                if (selectedRowIndex >= 0 && selectedRowIndex < _dgv.Rows.Count && selectedColIndex >= 0) {
+                    _dgv.ClearSelection();
+                    _dgv.CurrentCell = _dgv.Rows[selectedRowIndex].Cells[selectedColIndex];
+                    _dgv.Rows[selectedRowIndex].Selected = true;
+                }
+            } catch { } // 避免因為資料量變少導致索引越界
+        }
+
+        private async Task LoadGridDataAsync() 
+        {
+            SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
+            DataTable dt = null;
+            
+            string sDate = GetDateString(_cboStartYear, _cboStartMonth, _cboStartDay);
+            string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
+
+            await Task.Run(() => {
+                if (_isFirstLoad) 
+                {
+                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
+                    _isFirstLoad = false;
+                } 
+                else 
+                {
+                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
+                }
+                EnforceDateFormats(dt);
+            });
+
+            _dgv.DataSource = dt;
+            ApplyGridStyles();
+            UpdateCboColumns();
+            RestoreColumnOrder();
+
+            SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
+        }
+
+        private async Task LoadLimitDataAsync(int limit) 
+        {
+            SetUIState(false, "讀取中...", Color.Orange);
+            DataTable dt = null;
+            await Task.Run(() => { 
+                dt = DataManager.GetLatestRecords(_dbName, _tableName, limit); 
+                EnforceDateFormats(dt); 
+            });
+            _dgv.DataSource = dt; 
+            ApplyGridStyles(); 
+            UpdateCboColumns();
+            RestoreColumnOrder();
+            SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
+        }
+
+        private async Task ExecuteAdvancedSearchAsync()
+        {
+            SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
+            
+            string searchCol = _cboSearchColumn.SelectedItem?.ToString();
+            string keyword = _txtSearchKeyword.Text;
+
+            DataTable resultDt = null;
+
+            await Task.Run(() => {
+                DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
+                DataView dv = allData.DefaultView;
+
+                if (!string.IsNullOrEmpty(searchCol)) 
+                {
+                    // 🟢 智慧空值搜尋邏輯
+                    if (string.IsNullOrWhiteSpace(keyword)) {
+                        dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
+                    } else {
+                        dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+                    }
+                }
+                
+                dv.Sort = "Id DESC"; 
+                
+                resultDt = dv.ToTable(); 
+                EnforceDateFormats(resultDt);
+            });
+
+            _dgv.DataSource = resultDt;
+            ApplyGridStyles();
+            UpdateCboColumns();
+            RestoreColumnOrder();
+            SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆符合條件資料", Color.Green);
+        }
+
+        // ==========================================
+        // 欄位寬度與排序管理
+        // ==========================================
         private void LoadColumnWidths()
         {
             _columnWidths.Clear();
@@ -930,71 +1115,6 @@ namespace Safety_System
             }
         }
 
-        private async Task LoadGridDataAsync() 
-        {
-            SetUIState(false, "資料庫讀取中，請稍候...", Color.Orange);
-            DataTable dt = null;
-            
-            string sDate = GetDateString(_cboStartYear, _cboStartMonth, _cboStartDay);
-            string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
-
-            await Task.Run(() => {
-                if (_isFirstLoad) 
-                {
-                    dt = DataManager.GetLatestRecords(_dbName, _tableName, 30);
-                } 
-                else 
-                {
-                    dt = DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
-                }
-                EnforceDateFormats(dt);
-            });
-
-            _dgv.DataSource = dt;
-            ApplyGridStyles();
-            UpdateCboColumns();
-            RestoreColumnOrder();
-
-            _isFirstLoad = false;
-            SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
-        }
-
-        private async Task ExecuteAdvancedSearchAsync()
-        {
-            SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
-            
-            string searchCol = _cboSearchColumn.SelectedItem?.ToString();
-            string keyword = _txtSearchKeyword.Text;
-
-            DataTable resultDt = null;
-
-            await Task.Run(() => {
-                DataTable allData = DataManager.GetTableData(_dbName, _tableName, "", "", "");
-                DataView dv = allData.DefaultView;
-
-                if (!string.IsNullOrEmpty(searchCol)) 
-                {
-                    // 🟢 同步修正：如果關鍵字為空值，則搜尋該欄位為空或 NULL 的資料
-                    if (string.IsNullOrWhiteSpace(keyword)) {
-                        dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
-                    }
-                    else {
-                        dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
-                    }
-                }
-                
-                dv.Sort = "Id DESC"; 
-                
-                resultDt = dv.ToTable(); 
-                EnforceDateFormats(resultDt);
-            });
-
-            _dgv.DataSource = resultDt;
-            ApplyGridStyles();
-            RestoreColumnOrder();
-            SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆符合條件資料", Color.Green);
-        }
-
         private string GetDateString(ComboBox y, ComboBox m, ComboBox d) 
         {
             if (_timeMode == TimeMode.Year) return y.SelectedItem.ToString();
@@ -1043,7 +1163,6 @@ namespace Safety_System
 
         private void SyncAttachmentPaths(DataTable dt) 
         {
-            // 🟢 防呆保護：若資料表沒有附件檔案欄位，則直接跳過附件同步處理
             if (!dt.Columns.Contains("附件檔案")) return;
 
             foreach (DataRow row in dt.Rows) 
@@ -1154,7 +1273,9 @@ namespace Safety_System
                 { 
                     SetUIState(true, "資料儲存成功！", Color.Green); 
                     MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
-                    await LoadGridDataAsync(); 
+                    
+                    // 🟢 存檔後使用 ReloadCurrentDataAsync，保留使用者的查詢條件與 Scroll 位置
+                    await ReloadCurrentDataAsync(); 
                 } 
                 else 
                 { 
