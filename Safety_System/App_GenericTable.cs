@@ -342,7 +342,8 @@ namespace Safety_System
                             int id = Convert.ToInt32(r.Cells["Id"].Value);
                             DataManager.DeleteRecord(_dbName, _tableName, id);
                             
-                            DataRow rowToDelete = dt.AsEnumerable().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
+                            // 🟢 修正 CS0411 錯誤：使用 Cast<DataRow>() 替代 AsEnumerable()
+                            DataRow rowToDelete = dt.Rows.Cast<DataRow>().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
                             if (rowToDelete != null) rowToDelete.Delete();
                         }
                         dt.AcceptChanges(); // 套用變更，讓畫面立刻刷新而不需要查 DB
