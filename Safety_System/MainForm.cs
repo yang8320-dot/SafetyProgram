@@ -206,7 +206,6 @@ namespace Safety_System
             menuISO.DropDownItems.Add(new ToolStripSeparator());
             menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
             
-            // 🟢 新增：環境溝通 子分類
             var menuISOComm = new ToolStripMenuItem("環境溝通");
             menuISOComm.DropDownItems.Add(CreateItem("環境資訊接收管制表", () => new App_GenericTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表").GetView()));
             menuISOComm.DropDownItems.Add(CreateItem("內文聯絡書管制表", () => new App_GenericTable("ISO14001", "InternalComm", "內文聯絡書管制表").GetView()));
@@ -254,7 +253,6 @@ namespace Safety_System
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
 
-            // 🟢 新增：選單管理
             var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
                 new App_MenuManager().ShowDialog(this);
@@ -293,7 +291,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(pwdMgmtItem);
 
-            // 🟢 動態附加使用者建立的「自訂選單」
             AttachCustomMenus(menuReports, menuSafety, menuChemical, menuChemReg, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, _menu1, _menu2, _menu3, _menu4);
 
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
@@ -303,7 +300,6 @@ namespace Safety_System
             });
         }
 
-        // 🟢 載入自訂選單並附加到對應的主選單節點底下
         private void AttachCustomMenus(params ToolStripMenuItem[] mainNodes)
         {
             try {
@@ -316,12 +312,10 @@ namespace Safety_System
                     string dbName = row["資料庫名"].ToString();
                     string tableName = row["資料表名"].ToString();
 
-                    // 找出對應的主選單節點
                     foreach (var node in mainNodes)
                     {
                         if (node.Text == category)
                         {
-                            // 若是第一次加自訂，先塞一條分隔線區隔原生選單
                             bool hasSeparator = false;
                             foreach (ToolStripItem item in node.DropDownItems) {
                                 if (item is ToolStripSeparator && item.Tag != null && item.Tag.ToString() == "CustomDivider") {
@@ -398,12 +392,24 @@ namespace Safety_System
             return item;
         }
 
+        // 🟢 核心修正：強制即時釋放記憶體，避免切換程式時記憶體不斷堆疊
         public void LoadModule(Control moduleControl)
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
             try {
-                _contentPanel.Controls.Clear();
+                // 安全且強制地將舊的畫面控制項 Dispose，釋放綁定的 DataTable 與事件
+                while (_contentPanel.Controls.Count > 0)
+                {
+                    Control ctrl = _contentPanel.Controls[0];
+                    _contentPanel.Controls.Remove(ctrl);
+                    ctrl.Dispose();
+                }
+                
+                // 強制呼叫垃圾回收 (加快系統可用記憶體的釋放)
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
                 moduleControl.Dock = DockStyle.Fill;
                 _contentPanel.Controls.Add(moduleControl);
             } catch (Exception ex) {
