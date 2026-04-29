@@ -260,7 +260,7 @@ namespace Safety_System
             
             _txtNewColName = new TextBox { Width = 110, Margin = new Padding(0, 4, 5, 0) };
             
-            Button bAdd = new Button { Text = "新增欄位", Size = new Size(90, 35), Margin = new Padding(0, 0, 15, 0) };
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35), Margin = new Padding(0, 0, 15, 0) };
             bAdd.Click += (s, e) => 
             { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
@@ -281,7 +281,7 @@ namespace Safety_System
             _cboColumns = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
             _txtRenameCol = new TextBox { Width = 100, Margin = new Padding(0, 4, 5, 0) };
             
-            Button bRen = new Button { Text = "標題更改", Size = new Size(90, 35), Margin = new Padding(0, 0, 5, 0) };
+            Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35), Margin = new Padding(0, 0, 5, 0) };
             bRen.Click += (s, e) => 
             { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
@@ -306,7 +306,7 @@ namespace Safety_System
                 } 
             };
             
-            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(90, 35), BackColor = Color.DarkOrange, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
+            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
             bDelCol.Click += (s, e) => 
             { 
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
@@ -326,7 +326,7 @@ namespace Safety_System
                 } 
             };
             
-            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
+            Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
             bDelRow.Click += (s, e) => 
             {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
@@ -363,10 +363,10 @@ namespace Safety_System
                 }
             };
 
-            _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(110, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 10, 0) };
+            _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 10, 0) };
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White };
+            _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(150, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White };
             _btnColSettings.Click += BtnColSettings_Click;
 
             rowAdv1.Controls.AddRange(new Control[] { 
@@ -411,7 +411,7 @@ namespace Safety_System
 
             if (_logic is LawLogic) 
             {
-                _btnRtfToExcel = new Button { Text = "📄 法規轉 EXCEL", Size = new Size(160, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
+                _btnRtfToExcel = new Button { Text = "📄 法規轉 EXCEL", Size = new Size(200, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
                 _btnRtfToExcel.Click += BtnRtfToExcel_Click;
                 rowAdv2.Controls.Add(_btnRtfToExcel);
             }
