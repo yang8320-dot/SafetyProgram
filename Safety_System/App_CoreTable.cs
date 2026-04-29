@@ -197,13 +197,13 @@ namespace Safety_System
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.Click += BtnSave_Click; 
             
-            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(130, 35) }; 
+            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(160, 35) }; 
             _btnExport.Click += BtnExport_Click;
 
-            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35) }; 
+            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(160, 35) }; 
             _btnImport.Click += BtnImportExcel_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(140, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(160, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
 
             Label lblSY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblSM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
@@ -411,7 +411,7 @@ namespace Safety_System
 
             if (_logic is LawLogic) 
             {
-                _btnRtfToExcel = new Button { Text = "📄 法規轉 EXCEL", Size = new Size(200, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
+                _btnRtfToExcel = new Button { Text = "📄 全國法規RTF 轉 Excel", Size = new Size(240, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
                 _btnRtfToExcel.Click += BtnRtfToExcel_Click;
                 rowAdv2.Controls.Add(_btnRtfToExcel);
             }
