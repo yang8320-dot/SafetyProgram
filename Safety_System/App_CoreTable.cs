@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_CoreTable.cs ///
+/// FILE: Safety_System/App_CoreTable.cs (Part 1) ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -65,15 +65,9 @@ namespace Safety_System
 
         private string GetExpectedFolderName(string rowDateStr)
         {
-            if (string.IsNullOrWhiteSpace(rowDateStr)) 
-                return DateTime.Now.ToString("yyyy-MM");
-
-            if (_timeMode == TimeMode.Year && rowDateStr.Length >= 4) 
-                return rowDateStr.Substring(0, 4);
-
-            if (rowDateStr.Length >= 7) 
-                return rowDateStr.Substring(0, 7);
-
+            if (string.IsNullOrWhiteSpace(rowDateStr)) return DateTime.Now.ToString("yyyy-MM");
+            if (_timeMode == TimeMode.Year && rowDateStr.Length >= 4) return rowDateStr.Substring(0, 4);
+            if (rowDateStr.Length >= 7) return rowDateStr.Substring(0, 7);
             return DateTime.Now.ToString("yyyy-MM");
         }
 
@@ -91,72 +85,32 @@ namespace Safety_System
             LoadColumnWidths(); 
 
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
-            if (columns.Contains("月份")) 
-            {
-                try 
-                { 
-                    DataManager.RenameColumn(_dbName, _tableName, "月份", "年月"); 
-                    columns = DataManager.GetColumnNames(_dbName, _tableName); 
-                } 
-                catch { }
+            if (columns.Contains("月份")) {
+                try { DataManager.RenameColumn(_dbName, _tableName, "月份", "年月"); columns = DataManager.GetColumnNames(_dbName, _tableName); } catch { }
             }
 
-            if (columns.Contains("日期")) 
-            { 
-                _timeMode = TimeMode.Date; 
-                _dateColumnName = "日期"; 
-            }
-            else if (columns.Contains("年月")) 
-            { 
-                _timeMode = TimeMode.YearMonth; 
-                _dateColumnName = "年月"; 
-            }
-            else if (columns.Contains("年度")) 
-            { 
-                _timeMode = TimeMode.Year; 
-                _dateColumnName = "年度"; 
-            }
-            else 
-            {
+            if (columns.Contains("日期")) { _timeMode = TimeMode.Date; _dateColumnName = "日期"; }
+            else if (columns.Contains("年月")) { _timeMode = TimeMode.YearMonth; _dateColumnName = "年月"; }
+            else if (columns.Contains("年度")) { _timeMode = TimeMode.Year; _dateColumnName = "年度"; }
+            else {
                 _dateColumnName = columns.FirstOrDefault(c => c.Contains("日期")) ?? 
                                   columns.FirstOrDefault(c => c.Contains("年月")) ?? 
                                   columns.FirstOrDefault(c => c.Contains("年度")) ?? "Id";
-
                 if (_dateColumnName.Contains("年月")) _timeMode = TimeMode.YearMonth;
                 else if (_dateColumnName.Contains("年度")) _timeMode = TimeMode.Year;
                 else _timeMode = TimeMode.Date;
             }
 
-            TableLayoutPanel main = new TableLayoutPanel 
-            { 
-                Dock = DockStyle.Fill, 
-                RowCount = 4, 
-                Padding = new Padding(15) 
-            };
+            TableLayoutPanel main = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, Padding = new Padding(15) };
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            GroupBox boxTop = new GroupBox 
-            { 
-                Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", 
-                Dock = DockStyle.Fill, 
-                Font = new Font("Microsoft JhengHei UI", 12F), 
-                AutoSize = true, 
-                Padding = new Padding(10, 15, 10, 10), 
-                Margin = new Padding(0, 0, 0, 10) 
-            };
-
-            FlowLayoutPanel row1 = new FlowLayoutPanel 
-            { 
-                Dock = DockStyle.Fill, 
-                AutoSize = true, 
-                WrapContents = true 
-            };
+            GroupBox boxTop = new GroupBox { Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Padding = new Padding(10, 15, 10, 10), Margin = new Padding(0, 0, 0, 10) };
+            FlowLayoutPanel row1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             
             Label lblRange = new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-            
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboStartDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -165,45 +119,42 @@ namespace Safety_System
             _cboEndDay = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
 
             int currentYear = DateTime.Now.Year;
-            for (int i = currentYear - 25; i <= currentYear + 25; i++) 
-            {
-                _cboStartYear.Items.Add(i); 
-                _cboEndYear.Items.Add(i);
+            for (int i = currentYear - 25; i <= currentYear + 25; i++) {
+                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i);
             }
-            
-            for (int i = 1; i <= 12; i++) 
-            {
-                _cboStartMonth.Items.Add(i.ToString("D2")); 
-                _cboEndMonth.Items.Add(i.ToString("D2"));
+            for (int i = 1; i <= 12; i++) {
+                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2"));
             }
-            
-            for (int i = 1; i <= 31; i++) 
-            {
-                _cboStartDay.Items.Add(i.ToString("D2")); 
-                _cboEndDay.Items.Add(i.ToString("D2"));
+            for (int i = 1; i <= 31; i++) {
+                _cboStartDay.Items.Add(i.ToString("D2")); _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, (_timeMode == TimeMode.Date) ? DateTime.Today.AddDays(-30) : DateTime.Today.AddMonths(-6));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), BackColor = Color.WhiteSmoke };
-            _btnRead.Click += async (s, e) => 
-            { 
-                _isFirstLoad = false; 
-                _currentSearchMode = SearchMode.DateRange; 
-                await ReloadCurrentDataAsync(); 
-            };
+            // 🟢 iOS 配色: 讀取資料 (Blue)
+            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(110, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            _btnRead.FlatAppearance.BorderSize = 0;
+            _btnRead.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.DateRange; await ReloadCurrentDataAsync(); };
 
-            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(130, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _btnSave.Click += BtnSave_Click; 
-            
-            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(160, 35) }; 
+            // 🟢 iOS 配色: 匯出 Excel (Green)
+            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
+            _btnExport.FlatAppearance.BorderSize = 0;
             _btnExport.Click += BtnExport_Click;
 
-            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(160, 35) }; 
+            // 🟢 iOS 配色: 匯入 Excel (Orange)
+            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 149, 0), ForeColor = Color.White };
+            _btnImport.FlatAppearance.BorderSize = 0;
             _btnImport.Click += BtnImportExcel_Click;
 
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(160, 35), BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            // 🟢 iOS 配色: 進階管理 (Gray)
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
+            _btnToggle.FlatAppearance.BorderSize = 0;
+
+            // 🟢 iOS 配色: 儲存數據 (Green + Bold)
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnSave.FlatAppearance.BorderSize = 0;
+            _btnSave.Click += BtnSave_Click; 
 
             Label lblSY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblSM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
@@ -213,19 +164,13 @@ namespace Safety_System
             Label lblEM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblED = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
 
-            if (_timeMode == TimeMode.YearMonth || _timeMode == TimeMode.Year) 
-            {
-                _cboStartDay.Visible = false; 
-                lblSD.Visible = false;
-                _cboEndDay.Visible = false; 
-                lblED.Visible = false;
+            if (_timeMode == TimeMode.YearMonth || _timeMode == TimeMode.Year) {
+                _cboStartDay.Visible = false; lblSD.Visible = false;
+                _cboEndDay.Visible = false; lblED.Visible = false;
             }
-            if (_timeMode == TimeMode.Year) 
-            {
-                _cboStartMonth.Visible = false; 
-                lblSM.Visible = false;
-                _cboEndMonth.Visible = false; 
-                lblEM.Visible = false;
+            if (_timeMode == TimeMode.Year) {
+                _cboStartMonth.Visible = false; lblSM.Visible = false;
+                _cboEndMonth.Visible = false; lblEM.Visible = false;
             }
 
             row1.Controls.AddRange(new Control[] {
@@ -236,217 +181,135 @@ namespace Safety_System
 
             boxTop.Controls.Add(row1);
 
-            _boxAdvanced = new GroupBox 
-            { 
-                Text = "進階欄位與權限操作", 
-                Dock = DockStyle.Fill, 
-                Font = new Font("Microsoft JhengHei UI", 11F), 
-                AutoSize = true, 
-                Visible = false, 
-                Padding = new Padding(10, 15, 10, 10), 
-                ForeColor = Color.DimGray, 
-                Margin = new Padding(0, 0, 0, 10) 
-            };
-
-            FlowLayoutPanel flpAdv = new FlowLayoutPanel 
-            { 
-                Dock = DockStyle.Fill, 
-                FlowDirection = FlowDirection.TopDown, 
-                AutoSize = true, 
-                WrapContents = false 
-            };
+            _boxAdvanced = new GroupBox { Text = "進階欄位與權限操作", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), AutoSize = true, Visible = false, Padding = new Padding(10, 15, 10, 10), ForeColor = Color.DimGray, Margin = new Padding(0, 0, 0, 10) };
+            FlowLayoutPanel flpAdv = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
             
-            _txtNewColName = new TextBox { Width = 110, Margin = new Padding(0, 4, 5, 0) };
+            _txtNewColName = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
             
-            Button bAdd = new Button { Text = "新增欄位", Size = new Size(120, 35), Margin = new Padding(0, 0, 15, 0) };
-            bAdd.Click += (s, e) => 
-            { 
-                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) 
-                { 
+            // 🟢 iOS 配色: 新增欄位 (Blue)
+            Button bAdd = new Button { Text = "新增欄位", Size = new Size(110, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            bAdd.FlatAppearance.BorderSize = 0;
+            bAdd.Click += (s, e) => { 
+                if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { 
                     DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); 
                     DataTable dt = (DataTable)_dgv.DataSource;
-                    if (!dt.Columns.Contains(_txtNewColName.Text)) 
-                    {
-                        dt.Columns.Add(_txtNewColName.Text, typeof(string));
-                    }
-                    ApplyGridStyles(); 
-                    UpdateCboColumns(); 
-                    _txtNewColName.Clear(); 
+                    if (!dt.Columns.Contains(_txtNewColName.Text)) dt.Columns.Add(_txtNewColName.Text, typeof(string));
+                    ApplyGridStyles(); UpdateCboColumns(); _txtNewColName.Clear(); 
                     MessageBox.Show("欄位新增成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 } 
             };
             
-            _cboColumns = new ComboBox { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
-            _txtRenameCol = new TextBox { Width = 100, Margin = new Padding(0, 4, 5, 0) };
+            _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
+            _txtRenameCol = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
             
-            Button bRen = new Button { Text = "標題更改", Size = new Size(120, 35), Margin = new Padding(0, 0, 5, 0) };
-            bRen.Click += (s, e) => 
-            { 
-                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) 
-                { 
+            // 🟢 iOS 配色: 標題更改 (Blue)
+            Button bRen = new Button { Text = "標題更改", Size = new Size(110, 35), Margin = new Padding(0, 0, 5, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            bRen.FlatAppearance.BorderSize = 0;
+            bRen.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { 
                     string oldName = _cboColumns.SelectedItem.ToString();
                     DataManager.RenameColumn(_dbName, _tableName, oldName, _txtRenameCol.Text); 
-                    
                     DataTable dt = (DataTable)_dgv.DataSource;
-                    if (dt.Columns.Contains(oldName)) 
-                    {
-                        dt.Columns[oldName].ColumnName = _txtRenameCol.Text;
-                    }
-                    if (_dgv.Columns.Contains(oldName)) 
-                    { 
-                        _dgv.Columns[oldName].HeaderText = _txtRenameCol.Text; 
-                        _dgv.Columns[oldName].Name = _txtRenameCol.Text; 
-                    }
-                    
-                    UpdateCboColumns(); 
-                    _txtRenameCol.Clear(); 
+                    if (dt.Columns.Contains(oldName)) dt.Columns[oldName].ColumnName = _txtRenameCol.Text;
+                    if (_dgv.Columns.Contains(oldName)) { _dgv.Columns[oldName].HeaderText = _txtRenameCol.Text; _dgv.Columns[oldName].Name = _txtRenameCol.Text; }
+                    UpdateCboColumns(); _txtRenameCol.Clear(); 
                     MessageBox.Show("欄位名稱修改成功！");
                 } 
             };
             
-            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(120, 35), BackColor = Color.DarkOrange, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
-            bDelCol.Click += (s, e) => 
-            { 
-                if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) 
-                { 
+            // 🟢 iOS 配色: 刪除整欄 (Red)
+            Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(110, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
+            bDelCol.FlatAppearance.BorderSize = 0;
+            bDelCol.Click += (s, e) => { 
+                if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { 
                     string colToDrop = _cboColumns.SelectedItem.ToString();
-                    if (MessageBox.Show($"確定刪除整欄【{colToDrop}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) 
-                    { 
+                    if(MessageBox.Show($"確定刪除整欄【{colToDrop}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) { 
                         DataManager.DropColumn(_dbName, _tableName, colToDrop); 
-                        
                         DataTable dt = (DataTable)_dgv.DataSource;
                         if (dt.Columns.Contains(colToDrop)) dt.Columns.Remove(colToDrop);
                         if (_dgv.Columns.Contains(colToDrop)) _dgv.Columns.Remove(colToDrop);
-                        
-                        UpdateCboColumns(); 
-                        MessageBox.Show("欄位刪除成功！");
+                        UpdateCboColumns(); MessageBox.Show("欄位刪除成功！");
                     } 
                 } 
             };
             
-            Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(120, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 15, 0) };
-            bDelRow.Click += (s, e) => 
-            {
-                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>()
-                                       .Select(c => c.OwningRow)
-                                       .Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value)
-                                       .Distinct().ToList();
-
-                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
-                {
-                    if (AuthManager.VerifyUser()) 
-                    {
+            // 🟢 iOS 配色: 刪除選取列 (Red)
+            Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(140, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
+            bDelRow.FlatAppearance.BorderSize = 0;
+            bDelRow.Click += (s, e) => {
+                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
+                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                    if (AuthManager.VerifyUser()) {
                         DataTable dt = (DataTable)_dgv.DataSource;
-                        foreach (var r in selectedRows) 
-                        {
-                            if (_dgv.Columns.Contains("附件檔案")) 
-                            {
+                        foreach (var r in selectedRows) {
+                            if (_dgv.Columns.Contains("附件檔案")) {
                                 string relPathStr = r.Cells["附件檔案"].Value?.ToString();
-                                if (!string.IsNullOrEmpty(relPathStr)) 
-                                {
+                                if (!string.IsNullOrEmpty(relPathStr)) {
                                     string[] paths = relPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
                                     foreach (var p in paths) DeletePhysicalFile(p, r.Index);
                                 }
                             }
-
                             int id = Convert.ToInt32(r.Cells["Id"].Value);
                             DataManager.DeleteRecord(_dbName, _tableName, id);
-                            
                             DataRow rowToDelete = dt.Rows.Cast<DataRow>().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
                             if (rowToDelete != null) rowToDelete.Delete();
                         }
-                        dt.AcceptChanges(); 
-                        MessageBox.Show("刪除成功！");
+                        dt.AcceptChanges(); MessageBox.Show("刪除成功！");
                     }
                 }
             };
 
-            _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Margin = new Padding(0, 0, 10, 0) };
+            // 🟢 iOS 配色: 導出 PDF (Green)
+            _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 35), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
+            _btnExportPdf.FlatAppearance.BorderSize = 0;
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(150, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White };
+            // 🟢 iOS 配色: 顯示設定 (Gray)
+            _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(130, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
+            _btnColSettings.FlatAppearance.BorderSize = 0;
             _btnColSettings.Click += BtnColSettings_Click;
 
-            rowAdv1.Controls.AddRange(new Control[] { 
-                new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, 
-                _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow, _btnExportPdf, _btnColSettings 
-            });
+            rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow, _btnExportPdf, _btnColSettings });
             
             FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 5, 0, 0), WrapContents = false };
             
             _txtLatestCount = new TextBox { Width = 60, Text = "500", Margin = new Padding(0, 4, 5, 0) };
-            Button bLimitRead = new Button { Text = "筆數讀取", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 20, 0) };
-            bLimitRead.Click += async (s, e) => 
-            { 
-                if (int.TryParse(_txtLatestCount.Text, out int l)) 
-                { 
-                    _isFirstLoad = false; 
-                    _currentSearchMode = SearchMode.Limit; 
-                    _currentLimit = l; 
-                    await ReloadCurrentDataAsync(); 
-                } 
-            };
+            
+            // 🟢 iOS 配色: 筆數讀取 (Blue)
+            Button bLimitRead = new Button { Text = "筆數讀取", Size = new Size(110, 35), Margin = new Padding(0, 0, 20, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            bLimitRead.FlatAppearance.BorderSize = 0;
+            bLimitRead.Click += async (s, e) => { if (int.TryParse(_txtLatestCount.Text, out int l)) { _isFirstLoad = false; _currentSearchMode = SearchMode.Limit; _currentLimit = l; await ReloadCurrentDataAsync(); } };
 
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) };
-            _txtSearchKeyword = new TextBox { Width = 180, Margin = new Padding(0, 4, 5, 0) };
+            _txtSearchKeyword = new TextBox { Width = 200, Margin = new Padding(0, 4, 5, 0) };
             
-            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White };
-            _btnAdvancedSearch.Click += async (s, e) => 
-            { 
-                _isFirstLoad = false; 
-                _currentSearchMode = SearchMode.Advanced; 
-                await ReloadCurrentDataAsync(); 
-            };
+            // 🟢 iOS 配色: 條件搜尋 (Blue)
+            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            _btnAdvancedSearch.FlatAppearance.BorderSize = 0;
+            _btnAdvancedSearch.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.Advanced; await ReloadCurrentDataAsync(); };
             
-            rowAdv2.Controls.AddRange(new Control[] { 
-                new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, 
-                _txtLatestCount, bLimitRead, 
-                new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, 
-                _cboSearchColumn, 
-                new Label { Text = "關鍵字(含):", AutoSize = true, Margin = new Padding(10, 8, 5, 0) }, 
-                _txtSearchKeyword, _btnAdvancedSearch 
-            });
+            rowAdv2.Controls.AddRange(new Control[] { new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _txtLatestCount, bLimitRead, new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = new Padding(10, 8, 5, 0) }, _txtSearchKeyword, _btnAdvancedSearch });
 
-            if (_logic is LawLogic) 
-            {
-                _btnRtfToExcel = new Button { Text = "📄 全國法規RTF 轉 Excel", Size = new Size(240, 35), BackColor = Color.DarkSeaGreen, ForeColor = Color.White, Margin = new Padding(15, 0, 0, 0) };
+            if (_logic is LawLogic) {
+                // 🟢 iOS 配色: 法規轉 EXCEL (Green)
+                _btnRtfToExcel = new Button { Text = "📄 法規轉 EXCEL", Size = new Size(180, 35), Margin = new Padding(15, 0, 0, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
+                _btnRtfToExcel.FlatAppearance.BorderSize = 0;
                 _btnRtfToExcel.Click += BtnRtfToExcel_Click;
                 rowAdv2.Controls.Add(_btnRtfToExcel);
             }
 
-            flpAdv.Controls.Add(rowAdv1); 
-            flpAdv.Controls.Add(rowAdv2); 
-            _boxAdvanced.Controls.Add(flpAdv);
+            flpAdv.Controls.Add(rowAdv1); flpAdv.Controls.Add(rowAdv2); _boxAdvanced.Controls.Add(flpAdv);
 
-            _btnToggle.Click += (s, e) => 
-            { 
-                _boxAdvanced.Visible = !_boxAdvanced.Visible; 
-                _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理"; 
-            };
+            _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "[ - ] 隱藏管理" : "[ + ] 進階管理"; };
 
-            _lblStatus = new Label 
-            { 
-                Text = "系統就緒", 
-                ForeColor = Color.DimGray, 
-                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
-                AutoSize = true, 
-                Dock = DockStyle.Fill, 
-                Margin = new Padding(0, 0, 0, 5) 
-            };
+            _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            _dgv = new DataGridView 
-            { 
-                Dock = DockStyle.Fill, 
-                BackgroundColor = Color.White, 
-                AllowUserToAddRows = true, 
-                AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
-                AllowUserToOrderColumns = true, 
-                Margin = new Padding(0, 10, 0, 10)
+            _dgv = new DataGridView { 
+                Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
             };
-            
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
             _dgv.CellFormatting += Dgv_CellFormatting;
@@ -469,6 +332,7 @@ namespace Safety_System
             _ = ReloadCurrentDataAsync(); 
             return main;
         }
+        /// FILE: Safety_System/App_CoreTable.cs (Part 2) ///
 
         private async Task ReloadCurrentDataAsync()
         {
@@ -595,7 +459,6 @@ namespace Safety_System
             RestoreColumnOrder();
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
-        /// FILE: Safety_System/App_CoreTable.cs (Part 2) ///
 
         private void LoadColumnWidths() 
         {
