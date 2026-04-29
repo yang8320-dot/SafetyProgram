@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_CoreTable.cs ///
+/// FILE: Safety_System/App_CoreTable.cs (Part 1) ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -300,6 +300,7 @@ namespace Safety_System
             _ = ReloadCurrentDataAsync(); 
             return main;
         }
+        /// FILE: Safety_System/App_CoreTable.cs (Part 2) ///
 
         private async Task ReloadCurrentDataAsync()
         {
@@ -520,8 +521,8 @@ namespace Safety_System
             if (e.Alt && e.KeyCode == Keys.Enter) { if (sender is TextBox txt) { int selectionStart = txt.SelectionStart; txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine); txt.SelectionStart = selectionStart + Environment.NewLine.Length; e.Handled = true; } }
         }
 
+        // 🟢 將存檔保護機制拔除，讓任何人都可以點擊存檔
         private async void BtnSave_Click(object sender, EventArgs e) {
-            if (!AuthManager.VerifyUser()) return; 
             try {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
                 _dgv.EndEdit(); SaveColumnOrder(); SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
@@ -869,58 +870,4 @@ namespace Safety_System
 
             private void SelectFiles() { using (OpenFileDialog ofd = new OpenFileDialog { Title = "選擇附件檔案", Multiselect = true, Filter = "所有檔案 (*.*)|*.*" }) { if (ofd.ShowDialog() == DialogResult.OK) ProcessUpload(ofd.FileNames); } }
 
-            private void ProcessUpload(string[] sourceFiles) {
-                if (sourceFiles.Length == 0) return;
-                using (ImageCompressionHelper compressor = new ImageCompressionHelper()) {
-                    string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
-                    if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
-                    foreach (string src in sourceFiles) {
-                        try {
-                            string ext = Path.GetExtension(src); string baseName = Path.GetFileNameWithoutExtension(src); string destName = baseName + ext; string destPath = Path.Combine(destDir, destName);
-                            int count = 1; while (File.Exists(destPath)) { destName = $"{baseName}_{count++}{ext}"; destPath = Path.Combine(destDir, destName); }
-                            compressor.ProcessAndSave(src, destPath);
-                            _paths.Add($"附件/{_dbName}/{_tableName}/{_targetFolder}/{destName}");
-                        } catch (Exception ex) { MessageBox.Show($"上傳檔案 {Path.GetFileName(src)} 失敗: {ex.Message}", "錯誤"); }
-                    }
-                }
-                RefreshListUI();
-            }
-        }
-        
-        private class ImageCompressionHelper : IDisposable
-        {
-            private readonly string[] _imageExts = { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
-            private ImageCodecInfo _jpgEncoder;
-            private EncoderParameters _encoderParams;
-
-            public ImageCompressionHelper() {
-                _jpgEncoder = GetEncoder(ImageFormat.Jpeg);
-                _encoderParams = new EncoderParameters(1);
-                _encoderParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 100L); 
-            }
-
-            public void ProcessAndSave(string srcPath, string destPath) {
-                string ext = Path.GetExtension(srcPath).ToLower();
-                if (!_imageExts.Contains(ext)) { File.Copy(srcPath, destPath); return; }
-                using (Image originalImg = Image.FromFile(srcPath)) {
-                    int maxSide = 1024; int origWidth = originalImg.Width; int origHeight = originalImg.Height;
-                    if (origWidth > maxSide || origHeight > maxSide) {
-                        float ratio = Math.Min((float)maxSide / origWidth, (float)maxSide / origHeight);
-                        int newWidth = (int)(origWidth * ratio); int newHeight = (int)(origHeight * ratio);
-                        using (Bitmap resizedImg = new Bitmap(newWidth, newHeight)) {
-                            using (Graphics g = Graphics.FromImage(resizedImg)) {
-                                g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.SmoothingMode = SmoothingMode.HighQuality;
-                                g.PixelOffsetMode = PixelOffsetMode.HighQuality; g.CompositingQuality = CompositingQuality.HighQuality;
-                                g.DrawImage(originalImg, 0, 0, newWidth, newHeight);
-                            }
-                            if ((ext == ".jpg" || ext == ".jpeg") && _jpgEncoder != null) { resizedImg.Save(destPath, _jpgEncoder, _encoderParams); } else { resizedImg.Save(destPath, originalImg.RawFormat); }
-                        }
-                    } else { File.Copy(srcPath, destPath); }
-                }
-            }
-
-            private ImageCodecInfo GetEncoder(ImageFormat format) { ImageCodecInfo[] codecs = ImageCodecInfo.GetImageEncoders(); return codecs.FirstOrDefault(codec => codec.FormatID == format.Guid); }
-            public void Dispose() { _encoderParams?.Dispose(); }
-        }
-    }
-}
+            private void Pro
