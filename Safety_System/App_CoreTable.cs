@@ -377,7 +377,7 @@ namespace Safety_System
             FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 5, 0, 0), WrapContents = false };
             
             _txtLatestCount = new TextBox { Width = 60, Text = "500", Margin = new Padding(0, 4, 5, 0) };
-            Button bLimitRead = new Button { Text = "筆數讀取", Size = new Size(90, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 20, 0) };
+            Button bLimitRead = new Button { Text = "筆數讀取", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Margin = new Padding(0, 0, 20, 0) };
             bLimitRead.Click += async (s, e) => 
             { 
                 if (int.TryParse(_txtLatestCount.Text, out int l)) 
