@@ -26,7 +26,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v8.5 - 權限分級與選單動態擴充)";
+            this.Text = "工安系統看板 (v9.0 - 核心架構重構與極速效能版)";
             
             this.WindowState = FormWindowState.Maximized;
             this.Size = new Size(1440, 810);
@@ -93,19 +93,19 @@ namespace Safety_System
             menuHome.Click += (s, e) => LoadWelcomeScreen();
 
             var menuReports = new ToolStripMenuItem("日常作業");
-            menuReports.DropDownItems.Add(CreateItem("請購資料", () => new App_GenericTable("Purchase", "PurchaseData", "請購資料").GetView())); 
+            menuReports.DropDownItems.Add(CreateItem("請購資料", () => new App_CoreTable("Purchase", "PurchaseData", "請購資料", new DefaultLogic()).GetView())); 
             menuReports.DropDownItems.Add(CreateItem("月報表", () => new App_MonthlyReport().GetView()));
             menuReports.DropDownItems.Add(CreateItem("年報表", () => new App_YearlyReport().GetView()));
 
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
             menuSafety.DropDownItems.Add(new ToolStripSeparator());
-            menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_GenericTable("Safety", "SafetyInspection", "巡檢記錄管理").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_GenericTable("Safety", "WorkInjury", "工傷事件管理").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("輕傷事件", () => new App_GenericTable("Safety", "MinorInjury", "輕傷事件管理").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("交通意外", () => new App_GenericTable("Safety", "TrafficInjury", "交通意外紀錄").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("虛驚事件", () => new App_GenericTable("Safety", "NearMiss", "虛驚事件管理").GetView()));
-            menuSafety.DropDownItems.Add(CreateItem("安全觀察", () => new App_GenericTable("Safety", "SafetyObservation", "安全觀察紀錄").GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_CoreTable("Safety", "SafetyInspection", "巡檢記錄管理", new DefaultLogic()).GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_CoreTable("Safety", "WorkInjury", "工傷事件管理", new DefaultLogic()).GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("輕傷事件", () => new App_CoreTable("Safety", "MinorInjury", "輕傷事件管理", new DefaultLogic()).GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("交通意外", () => new App_CoreTable("Safety", "TrafficInjury", "交通意外紀錄", new DefaultLogic()).GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("虛驚事件", () => new App_CoreTable("Safety", "NearMiss", "虛驚事件管理", new DefaultLogic()).GetView()));
+            menuSafety.DropDownItems.Add(CreateItem("安全觀察", () => new App_CoreTable("Safety", "SafetyObservation", "安全觀察紀錄", new DefaultLogic()).GetView()));
 
             var menuChemical = new ToolStripMenuItem("化學品");
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
@@ -113,80 +113,80 @@ namespace Safety_System
             menuChemical.DropDownItems.Add(new ToolStripSeparator());
 
             var menuChemReg = new ToolStripMenuItem("化學品要求及規範");
-            menuChemReg.DropDownItems.Add(CreateItem("1. 環測項目", () => new App_GenericTable("Chemical", "EnvTesting", "環測項目").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("2. 勞工暴露容許濃度", () => new App_GenericTable("Chemical", "ExposureLimits", "勞工暴露容許濃度").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("3. 毒性物質", () => new App_GenericTable("Chemical", "ToxicSubstances", "毒性物質").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("4. 關注性化學物質", () => new App_GenericTable("Chemical", "ConcernedChem", "關注性化學物質").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("5. 優先管理化學品", () => new App_GenericTable("Chemical", "PriorityMgmtChem", "優先管理化學品").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("6. 管制化學品", () => new App_GenericTable("Chemical", "ControlledChem", "管制化學品").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("7. 特定化學物質", () => new App_GenericTable("Chemical", "SpecificChem", "特定化學物質").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("8. 有機溶劑", () => new App_GenericTable("Chemical", "OrganicSolvents", "有機溶劑").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("9. 勞工健康保護", () => new App_GenericTable("Chemical", "WorkerHealthProtect", "勞工健康保護").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("10. 公共危險物品", () => new App_GenericTable("Chemical", "PublicHazardous", "公共危險物品").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("11. 空污緊急應變", () => new App_GenericTable("Chemical", "AirPollutionEmerg", "空污緊急應變").GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("12. 工廠危險物品申報", () => new App_GenericTable("Chemical", "FactoryHazardous", "工廠危險物品申報").GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("1. 環測項目", () => new App_CoreTable("Chemical", "EnvTesting", "環測項目", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("2. 勞工暴露容許濃度", () => new App_CoreTable("Chemical", "ExposureLimits", "勞工暴露容許濃度", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("3. 毒性物質", () => new App_CoreTable("Chemical", "ToxicSubstances", "毒性物質", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("4. 關注性化學物質", () => new App_CoreTable("Chemical", "ConcernedChem", "關注性化學物質", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("5. 優先管理化學品", () => new App_CoreTable("Chemical", "PriorityMgmtChem", "優先管理化學品", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("6. 管制化學品", () => new App_CoreTable("Chemical", "ControlledChem", "管制化學品", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("7. 特定化學物質", () => new App_CoreTable("Chemical", "SpecificChem", "特定化學物質", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("8. 有機溶劑", () => new App_CoreTable("Chemical", "OrganicSolvents", "有機溶劑", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("9. 勞工健康保護", () => new App_CoreTable("Chemical", "WorkerHealthProtect", "勞工健康保護", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("10. 公共危險物品", () => new App_CoreTable("Chemical", "PublicHazardous", "公共危險物品", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("11. 空污緊急應變", () => new App_CoreTable("Chemical", "AirPollutionEmerg", "空污緊急應變", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("12. 工廠危險物品申報", () => new App_CoreTable("Chemical", "FactoryHazardous", "工廠危險物品申報", new DefaultLogic()).GetView()));
             menuChemical.DropDownItems.Add(menuChemReg);
             
-            menuChemical.DropDownItems.Add(CreateItem("SDS清冊", () => new App_GenericTable("Chemical", "SDS_Inventory", "SDS清冊").GetView()));
+            menuChemical.DropDownItems.Add(CreateItem("SDS清冊", () => new App_CoreTable("Chemical", "SDS_Inventory", "SDS清冊", new DefaultLogic()).GetView()));
 
             var menuNursing = new ToolStripMenuItem("護理");
             menuNursing.DropDownItems.Add(CreateItem("護理看板", () => new App_NursingDashboard().GetView()));
             menuNursing.DropDownItems.Add(new ToolStripSeparator());
-            menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_GenericTable("Nursing", "HealthPromotion", "健康促進活動").GetView()));
-            menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_GenericTable("Nursing", "WorkInjuryReport", "職災申報紀錄").GetView()));
+            menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_CoreTable("Nursing", "HealthPromotion", "健康促進活動", new DefaultLogic()).GetView()));
+            menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_CoreTable("Nursing", "WorkInjuryReport", "職災申報紀錄", new DefaultLogic()).GetView()));
 
             var menuAir = new ToolStripMenuItem("空污");
             menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
             menuAir.DropDownItems.Add(new ToolStripSeparator());
-            menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_GenericTable("Air", "AirPollution", "空污申報紀錄").GetView()));
+            menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_CoreTable("Air", "AirPollution", "空污申報紀錄", new DefaultLogic()).GetView()));
 
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             menuWater.DropDownItems.Add(new ToolStripSeparator());
-            menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_Water_Generic("Water", "WaterMeterReadings", "【日】廢水處理水量記錄").GetView()));
-            menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_Water_Generic("Water", "WaterChemicals", "【日】廢水處理用藥記錄").GetView()));
-            menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_Water_Generic("Water", "WaterUsageDaily", "【日】自來水使用量").GetView()));
-            menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_Water_Generic("Water", "DischargeData", "【月】納管排放數據").GetView()));
-            menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_Water_Generic("Water", "WaterVolume", "【月】自來水用量統計").GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_CoreTable("Water", "WaterMeterReadings", "【日】廢水處理水量記錄", new WaterLogic()).GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_CoreTable("Water", "WaterChemicals", "【日】廢水處理用藥記錄", new WaterLogic()).GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_CoreTable("Water", "WaterUsageDaily", "【日】自來水使用量", new WaterLogic()).GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_CoreTable("Water", "DischargeData", "【月】納管排放數據", new WaterLogic()).GetView()));
+            menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_CoreTable("Water", "WaterVolume", "【月】自來水用量統計", new WaterLogic()).GetView()));
 
             var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("產能及廢棄物看板", () => new App_WasteDashboard().GetView()));
             menuWaste.DropDownItems.Add(new ToolStripSeparator());
-            menuWaste.DropDownItems.Add(CreateItem("【月】複層月表", () => new App_GenericTable("Waste", "Waste_IL", "【月】複層月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】膠合月表", () => new App_GenericTable("Waste", "Waste_LM", "【月】膠合月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】鍍板月表", () => new App_GenericTable("Waste", "Waste_CR", "【月】鍍板月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】強化月表", () => new App_GenericTable("Waste", "Waste_T", "【月】強化月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】切磨月表", () => new App_GenericTable("Waste", "Waste_GCTE", "【月】切磨月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_GenericTable("Waste", "Waste_ML", "【月】物料月表").GetView()));
-            menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_GenericTable("Waste", "Waste_Water", "【月】水站月表").GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】複層月表", () => new App_CoreTable("Waste", "Waste_IL", "【月】複層月表", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】膠合月表", () => new App_CoreTable("Waste", "Waste_LM", "【月】膠合月表", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】鍍板月表", () => new App_CoreTable("Waste", "Waste_CR", "【月】鍍板月表", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】強化月表", () => new App_CoreTable("Waste", "Waste_T", "【月】強化月表", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】切磨月表", () => new App_CoreTable("Waste", "Waste_GCTE", "【月】切磨月表", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_CoreTable("Waste", "Waste_ML", "【月】物料月表", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_CoreTable("Waste", "Waste_Water", "【月】水站月表", new DefaultLogic()).GetView()));
 
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
             menuFire.DropDownItems.Add(new ToolStripSeparator());
-            menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_GenericTable("Fire", "FireResponsible", "火源責任人管理").GetView()));
-            menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_GenericTable("Fire", "HazardStats", "公共危險物統計").GetView()));
-            menuFire.DropDownItems.Add(CreateItem("消防設備清單", () => new App_GenericTable("Fire", "FireEquip", "消防設備清單").GetView()));
-            menuFire.DropDownItems.Add(CreateItem("各單位消防自主檢查表", () => new App_GenericTable("Fire", "FireSelfInspection", "各單位消防自主檢查表").GetView()));
+            menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_CoreTable("Fire", "FireResponsible", "火源責任人管理", new DefaultLogic()).GetView()));
+            menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_CoreTable("Fire", "HazardStats", "公共危險物統計", new DefaultLogic()).GetView()));
+            menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_CoreTable("Fire", "FireEquip", "消防設備巡檢", new DefaultLogic()).GetView()));
+            menuFire.DropDownItems.Add(CreateItem("各單位消防自主檢查表", () => new App_CoreTable("Fire", "FireSelfInspection", "各單位消防自主檢查表", new DefaultLogic()).GetView()));
 
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
             menuTest.DropDownItems.Add(new ToolStripSeparator());
-            menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_GenericTable("TestData", "EnvMonitor", "環境監測").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_GenericTable("TestData", "WastewaterPeriodic", "廢水定申檢").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_GenericTable("TestData", "DrinkingWater", "飲用水檢測").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("工業區檢驗", () => new App_GenericTable("TestData", "IndustrialZoneTest", "工業區檢驗").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("土壤氣體檢測", () => new App_GenericTable("TestData", "SoilGasTest", "土壤氣體檢測").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("廢水自主檢驗", () => new App_GenericTable("TestData", "WastewaterSelfTest", "廢水自主檢驗").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("循環水檢測(廠商)", () => new App_GenericTable("TestData", "CoolingWaterVendor", "循環水檢測(廠商)").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("循環水檢測(自評)", () => new App_GenericTable("TestData", "CoolingWaterSelf", "循環水檢測(自評)").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("TCLP", () => new App_GenericTable("TestData", "TCLP", "TCLP毒性特性溶出").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("水錶校正", () => new App_GenericTable("TestData", "WaterMeterCalibration", "水錶校正").GetView()));
-            menuTest.DropDownItems.Add(CreateItem("其它檢測數據", () => new App_GenericTable("TestData", "OtherTests", "其它檢測數據").GetView()));
+            menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_CoreTable("TestData", "EnvMonitor", "環境監測", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_CoreTable("TestData", "WastewaterPeriodic", "廢水定申檢", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("飲用水檢測", () => new App_CoreTable("TestData", "DrinkingWater", "飲用水檢測", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("工業區檢驗", () => new App_CoreTable("TestData", "IndustrialZoneTest", "工業區檢驗", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("土壤氣體檢測", () => new App_CoreTable("TestData", "SoilGasTest", "土壤氣體檢測", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("廢水自主檢驗", () => new App_CoreTable("TestData", "WastewaterSelfTest", "廢水自主檢驗", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("循環水檢測(廠商)", () => new App_CoreTable("TestData", "CoolingWaterVendor", "循環水檢測(廠商)", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("循環水檢測(自評)", () => new App_CoreTable("TestData", "CoolingWaterSelf", "循環水檢測(自評)", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("TCLP", () => new App_CoreTable("TestData", "TCLP", "TCLP毒性特性溶出", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("水錶校正", () => new App_CoreTable("TestData", "WaterMeterCalibration", "水錶校正", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("其它檢測數據", () => new App_CoreTable("TestData", "OtherTests", "其它檢測數據", new DefaultLogic()).GetView()));
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
             menuEdu.DropDownItems.Add(new ToolStripSeparator());
-            menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_GenericTable("教育訓練", "訓練時數", "教育訓練時數").GetView()));
+            menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_CoreTable("教育訓練", "訓練時數", "教育訓練時數", new DefaultLogic()).GetView()));
 
             var menuLaw = new ToolStripMenuItem("法規");
             menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
@@ -199,18 +199,18 @@ namespace Safety_System
             var menuESG = new ToolStripMenuItem("ESG");
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(new ToolStripSeparator());
-            menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_GenericTable("ESG", "ESG_Performance", "ESG績效管理").GetView()));
+            menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_CoreTable("ESG", "ESG_Performance", "ESG績效管理", new DefaultLogic()).GetView()));
 
             var menuISO = new ToolStripMenuItem("ISO14001");
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
             menuISO.DropDownItems.Add(new ToolStripSeparator());
-            menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_GenericTable("ISO14001", "TargetManagement", "目標管理").GetView()));
+            menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_CoreTable("ISO14001", "TargetManagement", "目標管理", new DefaultLogic()).GetView()));
             
             var menuISOComm = new ToolStripMenuItem("環境溝通");
-            menuISOComm.DropDownItems.Add(CreateItem("環境資訊接收管制表", () => new App_GenericTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表").GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("內文聯絡書管制表", () => new App_GenericTable("ISO14001", "InternalComm", "內文聯絡書管制表").GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("郵件收文管制表", () => new App_GenericTable("ISO14001", "MailReceive", "郵件收文管制表").GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("來賓拜訪紀錄表", () => new App_GenericTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表").GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("環境資訊接收管制表", () => new App_CoreTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("內文聯絡書管制表", () => new App_CoreTable("ISO14001", "InternalComm", "內文聯絡書管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("郵件收文管制表", () => new App_CoreTable("ISO14001", "MailReceive", "郵件收文管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
             menuISO.DropDownItems.Add(menuISOComm);
 
             var menuApp = new ToolStripMenuItem("應用");
@@ -236,19 +236,19 @@ namespace Safety_System
             menuApp.DropDownItems.Add(callExeItem);
 
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
-            _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_GenericTable("Menu1DB", "KPI", "KPI").GetView()));
-            _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_GenericTable("Menu1DB", "CultureImprove", "文化改善").GetView()));
-            _menu1.DropDownItems.Add(CreateItem("PBC", () => new App_GenericTable("Menu1DB", "PBC", "PBC").GetView()));
-            _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_GenericTable("Menu1DB", "AccountManage", "帳密管理").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_CoreTable("Menu1DB", "KPI", "KPI", new DefaultLogic()).GetView()));
+            _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_CoreTable("Menu1DB", "CultureImprove", "文化改善", new DefaultLogic()).GetView()));
+            _menu1.DropDownItems.Add(CreateItem("PBC", () => new App_CoreTable("Menu1DB", "PBC", "PBC", new DefaultLogic()).GetView()));
+            _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_CoreTable("Menu1DB", "AccountManage", "帳密管理", new DefaultLogic()).GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
-            _menu2.DropDownItems.Add(CreateItem("資料管理", () => new App_GenericTable("Menu2DB", "DataManage2", "資料管理").GetView()));
+            _menu2.DropDownItems.Add(CreateItem("資料管理", () => new App_CoreTable("Menu2DB", "DataManage2", "資料管理", new DefaultLogic()).GetView()));
 
             _menu3 = new ToolStripMenuItem("選單3") { Visible = false };
-            _menu3.DropDownItems.Add(CreateItem("資料管理3", () => new App_GenericTable("Menu3DB", "DataManage3", "資料管理3").GetView()));
+            _menu3.DropDownItems.Add(CreateItem("資料管理3", () => new App_CoreTable("Menu3DB", "DataManage3", "資料管理3", new DefaultLogic()).GetView()));
 
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
-            _menu4.DropDownItems.Add(CreateItem("資料管理4", () => new App_GenericTable("Menu4DB", "DataManage4", "資料管理4").GetView()));
+            _menu4.DropDownItems.Add(CreateItem("資料管理4", () => new App_CoreTable("Menu4DB", "DataManage4", "資料管理4", new DefaultLogic()).GetView()));
 
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
@@ -326,7 +326,7 @@ namespace Safety_System
                                 node.DropDownItems.Add(new ToolStripSeparator { Tag = "CustomDivider" });
                             }
 
-                            node.DropDownItems.Add(CreateItem(tableName, () => new App_GenericTable(dbName, tableName, tableName).GetView()));
+                            node.DropDownItems.Add(CreateItem(tableName, () => new App_CoreTable(dbName, tableName, tableName, new DefaultLogic()).GetView()));
                             break;
                         }
                     }
@@ -386,19 +386,17 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(tableName);
             item.Click += (s, e) => {
-                try { LoadModule(new App_Law_Generic(dbName, tableName).GetView()); } 
+                try { LoadModule(new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView()); } 
                 catch (Exception ex) { MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
             return item;
         }
 
-        // 🟢 核心修正：強制即時釋放記憶體，避免切換程式時記憶體不斷堆疊
         public void LoadModule(Control moduleControl)
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
             try {
-                // 安全且強制地將舊的畫面控制項 Dispose，釋放綁定的 DataTable 與事件
                 while (_contentPanel.Controls.Count > 0)
                 {
                     Control ctrl = _contentPanel.Controls[0];
@@ -406,7 +404,6 @@ namespace Safety_System
                     ctrl.Dispose();
                 }
                 
-                // 強制呼叫垃圾回收 (加快系統可用記憶體的釋放)
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
