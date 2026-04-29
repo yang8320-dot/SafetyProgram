@@ -67,6 +67,20 @@ namespace Safety_System
             { "OtherTests", "[日期] TEXT, [檢測項目] TEXT, [檢測位置] TEXT, [檢測數值] TEXT, [單位] TEXT, [合格標準] TEXT, [檢測機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 水資源 (水污)
+            { "WaterMeterReadings", "[日期] TEXT, [星期] TEXT, [用電量] TEXT, [用電量日統計] TEXT, [廢水進流量] TEXT, [廢水進流量日統計] TEXT, [廢水處理量] TEXT, [廢水處理量日統計] TEXT, [水站廢水排放量] TEXT, [水站廢水排放量日統計] TEXT, [納管排放量] TEXT, [納管排放量日統計] TEXT, [回收水6吋] TEXT, [回收水6吋日統計] TEXT, [回收水雙介質A] TEXT, [回收水雙介質A日統計] TEXT, [回收水雙介質B] TEXT, [回收水雙介質B日統計] TEXT, [軟水A通量] TEXT, [軟水B通量] TEXT, [軟水C通量] TEXT, [濃縮水至冷卻水池] TEXT, [濃縮水至冷卻水池日統計] TEXT, [濃縮水至逆洗池] TEXT, [濃縮水至逆洗池日統計] TEXT, [貯存池至循環水池] TEXT, [貯存池至循環水池日統計] TEXT, [製程式至循環水池] TEXT, [製程式至循環水池日統計] TEXT, [污泥產出KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterChemicals", "[日期] TEXT, [星期] TEXT, [PAC_KG] TEXT, [NAOH_KG] TEXT, [高分子_KG] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "DischargeData", "[年月] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterVolume", "[年月] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
+            // 法規管理
+            { "環保法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [備註] TEXT" },
+            { "職安衛法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [備註] TEXT" },
+            { "消防法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [備註] TEXT" },
+            { "其它法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [備註] TEXT" },
+
             
             // 🟢 個人隱藏選單 (Menu1 ~ Menu4)
             { "AccountManage", "[日期] TEXT, [系統名稱] TEXT, [網址] TEXT, [登入帳號] TEXT, [登入密碼] TEXT, [使用者] TEXT, [附件檔案] TEXT, [備註] TEXT" },
