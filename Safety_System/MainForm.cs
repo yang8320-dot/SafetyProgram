@@ -165,7 +165,7 @@ namespace Safety_System
             menuFire.DropDownItems.Add(new ToolStripSeparator());
             menuFire.DropDownItems.Add(CreateItem("火源責任人管理", () => new App_GenericTable("Fire", "FireResponsible", "火源責任人管理").GetView()));
             menuFire.DropDownItems.Add(CreateItem("公共危險物統計", () => new App_GenericTable("Fire", "HazardStats", "公共危險物統計").GetView()));
-            menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_GenericTable("Fire", "FireEquip", "消防設備巡檢").GetView()));
+            menuFire.DropDownItems.Add(CreateItem("消防設備清單", () => new App_GenericTable("Fire", "FireEquip", "消防設備清單").GetView()));
             menuFire.DropDownItems.Add(CreateItem("各單位消防自主檢查表", () => new App_GenericTable("Fire", "FireSelfInspection", "各單位消防自主檢查表").GetView()));
 
             var menuTest = new ToolStripMenuItem("檢測數據");
