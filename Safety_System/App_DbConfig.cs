@@ -56,7 +56,7 @@ namespace Safety_System
                 { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" } 
             })},
             { "Fire", ("消防", new Dictionary<string, string> { 
-                { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備巡檢" }, { "FireSelfInspection", "各單位消防自主檢查" } 
+                { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
             })},
             { "TestData", ("檢測數據", new Dictionary<string, string> { 
                 { "CoolingWaterSelf", "循環水檢測(自評)" }, { "CoolingWaterVendor", "循環水檢測(廠商)" }, { "DrinkingWater", "飲用水檢測" }, 
