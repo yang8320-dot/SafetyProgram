@@ -134,22 +134,11 @@ namespace Safety_System
             
             if (tableName == "SafetyInspection") 
             {
-                if (columnName == "單位") 
-                    return new[] { "改切", "磨邊", "強化", "膠合", "複層", "鍍板", "儲運", "品管", "物料", "事務", "工安", "維修", "儀電", "廠務", "製程", "加工" };
-                if (columnName == "改善進度") 
-                    return new[] { "未結案", "已結案"};    
-                if (columnName == "違規分類") 
-                    return new[] { "危險之虞", "廠內規範", "環境管理", "勞檢曾開立之缺失", "與法規抵觸", "工安建議改善項目"};             
-                if (columnName == "危害類型主項") 
-                    return new[] { "物理性", "化學性", "生物性", "人因工程", "社會性", "其他"};     
-                if (columnName == "列入安全觀查事項") 
-                    return new[] { "", "v"}; 
-                if (columnName == "列入虛驚事項") 
-                    return new[] { "", "v"}; 
-                if (columnName == "不安全行為") 
-                    return new[] { "", "v"}; 
-                if (columnName == "廠內曾發生工傷事件項目") 
-                    return new[] { "", "v"}; 
+                if (columnName == "單位") return new[] { "改切", "磨邊", "強化", "膠合", "複層", "鍍板", "儲運", "品管", "物料", "事務", "工安", "維修", "儀電", "廠務", "製程", "加工" };
+                if (columnName == "改善進度") return new[] { "未結案", "已結案"};    
+                if (columnName == "違規分類") return new[] { "危險之虞", "廠內規範", "環境管理", "勞檢曾開立之缺失", "與法規抵觸", "工安建議改善項目"};             
+                if (columnName == "危害類型主項") return new[] { "物理性", "化學性", "生物性", "人因工程", "社會性", "其他"};     
+                if (columnName == "列入安全觀查事項" || columnName == "列入虛驚事項" || columnName == "不安全行為" || columnName == "廠內曾發生工傷事件項目") return new[] { "", "v"}; 
 
                 if (columnName == "危害類型細分類")
                 {
