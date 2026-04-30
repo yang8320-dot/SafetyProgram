@@ -279,6 +279,17 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
+            // 🟢 加入新增使用者 (Lv3 限定)
+            var addUserItem = new ToolStripMenuItem("新增使用者");
+            addUserItem.Click += (s, e) => {
+                if (AuthManager.VerifyLv3Only("請輸入【系統管理者】密碼 (Lv3) 以管理使用者：")) {
+                    new App_UserManager().ShowDialog(this);
+                } else {
+                    MessageBox.Show("密碼錯誤，拒絕存取。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(addUserItem);
+
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
             
             var unlockMenuItem = new ToolStripMenuItem("開啟個人選單");
