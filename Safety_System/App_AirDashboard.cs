@@ -102,7 +102,7 @@ namespace Safety_System
             Button btnPdfAir = new Button { Text = "📄 導出 PDF", Size = new Size(130, 30), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right };
             btnPdfAir.FlatAppearance.BorderSize = 0;
             btnPdfAir.FlatStyle = FlatStyle.Flat;
-            btnPdfAir.Click += (s, e) => ExportAirDataToPdf();
+            btnPdfAir.Click += (s, e) => ExportBoxToPdf(_pnlAirBox, "空污費統計報表");
             pnlHeaderAirRight.Controls.Add(btnPdfAir);
 
             pnlHeaderAir.Controls.Add(lblAirTitle);
@@ -130,10 +130,11 @@ namespace Safety_System
                 btnSearchAir
             });
 
+            // 🟢 修復：將 TLP 總高度增加，並將第二列 (資料列) 設為絕對高度 80px，確保文字不被遮擋
             TableLayoutPanel tlpAirData = new TableLayoutPanel { Dock = DockStyle.Top, Height = 140, ColumnCount = 4, RowCount = 2, CellBorderStyle = TableLayoutPanelCellBorderStyle.Single, Padding = new Padding(10, 0, 10, 10) };
             for (int i = 0; i < 4; i++) tlpAirData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-            tlpAirData.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F)); // 強制絕對高度
 
             string[] airHeaders = { "當期申報數據", "去年同期數據", "前年同期數據", "與去年同期差異" };
             for (int i = 0; i < 4; i++) {
@@ -249,15 +250,15 @@ namespace Safety_System
         // ====================================================
         private Label CreateDataLabel() => new Label { Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.FromArgb(50, 50, 50), AutoSize = true, Margin = new Padding(0, 5, 0, 10) };
 
-        // 🟢 修復：強制 WrapContents = false，確保不會換行成並排，絕對維持上下兩行顯示
         private FlowLayoutPanel CreateDataCell(Label l1, Label l2)
         {
+            // 🟢 強制不換行，且高度設為自動延展適應 Label 大小
             FlowLayoutPanel flp = new FlowLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 FlowDirection = FlowDirection.TopDown, 
-                WrapContents = false, 
                 AutoSize = true, 
-                Padding = new Padding(15, 20, 15, 10) 
+                WrapContents = false, 
+                Padding = new Padding(15, 10, 15, 10) 
             };
             flp.Controls.Add(l1);
             flp.Controls.Add(l2);
@@ -590,9 +591,9 @@ namespace Safety_System
         // ====================================================
         // PDF 高清向量導出系統
         // ====================================================
-        private void ExportAirDataToPdf()
+        private void ExportBoxToPdf(Panel pnlBox, string title)
         {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "空污費統計報表_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
@@ -613,7 +614,6 @@ namespace Safety_System
                             float y = ev.MarginBounds.Top; 
                             float pageWidth = ev.MarginBounds.Width;
 
-                            // 🟢 字型設定
                             Font fMainTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
                             Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
                             Font fSign = new Font("Microsoft JhengHei UI", 11F); 
@@ -625,20 +625,18 @@ namespace Safety_System
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
                             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                            // 🟢 標題與簽核欄
                             g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fMainTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 30), sfCenter); 
                             y += 35;
                             g.DrawString("空污費申報【排放量】統計報表", fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
-                            y += 45; // 包含空一行
+                            y += 45; 
                             
                             string signText = "廠主管：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
-                            y += 45; // 包含空一行
+                            y += 45; 
 
                             g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}    查詢區間：{_cboAirYear.Text}年度 {_cboAirQuarter.Text}", fDate, Brushes.Gray, x, y); 
                             y += 25;
                             
-                            // 🟢 資料表格
                             string[] headers = { "當期申報數據", "去年同期數據", "前年同期數據", "與去年同期差異" };
                             string[] emissions = { _lblAirEmissionsCurr.Text, _lblAirEmissionsLY.Text, _lblAirEmissionsL2Y.Text, _lblAirEmissionsDiff.Text };
                             string[] fees = { _lblAirFeeCurr.Text, _lblAirFeeLY.Text, _lblAirFeeL2Y.Text, _lblAirFeeDiff.Text };
@@ -717,21 +715,19 @@ namespace Safety_System
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
                         StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                        // 🟢 第一頁印出標題與簽核欄
                         if (rowIndex == 0) {
                             g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fMainTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 30), sfCenter); 
                             y += 35;
                             g.DrawString(title, fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
-                            y += 45; // 包含空一行
+                            y += 45; 
 
                             string signText = "廠主管：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
-                            y += 45; // 包含空一行
+                            y += 45; 
 
                             g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fDate, Brushes.Gray, x, y); 
                             y += 25;
                         } else {
-                            // 續頁只印日期
                             g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fDate, Brushes.Gray, x, y); 
                             y += 25;
                         }
@@ -746,7 +742,6 @@ namespace Safety_System
                         float currX = x; 
                         float rowH = 35;
                         
-                        // 畫表頭
                         for (int i = 0; i < visCols.Count; i++) 
                         {
                             RectangleF rectF = new RectangleF(currX, y, colWidths[i], rowH);
@@ -758,7 +753,6 @@ namespace Safety_System
                         }
                         y += rowH;
                         
-                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count) 
                         {
                             if (y + rowH > ev.MarginBounds.Bottom - 30) 
