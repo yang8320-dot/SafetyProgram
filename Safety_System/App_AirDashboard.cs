@@ -86,7 +86,7 @@ namespace Safety_System
 
             Padding lblPad = new Padding(0, 8, 5, 0); 
             Padding ctrlPad = new Padding(0, 4, 10, 0); 
-            int btnHeight = 35; // 統一按鈕高度確保對齊
+            int btnHeight = 35; // 統一按鈕高度，確保全排對齊
 
             // ==========================================
             // 第一區塊：空污費查詢與分析
@@ -94,15 +94,18 @@ namespace Safety_System
             _pnlAirBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 30) };
             _pnlAirBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlAirBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
+            // 1. 標題列 (純標題，無按鈕)
             Panel pnlHeaderAir = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblAirTitle = new Label { Text = "台灣玻璃彰濱廠 - 空污費申報【排放量】統計", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DeepSkyBlue, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
             pnlHeaderAir.Controls.Add(lblAirTitle);
 
-            // 🟢 篩選列 Container (切分為左右兩側)
-            Panel pnlAirFilterContainer = new Panel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(15, 10, 15, 15) };
-            
-            FlowLayoutPanel flpAirFilterLeft = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
-            FlowLayoutPanel flpAirFilterRight = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.RightToLeft };
+            // 2. 篩選列 (採用 TableLayoutPanel 確保不崩塌)
+            TableLayoutPanel tlpAirFilter = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 1, Padding = new Padding(15, 10, 15, 15) };
+            tlpAirFilter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
+            tlpAirFilter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+
+            FlowLayoutPanel flpAirFilterLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
+            FlowLayoutPanel flpAirFilterRight = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.RightToLeft };
 
             _cboAirYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100, Margin = ctrlPad };
             _cboAirQuarter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, Margin = ctrlPad }; 
@@ -122,19 +125,20 @@ namespace Safety_System
             btnPdfAir.FlatAppearance.BorderSize = 0;
             btnPdfAir.Click += (s, e) => ExportBoxToPdf(_pnlAirBox, "空污費統計報表");
 
-            // 左側加入查詢控制項
+            // 左側加入
             flpAirFilterLeft.Controls.AddRange(new Control[] {
                 new Label { Text = "查詢年度:", AutoSize = true, Margin = lblPad }, _cboAirYear,
                 new Label { Text = "申報季度:", AutoSize = true, Margin = lblPad }, _cboAirQuarter,
                 btnSearchAir
             });
 
-            // 右側加入 PDF 按鈕
+            // 右側加入 (RightToLeft)
             flpAirFilterRight.Controls.Add(btnPdfAir);
 
-            pnlAirFilterContainer.Controls.Add(flpAirFilterLeft);
-            pnlAirFilterContainer.Controls.Add(flpAirFilterRight);
+            tlpAirFilter.Controls.Add(flpAirFilterLeft, 0, 0);
+            tlpAirFilter.Controls.Add(flpAirFilterRight, 1, 0);
 
+            // 3. 數據方塊區
             TableLayoutPanel tlpAirData = new TableLayoutPanel { Dock = DockStyle.Top, Height = 140, ColumnCount = 4, RowCount = 2, CellBorderStyle = TableLayoutPanelCellBorderStyle.Single, Padding = new Padding(10, 0, 10, 10) };
             for (int i = 0; i < 4; i++) tlpAirData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
@@ -156,7 +160,7 @@ namespace Safety_System
             tlpAirData.Controls.Add(CreateDataCell(_lblAirEmissionsDiff, _lblAirFeeDiff), 3, 1);
 
             _pnlAirBox.Controls.Add(tlpAirData);
-            _pnlAirBox.Controls.Add(pnlAirFilterContainer); // 🟢 替換為新的對齊容器
+            _pnlAirBox.Controls.Add(tlpAirFilter);
             _pnlAirBox.Controls.Add(pnlHeaderAir);
 
             tlpMain.Controls.Add(_pnlAirBox, 0, 0);
@@ -167,16 +171,19 @@ namespace Safety_System
             _pnlMaterialBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             _pnlMaterialBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlMaterialBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
+            // 1. 標題列 (純標題，無按鈕)
             Panel pnlHeaderMat = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblMatTitle = new Label { Text = "台灣玻璃彰濱廠 - 原物料使用紀錄統計表", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SeaGreen, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
             pnlHeaderMat.Controls.Add(lblMatTitle);
             
-            // 🟢 篩選列 Container (切分為左右兩側)
-            Panel pnlMatFilterContainer = new Panel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(15, 10, 15, 15) };
-            
-            FlowLayoutPanel flpMatFilterLeft = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
-            FlowLayoutPanel flpMatFilterRight = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.RightToLeft };
+            // 2. 篩選列 (採用 TableLayoutPanel 確保不崩塌)
+            TableLayoutPanel tlpMatFilter = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 1, Padding = new Padding(15, 10, 15, 15) };
+            tlpMatFilter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
+            tlpMatFilter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
 
+            FlowLayoutPanel flpMatFilterLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
+            FlowLayoutPanel flpMatFilterRight = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.RightToLeft };
+            
             _cboMatStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90, Margin = ctrlPad };
             _cboMatStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 60, Margin = ctrlPad };
             _cboMatEndYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90, Margin = ctrlPad };
@@ -199,6 +206,10 @@ namespace Safety_System
             btnSearchMat.FlatAppearance.BorderSize = 0;
             btnSearchMat.Click += async (s, e) => await LoadMaterialDataAsync();
 
+            Button btnPdfMat = new Button { Text = "📄 導出 PDF", Size = new Size(120, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            btnPdfMat.FlatAppearance.BorderSize = 0;
+            btnPdfMat.Click += (s, e) => ExportGridToPdf(_dgvMaterial, "原物料使用紀錄統計表");
+
             Button btnConfigMat = new Button { Text = "⚙️ 設定查詢", Size = new Size(130, btnHeight), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) }; 
             btnConfigMat.FlatAppearance.BorderSize = 0;
             btnConfigMat.Click += (s, e) => {
@@ -206,11 +217,7 @@ namespace Safety_System
                 _ = LoadMaterialDataAsync();
             };
 
-            Button btnPdfMat = new Button { Text = "📄 導出 PDF", Size = new Size(120, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
-            btnPdfMat.FlatAppearance.BorderSize = 0;
-            btnPdfMat.Click += (s, e) => ExportGridToPdf(_dgvMaterial, "原物料使用紀錄統計表");
-
-            // 左側加入查詢區塊
+            // 左側加入查詢
             flpMatFilterLeft.Controls.AddRange(new Control[] {
                 new Label { Text = "年月區間:", AutoSize = true, Margin = lblPad }, 
                 _cboMatStartYear, new Label { Text = "年", AutoSize = true, Margin = lblPad }, _cboMatStartMonth, new Label { Text = "月 ~", AutoSize = true, Margin = lblPad },
@@ -218,13 +225,14 @@ namespace Safety_System
                 btnSearchMat
             });
 
-            // 右側加入設定與 PDF 按鈕 (RightToLeft，所以先加的在最右邊)
-            flpMatFilterRight.Controls.Add(btnConfigMat);
-            flpMatFilterRight.Controls.Add(btnPdfMat);
+            // 右側加入 (RightToLeft 寫入順序)
+            flpMatFilterRight.Controls.Add(btnConfigMat); // 在最右
+            flpMatFilterRight.Controls.Add(btnPdfMat);    // 在次右
 
-            pnlMatFilterContainer.Controls.Add(flpMatFilterLeft);
-            pnlMatFilterContainer.Controls.Add(flpMatFilterRight);
+            tlpMatFilter.Controls.Add(flpMatFilterLeft, 0, 0);
+            tlpMatFilter.Controls.Add(flpMatFilterRight, 1, 0);
 
+            // 3. 資料表
             _dgvMaterial = new DataGridView { 
                 Dock = DockStyle.Top, Height = 450, BackgroundColor = Color.White, AllowUserToAddRows = false, ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
@@ -239,8 +247,9 @@ namespace Safety_System
             _dgvMaterial.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 250, 245);
 
             _pnlMaterialBox.Controls.Add(_dgvMaterial);
-            _pnlMaterialBox.Controls.Add(pnlMatFilterContainer); // 🟢 替換為新的對齊容器
+            _pnlMaterialBox.Controls.Add(tlpMatFilter);
             _pnlMaterialBox.Controls.Add(pnlHeaderMat);
+            
             tlpMain.Controls.Add(_pnlMaterialBox, 0, 1);
 
             mainPanel.Controls.Add(tlpMain);
@@ -377,7 +386,6 @@ namespace Safety_System
 
                 var rowsUi = new List<MatConfigRowUI>();
 
-                // 擴充至 10 組設定
                 for (int i = 0; i < 10; i++)
                 {
                     TextBox txtName = new TextBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -392,7 +400,6 @@ namespace Safety_System
 
                     cbConv.Items.AddRange(new string[] { "無換算 (x1)", "公噸 ➔ 公斤 (x1000)", "公斤 ➔ 公噸 (x0.001)", "公升 ➔ 公秉 (x0.001)", "公秉 ➔ 公升 (x1000)" });
 
-                    // 綁定連動事件
                     cbDb.SelectedIndexChanged += (s, e) => {
                         cbTb.Items.Clear(); cbCol.Items.Clear();
                         if (cbDb.SelectedItem != null) {
@@ -419,12 +426,10 @@ namespace Safety_System
                         }
                     };
 
-                    // 填入既有設定
                     if (i < _matConfigs.Count) {
                         var conf = _matConfigs[i];
                         txtName.Text = conf.Alias;
                         
-                        // 找尋對應的中文 DB 名稱
                         foreach (ItemMap item in cbDb.Items) {
                             if (item.EnName == conf.DbName) { cbDb.SelectedItem = item; break; }
                         }
