@@ -1,4 +1,3 @@
-/// FILE: Safety_System/Program.cs ///
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -19,41 +18,83 @@ namespace Safety_System
         [STAThread]
         static void Main()
         {
-            bool createdNew;
-            using (Mutex mutex = new Mutex(true, "SafetySystem_Unique_Mutex_Name", out createdNew))
+            // 🟢 加入全域例外捕捉，防止程式靜默崩潰 (閃退)
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += new ThreadExceptionEventHandler(Application_ThreadException);
+            AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(CurrentDomain_UnhandledException);
+
+            try
             {
-                if (createdNew)
+                bool createdNew;
+                // 使用 Mutex 防止程式重複開啟
+                using (Mutex mutex = new Mutex(true, "SafetySystem_Unique_Mutex_Name", out createdNew))
                 {
-                    Application.EnableVisualStyles();
-                    Application.SetCompatibleTextRenderingDefault(false);
-
-                    // 🟢 在顯示主畫面之前，先進行軟體啟用與權限認證
-                    if (!LicenseManager.VerifyLicense())
+                    if (createdNew)
                     {
-                        MessageBox.Show("未申請使用此軟體功能！請洽詢軟體管理者。", "權限不足或授權到期", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return; // 驗證失敗，直接終止程式
-                    }
+                        Application.EnableVisualStyles();
+                        Application.SetCompatibleTextRenderingDefault(false);
 
-                    Application.Run(new MainForm());
-                }
-                else
-                {
-                    Process current = Process.GetCurrentProcess();
-                    foreach (Process process in Process.GetProcessesByName(current.ProcessName))
-                    {
-                        if (process.Id != current.Id)
+                        // 🟢 在顯示主畫面之前，先進行軟體啟用與權限認證
+                        if (!LicenseManager.VerifyLicense())
                         {
-                            IntPtr handle = process.MainWindowHandle;
-                            if (handle != IntPtr.Zero)
+                            MessageBox.Show("您的電腦帳號尚未在授權名單內！\n\n(若要測試，請至 LicenseManager.cs 暫時修改 VerifyLicense() 回傳 true)", 
+                                            "權限不足或授權到期", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return; // 驗證失敗，直接終止程式
+                        }
+
+                        // 啟動主畫面
+                        Application.Run(new MainForm());
+                    }
+                    else
+                    {
+                        // 程式已在執行中，嘗試喚醒舊視窗
+                        Process current = Process.GetCurrentProcess();
+                        foreach (Process process in Process.GetProcessesByName(current.ProcessName))
+                        {
+                            if (process.Id != current.Id)
                             {
-                                ShowWindow(handle, SW_RESTORE);
-                                SetForegroundWindow(handle);
+                                IntPtr handle = process.MainWindowHandle;
+                                if (handle != IntPtr.Zero)
+                                {
+                                    ShowWindow(handle, SW_RESTORE);
+                                    SetForegroundWindow(handle);
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                // 捕捉到致命錯誤時顯示
+                ShowFatalError(ex);
+            }
+        }
+
+        // 🟢 處理 UI 執行緒的未捕捉錯誤
+        private static void Application_ThreadException(object sender, ThreadExceptionEventArgs e)
+        {
+            ShowFatalError(e.Exception);
+        }
+
+        // 🟢 處理非 UI 執行緒的未捕捉錯誤
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception ex)
+            {
+                ShowFatalError(ex);
+            }
+        }
+
+        // 🟢 統一的錯誤訊息顯示方法
+        private static void ShowFatalError(Exception ex)
+        {
+            string errorMsg = $"系統啟動或執行時發生嚴重錯誤！\n\n" +
+                              $"【錯誤訊息】：\n{ex.Message}\n\n" +
+                              $"【錯誤追蹤】：\n{ex.StackTrace}";
+            
+            MessageBox.Show(errorMsg, "系統崩潰報告", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }
