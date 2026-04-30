@@ -130,11 +130,10 @@ namespace Safety_System
                 btnSearchAir
             });
 
-            // 🟢 修復：將 TLP 總高度增加，並將第二列 (資料列) 設為絕對高度 80px，確保文字不被遮擋
             TableLayoutPanel tlpAirData = new TableLayoutPanel { Dock = DockStyle.Top, Height = 140, ColumnCount = 4, RowCount = 2, CellBorderStyle = TableLayoutPanelCellBorderStyle.Single, Padding = new Padding(10, 0, 10, 10) };
             for (int i = 0; i < 4; i++) tlpAirData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-            tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F)); // 強制絕對高度
+            tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F)); // 強制絕對高度，防遮擋
 
             string[] airHeaders = { "當期申報數據", "去年同期數據", "前年同期數據", "與去年同期差異" };
             for (int i = 0; i < 4; i++) {
@@ -252,7 +251,6 @@ namespace Safety_System
 
         private FlowLayoutPanel CreateDataCell(Label l1, Label l2)
         {
-            // 🟢 強制不換行，且高度設為自動延展適應 Label 大小
             FlowLayoutPanel flp = new FlowLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 FlowDirection = FlowDirection.TopDown, 
@@ -616,7 +614,7 @@ namespace Safety_System
 
                             Font fMainTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
                             Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
-                            Font fSign = new Font("Microsoft JhengHei UI", 11F); 
+                            Font fSign = new Font("Microsoft JhengHei UI", 10F); 
                             Font fDate = new Font("Microsoft JhengHei UI", 10F); 
                             
                             Font fBody = new Font("Microsoft JhengHei UI", 12F); 
@@ -630,7 +628,8 @@ namespace Safety_System
                             g.DrawString("空污費申報【排放量】統計報表", fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
                             y += 45; 
                             
-                            string signText = "廠主管：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
+                            // 🟢 修改了簽核欄位，新增了經/副理，並調小字體以防被截斷
+                            string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
 
@@ -661,6 +660,9 @@ namespace Safety_System
                                 string text = $"{emissions[i]}\n\n{fees[i]}";
                                 g.DrawString(text, fBody, Brushes.Black, new RectangleF(rectF.X + 10, rectF.Y + 10, rectF.Width - 20, rectF.Height - 20), sfLeft);
                             }
+
+                            // 🟢 底部印出 1/1 頁碼
+                            g.DrawString($"第 1 頁 / 共 1 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
 
                             ev.HasMorePages = false;
                         };
@@ -696,6 +698,12 @@ namespace Safety_System
                     
                     int rowIndex = 0; 
                     int pageNumber = 1; 
+
+                    // 🟢 預估總頁數 (以每頁大約容納 18 行估算)
+                    int totalPages = 1;
+                    if (dgv.Rows.Count > 15) {
+                        totalPages = 1 + (int)Math.Ceiling((double)(dgv.Rows.Count - 15) / 18);
+                    }
                     
                     pd.PrintPage += (s, ev) => 
                     {
@@ -706,7 +714,7 @@ namespace Safety_System
                         
                         Font fMainTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
                         Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
-                        Font fSign = new Font("Microsoft JhengHei UI", 11F); 
+                        Font fSign = new Font("Microsoft JhengHei UI", 10F); 
                         Font fDate = new Font("Microsoft JhengHei UI", 10F); 
 
                         Font fBody = new Font("Microsoft JhengHei UI", 10F); 
@@ -715,13 +723,15 @@ namespace Safety_System
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
                         StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
+                        // 🟢 第一頁印出標題與簽核欄
                         if (rowIndex == 0) {
                             g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fMainTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 30), sfCenter); 
                             y += 35;
                             g.DrawString(title, fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
                             y += 45; 
 
-                            string signText = "廠主管：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
+                            // 🟢 修改了簽核欄位，新增了經/副理
+                            string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
 
@@ -742,6 +752,7 @@ namespace Safety_System
                         float currX = x; 
                         float rowH = 35;
                         
+                        // 畫表頭
                         for (int i = 0; i < visCols.Count; i++) 
                         {
                             RectangleF rectF = new RectangleF(currX, y, colWidths[i], rowH);
@@ -753,11 +764,13 @@ namespace Safety_System
                         }
                         y += rowH;
                         
+                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count) 
                         {
                             if (y + rowH > ev.MarginBounds.Bottom - 30) 
                             { 
-                                g.DrawString($"- 頁碼 {pageNumber} -", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
+                                // 🟢 底端印出頁數格式
+                                g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
                                 pageNumber++; 
                                 ev.HasMorePages = true; 
                                 return; 
@@ -777,7 +790,8 @@ namespace Safety_System
                             rowIndex++;
                         }
                         
-                        g.DrawString($"- 頁碼 {pageNumber} -", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
+                        // 🟢 最後一頁底端印出頁數
+                        g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
                         ev.HasMorePages = false; 
                         rowIndex = 0; 
                         pageNumber = 1;
