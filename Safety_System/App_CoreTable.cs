@@ -55,6 +55,10 @@ namespace Safety_System
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
         private Dictionary<string, int> _columnWidths = new Dictionary<string, int>();
 
+        // 右鍵選單相關
+        private ContextMenuStrip _ctxMenu;
+        private int _rightClickedColIndex = -1;
+
         public App_CoreTable(string dbName, string tableName, string chineseTitle, ITableLogic logic)
         {
             _dbName = dbName;
@@ -108,13 +112,13 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
             // 統一對齊用的 Padding 設定
-            Padding lblPad = new Padding(0, 8, 5, 0);  // Label 的 Margin
-            Padding ctrlPad = new Padding(0, 4, 5, 0); // Textbox, Combobox 的 Margin
-            Padding btnPad = new Padding(0, 0, 10, 0); // Button 的 Margin
-            int btnHeight = 35; // 統一按鈕高度
+            Padding lblPad = new Padding(0, 8, 5, 0); 
+            Padding ctrlPad = new Padding(0, 4, 5, 0); 
+            Padding btnPad = new Padding(0, 0, 10, 0); 
+            int btnHeight = 35; 
 
             // =========================================================
-            // 一般顯示區 (1大框 2小框： 60% / 40%)
+            // 一般顯示區 (1大框)
             // =========================================================
             GroupBox boxTop = new GroupBox { 
                 Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", 
@@ -126,21 +130,8 @@ namespace Safety_System
                 Margin = new Padding(0, 0, 0, 10) 
             };
             
-            TableLayoutPanel tlpTop = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, 
-                ColumnCount = 2, 
-                RowCount = 1, 
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink
-            };
-            tlpTop.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F)); // 🟢 調整為 60%
-            tlpTop.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F)); // 🟢 調整為 40%
-            tlpTop.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            FlowLayoutPanel flpTop = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
 
-            FlowLayoutPanel flpTopLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
-            FlowLayoutPanel flpTopRight = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false }; // 🟢 改回靠左對齊
-
-            // 左側 60% 內容
             Label lblRange = new Label { Text = "查詢區間:", AutoSize = true, Margin = lblPad };
             _cboStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
             _cboStartMonth = new ComboBox { Width = 55, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
@@ -191,30 +182,24 @@ namespace Safety_System
                 _cboEndMonth.Visible = false; lblEM.Visible = false;
             }
 
-            flpTopLeft.Controls.AddRange(new Control[] {
-                lblRange, _cboStartYear, lblSY, _cboStartMonth, lblSM, _cboStartDay, lblSD,
-                lblTilde, _cboEndYear, lblEY, _cboEndMonth, lblEM, _cboEndDay, lblED,
-                _btnRead, lblLatestCount, _txtLatestCount, bLimitRead
-            });
-
-            // 右側 40% 內容
-            _btnToggle = new Button { Text = "+", Size = new Size(50, btnHeight), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnToggle = new Button { Text = "+", Size = new Size(45, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold) };
             _btnToggle.FlatAppearance.BorderSize = 0;
 
-            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(100, btnHeight), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(95, btnHeight), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.FlatAppearance.BorderSize = 0;
             _btnSave.Click += BtnSave_Click; 
 
-            // 🟢 依序加入：進階管理 (+)、儲存 (靠左對齊)
-            flpTopRight.Controls.Add(_btnToggle); 
-            flpTopRight.Controls.Add(_btnSave);
+            flpTop.Controls.AddRange(new Control[] {
+                lblRange, _cboStartYear, lblSY, _cboStartMonth, lblSM, _cboStartDay, lblSD,
+                lblTilde, _cboEndYear, lblEY, _cboEndMonth, lblEM, _cboEndDay, lblED,
+                _btnRead, lblLatestCount, _txtLatestCount, bLimitRead,
+                _btnToggle, _btnSave
+            });
 
-            tlpTop.Controls.Add(flpTopLeft, 0, 0);
-            tlpTop.Controls.Add(flpTopRight, 1, 0);
-            boxTop.Controls.Add(tlpTop);
+            boxTop.Controls.Add(flpTop);
 
             // =========================================================
-            // 進階管理區 (1大框 2小框： 60% / 40%)
+            // 進階管理區 (緊湊排版)
             // =========================================================
             _boxAdvanced = new GroupBox { 
                 Text = "進階欄位與權限操作", 
@@ -228,33 +213,11 @@ namespace Safety_System
                 Margin = new Padding(0, 0, 0, 10) 
             };
             
-            TableLayoutPanel tlpAdv = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, 
-                ColumnCount = 2, 
-                RowCount = 1, 
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink
-            };
-            tlpAdv.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
-            tlpAdv.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
-            tlpAdv.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            TableLayoutPanel tlpAdv = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            FlowLayoutPanel flpAdvRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
+            FlowLayoutPanel flpAdvRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 0) };
 
-            // -- 60% 區塊 (包含兩排) --
-            TableLayoutPanel tlpAdvLeft = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, 
-                ColumnCount = 1, 
-                RowCount = 2, 
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink 
-            };
-            tlpAdvLeft.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            tlpAdvLeft.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            tlpAdvLeft.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-
-            FlowLayoutPanel flpAdvLeftRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
-            FlowLayoutPanel flpAdvLeftRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 0) };
-
-            // 60% - 第一排：欄位/列操作→標題更改→欄除整欄→刪除整列
+            // 第一排：欄位/列操作→標題更改→刪除欄→刪除列 --> 間隔30px --> 顯示設定
             _txtNewColName = new TextBox { Width = 110, Margin = ctrlPad };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(95, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bAdd.FlatAppearance.BorderSize = 0;
@@ -299,7 +262,7 @@ namespace Safety_System
                 } 
             };
             
-            Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(110, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
+            Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(110, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelRow.FlatAppearance.BorderSize = 0;
             bDelRow.Click += (s, e) => {
                 var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
@@ -324,42 +287,22 @@ namespace Safety_System
                 }
             };
 
-            flpAdvLeftRow1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = lblPad }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
-
-            // 60% - 第二排：查詢資料→關鍵字→條件搜尋
-            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
-            _txtSearchKeyword = new TextBox { Width = 180, Margin = ctrlPad };
-            _btnAdvancedSearch = new Button { Text = "🔍 查詢", Size = new Size(90, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
-            _btnAdvancedSearch.FlatAppearance.BorderSize = 0;
-            _btnAdvancedSearch.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.Advanced; await ReloadCurrentDataAsync(); };
-
-            flpAdvLeftRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
-
-            tlpAdvLeft.Controls.Add(flpAdvLeftRow1, 0, 0);
-            tlpAdvLeft.Controls.Add(flpAdvLeftRow2, 0, 1);
-
-            // -- 40% 區塊 (包含兩排) --
-            TableLayoutPanel tlpAdvRight = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, 
-                ColumnCount = 1, 
-                RowCount = 2, 
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink 
-            };
-            tlpAdvRight.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            tlpAdvRight.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            tlpAdvRight.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-
-            FlowLayoutPanel flpAdvRightRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
-            FlowLayoutPanel flpAdvRightRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 0) };
-
-            // 40% - 第一排：顯示設定
+            // 顯示設定 (加上 30px 空白)
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
             _btnColSettings.Click += BtnColSettings_Click;
-            flpAdvRightRow1.Controls.Add(_btnColSettings);
 
-            // 40% - 第二排：匯入Excel→匯出Excel→導出PDF→全國法規RTF轉Excel
+            flpAdvRow1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = lblPad }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
+            flpAdvRow1.Controls.Add(new Panel { Width = 30, Height = 1 }); // 墊片
+            flpAdvRow1.Controls.Add(_btnColSettings);
+
+            // 第二排：查詢資料→關鍵字→查詢 --> 間隔30px --> 匯入→匯出→導出PDF
+            _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
+            _txtSearchKeyword = new TextBox { Width = 180, Margin = ctrlPad };
+            _btnAdvancedSearch = new Button { Text = "🔍 查詢", Size = new Size(90, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            _btnAdvancedSearch.FlatAppearance.BorderSize = 0;
+            _btnAdvancedSearch.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.Advanced; await ReloadCurrentDataAsync(); };
+
             _btnImport = new Button { Text = "📥 匯入", Size = new Size(90, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 149, 0), ForeColor = Color.White };
             _btnImport.FlatAppearance.BorderSize = 0;
             _btnImport.Click += BtnImportExcel_Click;
@@ -372,21 +315,19 @@ namespace Safety_System
             _btnExportPdf.FlatAppearance.BorderSize = 0;
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            flpAdvRightRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
+            flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
+            flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); // 墊片
+            flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
 
             if (_logic is LawLogic) {
-                _btnRtfToExcel = new Button { Text = "📄 全國法規RTF轉 Excel", Size = new Size(220, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
+                _btnRtfToExcel = new Button { Text = "📄 RTF轉 Excel", Size = new Size(160, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
                 _btnRtfToExcel.FlatAppearance.BorderSize = 0;
                 _btnRtfToExcel.Click += BtnRtfToExcel_Click;
-                flpAdvRightRow2.Controls.Add(_btnRtfToExcel);
+                flpAdvRow2.Controls.Add(_btnRtfToExcel);
             }
 
-            tlpAdvRight.Controls.Add(flpAdvRightRow1, 0, 0);
-            tlpAdvRight.Controls.Add(flpAdvRightRow2, 0, 1);
-
-            // 組裝進階管理區
-            tlpAdv.Controls.Add(tlpAdvLeft, 0, 0);
-            tlpAdv.Controls.Add(tlpAdvRight, 1, 0);
+            tlpAdv.Controls.Add(flpAdvRow1, 0, 0);
+            tlpAdv.Controls.Add(flpAdvRow2, 0, 1);
             _boxAdvanced.Controls.Add(tlpAdv);
 
             _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; };
@@ -401,6 +342,7 @@ namespace Safety_System
             
             _dgv.CellFormatting += Dgv_CellFormatting;
             _dgv.CellClick += Dgv_CellClick;
+            _dgv.CellMouseClick += Dgv_CellMouseClick; // 🟢 右鍵選單綁定
             _dgv.KeyDown += Dgv_KeyDown;
             _dgv.KeyPress += Dgv_KeyPress;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
@@ -411,6 +353,8 @@ namespace Safety_System
 
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
+            InitContextMenu(); // 🟢 初始化右鍵選單
+
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(_boxAdvanced, 0, 1); 
             main.Controls.Add(_lblStatus, 0, 2);
@@ -418,6 +362,51 @@ namespace Safety_System
 
             _ = ReloadCurrentDataAsync(); 
             return main;
+        }
+
+        // 🟢 實作右鍵選單與凍結視窗功能
+        private void InitContextMenu()
+        {
+            _ctxMenu = new ContextMenuStrip { Font = new Font("Microsoft JhengHei UI", 11F) };
+
+            ToolStripMenuItem itemFreeze = new ToolStripMenuItem("❄️ 凍結此欄(含)以左視窗");
+            ToolStripMenuItem itemUnfreeze = new ToolStripMenuItem("🔥 取消凍結");
+            ToolStripMenuItem itemImport = new ToolStripMenuItem("📥 匯入");
+            ToolStripMenuItem itemExport = new ToolStripMenuItem("📤 匯出");
+            ToolStripMenuItem itemPdf = new ToolStripMenuItem("📄 導出 PDF");
+
+            itemImport.Click += BtnImportExcel_Click;
+            itemExport.Click += BtnExport_Click;
+            itemPdf.Click += BtnExportPdf_Click;
+
+            itemFreeze.Click += (s, e) => {
+                if (_rightClickedColIndex >= 0 && _rightClickedColIndex < _dgv.Columns.Count) {
+                    foreach (DataGridViewColumn col in _dgv.Columns) col.Frozen = false;
+                    _dgv.Columns[_rightClickedColIndex].Frozen = true;
+                }
+            };
+
+            itemUnfreeze.Click += (s, e) => {
+                foreach (DataGridViewColumn col in _dgv.Columns) col.Frozen = false;
+            };
+
+            _ctxMenu.Items.AddRange(new ToolStripItem[] { itemFreeze, itemUnfreeze, new ToolStripSeparator(), itemImport, itemExport, itemPdf });
+        }
+
+        private void Dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right) {
+                if (e.ColumnIndex >= 0) {
+                    _rightClickedColIndex = e.ColumnIndex;
+                    // 如果點擊的是資料列，則同時選取該儲存格
+                    if (e.RowIndex >= 0 && e.RowIndex < _dgv.Rows.Count) {
+                        _dgv.ClearSelection();
+                        _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected = true;
+                        _dgv.CurrentCell = _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                    }
+                    _ctxMenu.Show(Cursor.Position);
+                }
+            }
         }
 
         private async Task ReloadCurrentDataAsync()
@@ -788,6 +777,10 @@ namespace Safety_System
 
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
+            // 🟢 修復：攔截編輯狀態下的按鍵事件，支援 Ctrl+S
+            e.Control.PreviewKeyDown -= EditingControl_PreviewKeyDown;
+            e.Control.PreviewKeyDown += EditingControl_PreviewKeyDown;
+
             if (e.Control is ComboBox cbo) 
             {
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -823,6 +816,15 @@ namespace Safety_System
             }
         }
 
+        // 🟢 專為處理編輯狀態下攔截 Ctrl+S
+        private void EditingControl_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.S)
+            {
+                _btnSave.PerformClick();
+            }
+        }
+
         private void TextBox_KeyDown(object sender, KeyEventArgs e) 
         {
             if (e.Alt && e.KeyCode == Keys.Enter) 
@@ -837,12 +839,26 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底解決下拉選單變更後無法正確儲存的問題
         private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
             {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                
+                // 強制將焦點移轉給按鈕，觸發儲存格的失焦事件與驗證
+                _btnSave.Focus();
+
+                // 確保所有編輯狀態中的下拉選單與文字框強制寫入 DataTable
+                if (_dgv.IsCurrentCellInEditMode) {
+                    _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                }
                 _dgv.EndEdit(); 
+                
+                if (_dgv.BindingContext != null && _dgv.DataSource != null) {
+                    _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
+                }
+
                 SaveColumnOrder(); 
                 SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
                 
@@ -1214,7 +1230,7 @@ namespace Safety_System
                         RestoreColumnOrder();
                         
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
-                        MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) 
                     { 
