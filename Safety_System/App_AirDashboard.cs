@@ -102,7 +102,7 @@ namespace Safety_System
             Button btnPdfAir = new Button { Text = "📄 導出 PDF", Size = new Size(130, 30), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right };
             btnPdfAir.FlatAppearance.BorderSize = 0;
             btnPdfAir.FlatStyle = FlatStyle.Flat;
-            btnPdfAir.Click += (s, e) => ExportBoxToPdf(_pnlAirBox, "空污費統計報表");
+            btnPdfAir.Click += (s, e) => ExportAirDataToPdf();
             pnlHeaderAirRight.Controls.Add(btnPdfAir);
 
             pnlHeaderAir.Controls.Add(lblAirTitle);
@@ -244,11 +244,21 @@ namespace Safety_System
             return mainPanel;
         }
 
-        private Label CreateDataLabel() => new Label { Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.FromArgb(50, 50, 50), AutoSize = true, Margin = new Padding(0, 5, 0, 15) };
+        // ====================================================
+        // Part 1 & 2: 空污費邏輯
+        // ====================================================
+        private Label CreateDataLabel() => new Label { Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.FromArgb(50, 50, 50), AutoSize = true, Margin = new Padding(0, 5, 0, 10) };
 
+        // 🟢 修復：強制 WrapContents = false，確保不會換行成並排，絕對維持上下兩行顯示
         private FlowLayoutPanel CreateDataCell(Label l1, Label l2)
         {
-            FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, Padding = new Padding(15, 20, 15, 10) };
+            FlowLayoutPanel flp = new FlowLayoutPanel { 
+                Dock = DockStyle.Fill, 
+                FlowDirection = FlowDirection.TopDown, 
+                WrapContents = false, 
+                AutoSize = true, 
+                Padding = new Padding(15, 20, 15, 10) 
+            };
             flp.Controls.Add(l1);
             flp.Controls.Add(l2);
             return flp;
@@ -317,6 +327,9 @@ namespace Safety_System
             return (diff > 0 ? "+" : "") + diff.ToString("N1") + " %";
         }
 
+        // ====================================================
+        // Part 3: 原物料設定與運算邏輯
+        // ====================================================
         private void LoadMaterialConfigs()
         {
             _matConfigs.Clear();
@@ -348,7 +361,7 @@ namespace Safety_System
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 5, RowCount = 11, Padding = new Padding(15) };
                 
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180F)); // 名稱
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F)); // 庫
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F)); // 庫 (加寬給中文)
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); // 表
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); // 欄位
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));  // 換算
@@ -358,6 +371,7 @@ namespace Safety_System
 
                 var rowsUi = new List<MatConfigRowUI>();
 
+                // 擴充至 10 組設定
                 for (int i = 0; i < 10; i++)
                 {
                     TextBox txtName = new TextBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -372,6 +386,7 @@ namespace Safety_System
 
                     cbConv.Items.AddRange(new string[] { "無換算 (x1)", "公噸 ➔ 公斤 (x1000)", "公斤 ➔ 公噸 (x0.001)", "公升 ➔ 公秉 (x0.001)", "公秉 ➔ 公升 (x1000)" });
 
+                    // 綁定連動事件
                     cbDb.SelectedIndexChanged += (s, e) => {
                         cbTb.Items.Clear(); cbCol.Items.Clear();
                         if (cbDb.SelectedItem != null) {
@@ -398,10 +413,12 @@ namespace Safety_System
                         }
                     };
 
+                    // 填入既有設定
                     if (i < _matConfigs.Count) {
                         var conf = _matConfigs[i];
                         txtName.Text = conf.Alias;
                         
+                        // 找尋對應的中文 DB 名稱
                         foreach (ItemMap item in cbDb.Items) {
                             if (item.EnName == conf.DbName) { cbDb.SelectedItem = item; break; }
                         }
@@ -570,9 +587,12 @@ namespace Safety_System
             return total;
         }
 
-        private void ExportBoxToPdf(Panel pnlBox, string title)
+        // ====================================================
+        // PDF 高清向量導出系統
+        // ====================================================
+        private void ExportAirDataToPdf()
         {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "空污費統計報表_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
@@ -593,18 +613,32 @@ namespace Safety_System
                             float y = ev.MarginBounds.Top; 
                             float pageWidth = ev.MarginBounds.Width;
 
-                            Font fTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
+                            // 🟢 字型設定
+                            Font fMainTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
+                            Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
+                            Font fSign = new Font("Microsoft JhengHei UI", 11F); 
+                            Font fDate = new Font("Microsoft JhengHei UI", 10F); 
+                            
                             Font fBody = new Font("Microsoft JhengHei UI", 12F); 
                             Font fHead = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
                             
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
                             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                            g.DrawString("台灣玻璃工業股份有限公司-彰濱廠\n空污費申報【排放量】統計報表", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 60), sfCenter); 
-                            y += 70;
-                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}    查詢區間：{_cboAirYear.Text}年度 {_cboAirQuarter.Text}", fBody, Brushes.Gray, x, y); 
-                            y += 30;
+                            // 🟢 標題與簽核欄
+                            g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fMainTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 30), sfCenter); 
+                            y += 35;
+                            g.DrawString("空污費申報【排放量】統計報表", fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
+                            y += 45; // 包含空一行
                             
+                            string signText = "廠主管：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
+                            g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
+                            y += 45; // 包含空一行
+
+                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}    查詢區間：{_cboAirYear.Text}年度 {_cboAirQuarter.Text}", fDate, Brushes.Gray, x, y); 
+                            y += 25;
+                            
+                            // 🟢 資料表格
                             string[] headers = { "當期申報數據", "去年同期數據", "前年同期數據", "與去年同期差異" };
                             string[] emissions = { _lblAirEmissionsCurr.Text, _lblAirEmissionsLY.Text, _lblAirEmissionsL2Y.Text, _lblAirEmissionsDiff.Text };
                             string[] fees = { _lblAirFeeCurr.Text, _lblAirFeeLY.Text, _lblAirFeeL2Y.Text, _lblAirFeeDiff.Text };
@@ -672,16 +706,35 @@ namespace Safety_System
                         float y = ev.MarginBounds.Top; 
                         float pageWidth = ev.MarginBounds.Width;
                         
-                        Font fTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
+                        Font fMainTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
+                        Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
+                        Font fSign = new Font("Microsoft JhengHei UI", 11F); 
+                        Font fDate = new Font("Microsoft JhengHei UI", 10F); 
+
                         Font fBody = new Font("Microsoft JhengHei UI", 10F); 
                         Font fHead = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
                         
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
-                        
-                        g.DrawString($"台灣玻璃工業股份有限公司-彰濱廠\n{title}", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 50), sfCenter); 
-                        y += 60;
-                        g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fBody, Brushes.Gray, x, y); 
-                        y += 25;
+                        StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                        // 🟢 第一頁印出標題與簽核欄
+                        if (rowIndex == 0) {
+                            g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fMainTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 30), sfCenter); 
+                            y += 35;
+                            g.DrawString(title, fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
+                            y += 45; // 包含空一行
+
+                            string signText = "廠主管：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
+                            g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
+                            y += 45; // 包含空一行
+
+                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fDate, Brushes.Gray, x, y); 
+                            y += 25;
+                        } else {
+                            // 續頁只印日期
+                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fDate, Brushes.Gray, x, y); 
+                            y += 25;
+                        }
                         
                         var visCols = dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList(); 
                         if (visCols.Count == 0) return;
@@ -693,6 +746,7 @@ namespace Safety_System
                         float currX = x; 
                         float rowH = 35;
                         
+                        // 畫表頭
                         for (int i = 0; i < visCols.Count; i++) 
                         {
                             RectangleF rectF = new RectangleF(currX, y, colWidths[i], rowH);
@@ -704,11 +758,12 @@ namespace Safety_System
                         }
                         y += rowH;
                         
+                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count) 
                         {
                             if (y + rowH > ev.MarginBounds.Bottom - 30) 
                             { 
-                                g.DrawString($"- 頁碼 {pageNumber} -", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
+                                g.DrawString($"- 頁碼 {pageNumber} -", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
                                 pageNumber++; 
                                 ev.HasMorePages = true; 
                                 return; 
@@ -728,7 +783,7 @@ namespace Safety_System
                             rowIndex++;
                         }
                         
-                        g.DrawString($"- 頁碼 {pageNumber} -", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
+                        g.DrawString($"- 頁碼 {pageNumber} -", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
                         ev.HasMorePages = false; 
                         rowIndex = 0; 
                         pageNumber = 1;
