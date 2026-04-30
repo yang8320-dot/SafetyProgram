@@ -22,7 +22,7 @@ namespace Safety_System
 
         private enum SearchMode { DateRange, Limit, Advanced }
         private SearchMode _currentSearchMode = SearchMode.DateRange;
-        private int _currentLimit = 100;
+        private int _currentLimit = 50; // 🟢 預設筆數改為 50
 
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
@@ -132,27 +132,26 @@ namespace Safety_System
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, (_timeMode == TimeMode.Date) ? DateTime.Today.AddDays(-30) : DateTime.Today.AddMonths(-6));
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, DateTime.Today);
 
-            // 🟢 iOS 配色: 讀取資料 (Blue)
-            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(110, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            // 🟢 iOS 配色: 讀取資料 (Blue) [加寬到 130]
+            _btnRead = new Button { Text = "🔍 讀取資料", Size = new Size(130, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             _btnRead.FlatAppearance.BorderSize = 0;
             _btnRead.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.DateRange; await ReloadCurrentDataAsync(); };
 
-            // 🟢 iOS 配色: 匯出 Excel (Green)
-            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
-            _btnExport.FlatAppearance.BorderSize = 0;
-            _btnExport.Click += BtnExport_Click;
+            // 🟢 將 最近筆數 控制項移至 row1
+            Label lblLatestCount = new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(15, 8, 5, 0) };
+            _txtLatestCount = new TextBox { Width = 50, Text = "50", Margin = new Padding(0, 4, 5, 0) }; // 預設 50
+            
+            // 🟢 iOS 配色: 筆數讀取 (Blue)
+            Button bLimitRead = new Button { Text = "筆數讀取", Size = new Size(110, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            bLimitRead.FlatAppearance.BorderSize = 0;
+            bLimitRead.Click += async (s, e) => { if (int.TryParse(_txtLatestCount.Text, out int l)) { _isFirstLoad = false; _currentSearchMode = SearchMode.Limit; _currentLimit = l; await ReloadCurrentDataAsync(); } };
 
-            // 🟢 iOS 配色: 匯入 Excel (Orange)
-            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 149, 0), ForeColor = Color.White };
-            _btnImport.FlatAppearance.BorderSize = 0;
-            _btnImport.Click += BtnImportExcel_Click;
-
-            // 🟢 iOS 配色: 進階管理 (Gray)
-            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
+            // 🟢 iOS 配色: 進階管理 (Gray) [加寬到 160]
+            _btnToggle = new Button { Text = "[ + ] 進階管理", Size = new Size(160, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnToggle.FlatAppearance.BorderSize = 0;
 
             // 🟢 iOS 配色: 儲存數據 (Green + Bold)
-            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(140, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnSave = new Button { Name = "btnSave", Text = "💾 儲存數據", Size = new Size(140, 35), Margin = new Padding(15, 0, 0, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.FlatAppearance.BorderSize = 0;
             _btnSave.Click += BtnSave_Click; 
 
@@ -162,7 +161,7 @@ namespace Safety_System
             Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 8, 5, 0) };
             Label lblEY = new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
             Label lblEM = new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
-            Label lblED = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 5, 0) };
+            Label lblED = new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 8, 15, 0) }; // 加大右距
 
             if (_timeMode == TimeMode.YearMonth || _timeMode == TimeMode.Year) {
                 _cboStartDay.Visible = false; lblSD.Visible = false;
@@ -173,10 +172,11 @@ namespace Safety_System
                 _cboEndMonth.Visible = false; lblEM.Visible = false;
             }
 
+            // 🟢 Row 1 排列順序：區間 ➔ 讀取資料 ➔ 最近筆數 ➔ 筆數讀取 ➔ 進階管理 ➔ 儲存數據
             row1.Controls.AddRange(new Control[] {
                 lblRange, _cboStartYear, lblSY, _cboStartMonth, lblSM, _cboStartDay, lblSD,
                 lblTilde, _cboEndYear, lblEY, _cboEndMonth, lblEM, _cboEndDay, lblED,
-                _btnRead, _btnExport, _btnImport, _btnToggle, _btnSave
+                _btnRead, lblLatestCount, _txtLatestCount, bLimitRead, _btnToggle, _btnSave
             });
 
             boxTop.Controls.Add(row1);
@@ -186,9 +186,8 @@ namespace Safety_System
             
             FlowLayoutPanel rowAdv1 = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
             
-            _txtNewColName = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
+            _txtNewColName = new TextBox { Width = 110, Margin = new Padding(0, 4, 5, 0) };
             
-            // 🟢 iOS 配色: 新增欄位 (Blue)
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(110, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bAdd.FlatAppearance.BorderSize = 0;
             bAdd.Click += (s, e) => { 
@@ -204,7 +203,6 @@ namespace Safety_System
             _cboColumns = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) }; 
             _txtRenameCol = new TextBox { Width = 130, Margin = new Padding(0, 4, 5, 0) };
             
-            // 🟢 iOS 配色: 標題更改 (Blue)
             Button bRen = new Button { Text = "標題更改", Size = new Size(110, 35), Margin = new Padding(0, 0, 5, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bRen.FlatAppearance.BorderSize = 0;
             bRen.Click += (s, e) => { 
@@ -219,7 +217,6 @@ namespace Safety_System
                 } 
             };
             
-            // 🟢 iOS 配色: 刪除整欄 (Red)
             Button bDelCol = new Button { Text = "刪除整欄", Size = new Size(110, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelCol.FlatAppearance.BorderSize = 0;
             bDelCol.Click += (s, e) => { 
@@ -235,7 +232,6 @@ namespace Safety_System
                 } 
             };
             
-            // 🟢 iOS 配色: 刪除選取列 (Red)
             Button bDelRow = new Button { Text = "🗑 刪除選取列", Size = new Size(140, 35), Margin = new Padding(0, 0, 15, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelRow.FlatAppearance.BorderSize = 0;
             bDelRow.Click += (s, e) => {
@@ -261,12 +257,10 @@ namespace Safety_System
                 }
             };
 
-            // 🟢 iOS 配色: 導出 PDF (Green)
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 35), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
             _btnExportPdf.FlatAppearance.BorderSize = 0;
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            // 🟢 iOS 配色: 顯示設定 (Gray)
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(130, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
             _btnColSettings.Click += BtnColSettings_Click;
@@ -274,27 +268,33 @@ namespace Safety_System
             rowAdv1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow, _btnExportPdf, _btnColSettings });
             
             FlowLayoutPanel rowAdv2 = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 5, 0, 0), WrapContents = false };
-            
-            _txtLatestCount = new TextBox { Width = 60, Text = "500", Margin = new Padding(0, 4, 5, 0) };
-            
-            // 🟢 iOS 配色: 筆數讀取 (Blue)
-            Button bLimitRead = new Button { Text = "筆數讀取", Size = new Size(110, 35), Margin = new Padding(0, 0, 20, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
-            bLimitRead.FlatAppearance.BorderSize = 0;
-            bLimitRead.Click += async (s, e) => { if (int.TryParse(_txtLatestCount.Text, out int l)) { _isFirstLoad = false; _currentSearchMode = SearchMode.Limit; _currentLimit = l; await ReloadCurrentDataAsync(); } };
 
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 5, 0) };
-            _txtSearchKeyword = new TextBox { Width = 200, Margin = new Padding(0, 4, 5, 0) };
-            
+            _txtSearchKeyword = new TextBox { Width = 200, Margin = new Padding(0, 4, 15, 0) };
             // 🟢 iOS 配色: 條件搜尋 (Blue)
-            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
+            _btnAdvancedSearch = new Button { Text = "🔍 條件搜尋", Size = new Size(130, 35), Margin = new Padding(0, 0, 20, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             _btnAdvancedSearch.FlatAppearance.BorderSize = 0;
             _btnAdvancedSearch.Click += async (s, e) => { _isFirstLoad = false; _currentSearchMode = SearchMode.Advanced; await ReloadCurrentDataAsync(); };
             
-            rowAdv2.Controls.AddRange(new Control[] { new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _txtLatestCount, bLimitRead, new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = new Padding(10, 8, 5, 0) }, _txtSearchKeyword, _btnAdvancedSearch });
+            // 🟢 將 匯出/匯入 Excel 移動到條件搜尋後方，採用 iOS 配色 (Green / Orange)
+            _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(130, 35), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
+            _btnExport.FlatAppearance.BorderSize = 0;
+            _btnExport.Click += BtnExport_Click;
 
+            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(130, 35), Margin = new Padding(0, 0, 20, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 149, 0), ForeColor = Color.White };
+            _btnImport.FlatAppearance.BorderSize = 0;
+            _btnImport.Click += BtnImportExcel_Click;
+            
+            // 🟢 重新排列的順序：查詢資料 -> 關鍵字 -> 條件搜尋 -> 匯出Excel -> 匯入Excel
+            rowAdv2.Controls.AddRange(new Control[] { 
+                new Label { Text = "查詢資料:", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _cboSearchColumn, 
+                new Label { Text = "關鍵字(含):", AutoSize = true, Margin = new Padding(0, 8, 5, 0) }, _txtSearchKeyword, 
+                _btnAdvancedSearch, _btnExport, _btnImport 
+            });
+
+            // 🟢 如果是法規模組，在最後方加上專屬按鍵
             if (_logic is LawLogic) {
-                // 🟢 iOS 配色: 法規轉 EXCEL (Green)
-                _btnRtfToExcel = new Button { Text = "📄 法規轉 EXCEL", Size = new Size(180, 35), Margin = new Padding(15, 0, 0, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
+                _btnRtfToExcel = new Button { Text = "📄 全國法規RTF 轉 Excel", Size = new Size(230, 35), Margin = new Padding(0, 0, 0, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
                 _btnRtfToExcel.FlatAppearance.BorderSize = 0;
                 _btnRtfToExcel.Click += BtnRtfToExcel_Click;
                 rowAdv2.Controls.Add(_btnRtfToExcel);
@@ -332,7 +332,6 @@ namespace Safety_System
             _ = ReloadCurrentDataAsync(); 
             return main;
         }
-        /// FILE: Safety_System/App_CoreTable.cs (Part 2) ///
 
         private async Task ReloadCurrentDataAsync()
         {
@@ -751,7 +750,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 將存檔保護機制拔除，讓任何人都可以點擊存檔
+        // 🟢 將存檔保護機制拔除，任何人皆可直接儲存
         private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
@@ -1648,3 +1647,4 @@ namespace Safety_System
         }
     }
 }
+            
