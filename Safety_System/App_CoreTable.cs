@@ -55,9 +55,10 @@ namespace Safety_System
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
         private Dictionary<string, int> _columnWidths = new Dictionary<string, int>();
 
-        // 右鍵選單相關
+        // 🟢 右鍵選單與凍結狀態紀錄
         private ContextMenuStrip _ctxMenu;
         private int _rightClickedColIndex = -1;
+        private string _frozenColumnName = null;
 
         public App_CoreTable(string dbName, string tableName, string chineseTitle, ITableLogic logic)
         {
@@ -111,7 +112,6 @@ namespace Safety_System
             main.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
-            // 統一對齊用的 Padding 設定
             Padding lblPad = new Padding(0, 8, 5, 0); 
             Padding ctrlPad = new Padding(0, 4, 5, 0); 
             Padding btnPad = new Padding(0, 0, 10, 0); 
@@ -199,7 +199,7 @@ namespace Safety_System
             boxTop.Controls.Add(flpTop);
 
             // =========================================================
-            // 進階管理區 (緊湊排版)
+            // 進階管理區 (取消分隔，全列接續顯示)
             // =========================================================
             _boxAdvanced = new GroupBox { 
                 Text = "進階欄位與權限操作", 
@@ -213,20 +213,32 @@ namespace Safety_System
                 Margin = new Padding(0, 0, 0, 10) 
             };
             
-            TableLayoutPanel tlpAdv = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            TableLayoutPanel tlpAdvLeft = new TableLayoutPanel { 
+                Dock = DockStyle.Fill, 
+                ColumnCount = 1, 
+                RowCount = 2, 
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink 
+            };
+            tlpAdvLeft.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            tlpAdvLeft.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            tlpAdvLeft.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+
             FlowLayoutPanel flpAdvRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             FlowLayoutPanel flpAdvRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 0) };
 
-            // 第一排：欄位/列操作→標題更改→刪除欄→刪除列 --> 間隔30px --> 顯示設定
+            // 🟢 第一排：欄位/列操作→標題更改→刪除欄→刪除列 --> 墊片 --> 顯示設定
             _txtNewColName = new TextBox { Width = 110, Margin = ctrlPad };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(95, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bAdd.FlatAppearance.BorderSize = 0;
             bAdd.Click += (s, e) => { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { 
+                    UnfreezeAllColumns();
                     DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); 
                     DataTable dt = (DataTable)_dgv.DataSource;
                     if (!dt.Columns.Contains(_txtNewColName.Text)) dt.Columns.Add(_txtNewColName.Text, typeof(string));
                     ApplyGridStyles(); UpdateCboColumns(); _txtNewColName.Clear(); 
+                    ApplyFreezeState();
                     MessageBox.Show("欄位新增成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 } 
             };
@@ -237,12 +249,14 @@ namespace Safety_System
             bRen.FlatAppearance.BorderSize = 0;
             bRen.Click += (s, e) => { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { 
+                    UnfreezeAllColumns();
                     string oldName = _cboColumns.SelectedItem.ToString();
                     DataManager.RenameColumn(_dbName, _tableName, oldName, _txtRenameCol.Text); 
                     DataTable dt = (DataTable)_dgv.DataSource;
                     if (dt.Columns.Contains(oldName)) dt.Columns[oldName].ColumnName = _txtRenameCol.Text;
                     if (_dgv.Columns.Contains(oldName)) { _dgv.Columns[oldName].HeaderText = _txtRenameCol.Text; _dgv.Columns[oldName].Name = _txtRenameCol.Text; }
                     UpdateCboColumns(); _txtRenameCol.Clear(); 
+                    ApplyFreezeState();
                     MessageBox.Show("欄位名稱修改成功！");
                 } 
             };
@@ -253,11 +267,14 @@ namespace Safety_System
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { 
                     string colToDrop = _cboColumns.SelectedItem.ToString();
                     if(MessageBox.Show($"確定刪除整欄【{colToDrop}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) { 
+                        UnfreezeAllColumns();
                         DataManager.DropColumn(_dbName, _tableName, colToDrop); 
                         DataTable dt = (DataTable)_dgv.DataSource;
                         if (dt.Columns.Contains(colToDrop)) dt.Columns.Remove(colToDrop);
                         if (_dgv.Columns.Contains(colToDrop)) _dgv.Columns.Remove(colToDrop);
-                        UpdateCboColumns(); MessageBox.Show("欄位刪除成功！");
+                        UpdateCboColumns(); 
+                        ApplyFreezeState();
+                        MessageBox.Show("欄位刪除成功！");
                     } 
                 } 
             };
@@ -287,7 +304,6 @@ namespace Safety_System
                 }
             };
 
-            // 顯示設定 (加上 30px 空白)
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
             _btnColSettings.Click += BtnColSettings_Click;
@@ -296,7 +312,7 @@ namespace Safety_System
             flpAdvRow1.Controls.Add(new Panel { Width = 30, Height = 1 }); // 墊片
             flpAdvRow1.Controls.Add(_btnColSettings);
 
-            // 第二排：查詢資料→關鍵字→查詢 --> 間隔30px --> 匯入→匯出→導出PDF
+            // 🟢 第二排：查詢資料→關鍵字→查詢 --> 墊片 --> 匯入→匯出→導出PDF
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
             _txtSearchKeyword = new TextBox { Width = 180, Margin = ctrlPad };
             _btnAdvancedSearch = new Button { Text = "🔍 查詢", Size = new Size(90, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
@@ -326,9 +342,9 @@ namespace Safety_System
                 flpAdvRow2.Controls.Add(_btnRtfToExcel);
             }
 
-            tlpAdv.Controls.Add(flpAdvRow1, 0, 0);
-            tlpAdv.Controls.Add(flpAdvRow2, 0, 1);
-            _boxAdvanced.Controls.Add(tlpAdv);
+            tlpAdvLeft.Controls.Add(flpAdvRow1, 0, 0);
+            tlpAdvLeft.Controls.Add(flpAdvRow2, 0, 1);
+            _boxAdvanced.Controls.Add(tlpAdvLeft);
 
             _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; };
 
@@ -364,7 +380,9 @@ namespace Safety_System
             return main;
         }
 
-        // 🟢 實作右鍵選單與凍結視窗功能
+        // ==========================================
+        // 右鍵選單與凍結視窗引擎
+        // ==========================================
         private void InitContextMenu()
         {
             _ctxMenu = new ContextMenuStrip { Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -381,13 +399,14 @@ namespace Safety_System
 
             itemFreeze.Click += (s, e) => {
                 if (_rightClickedColIndex >= 0 && _rightClickedColIndex < _dgv.Columns.Count) {
-                    foreach (DataGridViewColumn col in _dgv.Columns) col.Frozen = false;
-                    _dgv.Columns[_rightClickedColIndex].Frozen = true;
+                    _frozenColumnName = _dgv.Columns[_rightClickedColIndex].Name;
+                    ApplyFreezeState();
                 }
             };
 
             itemUnfreeze.Click += (s, e) => {
-                foreach (DataGridViewColumn col in _dgv.Columns) col.Frozen = false;
+                _frozenColumnName = null;
+                UnfreezeAllColumns();
             };
 
             _ctxMenu.Items.AddRange(new ToolStripItem[] { itemFreeze, itemUnfreeze, new ToolStripSeparator(), itemImport, itemExport, itemPdf });
@@ -398,7 +417,6 @@ namespace Safety_System
             if (e.Button == MouseButtons.Right) {
                 if (e.ColumnIndex >= 0) {
                     _rightClickedColIndex = e.ColumnIndex;
-                    // 如果點擊的是資料列，則同時選取該儲存格
                     if (e.RowIndex >= 0 && e.RowIndex < _dgv.Rows.Count) {
                         _dgv.ClearSelection();
                         _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected = true;
@@ -407,6 +425,36 @@ namespace Safety_System
                     _ctxMenu.Show(Cursor.Position);
                 }
             }
+        }
+
+        private void UnfreezeAllColumns()
+        {
+            if (_dgv == null || _dgv.Columns.Count == 0) return;
+            foreach (DataGridViewColumn col in _dgv.Columns) 
+            {
+                col.Frozen = false;
+            }
+        }
+
+        private void ApplyFreezeState()
+        {
+            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
+
+            try 
+            {
+                UnfreezeAllColumns(); 
+                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
+                
+                var colsToFreeze = _dgv.Columns.Cast<DataGridViewColumn>()
+                                      .Where(c => c.Visible && c.DisplayIndex <= targetIndex)
+                                      .OrderBy(c => c.DisplayIndex)
+                                      .ToList();
+                                      
+                foreach(var col in colsToFreeze) {
+                    col.Frozen = true;
+                }
+            } 
+            catch { }
         }
 
         private async Task ReloadCurrentDataAsync()
@@ -466,10 +514,15 @@ namespace Safety_System
                 EnforceDateFormats(dt);
             });
 
+            UnfreezeAllColumns(); // 🟢 重新綁定前強制解除凍結，防呆
+
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
+
+            ApplyFreezeState(); // 🟢 恢復凍結狀態
+
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
@@ -484,10 +537,15 @@ namespace Safety_System
                 EnforceDateFormats(dt); 
             });
             
+            UnfreezeAllColumns();
+
             _dgv.DataSource = dt; 
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
+
+            ApplyFreezeState();
+
             SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
         }
 
@@ -528,10 +586,15 @@ namespace Safety_System
                 EnforceDateFormats(resultDt);
             });
 
+            UnfreezeAllColumns();
+
             _dgv.DataSource = resultDt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
+
+            ApplyFreezeState();
+
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
 
@@ -596,6 +659,8 @@ namespace Safety_System
         { 
             try 
             { 
+                UnfreezeAllColumns(); // 🟢 排版重組前解鎖
+
                 var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Order"); 
                 if (dict.ContainsKey("All")) 
                 { 
@@ -645,6 +710,8 @@ namespace Safety_System
                 
                 f.Controls.Add(btnSave); 
                 f.ShowDialog();
+
+                ApplyFreezeState(); // 重新觸發凍結狀態，確保隱藏欄位時不會打亂
             }
         }
 
@@ -777,7 +844,7 @@ namespace Safety_System
 
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
-            // 🟢 修復：攔截編輯狀態下的按鍵事件，支援 Ctrl+S
+            // 🟢 徹底攔截控制項按鍵，保障 Ctrl+S 在編輯模式也能用
             e.Control.PreviewKeyDown -= EditingControl_PreviewKeyDown;
             e.Control.PreviewKeyDown += EditingControl_PreviewKeyDown;
 
@@ -816,11 +883,11 @@ namespace Safety_System
             }
         }
 
-        // 🟢 專為處理編輯狀態下攔截 Ctrl+S
         private void EditingControl_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
         {
             if (e.Control && e.KeyCode == Keys.S)
             {
+                e.IsInputKey = true; // 放行讓上層抓取
                 _btnSave.PerformClick();
             }
         }
@@ -839,17 +906,16 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底解決下拉選單變更後無法正確儲存的問題
+        // 🟢 修復下拉選單直接點擊儲存時未刷入緩衝區的 Bug
         private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
             {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                
-                // 強制將焦點移轉給按鈕，觸發儲存格的失焦事件與驗證
+
+                // 強制轉移焦點，迫使編輯元件觸發 Leave 並寫入值
                 _btnSave.Focus();
 
-                // 確保所有編輯狀態中的下拉選單與文字框強制寫入 DataTable
                 if (_dgv.IsCurrentCellInEditMode) {
                     _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
                 }
@@ -1182,6 +1248,8 @@ namespace Safety_System
                         SetUIState(false, "Excel 解析與背景運算中，請稍候...", Color.Orange);
                         
                         DataTable dt = (DataTable)_dgv.DataSource; 
+                        
+                        UnfreezeAllColumns(); // 🟢 匯入重綁定前解開凍結
                         _dgv.DataSource = null; 
                         
                         await Task.Run(() => 
@@ -1228,9 +1296,10 @@ namespace Safety_System
                         _dgv.DataSource = dt; 
                         ApplyGridStyles(); 
                         RestoreColumnOrder();
-                        
+                        ApplyFreezeState();
+
                         SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
-                        MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) 
                     { 
@@ -1387,7 +1456,7 @@ namespace Safety_System
                             try 
                             { 
                                 LawRtfToExcelConverter.Convert(ofd.FileName, sfd.FileName); 
-                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入 EXCEL」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information); 
                             } 
                             catch (Exception ex) 
                             { 
