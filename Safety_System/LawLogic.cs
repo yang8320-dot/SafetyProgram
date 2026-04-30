@@ -17,6 +17,9 @@ namespace Safety_System
             var existingCols = DataManager.GetColumnNames(dbName, tableName);
             if (!existingCols.Contains("有提升績效機會")) DataManager.AddColumn(dbName, tableName, "有提升績效機會");
             if (!existingCols.Contains("有潛在不符合風險")) DataManager.AddColumn(dbName, tableName, "有潛在不符合風險");
+            
+            // 🟢 強制補齊附件檔案，相容舊資料庫
+            if (!existingCols.Contains("附件檔案")) DataManager.AddColumn(dbName, tableName, "附件檔案");
 
             DataManager.InitTable(dbName, DirectoryTableName, $@"CREATE TABLE IF NOT EXISTS [{DirectoryTableName}] (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT, [選項類別] TEXT, [流水號] TEXT, [法規名稱] TEXT, [日期] TEXT, 
