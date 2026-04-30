@@ -227,7 +227,7 @@ namespace Safety_System
             FlowLayoutPanel flpAdvRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             FlowLayoutPanel flpAdvRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 0) };
 
-            // 🟢 第一排：欄位/列操作→標題更改→刪除欄→刪除列 --> 墊片 --> 顯示設定
+            // 第一排：欄位/列操作→標題更改→刪除欄→刪除列 --> 間隔30px --> 顯示設定
             _txtNewColName = new TextBox { Width = 110, Margin = ctrlPad };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(95, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bAdd.FlatAppearance.BorderSize = 0;
@@ -304,6 +304,7 @@ namespace Safety_System
                 }
             };
 
+            // 顯示設定 (加上 30px 空白)
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
             _btnColSettings.Click += BtnColSettings_Click;
@@ -312,7 +313,7 @@ namespace Safety_System
             flpAdvRow1.Controls.Add(new Panel { Width = 30, Height = 1 }); // 墊片
             flpAdvRow1.Controls.Add(_btnColSettings);
 
-            // 🟢 第二排：查詢資料→關鍵字→查詢 --> 墊片 --> 匯入→匯出→導出PDF
+            // 第二排：查詢資料→關鍵字→查詢 --> 間隔30px --> 匯入→匯出→導出PDF
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
             _txtSearchKeyword = new TextBox { Width = 180, Margin = ctrlPad };
             _btnAdvancedSearch = new Button { Text = "🔍 查詢", Size = new Size(90, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
@@ -427,15 +428,18 @@ namespace Safety_System
             }
         }
 
+        // 🟢 最關鍵的安全解凍機制：反向解凍以策安全
         private void UnfreezeAllColumns()
         {
             if (_dgv == null || _dgv.Columns.Count == 0) return;
-            foreach (DataGridViewColumn col in _dgv.Columns) 
+            var cols = _dgv.Columns.Cast<DataGridViewColumn>().OrderByDescending(c => c.DisplayIndex).ToList();
+            foreach (var col in cols) 
             {
                 col.Frozen = false;
             }
         }
 
+        // 🟢 嚴密的防呆凍結機制：涵蓋所有左側隱藏欄位
         private void ApplyFreezeState()
         {
             if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
@@ -445,8 +449,9 @@ namespace Safety_System
                 UnfreezeAllColumns(); 
                 int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
                 
+                // 必須涵蓋所有 DisplayIndex 小於等於目標的欄位 (無視可見度)，否則會引發 WinForms 順序錯亂 Bug
                 var colsToFreeze = _dgv.Columns.Cast<DataGridViewColumn>()
-                                      .Where(c => c.Visible && c.DisplayIndex <= targetIndex)
+                                      .Where(c => c.DisplayIndex <= targetIndex)
                                       .OrderBy(c => c.DisplayIndex)
                                       .ToList();
                                       
@@ -514,14 +519,14 @@ namespace Safety_System
                 EnforceDateFormats(dt);
             });
 
-            UnfreezeAllColumns(); // 🟢 重新綁定前強制解除凍結，防呆
+            UnfreezeAllColumns(); // 🟢 重綁定前強制解除凍結，防呆
 
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
 
-            ApplyFreezeState(); // 🟢 恢復凍結狀態
+            ApplyFreezeState(); // 🟢 排版完成後再恢復凍結狀態
 
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
@@ -711,7 +716,7 @@ namespace Safety_System
                 f.Controls.Add(btnSave); 
                 f.ShowDialog();
 
-                ApplyFreezeState(); // 重新觸發凍結狀態，確保隱藏欄位時不會打亂
+                ApplyFreezeState(); // 重新觸發凍結狀態，確保隱藏欄位時不會打亂順序
             }
         }
 
@@ -1456,7 +1461,7 @@ namespace Safety_System
                             try 
                             { 
                                 LawRtfToExcelConverter.Convert(ofd.FileName, sfd.FileName); 
-                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入 EXCEL」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                                MessageBox.Show("轉換成功！\n您現在可以點擊「匯入」將產生的檔案載入系統。", "轉換完成", MessageBoxButtons.OK, MessageBoxIcon.Information); 
                             } 
                             catch (Exception ex) 
                             { 
