@@ -86,8 +86,7 @@ namespace Safety_System
 
             Padding lblPad = new Padding(0, 8, 5, 0); 
             Padding ctrlPad = new Padding(0, 4, 10, 0); 
-            Padding btnPad = new Padding(10, 0, 0, 0); 
-            int btnHeight = 35;
+            int btnHeight = 35; // 統一按鈕高度確保對齊
 
             // ==========================================
             // 第一區塊：空污費查詢與分析
@@ -97,19 +96,14 @@ namespace Safety_System
 
             Panel pnlHeaderAir = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblAirTitle = new Label { Text = "台灣玻璃彰濱廠 - 空污費申報【排放量】統計", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DeepSkyBlue, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
-            
-            Panel pnlHeaderAirRight = new Panel { Dock = DockStyle.Right, Width = 150, Padding = new Padding(0, 10, 15, 10) };
-            Button btnPdfAir = new Button { Text = "📄 導出 PDF", Size = new Size(130, 30), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right };
-            btnPdfAir.FlatAppearance.BorderSize = 0;
-            btnPdfAir.FlatStyle = FlatStyle.Flat;
-            btnPdfAir.Click += (s, e) => ExportBoxToPdf(_pnlAirBox, "空污費統計報表");
-            pnlHeaderAirRight.Controls.Add(btnPdfAir);
-
             pnlHeaderAir.Controls.Add(lblAirTitle);
-            pnlHeaderAir.Controls.Add(pnlHeaderAirRight);
-            lblAirTitle.BringToFront(); 
 
-            FlowLayoutPanel flpAirFilter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(15, 10, 15, 15), WrapContents = false };
+            // 🟢 篩選列 Container (切分為左右兩側)
+            Panel pnlAirFilterContainer = new Panel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(15, 10, 15, 15) };
+            
+            FlowLayoutPanel flpAirFilterLeft = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
+            FlowLayoutPanel flpAirFilterRight = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.RightToLeft };
+
             _cboAirYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100, Margin = ctrlPad };
             _cboAirQuarter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, Margin = ctrlPad }; 
             
@@ -124,16 +118,27 @@ namespace Safety_System
             btnSearchAir.FlatAppearance.BorderSize = 0;
             btnSearchAir.Click += (s, e) => LoadAirPollutionData();
 
-            flpAirFilter.Controls.AddRange(new Control[] {
+            Button btnPdfAir = new Button { Text = "📄 導出 PDF", Size = new Size(130, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            btnPdfAir.FlatAppearance.BorderSize = 0;
+            btnPdfAir.Click += (s, e) => ExportBoxToPdf(_pnlAirBox, "空污費統計報表");
+
+            // 左側加入查詢控制項
+            flpAirFilterLeft.Controls.AddRange(new Control[] {
                 new Label { Text = "查詢年度:", AutoSize = true, Margin = lblPad }, _cboAirYear,
                 new Label { Text = "申報季度:", AutoSize = true, Margin = lblPad }, _cboAirQuarter,
                 btnSearchAir
             });
 
+            // 右側加入 PDF 按鈕
+            flpAirFilterRight.Controls.Add(btnPdfAir);
+
+            pnlAirFilterContainer.Controls.Add(flpAirFilterLeft);
+            pnlAirFilterContainer.Controls.Add(flpAirFilterRight);
+
             TableLayoutPanel tlpAirData = new TableLayoutPanel { Dock = DockStyle.Top, Height = 140, ColumnCount = 4, RowCount = 2, CellBorderStyle = TableLayoutPanelCellBorderStyle.Single, Padding = new Padding(10, 0, 10, 10) };
             for (int i = 0; i < 4; i++) tlpAirData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-            tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F)); // 強制絕對高度，防遮擋
+            tlpAirData.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F)); 
 
             string[] airHeaders = { "當期申報數據", "去年同期數據", "前年同期數據", "與去年同期差異" };
             for (int i = 0; i < 4; i++) {
@@ -151,7 +156,7 @@ namespace Safety_System
             tlpAirData.Controls.Add(CreateDataCell(_lblAirEmissionsDiff, _lblAirFeeDiff), 3, 1);
 
             _pnlAirBox.Controls.Add(tlpAirData);
-            _pnlAirBox.Controls.Add(flpAirFilter);
+            _pnlAirBox.Controls.Add(pnlAirFilterContainer); // 🟢 替換為新的對齊容器
             _pnlAirBox.Controls.Add(pnlHeaderAir);
 
             tlpMain.Controls.Add(_pnlAirBox, 0, 0);
@@ -164,31 +169,14 @@ namespace Safety_System
 
             Panel pnlHeaderMat = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblMatTitle = new Label { Text = "台灣玻璃彰濱廠 - 原物料使用紀錄統計表", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SeaGreen, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill };
-            
-            Panel pnlHeaderMatRight = new Panel { Dock = DockStyle.Right, Width = 280, Padding = new Padding(0, 10, 15, 10) };
-            
-            Button btnPdfMat = new Button { Text = "📄 導出 PDF", Size = new Size(120, 30), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Location = new Point(0, 10) };
-            btnPdfMat.FlatAppearance.BorderSize = 0;
-            btnPdfMat.FlatStyle = FlatStyle.Flat;
-            btnPdfMat.Click += (s, e) => ExportGridToPdf(_dgvMaterial, "原物料使用紀錄統計表");
-
-            Button btnConfigMat = new Button { Text = "⚙️ 設定查詢", Size = new Size(130, 30), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Location = new Point(130, 10) }; 
-            btnConfigMat.FlatAppearance.BorderSize = 0;
-            btnConfigMat.FlatStyle = FlatStyle.Flat;
-            btnConfigMat.Click += (s, e) => {
-                OpenMaterialConfigDialog();
-                _ = LoadMaterialDataAsync();
-            };
-
-            pnlHeaderMatRight.Controls.Add(btnPdfMat);
-            pnlHeaderMatRight.Controls.Add(btnConfigMat);
-
             pnlHeaderMat.Controls.Add(lblMatTitle);
-            pnlHeaderMat.Controls.Add(pnlHeaderMatRight);
-            lblMatTitle.BringToFront();
-
-            FlowLayoutPanel flpMatFilter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(15, 10, 15, 15), WrapContents = false };
             
+            // 🟢 篩選列 Container (切分為左右兩側)
+            Panel pnlMatFilterContainer = new Panel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(15, 10, 15, 15) };
+            
+            FlowLayoutPanel flpMatFilterLeft = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
+            FlowLayoutPanel flpMatFilterRight = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.RightToLeft };
+
             _cboMatStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90, Margin = ctrlPad };
             _cboMatStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 60, Margin = ctrlPad };
             _cboMatEndYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90, Margin = ctrlPad };
@@ -211,12 +199,31 @@ namespace Safety_System
             btnSearchMat.FlatAppearance.BorderSize = 0;
             btnSearchMat.Click += async (s, e) => await LoadMaterialDataAsync();
 
-            flpMatFilter.Controls.AddRange(new Control[] {
+            Button btnConfigMat = new Button { Text = "⚙️ 設定查詢", Size = new Size(130, btnHeight), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) }; 
+            btnConfigMat.FlatAppearance.BorderSize = 0;
+            btnConfigMat.Click += (s, e) => {
+                OpenMaterialConfigDialog();
+                _ = LoadMaterialDataAsync();
+            };
+
+            Button btnPdfMat = new Button { Text = "📄 導出 PDF", Size = new Size(120, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            btnPdfMat.FlatAppearance.BorderSize = 0;
+            btnPdfMat.Click += (s, e) => ExportGridToPdf(_dgvMaterial, "原物料使用紀錄統計表");
+
+            // 左側加入查詢區塊
+            flpMatFilterLeft.Controls.AddRange(new Control[] {
                 new Label { Text = "年月區間:", AutoSize = true, Margin = lblPad }, 
                 _cboMatStartYear, new Label { Text = "年", AutoSize = true, Margin = lblPad }, _cboMatStartMonth, new Label { Text = "月 ~", AutoSize = true, Margin = lblPad },
                 _cboMatEndYear, new Label { Text = "年", AutoSize = true, Margin = lblPad }, _cboMatEndMonth, new Label { Text = "月", AutoSize = true, Margin = lblPad },
                 btnSearchMat
             });
+
+            // 右側加入設定與 PDF 按鈕 (RightToLeft，所以先加的在最右邊)
+            flpMatFilterRight.Controls.Add(btnConfigMat);
+            flpMatFilterRight.Controls.Add(btnPdfMat);
+
+            pnlMatFilterContainer.Controls.Add(flpMatFilterLeft);
+            pnlMatFilterContainer.Controls.Add(flpMatFilterRight);
 
             _dgvMaterial = new DataGridView { 
                 Dock = DockStyle.Top, Height = 450, BackgroundColor = Color.White, AllowUserToAddRows = false, ReadOnly = true,
@@ -232,7 +239,7 @@ namespace Safety_System
             _dgvMaterial.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 250, 245);
 
             _pnlMaterialBox.Controls.Add(_dgvMaterial);
-            _pnlMaterialBox.Controls.Add(flpMatFilter);
+            _pnlMaterialBox.Controls.Add(pnlMatFilterContainer); // 🟢 替換為新的對齊容器
             _pnlMaterialBox.Controls.Add(pnlHeaderMat);
             tlpMain.Controls.Add(_pnlMaterialBox, 0, 1);
 
@@ -628,7 +635,6 @@ namespace Safety_System
                             g.DrawString("空污費申報【排放量】統計報表", fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
                             y += 45; 
                             
-                            // 🟢 修改了簽核欄位，新增了經/副理，並調小字體以防被截斷
                             string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
@@ -661,7 +667,6 @@ namespace Safety_System
                                 g.DrawString(text, fBody, Brushes.Black, new RectangleF(rectF.X + 10, rectF.Y + 10, rectF.Width - 20, rectF.Height - 20), sfLeft);
                             }
 
-                            // 🟢 底部印出 1/1 頁碼
                             g.DrawString($"第 1 頁 / 共 1 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
 
                             ev.HasMorePages = false;
@@ -699,7 +704,6 @@ namespace Safety_System
                     int rowIndex = 0; 
                     int pageNumber = 1; 
 
-                    // 🟢 預估總頁數 (以每頁大約容納 18 行估算)
                     int totalPages = 1;
                     if (dgv.Rows.Count > 15) {
                         totalPages = 1 + (int)Math.Ceiling((double)(dgv.Rows.Count - 15) / 18);
@@ -723,14 +727,12 @@ namespace Safety_System
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
                         StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                        // 🟢 第一頁印出標題與簽核欄
                         if (rowIndex == 0) {
                             g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fMainTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 30), sfCenter); 
                             y += 35;
                             g.DrawString(title, fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
                             y += 45; 
 
-                            // 🟢 修改了簽核欄位，新增了經/副理
                             string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
@@ -752,7 +754,6 @@ namespace Safety_System
                         float currX = x; 
                         float rowH = 35;
                         
-                        // 畫表頭
                         for (int i = 0; i < visCols.Count; i++) 
                         {
                             RectangleF rectF = new RectangleF(currX, y, colWidths[i], rowH);
@@ -764,12 +765,10 @@ namespace Safety_System
                         }
                         y += rowH;
                         
-                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count) 
                         {
                             if (y + rowH > ev.MarginBounds.Bottom - 30) 
                             { 
-                                // 🟢 底端印出頁數格式
                                 g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
                                 pageNumber++; 
                                 ev.HasMorePages = true; 
@@ -790,7 +789,6 @@ namespace Safety_System
                             rowIndex++;
                         }
                         
-                        // 🟢 最後一頁底端印出頁數
                         g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
                         ev.HasMorePages = false; 
                         rowIndex = 0; 
