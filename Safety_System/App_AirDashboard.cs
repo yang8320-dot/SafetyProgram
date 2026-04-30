@@ -33,6 +33,24 @@ namespace Safety_System
             public string ColName { get; set; }
             public double Multiplier { get; set; }
         }
+        
+        // 🟢 C# 低版本相容類別：取代 Tuple
+        private class AirDataResult 
+        {
+            public double Emissions { get; set; }
+            public double Fee { get; set; }
+        }
+
+        // 🟢 C# 低版本相容類別：取代 Tuple
+        private class MatConfigRowUI 
+        {
+            public TextBox txtName { get; set; }
+            public ComboBox cbDb { get; set; }
+            public ComboBox cbTb { get; set; }
+            public ComboBox cbCol { get; set; }
+            public ComboBox cbConv { get; set; }
+        }
+
         private List<MatConfig> _matConfigs = new List<MatConfig>();
         private readonly string ConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AirMaterialSettings.txt");
 
@@ -138,7 +156,7 @@ namespace Safety_System
             _cboMatEndMonth.SelectedItem = DateTime.Today.Month.ToString("D2");
 
             Button btnSearchMat = new Button { Text = "🔍 查詢原物料統計", Size = new Size(170, 35), BackColor = Color.SeaGreen, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-            btnSearchAir.FlatAppearance.BorderSize = 0;
+            btnSearchMat.FlatAppearance.BorderSize = 0; // 🟢 修正控制項名稱
             btnSearchMat.Click += async (s, e) => await LoadMaterialDataAsync();
 
             Button btnConfigMat = new Button { Text = "⚙️ 設定查詢欄位", Size = new Size(160, 35), BackColor = Color.DimGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
@@ -213,9 +231,9 @@ namespace Safety_System
             UpdateAirChart(year, currData, lyData, l2yData);
         }
 
-        private (double Emissions, double Fee) FetchAirData(int year, string quarterMode)
+        private AirDataResult FetchAirData(int year, string quarterMode)
         {
-            double emissions = 0, fee = 0;
+            var res = new AirDataResult();
             try {
                 DataTable dt = DataManager.GetTableData("Air", "AirPollution", "", "", "");
                 if (dt != null) {
@@ -226,17 +244,17 @@ namespace Safety_System
                         if (dbYear == year.ToString()) {
                             bool matchQtr = quarterMode.Contains("全年") || quarterMode == dbQtr;
                             if (matchQtr) {
-                                if (double.TryParse(r["排放量"]?.ToString().Replace(",", ""), out double em)) emissions += em;
-                                if (double.TryParse(r["繳費金額"]?.ToString().Replace(",", ""), out double f)) fee += f;
+                                if (double.TryParse(r["排放量"]?.ToString().Replace(",", ""), out double em)) res.Emissions += em;
+                                if (double.TryParse(r["繳費金額"]?.ToString().Replace(",", ""), out double f)) res.Fee += f;
                             }
                         }
                     }
                 }
             } catch { }
-            return (emissions, fee);
+            return res;
         }
 
-        private void UpdateAirLabels(Label lEmissions, Label lFee, (double Emissions, double Fee) data)
+        private void UpdateAirLabels(Label lEmissions, Label lFee, AirDataResult data)
         {
             lEmissions.Text = $"排放總量: {data.Emissions:N2}";
             lFee.Text = $"繳費金額: $ {data.Fee:N0}";
@@ -249,20 +267,20 @@ namespace Safety_System
             return (diff > 0 ? "+" : "") + diff.ToString("N1") + " %";
         }
 
-        private void UpdateAirChart(int baseYear, (double E, double F) curr, (double E, double F) ly, (double E, double F) l2y)
+        private void UpdateAirChart(int baseYear, AirDataResult curr, AirDataResult ly, AirDataResult l2y)
         {
             _airChart.Series.Clear();
 
             Series sEmissions = new Series("排放量") { ChartType = SeriesChartType.Column, YAxisType = AxisType.Primary, Color = Color.SteelBlue, IsValueShownAsLabel = true };
             Series sFee = new Series("繳費金額") { ChartType = SeriesChartType.Line, BorderWidth = 3, MarkerStyle = MarkerStyle.Circle, MarkerSize = 8, YAxisType = AxisType.Secondary, Color = Color.IndianRed, IsValueShownAsLabel = true };
 
-            sEmissions.Points.AddXY((baseYear - 2).ToString(), l2y.E);
-            sEmissions.Points.AddXY((baseYear - 1).ToString(), ly.E);
-            sEmissions.Points.AddXY(baseYear.ToString(), curr.E);
+            sEmissions.Points.AddXY((baseYear - 2).ToString(), l2y.Emissions);
+            sEmissions.Points.AddXY((baseYear - 1).ToString(), ly.Emissions);
+            sEmissions.Points.AddXY(baseYear.ToString(), curr.Emissions);
 
-            sFee.Points.AddXY((baseYear - 2).ToString(), l2y.F);
-            sFee.Points.AddXY((baseYear - 1).ToString(), ly.F);
-            sFee.Points.AddXY(baseYear.ToString(), curr.F);
+            sFee.Points.AddXY((baseYear - 2).ToString(), l2y.Fee);
+            sFee.Points.AddXY((baseYear - 1).ToString(), ly.Fee);
+            sFee.Points.AddXY(baseYear.ToString(), curr.Fee);
 
             _airChart.Series.Add(sEmissions);
             _airChart.Series.Add(sFee);
@@ -310,7 +328,7 @@ namespace Safety_System
                 string[] headers = { "顯示名稱 (如: 柴油(公秉))", "來源資料庫", "來源資料表", "加總欄位", "單位換算規則" };
                 for (int i = 0; i < 5; i++) tlp.Controls.Add(new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) }, i, 0);
 
-                var rowsUi = new List<(TextBox txtName, ComboBox cbDb, ComboBox cbTb, ComboBox cbCol, ComboBox cbConv)>();
+                var rowsUi = new List<MatConfigRowUI>();
 
                 for (int i = 0; i < 5; i++)
                 {
@@ -353,8 +371,8 @@ namespace Safety_System
                         if (cbTb.Items.Contains(conf.TableName)) cbTb.SelectedItem = conf.TableName;
                         if (cbCol.Items.Contains(conf.ColName)) cbCol.SelectedItem = conf.ColName;
                         
-                        if (conf.Multiplier == 1000) cbConv.SelectedIndex = 1; // 假設是 x1000
-                        else if (conf.Multiplier == 0.001) cbConv.SelectedIndex = 2; // 假設是 x0.001
+                        if (conf.Multiplier == 1000) cbConv.SelectedIndex = 1; 
+                        else if (conf.Multiplier == 0.001) cbConv.SelectedIndex = 2; 
                         else cbConv.SelectedIndex = 0;
                     } else {
                         cbConv.SelectedIndex = 0;
@@ -366,7 +384,7 @@ namespace Safety_System
                     tlp.Controls.Add(cbCol, 3, i + 1);
                     tlp.Controls.Add(cbConv, 4, i + 1);
 
-                    rowsUi.Add((txtName, cbDb, cbTb, cbCol, cbConv));
+                    rowsUi.Add(new MatConfigRowUI { txtName = txtName, cbDb = cbDb, cbTb = cbTb, cbCol = cbCol, cbConv = cbConv });
                 }
 
                 Button btnSave = new Button { Text = "💾 儲存設定", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
@@ -423,4 +441,88 @@ namespace Safety_System
             }
 
             int sy = int.Parse(_cboMatStartYear.SelectedItem.ToString());
-            int sm = int.Parse(_cboMatSt
+            int sm = int.Parse(_cboMatStartMonth.SelectedItem.ToString());
+            int ey = int.Parse(_cboMatEndYear.SelectedItem.ToString());
+            int em = int.Parse(_cboMatEndMonth.SelectedItem.ToString());
+
+            DateTime start = new DateTime(sy, sm, 1);
+            DateTime end = new DateTime(ey, em, 1);
+            if (start > end) { MessageBox.Show("起始年月不能大於結束年月！"); return; }
+
+            DataTable dtResult = new DataTable();
+            dtResult.Columns.Add("年月", typeof(string));
+            foreach (var conf in _matConfigs) dtResult.Columns.Add(conf.Alias, typeof(double));
+
+            double[] totals = new double[_matConfigs.Count];
+
+            await Task.Run(() => {
+                DateTime curr = start;
+                while (curr <= end) {
+                    string ymStr = curr.ToString("yyyy-MM");
+                    DataRow row = dtResult.NewRow();
+                    row["年月"] = ymStr;
+
+                    for (int i = 0; i < _matConfigs.Count; i++) {
+                        var conf = _matConfigs[i];
+                        double sum = GetMonthlySum(conf.DbName, conf.TableName, conf.ColName, ymStr);
+                        sum *= conf.Multiplier;
+                        row[conf.Alias] = sum;
+                        totals[i] += sum;
+                    }
+                    dtResult.Rows.Add(row);
+                    curr = curr.AddMonths(1);
+                }
+            });
+
+            DataRow sumRow = dtResult.NewRow();
+            sumRow["年月"] = "【合計】";
+            for (int i = 0; i < totals.Length; i++) sumRow[_matConfigs[i].Alias] = totals[i];
+            dtResult.Rows.Add(sumRow);
+
+            _dgvMaterial.DataSource = dtResult;
+
+            if (_dgvMaterial.Columns.Contains("年月")) {
+                _dgvMaterial.Columns["年月"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                _dgvMaterial.Columns["年月"].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+            }
+
+            foreach (var conf in _matConfigs) {
+                if (_dgvMaterial.Columns.Contains(conf.Alias)) {
+                    _dgvMaterial.Columns[conf.Alias].DefaultCellStyle.Format = "N2";
+                    _dgvMaterial.Columns[conf.Alias].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                }
+            }
+
+            if (_dgvMaterial.Rows.Count > 0) {
+                var lastRow = _dgvMaterial.Rows[_dgvMaterial.Rows.Count - 1];
+                lastRow.DefaultCellStyle.BackColor = Color.LightYellow;
+                lastRow.DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
+                lastRow.DefaultCellStyle.ForeColor = Color.DarkRed;
+            }
+
+            _dgvMaterial.ClearSelection();
+        }
+
+        private double GetMonthlySum(string db, string table, string col, string ymStr)
+        {
+            double total = 0;
+            try {
+                DataTable dt = DataManager.GetTableData(db, table, "", "", ""); 
+                if (dt != null && dt.Columns.Contains(col)) {
+                    string dateCol = dt.Columns.Contains("年月") ? "年月" : (dt.Columns.Contains("日期") ? "日期" : "");
+                    if (string.IsNullOrEmpty(dateCol)) return 0;
+
+                    foreach (DataRow r in dt.Rows) {
+                        string dVal = r[dateCol]?.ToString() ?? "";
+                        if (dVal.StartsWith(ymStr)) {
+                            if (double.TryParse(r[col]?.ToString().Replace(",", ""), out double v)) {
+                                total += v;
+                            }
+                        }
+                    }
+                }
+            } catch { }
+            return total;
+        }
+    }
+}
