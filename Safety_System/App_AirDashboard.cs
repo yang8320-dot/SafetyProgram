@@ -196,9 +196,9 @@ namespace Safety_System
             _dgvMaterial.EnableHeadersVisualStyles = false;
             _dgvMaterial.ColumnHeadersDefaultCellStyle.BackColor = Color.SeaGreen;
             _dgvMaterial.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            _dgvMaterial.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter; // 標題置中
+            _dgvMaterial.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             _dgvMaterial.ColumnHeadersHeight = 40;
-            _dgvMaterial.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter; // 內容置中
+            _dgvMaterial.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             _dgvMaterial.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 250, 245);
 
             boxMaterial.Controls.Add(_dgvMaterial);
@@ -280,7 +280,6 @@ namespace Safety_System
 
         private void UpdateAirLabels(Label lEmissions, Label lFee, AirDataResult data)
         {
-            // 分兩行顯示，並加上單位
             lEmissions.Text = $"排放總量:\n{data.Emissions:N2} kg";
             lFee.Text = $"繳費金額:\n$ {data.Fee:N0} NTD";
         }
@@ -346,7 +345,7 @@ namespace Safety_System
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 5, RowCount = 11, Padding = new Padding(15) };
                 
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180F)); // 名稱
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F)); // 庫 (加寬給中文)
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F)); // 庫
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); // 表
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); // 欄位
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));  // 換算
@@ -356,7 +355,6 @@ namespace Safety_System
 
                 var rowsUi = new List<MatConfigRowUI>();
 
-                // 擴充至 10 組設定
                 for (int i = 0; i < 10; i++)
                 {
                     TextBox txtName = new TextBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -371,7 +369,6 @@ namespace Safety_System
 
                     cbConv.Items.AddRange(new string[] { "無換算 (x1)", "公噸 ➔ 公斤 (x1000)", "公斤 ➔ 公噸 (x0.001)", "公升 ➔ 公秉 (x0.001)", "公秉 ➔ 公升 (x1000)" });
 
-                    // 綁定連動事件
                     cbDb.SelectedIndexChanged += (s, e) => {
                         cbTb.Items.Clear(); cbCol.Items.Clear();
                         if (cbDb.SelectedItem != null) {
@@ -394,12 +391,10 @@ namespace Safety_System
                         }
                     };
 
-                    // 填入既有設定
                     if (i < _matConfigs.Count) {
                         var conf = _matConfigs[i];
                         txtName.Text = conf.Alias;
                         
-                        // 找尋對應的中文 DB 名稱
                         foreach (ItemMap item in cbDb.Items) {
                             if (item.EnName == conf.DbName) { cbDb.SelectedItem = item; break; }
                         }
@@ -527,7 +522,7 @@ namespace Safety_System
             foreach (var conf in _matConfigs) {
                 if (_dgvMaterial.Columns.Contains(conf.Alias)) {
                     _dgvMaterial.Columns[conf.Alias].DefaultCellStyle.Format = "N2";
-                    _dgvMaterial.Columns[conf.Alias].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter; // 統一置中
+                    _dgvMaterial.Columns[conf.Alias].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter; 
                 }
             }
 
@@ -564,7 +559,7 @@ namespace Safety_System
         }
 
         // ====================================================
-        // PDF 導出系統 (支援 GroupBox 截圖與 DGV 繪製)
+        // PDF 導出系統
         // ====================================================
         private void ExportBoxToPdf(GroupBox box, string title)
         {
@@ -582,7 +577,9 @@ namespace Safety_System
                         pd.PrinterSettings.PrintToFile = true;
                         pd.PrinterSettings.PrintFileName = sfd.FileName;
                         pd.DefaultPageSettings.Landscape = true;
-                        pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
+                        
+                        // 明確指定命名空間，避免與 Charting.Margins 衝突
+                        pd.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(30, 30, 40, 40);
 
                         pd.PrintPage += (s, e) => {
                             Graphics g = e.Graphics;
@@ -621,7 +618,9 @@ namespace Safety_System
                     pd.PrinterSettings.PrintToFile = true; 
                     pd.PrinterSettings.PrintFileName = sfd.FileName; 
                     pd.DefaultPageSettings.Landscape = true; 
-                    pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
+                    
+                    // 明確指定命名空間，避免與 Charting.Margins 衝突
+                    pd.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(30, 30, 40, 40);
                     
                     int rowIndex = 0; 
                     int pageNumber = 1; 
