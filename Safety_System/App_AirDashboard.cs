@@ -231,10 +231,10 @@ namespace Safety_System
             UpdateAirLabels(_lblAirEmissionsLY, _lblAirFeeLY, lyData);
             UpdateAirLabels(_lblAirEmissionsL2Y, _lblAirFeeL2Y, l2yData);
 
-            _lblAirEmissionsDiff.Text = $"排放總量：{CalculateDiff(currData.Emissions, lyData.Emissions)}";
+            _lblAirEmissionsDiff.Text = $"排放總量：\n{CalculateDiff(currData.Emissions, lyData.Emissions)}";
             _lblAirEmissionsDiff.ForeColor = currData.Emissions > lyData.Emissions ? Color.IndianRed : Color.ForestGreen;
             
-            _lblAirFeeDiff.Text = $"繳費金額：{CalculateDiff(currData.Fee, lyData.Fee)}";
+            _lblAirFeeDiff.Text = $"繳費金額：\n{CalculateDiff(currData.Fee, lyData.Fee)}";
             _lblAirFeeDiff.ForeColor = currData.Fee > lyData.Fee ? Color.IndianRed : Color.ForestGreen;
         }
 
@@ -269,8 +269,8 @@ namespace Safety_System
 
         private void UpdateAirLabels(Label lEmissions, Label lFee, AirDataResult data)
         {
-            lEmissions.Text = $"排放總量：{data.Emissions:N2} kg";
-            lFee.Text = $"繳費金額：{data.Fee:N0} NTD";
+            lEmissions.Text = $"排放總量：\n{data.Emissions:N2} kg";
+            lFee.Text = $"繳費金額：\n$ {data.Fee:N0} NTD";
         }
 
         private string CalculateDiff(double curr, double ly)
@@ -575,18 +575,20 @@ namespace Safety_System
                         float rowH = 80;
 
                         for(int i=0; i<4; i++) {
-                            RectangleF rect = new RectangleF(x + i*colWidth, y, colWidth, headerH);
-                            g.FillRectangle(Brushes.DeepSkyBlue, rect);
-                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                            g.DrawString(headers[i], fHead, Brushes.White, rect, sfCenter);
+                            RectangleF rectF = new RectangleF(x + i*colWidth, y, colWidth, headerH);
+                            Rectangle rect = Rectangle.Round(rectF);
+                            g.FillRectangle(Brushes.DeepSkyBlue, rectF);
+                            g.DrawRectangle(Pens.Black, rect);
+                            g.DrawString(headers[i], fHead, Brushes.White, rectF, sfCenter);
                         }
                         y += headerH;
 
                         for(int i=0; i<4; i++) {
-                            RectangleF rect = new RectangleF(x + i*colWidth, y, colWidth, rowH);
-                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                            RectangleF rectF = new RectangleF(x + i*colWidth, y, colWidth, rowH);
+                            Rectangle rect = Rectangle.Round(rectF);
+                            g.DrawRectangle(Pens.Black, rect);
                             string text = $"{emissions[i]}\n\n{fees[i]}";
-                            g.DrawString(text, fBody, Brushes.Black, new RectangleF(rect.X + 10, rect.Y + 10, rect.Width - 20, rect.Height - 20), sfLeft);
+                            g.DrawString(text, fBody, Brushes.Black, new RectangleF(rectF.X + 10, rectF.Y + 10, rectF.Width - 20, rectF.Height - 20), sfLeft);
                         }
 
                         ev.HasMorePages = false;
@@ -611,4 +613,96 @@ namespace Safety_System
                     PrintDocument pd = new PrintDocument(); 
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF"; 
                     pd.PrinterSettings.PrintToFile = true; 
-                    pd.PrinterSettings.PrintFileNa
+                    pd.PrinterSettings.PrintFileName = sfd.FileName; 
+                    pd.DefaultPageSettings.Landscape = true; 
+                    
+                    pd.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(30, 30, 40, 40);
+                    
+                    int rowIndex = 0; 
+                    int pageNumber = 1; 
+                    
+                    pd.PrintPage += (s, ev) => 
+                    {
+                        Graphics g = ev.Graphics; 
+                        float x = ev.MarginBounds.Left; 
+                        float y = ev.MarginBounds.Top; 
+                        float pageWidth = ev.MarginBounds.Width;
+                        
+                        Font fTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold); 
+                        Font fBody = new Font("Microsoft JhengHei UI", 10F); 
+                        Font fHead = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
+                        
+                        StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
+                        
+                        g.DrawString($"台灣玻璃工業股份有限公司-彰濱廠\n{title}", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 50), sfCenter); 
+                        y += 60;
+                        g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fBody, Brushes.Gray, x, y); 
+                        y += 25;
+                        
+                        var visCols = dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList(); 
+                        if (visCols.Count == 0) return;
+                        
+                        float totalGridWidth = visCols.Sum(c => c.Width); 
+                        float[] colWidths = new float[visCols.Count];
+                        for (int i = 0; i < visCols.Count; i++) colWidths[i] = (visCols[i].Width / totalGridWidth) * pageWidth; 
+                        
+                        float currX = x; 
+                        float rowH = 35;
+                        
+                        for (int i = 0; i < visCols.Count; i++) 
+                        {
+                            RectangleF rectF = new RectangleF(currX, y, colWidths[i], rowH);
+                            Rectangle rect = Rectangle.Round(rectF);
+                            g.FillRectangle(Brushes.SeaGreen, rectF); 
+                            g.DrawRectangle(Pens.Black, rect); 
+                            g.DrawString(visCols[i].HeaderText, fHead, Brushes.White, rectF, sfCenter); 
+                            currX += colWidths[i];
+                        }
+                        y += rowH;
+                        
+                        while (rowIndex < dgv.Rows.Count) 
+                        {
+                            if (y + rowH > ev.MarginBounds.Bottom - 30) 
+                            { 
+                                g.DrawString($"- 頁碼 {pageNumber} -", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
+                                pageNumber++; 
+                                ev.HasMorePages = true; 
+                                return; 
+                            }
+                            
+                            currX = x;
+                            for (int i = 0; i < visCols.Count; i++) 
+                            {
+                                RectangleF rectF = new RectangleF(currX, y, colWidths[i], rowH); 
+                                Rectangle rect = Rectangle.Round(rectF);
+                                g.DrawRectangle(Pens.Black, rect);
+                                string val = dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? ""; 
+                                g.DrawString(val, fBody, Brushes.Black, rectF, sfCenter); 
+                                currX += colWidths[i];
+                            }
+                            y += rowH; 
+                            rowIndex++;
+                        }
+                        
+                        g.DrawString($"- 頁碼 {pageNumber} -", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
+                        ev.HasMorePages = false; 
+                        rowIndex = 0; 
+                        pageNumber = 1;
+                    };
+                    
+                    try 
+                    { 
+                        pd.Print(); 
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default; 
+                        MessageBox.Show("PDF 報表匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default; 
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    } 
+                }
+            }
+        }
+    }
+}
