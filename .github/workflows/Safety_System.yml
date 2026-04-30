@@ -1,13 +1,12 @@
 name: Safety_System
 
 on:
-  workflow_dispatch: # 只有手動點擊 "Run workflow" 才會執行
+  workflow_dispatch: 
 
 jobs:
   build:
     runs-on: windows-latest
     
-    # 🟢 修正重點：加入環境變數以消除 Node.js 20 棄用警告
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -30,9 +29,19 @@ jobs:
     - name: Build Release
       run: dotnet build -c Release -o ./publish
 
+    - name: Move Dependencies to Library Folder
+      shell: pwsh
+      run: |
+        cd ./publish
+        New-Item -ItemType Directory -Force -Path "Library"
+        # 將所有的 dll, pdb, xml 移入 Library
+        Get-ChildItem -File | Where-Object { $_.Extension -eq '.dll' -or $_.Extension -eq '.pdb' -or $_.Extension -eq '.xml' } | Move-Item -Destination "Library"
+        # 針對 SQLite 專屬的原生動態庫資料夾一併移入
+        if (Test-Path "x64") { Move-Item -Path "x64" -Destination "Library\x64" }
+        if (Test-Path "x86") { Move-Item -Path "x86" -Destination "Library\x86" }
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Safety_System-Complete-Package
-        # 打包整個 publish 資料夾，包含 DLL 檔
         path: ./Safety_System/publish/
