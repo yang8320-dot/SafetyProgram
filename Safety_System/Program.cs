@@ -34,10 +34,14 @@ namespace Safety_System
                         Application.EnableVisualStyles();
                         Application.SetCompatibleTextRenderingDefault(false);
 
+                        // 🟢 【關鍵修復】：在驗證權限、操作資料庫之前，先強制初始化與建立資料夾！
+                        // 這樣 LicenseManager 建立 SQLite 檔案時，才不會因為找不到 "DB" 資料夾而崩潰。
+                        DataManager.LoadConfig();
+
                         // 🟢 在顯示主畫面之前，先進行軟體啟用與權限認證
                         if (!LicenseManager.VerifyLicense())
                         {
-                            MessageBox.Show("您的電腦帳號尚未在授權名單內！\n\n(若要測試，請至 LicenseManager.cs 暫時修改 VerifyLicense() 回傳 true)", 
+                            MessageBox.Show("您的電腦帳號尚未在授權名單內！\n\n(若要測試，請至 LicenseManager.cs 將 VerifyLicense() 第一行改為 return true;)", 
                                             "權限不足或授權到期", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             return; // 驗證失敗，直接終止程式
                         }
