@@ -15,12 +15,15 @@ namespace Safety_System
             // 水資源基礎表結構由 App_CoreTable 根據 SchemaManager 建立，此處不需額外操作
         }
 
-        public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt)
+        // 🟢 加入進度條參數，並回報運算進度
+        public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt, IProgress<string> progressStr = null)
         {
             await Task.Run(() =>
             {
                 if (dt == null || dt.Rows.Count == 0) return;
 
+                progressStr?.Report("正在擷取水資源歷史數據基期...");
+                
                 string dateCol = dt.Columns.Contains("日期") ? "日期" : (dt.Columns.Contains("年月") ? "年月" : "");
                 if (string.IsNullOrEmpty(dateCol)) return;
 
@@ -42,6 +45,8 @@ namespace Safety_System
                         baseHistoryDt.ImportRow(r);
                     }
                 } catch { }
+
+                progressStr?.Report("正在進行水資源差值與複合統計運算...");
 
                 DataTable calcPool = dt.Clone();
                 if (baseHistoryDt.Rows.Count > 0) calcPool.Merge(baseHistoryDt);
@@ -82,6 +87,8 @@ namespace Safety_System
                         }
                     }
                 }
+
+                progressStr?.Report("正在將運算結果映射至儲存佇列...");
 
                 foreach (DataRow targetRow in validRows)
                 {
