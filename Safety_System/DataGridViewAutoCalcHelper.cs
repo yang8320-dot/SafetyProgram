@@ -91,13 +91,22 @@ namespace Safety_System
         }
 
         // 🚀 高效能批次計算核心：在 DataTable 記憶體中運算 (CSV匯入 / 貼上時使用)
-        public void RecalculateTable(DataTable dt)
+        // 🚀 高效能批次計算核心 (支援進度條回報)
+        public void RecalculateTable(DataTable dt, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
             if (dt == null) return;
             string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
 
             for (int i = 0; i < dt.Rows.Count; i++)
             {
+                // 🟢 觸發進度條更新 (每 20 筆更新一次畫面，避免過度耗能)
+                if (progressInt != null && progressStr != null && (i % 20 == 0 || i == dt.Rows.Count - 1))
+                {
+                    int percent = (int)((double)(i + 1) / dt.Rows.Count * 100);
+                    progressInt.Report(percent);
+                    progressStr.Report($"正在重新運算關聯數據： 第 {i + 1} 筆 / 共 {dt.Rows.Count} 筆 ...");
+                }
+
                 DataRow row = dt.Rows[i];
                 if (row.RowState == DataRowState.Deleted) continue;
                 
@@ -130,7 +139,6 @@ namespace Safety_System
                             string nextStr = nextRow?[baseCol]?.ToString().Replace(",", "").Trim();
                             
                             if (double.TryParse(targetStr, out double targetVal)) {
-                                // 🟢 新邏輯：下一列數值 - 本列數值
                                 if (nextRow != null && double.TryParse(nextStr, out double nextVal)) {
                                     row[colName] = (nextVal - targetVal).ToString("0.####");
                                 } else {
