@@ -893,7 +893,7 @@ namespace Safety_System
             }
         }
 
-        private async void BtnSave_Click(object sender, EventArgs e) 
+       private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
             {
@@ -916,16 +916,29 @@ namespace Safety_System
                 DataTable dt = ((DataTable)_dgv.DataSource).Copy(); 
                 bool success = false;
                 
-                await Task.Run(async () => 
-                { 
-                    EnforceDateFormats(dt); 
-                    SyncAttachmentPaths(dt);
-                    if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt)) 
-                    {
-                        success = DataManager.BulkSaveTable(_dbName, _tableName, dt); 
-                        if (success) await _logic.OnAfterSaveAsync(_dbName, _tableName, dt);
-                    }
-                });
+                // 🟢 呼叫進度條視窗接管儲存動作
+                using (ProgressForm progForm = new ProgressForm("儲存數據中..."))
+                {
+                    await progForm.ExecuteAsync(async (progInt, progStr) => 
+                    { 
+                        progStr.Report("正在格式化資料與同步附件路徑...");
+                        EnforceDateFormats(dt); 
+                        SyncAttachmentPaths(dt);
+
+                        progStr.Report("正在執行模組預處理...");
+                        if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt, progStr)) 
+                        {
+                            // 將進度條物件傳入 BulkSaveTable 內
+                            success = DataManager.BulkSaveTable(_dbName, _tableName, dt, progInt, progStr); 
+                            
+                            if (success) 
+                            {
+                                progStr.Report("正在執行儲存後處理...");
+                                await _logic.OnAfterSaveAsync(_dbName, _tableName, dt);
+                            }
+                        }
+                    });
+                }
                 
                 if (success) 
                 { 
