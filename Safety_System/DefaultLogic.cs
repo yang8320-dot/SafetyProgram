@@ -1,4 +1,5 @@
 /// FILE: Safety_System/DefaultLogic.cs ///
+using System;
 using System.Data;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -9,7 +10,8 @@ namespace Safety_System
     {
         public virtual void InitializeSchema(string dbName, string tableName) { }
 
-        public virtual Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable savingData)
+        // 🟢 配合介面加入參數
+        public virtual Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable savingData, IProgress<string> progressStr = null)
         {
             return Task.FromResult(true); 
         }
