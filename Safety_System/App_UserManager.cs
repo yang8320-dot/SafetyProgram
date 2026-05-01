@@ -32,7 +32,7 @@ namespace Safety_System
             this.BackColor = Color.White;
 
             Label lblTitle = new Label { Text = "👤 電腦登入帳號授權清單", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SteelBlue, Location = new Point(25, 20), AutoSize = true };
-            Label lblDesc = new Label { Text = "※ 此處的帳號必須與使用者登入 Windows 的電腦帳戶名稱完全一致。", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Location = new Point(30, 55), AutoSize = true };
+            Label lblDesc = new Label { Text = "※ 帳號必須與登入 Windows 的電腦帳戶名稱完全一致。", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Location = new Point(30, 55), AutoSize = true };
 
             // 🟢 調整 2：右上角按鈕往右移動 (X 從 275 改為 325)
             Button btnShowDefault = new Button { 
