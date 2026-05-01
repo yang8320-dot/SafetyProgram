@@ -1,4 +1,3 @@
-/// FILE: Safety_System/ProgressForm.cs ///
 using System;
 using System.Drawing;
 using System.Threading.Tasks;
@@ -30,19 +29,24 @@ namespace Safety_System
         public async Task ExecuteAsync(Func<IProgress<int>, IProgress<string>, Task> work)
         {
             var progressInt = new Progress<int>(percent => {
-                if (percent >= 0 && percent <= 100) {
+                if (percent >= 0 && percent <= 100 && _progressBar.Value != percent) {
                     _progressBar.Value = percent;
                     _progressBar.Refresh(); // 🟢 強制刷新，防止畫面假死
                 }
             });
 
             var progressStr = new Progress<string>(text => {
-                _lblStatus.Text = text;
-                _lblStatus.Refresh(); // 🟢 強制刷新
+                if (_lblStatus.Text != text) {
+                    _lblStatus.Text = text;
+                    _lblStatus.Refresh(); // 🟢 強制刷新
+                }
             });
 
             this.Shown += async (s, e) => {
-                try { await Task.Run(() => work(progressInt, progressStr)); }
+                try { 
+                    // 🟢 徹底修復：確保 Task.Run 內部的 async 方法被完整等待，解決提早關閉造成的死鎖
+                    await Task.Run(async () => await work(progressInt, progressStr)); 
+                }
                 catch (Exception ex) { MessageBox.Show($"發生錯誤：\n{ex.Message}"); }
                 finally { this.DialogResult = DialogResult.OK; this.Close(); }
             };
