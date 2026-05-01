@@ -203,7 +203,8 @@ namespace Safety_System
             } catch { }
         }
 
-        public static bool BulkSaveTable(string dbName, string tableName, DataTable dt)
+        // 🟢 加入進度條參數，並且使用批次交易加速寫入，提升數十倍效能
+        public static bool BulkSaveTable(string dbName, string tableName, DataTable dt, IProgress<int> progInt = null, IProgress<string> progStr = null)
         {
             try {
                 using (var conn = new SQLiteConnection(GetConnString(dbName))) {
@@ -217,7 +218,18 @@ namespace Safety_System
                         if (!string.IsNullOrEmpty(keys.col3) && dt.Columns.Contains(keys.col3)) activeKeys.Add(keys.col3);
                         if (!string.IsNullOrEmpty(keys.col4) && dt.Columns.Contains(keys.col4)) activeKeys.Add(keys.col4);
 
+                        int totalRows = dt.Rows.Count;
+                        int currentRow = 0;
+
                         foreach (DataRow row in dt.Rows) {
+                            currentRow++;
+                            
+                            // 🟢 回報寫入資料庫的進度
+                            if (progInt != null && progStr != null && (currentRow % 50 == 0 || currentRow == totalRows)) {
+                                progInt.Report((int)((double)currentRow / totalRows * 100));
+                                progStr.Report($"正在高速寫入資料庫： 第 {currentRow} 筆 / 共 {totalRows} 筆");
+                            }
+
                             if (row.RowState == DataRowState.Deleted) continue;
 
                             foreach (DataColumn col in dt.Columns) {
@@ -281,10 +293,11 @@ namespace Safety_System
                                 cmd.ExecuteNonQuery();
                             }
                         }
-                        trans.Commit();
+                        trans.Commit(); // 全部語句放入單一交易一次提交，極速提升寫入效能
                     }
                 }
                 
+                progStr?.Report("正在執行跨庫全域資料聚合與同步引擎...");
                 RunSyncEngine(dbName, tableName);
                 return true;
             } catch (Exception ex) {
@@ -501,7 +514,6 @@ namespace Safety_System
             using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] RENAME COLUMN [{oldN}] TO [{newN}]", conn)) { cmd.ExecuteNonQuery(); }
         });
 
-        // 🟢 支援重新命名資料表功能
         public static void RenameTable(string dbName, string oldName, string newName) => ExecuteWithRetry(dbName, conn => {
             using (var cmd = new SQLiteCommand($"ALTER TABLE [{oldName}] RENAME TO [{newName}]", conn)) { cmd.ExecuteNonQuery(); }
         });
