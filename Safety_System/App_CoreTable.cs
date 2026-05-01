@@ -271,28 +271,8 @@ namespace Safety_System
             
             Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(110, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelRow.FlatAppearance.BorderSize = 0;
-            bDelRow.Click += (s, e) => {
-                var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
-                if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                    if (AuthManager.VerifyUser()) {
-                        DataTable dt = (DataTable)_dgv.DataSource;
-                        foreach (var r in selectedRows) {
-                            if (_dgv.Columns.Contains("附件檔案")) {
-                                string relPathStr = r.Cells["附件檔案"].Value?.ToString();
-                                if (!string.IsNullOrEmpty(relPathStr)) {
-                                    string[] paths = relPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                                    foreach (var p in paths) DeletePhysicalFile(p, r.Index);
-                                }
-                            }
-                            int id = Convert.ToInt32(r.Cells["Id"].Value);
-                            DataManager.DeleteRecord(_dbName, _tableName, id);
-                            DataRow rowToDelete = dt.Rows.Cast<DataRow>().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
-                            if (rowToDelete != null) rowToDelete.Delete();
-                        }
-                        dt.AcceptChanges(); MessageBox.Show("刪除成功！");
-                    }
-                }
-            };
+            // 🟢 將點擊事件導向獨立抽出的 ExecuteDeleteRow()
+            bDelRow.Click += (s, e) => { ExecuteDeleteRow(); };
 
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
@@ -339,7 +319,6 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 極速優化：將 AutoSizeRowsMode 改為 DisplayedCells，防止匯入後畫面卡死
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
@@ -370,16 +349,50 @@ namespace Safety_System
             return main;
         }
 
+        // 🟢 將刪除邏輯抽離出獨立方法，供按鈕與右鍵選單共同呼叫
+        private void ExecuteDeleteRow()
+        {
+            var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
+            if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                if (AuthManager.VerifyUser()) {
+                    DataTable dt = (DataTable)_dgv.DataSource;
+                    foreach (var r in selectedRows) {
+                        if (_dgv.Columns.Contains("附件檔案")) {
+                            string relPathStr = r.Cells["附件檔案"].Value?.ToString();
+                            if (!string.IsNullOrEmpty(relPathStr)) {
+                                string[] paths = relPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                                foreach (var p in paths) DeletePhysicalFile(p, r.Index);
+                            }
+                        }
+                        int id = Convert.ToInt32(r.Cells["Id"].Value);
+                        DataManager.DeleteRecord(_dbName, _tableName, id);
+                        DataRow rowToDelete = dt.Rows.Cast<DataRow>().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
+                        if (rowToDelete != null) rowToDelete.Delete();
+                    }
+                    dt.AcceptChanges(); MessageBox.Show("刪除成功！");
+                }
+            }
+        }
+
+        // 🟢 初始化右鍵選單：加入儲存、刪除選取列、顯示設定
         private void InitContextMenu()
         {
             _ctxMenu = new ContextMenuStrip { Font = new Font("Microsoft JhengHei UI", 11F) };
 
+            ToolStripMenuItem itemSave = new ToolStripMenuItem("💾 儲存");
+            ToolStripMenuItem itemDeleteRow = new ToolStripMenuItem("🗑️ 刪除選取列");
+            ToolStripMenuItem itemColSettings = new ToolStripMenuItem("👁️ 顯示設定");
             ToolStripMenuItem itemFreeze = new ToolStripMenuItem("❄️ 凍結此欄(含)以左視窗");
             ToolStripMenuItem itemUnfreeze = new ToolStripMenuItem("🔥 取消凍結");
             ToolStripMenuItem itemImport = new ToolStripMenuItem("📥 匯入");
             ToolStripMenuItem itemExport = new ToolStripMenuItem("📤 匯出");
             ToolStripMenuItem itemPdf = new ToolStripMenuItem("📄 導出 PDF");
 
+            // 綁定事件
+            itemSave.Click += BtnSave_Click;
+            itemDeleteRow.Click += (s, e) => ExecuteDeleteRow();
+            itemColSettings.Click += BtnColSettings_Click;
+            
             itemImport.Click += BtnImportExcel_Click;
             itemExport.Click += BtnExport_Click;
             itemPdf.Click += BtnExportPdf_Click;
@@ -396,7 +409,12 @@ namespace Safety_System
                 UnfreezeAllColumns();
             };
 
-            _ctxMenu.Items.AddRange(new ToolStripItem[] { itemFreeze, itemUnfreeze, new ToolStripSeparator(), itemImport, itemExport, itemPdf });
+            _ctxMenu.Items.AddRange(new ToolStripItem[] { 
+                itemSave, itemDeleteRow, new ToolStripSeparator(),
+                itemFreeze, itemUnfreeze, new ToolStripSeparator(),
+                itemColSettings, new ToolStripSeparator(),
+                itemImport, itemExport, itemPdf 
+            });
         }
 
         private void Dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
@@ -405,15 +423,17 @@ namespace Safety_System
                 if (e.ColumnIndex >= 0) {
                     _rightClickedColIndex = e.ColumnIndex;
                     if (e.RowIndex >= 0 && e.RowIndex < _dgv.Rows.Count) {
-                        _dgv.ClearSelection();
-                        _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected = true;
-                        _dgv.CurrentCell = _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                        // 🟢 防呆優化：如果點擊的儲存格已經被選取（例如使用者已經用左鍵框選了多列），則不要取消選取
+                        if (!_dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected) {
+                            _dgv.ClearSelection();
+                            _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected = true;
+                            _dgv.CurrentCell = _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                        }
                     }
                     _ctxMenu.Show(Cursor.Position);
                 }
             }
         }
-
         private void UnfreezeAllColumns()
         {
             if (_dgv == null || _dgv.Columns.Count == 0) return;
@@ -756,7 +776,6 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
-            // 🟢 極速優化：將 AllCells 改為 DisplayedCells 徹底解決卡頓問題
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
@@ -917,7 +936,6 @@ namespace Safety_System
                 DataTable dt = ((DataTable)_dgv.DataSource).Copy(); 
                 bool success = false;
                 
-                // 🟢 呼叫進度條視窗接管儲存動作
                 using (ProgressForm progForm = new ProgressForm("儲存數據中..."))
                 {
                     await progForm.ExecuteAsync(async (progInt, progStr) => 
@@ -927,7 +945,6 @@ namespace Safety_System
                         SyncAttachmentPaths(dt);
 
                         progStr.Report("正在執行模組預處理...");
-                        // 🟢 修復：將 progInt 與 progStr 完整傳遞進入 Logic 層
                         if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt, progInt, progStr)) 
                         {
                             success = DataManager.BulkSaveTable(_dbName, _tableName, dt, progInt, progStr); 
