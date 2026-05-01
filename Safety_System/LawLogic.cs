@@ -46,10 +46,13 @@ namespace Safety_System
             return base.GetDropdownList(tableName, columnName);
         }
 
-        public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt)
+        // 🟢 配合介面加入進度條參數
+        public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt, IProgress<string> progressStr = null)
         {
             await Task.Run(() =>
             {
+                progressStr?.Report("正在檢查法規防重寫與重複項目...");
+                
                 DataTable dbData = DataManager.GetTableData(dbName, tableName, "", "", "");
                 var existingDict = new Dictionary<string, int>();
 
