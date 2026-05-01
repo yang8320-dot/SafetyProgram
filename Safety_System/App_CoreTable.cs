@@ -339,9 +339,10 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
+            // 🟢 極速優化：將 AutoSizeRowsMode 改為 DisplayedCells，防止匯入後畫面卡死
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
             };
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
@@ -755,7 +756,8 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
-            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+            // 🟢 極速優化：將 AllCells 改為 DisplayedCells 徹底解決卡頓問題
+            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
             if (_logic is LawLogic) 
@@ -925,10 +927,9 @@ namespace Safety_System
                         SyncAttachmentPaths(dt);
 
                         progStr.Report("正在執行模組預處理...");
-                        // 🟢 將 progInt 與 progStr 傳遞進入 Logic 層
+                        // 🟢 修復：將 progInt 與 progStr 完整傳遞進入 Logic 層
                         if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt, progInt, progStr)) 
                         {
-                            // 🟢 將 progInt 與 progStr 傳遞進入 DataManager 層
                             success = DataManager.BulkSaveTable(_dbName, _tableName, dt, progInt, progStr); 
                             
                             if (success) 
