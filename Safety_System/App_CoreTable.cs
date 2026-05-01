@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_CoreTable.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -926,8 +925,10 @@ namespace Safety_System
                         SyncAttachmentPaths(dt);
 
                         progStr.Report("正在執行模組預處理...");
-                        if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt, progStr)) 
+                        // 🟢 將 progInt 與 progStr 傳遞進入 Logic 層
+                        if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt, progInt, progStr)) 
                         {
+                            // 🟢 將 progInt 與 progStr 傳遞進入 DataManager 層
                             success = DataManager.BulkSaveTable(_dbName, _tableName, dt, progInt, progStr); 
                             
                             if (success) 
@@ -1195,9 +1196,6 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
-        // ==============================================================================
-        // 🟢 改用獨立 Helper 與背景複本，避免白畫面與卡死
-        // ==============================================================================
         private void BtnExport_Click(object sender, EventArgs e) 
         {
             DataTable dt = (DataTable)_dgv.DataSource;
@@ -1210,7 +1208,6 @@ namespace Safety_System
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
                 {
-                    // 🟢 取出隱形複本，不要清空畫面
                     DataTable boundDt = (DataTable)_dgv.DataSource; 
                     DataTable workingDt = boundDt.Copy(); 
                     DataTable templateDt = boundDt.Clone(); 
@@ -1241,7 +1238,6 @@ namespace Safety_System
                         });
                     }
 
-                    // 🟢 運算完畢後，瞬間替換畫面
                     UnfreezeAllColumns();
                     _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
@@ -1267,10 +1263,6 @@ namespace Safety_System
             }
         }
         
-        // ====================================================================
-        // ⚠️ 程式碼過長，請見下一則訊息的【下半部】。
-        // ====================================================================
-        // --- 這是第二部分的程式碼 ---
         private void BtnRtfToExcel_Click(object sender, EventArgs e) 
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "RTF 法規檔案 (*.rtf)|*.rtf", Title = "請選擇全國法規資料庫下載的 RTF 檔案" }) 
@@ -1313,7 +1305,6 @@ namespace Safety_System
                 int r = _dgv.CurrentCell?.RowIndex ?? 0; 
                 int c = _dgv.CurrentCell?.ColumnIndex ?? 0; 
                 
-                // 🟢 取得隱形複本，防止貼上大量資料時畫面變白
                 DataTable boundDt = (DataTable)_dgv.DataSource;
                 DataTable workingDt = boundDt.Copy();
 
@@ -1348,7 +1339,6 @@ namespace Safety_System
                     });
                 }
 
-                // 🟢 運算完畢，瞬間刷新畫面
                 UnfreezeAllColumns();
                 _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
