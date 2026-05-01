@@ -11,6 +11,9 @@ namespace Safety_System
         private const string TableName = "AllowedUsers";
         private static readonly DateTime ExpirationDate = new DateTime(2050, 12, 31);
 
+        // 🟢 將預設帳號名單公開為 public static，讓其他表單可以共用
+        public static readonly string[] DefaultUsers = { "黃忠揚", "TJ700657", "TJ700228", "TJ700533", "TJ200248" };
+
         public static bool VerifyLicense()
         {
             // 1. 檢查軟體使用期限
@@ -27,11 +30,10 @@ namespace Safety_System
             DataTable dtUsers = DataManager.GetTableData(DbName, TableName, "", "", "");
             if (dtUsers == null || dtUsers.Rows.Count == 0)
             {
-                string[] defaultUsers = { "黃忠揚", "TJ700657", "TJ700228", "TJ700533", "TJ200248" };
                 DataTable newDt = new DataTable();
                 newDt.Columns.Add("使用者帳號", typeof(string));
 
-                foreach (string user in defaultUsers)
+                foreach (string user in DefaultUsers)
                 {
                     newDt.Rows.Add(user);
                 }
