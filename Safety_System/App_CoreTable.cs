@@ -359,7 +359,7 @@ namespace Safety_System
             
             _dgv.CellFormatting += Dgv_CellFormatting;
             _dgv.CellClick += Dgv_CellClick;
-            _dgv.CellMouseClick += Dgv_CellMouseClick; // 🟢 右鍵選單綁定
+            _dgv.CellMouseClick += Dgv_CellMouseClick; 
             _dgv.KeyDown += Dgv_KeyDown;
             _dgv.KeyPress += Dgv_KeyPress;
             _dgv.EditingControlShowing += Dgv_EditingControlShowing;
@@ -370,7 +370,7 @@ namespace Safety_System
 
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
 
-            InitContextMenu(); // 🟢 初始化右鍵選單
+            InitContextMenu(); 
 
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(_boxAdvanced, 0, 1); 
@@ -381,9 +381,6 @@ namespace Safety_System
             return main;
         }
 
-        // ==========================================
-        // 右鍵選單與凍結視窗引擎
-        // ==========================================
         private void InitContextMenu()
         {
             _ctxMenu = new ContextMenuStrip { Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -428,7 +425,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 最關鍵的安全解凍機制：反向解凍以策安全
         private void UnfreezeAllColumns()
         {
             if (_dgv == null || _dgv.Columns.Count == 0) return;
@@ -439,7 +435,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 嚴密的防呆凍結機制：涵蓋所有左側隱藏欄位
         private void ApplyFreezeState()
         {
             if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
@@ -449,7 +444,6 @@ namespace Safety_System
                 UnfreezeAllColumns(); 
                 int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
                 
-                // 必須涵蓋所有 DisplayIndex 小於等於目標的欄位 (無視可見度)，否則會引發 WinForms 順序錯亂 Bug
                 var colsToFreeze = _dgv.Columns.Cast<DataGridViewColumn>()
                                       .Where(c => c.DisplayIndex <= targetIndex)
                                       .OrderBy(c => c.DisplayIndex)
@@ -519,14 +513,14 @@ namespace Safety_System
                 EnforceDateFormats(dt);
             });
 
-            UnfreezeAllColumns(); // 🟢 重綁定前強制解除凍結，防呆
+            UnfreezeAllColumns(); 
 
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
 
-            ApplyFreezeState(); // 🟢 排版完成後再恢復凍結狀態
+            ApplyFreezeState(); 
 
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
@@ -664,7 +658,7 @@ namespace Safety_System
         { 
             try 
             { 
-                UnfreezeAllColumns(); // 🟢 排版重組前解鎖
+                UnfreezeAllColumns(); 
 
                 var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Order"); 
                 if (dict.ContainsKey("All")) 
@@ -716,7 +710,7 @@ namespace Safety_System
                 f.Controls.Add(btnSave); 
                 f.ShowDialog();
 
-                ApplyFreezeState(); // 重新觸發凍結狀態，確保隱藏欄位時不會打亂順序
+                ApplyFreezeState(); 
             }
         }
 
@@ -849,7 +843,6 @@ namespace Safety_System
 
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
-            // 🟢 徹底攔截控制項按鍵，保障 Ctrl+S 在編輯模式也能用
             e.Control.PreviewKeyDown -= EditingControl_PreviewKeyDown;
             e.Control.PreviewKeyDown += EditingControl_PreviewKeyDown;
 
@@ -892,7 +885,7 @@ namespace Safety_System
         {
             if (e.Control && e.KeyCode == Keys.S)
             {
-                e.IsInputKey = true; // 放行讓上層抓取
+                e.IsInputKey = true; 
                 _btnSave.PerformClick();
             }
         }
@@ -911,14 +904,12 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修復下拉選單直接點擊儲存時未刷入緩衝區的 Bug
         private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
             {
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                // 強制轉移焦點，迫使編輯元件觸發 Leave 並寫入值
                 _btnSave.Focus();
 
                 if (_dgv.IsCurrentCellInEditMode) {
@@ -1205,40 +1196,8 @@ namespace Safety_System
 
         private void BtnExport_Click(object sender, EventArgs e) 
         {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv", FileName = _chineseTitle + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
-            {
-                if (sfd.ShowDialog() == DialogResult.OK) 
-                {
-                    try 
-                    {
-                        DataTable dt = (DataTable)_dgv.DataSource;
-                        if (sfd.FilterIndex == 1) 
-                        { 
-                            using (ExcelPackage p = new ExcelPackage()) 
-                            { 
-                                var ws = p.Workbook.Worksheets.Add("Data"); 
-                                ws.Cells["A1"].LoadFromDataTable(dt, true); 
-                                p.SaveAs(new FileInfo(sfd.FileName)); 
-                            } 
-                        } 
-                        else 
-                        { 
-                            StringBuilder sb = new StringBuilder(); 
-                            sb.AppendLine(string.Join(",", dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName))); 
-                            foreach (DataRow r in dt.Rows) 
-                            { 
-                                sb.AppendLine(string.Join(",", r.ItemArray.Select(i => i?.ToString().Replace(",", "，")))); 
-                            } 
-                            File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8); 
-                        }
-                        MessageBox.Show("匯出成功！(附件欄位將輸出為相對路徑，以保證資料完整性)", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
-                    }
-                }
-            }
+            DataTable dt = (DataTable)_dgv.DataSource;
+            ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle);
         }
 
         private async void BtnImportExcel_Click(object sender, EventArgs e) 
@@ -1247,73 +1206,50 @@ namespace Safety_System
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
                 {
-                    try 
-                    {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                        SetUIState(false, "Excel 解析與背景運算中，請稍候...", Color.Orange);
-                        
-                        DataTable dt = (DataTable)_dgv.DataSource; 
-                        
-                        UnfreezeAllColumns(); // 🟢 匯入重綁定前解開凍結
-                        _dgv.DataSource = null; 
-                        
-                        await Task.Run(() => 
-                        {
-                            using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
-                            {
-                                ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault(); 
-                                if (ws == null || ws.Dimension == null) return;
-                                
-                                int rowCount = ws.Dimension.Rows; 
-                                int colCount = ws.Dimension.Columns;
-                                string[] headers = new string[colCount]; 
-                                
-                                for (int c = 1; c <= colCount; c++) 
-                                { 
-                                    headers[c - 1] = ws.Cells[1, c].Text.Trim(); 
-                                }
-                                
-                                _calcHelper?.BeginBulkUpdate();
-                                
-                                for (int r = 2; r <= rowCount; r++) 
-                                {
-                                    DataRow nr = dt.NewRow(); 
-                                    bool hasData = false;
-                                    
-                                    for (int c = 1; c <= colCount; c++) 
-                                    {
-                                        string cn = headers[c - 1]; 
-                                        string val = ws.Cells[r, c].Text.Trim(); 
-                                        if (dt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val)) 
-                                        { 
-                                            nr[cn] = val; 
-                                            hasData = true; 
-                                        }
-                                    }
-                                    if (hasData) dt.Rows.Add(nr);
-                                }
-                                _calcHelper?.RecalculateTable(dt); 
-                                _calcHelper?.EndBulkUpdate(); 
-                                EnforceDateFormats(dt);
-                            }
-                        });
-                        
-                        _dgv.DataSource = dt; 
-                        ApplyGridStyles(); 
-                        RestoreColumnOrder();
-                        ApplyFreezeState();
+                    DataTable currentDt = (DataTable)_dgv.DataSource; 
+                    DataTable templateDt = currentDt.Clone(); 
+                    DataTable importedDt = null;
 
-                        SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{dt.Rows.Count}", Color.Green);
-                        MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        await LoadGridDataAsync(); 
-                        MessageBox.Show("匯入異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
-                    } 
-                    finally 
-                    { 
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
+                    using (ProgressForm progForm = new ProgressForm("匯入 Excel 資料中..."))
+                    {
+                        await progForm.ExecuteAsync(async (progInt, progStr) => 
+                        {
+                            importedDt = await ExcelHelper.ImportToDataTableAsync(ofd.FileName, templateDt, progInt, progStr);
+                            progStr.Report("正在將資料載入系統並重新運算，請稍候...");
+                        });
+                    }
+
+                    if (importedDt != null)
+                    {
+                        try
+                        {
+                            UnfreezeAllColumns();
+                            _dgv.DataSource = null; 
+
+                            _calcHelper?.BeginBulkUpdate(); 
+                            
+                            foreach (DataRow row in importedDt.Rows)
+                            {
+                                currentDt.ImportRow(row);
+                            }
+
+                            _calcHelper?.RecalculateTable(currentDt); 
+                            _calcHelper?.EndBulkUpdate(); 
+                            EnforceDateFormats(currentDt);
+                            
+                            _dgv.DataSource = currentDt; 
+                            ApplyGridStyles(); 
+                            RestoreColumnOrder();
+                            ApplyFreezeState();
+
+                            SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{currentDt.Rows.Count}", Color.Green);
+                            MessageBox.Show("Excel 匯入成功！\n請檢查數據後點擊「儲存數據」。", "匯入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        catch (Exception ex)
+                        {
+                            await LoadGridDataAsync(); 
+                            MessageBox.Show("匯入時發生異常：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
                     }
                 }
             }
@@ -1321,131 +1257,7 @@ namespace Safety_System
 
         private void BtnExportPdf_Click(object sender, EventArgs e) 
         {
-            if (_dgv.Rows.Count <= 1) { MessageBox.Show("目前沒有資料可供導出。"); return; }
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"{_chineseTitle}_{DateTime.Now:yyyyMMdd}" }) 
-            {
-                if (sfd.ShowDialog() == DialogResult.OK) 
-                {
-                    Form activeForm = Form.ActiveForm; 
-                    if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
-                    
-                    PrintDocument pd = new PrintDocument(); 
-                    pd.PrinterSettings.PrinterName = "Microsoft Print to PDF"; 
-                    pd.PrinterSettings.PrintToFile = true; 
-                    pd.PrinterSettings.PrintFileName = sfd.FileName; 
-                    pd.DefaultPageSettings.Landscape = true; 
-                    pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
-                    
-                    int rowIndex = 0; 
-                    int pageNumber = 1; 
-                    int rowsPerPageEstimate = 20; 
-                    int totalPages = (int)Math.Ceiling((double)(_dgv.Rows.Count - 1) / rowsPerPageEstimate);
-                    
-                    pd.PrintPage += (s, ev) => 
-                    {
-                        Graphics g = ev.Graphics; 
-                        float x = ev.MarginBounds.Left; 
-                        float y = ev.MarginBounds.Top; 
-                        float pageWidth = ev.MarginBounds.Width;
-                        
-                        Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold); 
-                        Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold); 
-                        Font fBody = new Font("Microsoft JhengHei UI", 9F); 
-                        Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
-                        
-                        StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }; 
-                        StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-                        
-                        g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter); 
-                        y += 35;
-                        g.DrawString(_chineseTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 30), sfCenter); 
-                        y += 30;
-                        
-                        string filterStr = ""; 
-                        if (!string.IsNullOrEmpty(_txtSearchKeyword.Text)) filterStr = $" | 關鍵字: {_txtSearchKeyword.Text}";
-                        g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}{filterStr}", fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 25), sfLeft); 
-                        y += 25;
-                        
-                        var visCols = _dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList(); 
-                        if (visCols.Count == 0) return;
-                        
-                        float totalGridWidth = visCols.Sum(c => c.Width); 
-                        float[] actualColWidths = new float[visCols.Count];
-                        for (int i = 0; i < visCols.Count; i++) 
-                        { 
-                            actualColWidths[i] = (visCols[i].Width / totalGridWidth) * pageWidth; 
-                        }
-                        
-                        float currX = x; 
-                        float rowH = 32;
-                        
-                        for (int i = 0; i < visCols.Count; i++) 
-                        {
-                            RectangleF rect = new RectangleF(currX, y, actualColWidths[i], rowH);
-                            g.FillRectangle(Brushes.LightGray, rect); 
-                            g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height); 
-                            g.DrawString(visCols[i].HeaderText, fHead, Brushes.Black, rect, sfCenter); 
-                            currX += actualColWidths[i];
-                        }
-                        y += rowH;
-                        
-                        while (rowIndex < _dgv.Rows.Count) 
-                        {
-                            if (_dgv.Rows[rowIndex].IsNewRow) { rowIndex++; continue; }
-                            
-                            float maxRowH = rowH;
-                            for (int i = 0; i < visCols.Count; i++) 
-                            { 
-                                string val = _dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? ""; 
-                                SizeF sSize = g.MeasureString(val, fBody, (int)actualColWidths[i], sfLeft); 
-                                if (sSize.Height + 10 > maxRowH) maxRowH = sSize.Height + 10; 
-                            }
-                            
-                            if (y + maxRowH > ev.MarginBounds.Bottom - 30) 
-                            { 
-                                g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
-                                pageNumber++; 
-                                ev.HasMorePages = true; 
-                                return; 
-                            }
-                            
-                            currX = x;
-                            for (int i = 0; i < visCols.Count; i++) 
-                            {
-                                RectangleF rect = new RectangleF(currX, y, actualColWidths[i], maxRowH); 
-                                g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
-                                string val = _dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? ""; 
-                                RectangleF textRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4); 
-                                g.DrawString(val, fBody, Brushes.Black, textRect, sfLeft); 
-                                currX += actualColWidths[i];
-                            }
-                            y += maxRowH; 
-                            rowIndex++;
-                        }
-                        
-                        g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter); 
-                        ev.HasMorePages = false; 
-                        rowIndex = 0; 
-                        pageNumber = 1;
-                    };
-                    
-                    try 
-                    { 
-                        pd.Print(); 
-                        if (activeForm != null) activeForm.Cursor = Cursors.Default; 
-                        MessageBox.Show("PDF 報表匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        if (activeForm != null) activeForm.Cursor = Cursors.Default; 
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
-                    } 
-                    finally 
-                    { 
-                        if (activeForm != null) activeForm.Cursor = Cursors.Default; 
-                    }
-                }
-            }
+            PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle);
         }
 
         private void BtnRtfToExcel_Click(object sender, EventArgs e) 
@@ -1757,69 +1569,4 @@ namespace Safety_System
             public ImageCompressionHelper() 
             {
                 _jpgEncoder = GetEncoder(ImageFormat.Jpeg);
-                _encoderParams = new EncoderParameters(1);
-                _encoderParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 100L); 
-            }
-
-            public void ProcessAndSave(string srcPath, string destPath) 
-            {
-                string ext = Path.GetExtension(srcPath).ToLower();
-                if (!_imageExts.Contains(ext)) 
-                { 
-                    File.Copy(srcPath, destPath); 
-                    return; 
-                }
-                
-                using (Image originalImg = Image.FromFile(srcPath)) 
-                {
-                    int maxSide = 1024; 
-                    int origWidth = originalImg.Width; 
-                    int origHeight = originalImg.Height;
-                    
-                    if (origWidth > maxSide || origHeight > maxSide) 
-                    {
-                        float ratio = Math.Min((float)maxSide / origWidth, (float)maxSide / origHeight);
-                        int newWidth = (int)(origWidth * ratio); 
-                        int newHeight = (int)(origHeight * ratio);
-                        
-                        using (Bitmap resizedImg = new Bitmap(newWidth, newHeight)) 
-                        {
-                            using (Graphics g = Graphics.FromImage(resizedImg)) 
-                            {
-                                g.InterpolationMode = InterpolationMode.HighQualityBicubic; 
-                                g.SmoothingMode = SmoothingMode.HighQuality;
-                                g.PixelOffsetMode = PixelOffsetMode.HighQuality; 
-                                g.CompositingQuality = CompositingQuality.HighQuality;
-                                g.DrawImage(originalImg, 0, 0, newWidth, newHeight);
-                            }
-                            
-                            if ((ext == ".jpg" || ext == ".jpeg") && _jpgEncoder != null) 
-                            { 
-                                resizedImg.Save(destPath, _jpgEncoder, _encoderParams); 
-                            } 
-                            else 
-                            { 
-                                resizedImg.Save(destPath, originalImg.RawFormat); 
-                            }
-                        }
-                    } 
-                    else 
-                    { 
-                        File.Copy(srcPath, destPath); 
-                    }
-                }
-            }
-
-            private ImageCodecInfo GetEncoder(ImageFormat format) 
-            { 
-                ImageCodecInfo[] codecs = ImageCodecInfo.GetImageEncoders(); 
-                return codecs.FirstOrDefault(codec => codec.FormatID == format.Guid); 
-            }
-            
-            public void Dispose() 
-            { 
-                _encoderParams?.Dispose(); 
-            }
-        }
-    }
-}
+                _encoderParams = ne
