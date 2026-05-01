@@ -55,7 +55,6 @@ namespace Safety_System
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
         private Dictionary<string, int> _columnWidths = new Dictionary<string, int>();
 
-        // 🟢 右鍵選單與凍結狀態紀錄
         private ContextMenuStrip _ctxMenu;
         private int _rightClickedColIndex = -1;
         private string _frozenColumnName = null;
@@ -117,9 +116,6 @@ namespace Safety_System
             Padding btnPad = new Padding(0, 0, 10, 0); 
             int btnHeight = 35; 
 
-            // =========================================================
-            // 一般顯示區 (1大框)
-            // =========================================================
             GroupBox boxTop = new GroupBox { 
                 Text = $"{_chineseTitle} (庫：{_dbName} 表：{_tableName})", 
                 Dock = DockStyle.Fill, 
@@ -198,9 +194,6 @@ namespace Safety_System
 
             boxTop.Controls.Add(flpTop);
 
-            // =========================================================
-            // 進階管理區 (取消分隔，全列接續顯示)
-            // =========================================================
             _boxAdvanced = new GroupBox { 
                 Text = "進階欄位與權限操作", 
                 Dock = DockStyle.Fill, 
@@ -227,7 +220,6 @@ namespace Safety_System
             FlowLayoutPanel flpAdvRow1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
             FlowLayoutPanel flpAdvRow2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 0) };
 
-            // 第一排：欄位/列操作→標題更改→刪除欄→刪除列 --> 間隔30px --> 顯示設定
             _txtNewColName = new TextBox { Width = 110, Margin = ctrlPad };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(95, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bAdd.FlatAppearance.BorderSize = 0;
@@ -304,16 +296,14 @@ namespace Safety_System
                 }
             };
 
-            // 顯示設定 (加上 30px 空白)
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
             _btnColSettings.Click += BtnColSettings_Click;
 
             flpAdvRow1.Controls.AddRange(new Control[] { new Label { Text = "欄位/列操作:", AutoSize = true, Margin = lblPad }, _txtNewColName, bAdd, _cboColumns, _txtRenameCol, bRen, bDelCol, bDelRow });
-            flpAdvRow1.Controls.Add(new Panel { Width = 30, Height = 1 }); // 墊片
+            flpAdvRow1.Controls.Add(new Panel { Width = 30, Height = 1 }); 
             flpAdvRow1.Controls.Add(_btnColSettings);
 
-            // 第二排：查詢資料→關鍵字→查詢 --> 間隔30px --> 匯入→匯出→導出PDF
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
             _txtSearchKeyword = new TextBox { Width = 180, Margin = ctrlPad };
             _btnAdvancedSearch = new Button { Text = "🔍 查詢", Size = new Size(90, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
@@ -333,7 +323,7 @@ namespace Safety_System
             _btnExportPdf.Click += BtnExportPdf_Click;
 
             flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
-            flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); // 墊片
+            flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); 
             flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
 
             if (_logic is LawLogic) {
@@ -1194,6 +1184,9 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
+        // ==============================================================================
+        // 🟢 抽離優化：改由共用工具類別接管的匯入/匯出按鈕
+        // ==============================================================================
         private void BtnExport_Click(object sender, EventArgs e) 
         {
             DataTable dt = (DataTable)_dgv.DataSource;
@@ -1260,6 +1253,18 @@ namespace Safety_System
             PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle);
         }
 
+        private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e) 
+        {
+            if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell) 
+            { 
+                _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit); 
+            }
+        }
+        
+        // ====================================================================
+        // ⚠️ 程式碼過長，請見下一則訊息的【下半部】。
+        // ====================================================================
+        // --- 這是第二部分的程式碼 ---
         private void BtnRtfToExcel_Click(object sender, EventArgs e) 
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "RTF 法規檔案 (*.rtf)|*.rtf", Title = "請選擇全國法規資料庫下載的 RTF 檔案" }) 
@@ -1355,14 +1360,6 @@ namespace Safety_System
                         e.FormattingApplied = true;
                     }
                 }
-            }
-        }
-
-        private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e) 
-        {
-            if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell) 
-            { 
-                _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit); 
             }
         }
 
@@ -1569,4 +1566,69 @@ namespace Safety_System
             public ImageCompressionHelper() 
             {
                 _jpgEncoder = GetEncoder(ImageFormat.Jpeg);
-                _encoderParams = ne
+                _encoderParams = new EncoderParameters(1);
+                _encoderParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 100L); 
+            }
+
+            public void ProcessAndSave(string srcPath, string destPath) 
+            {
+                string ext = Path.GetExtension(srcPath).ToLower();
+                if (!_imageExts.Contains(ext)) 
+                { 
+                    File.Copy(srcPath, destPath); 
+                    return; 
+                }
+                
+                using (Image originalImg = Image.FromFile(srcPath)) 
+                {
+                    int maxSide = 1024; 
+                    int origWidth = originalImg.Width; 
+                    int origHeight = originalImg.Height;
+                    
+                    if (origWidth > maxSide || origHeight > maxSide) 
+                    {
+                        float ratio = Math.Min((float)maxSide / origWidth, (float)maxSide / origHeight);
+                        int newWidth = (int)(origWidth * ratio); 
+                        int newHeight = (int)(origHeight * ratio);
+                        
+                        using (Bitmap resizedImg = new Bitmap(newWidth, newHeight)) 
+                        {
+                            using (Graphics g = Graphics.FromImage(resizedImg)) 
+                            {
+                                g.InterpolationMode = InterpolationMode.HighQualityBicubic; 
+                                g.SmoothingMode = SmoothingMode.HighQuality;
+                                g.PixelOffsetMode = PixelOffsetMode.HighQuality; 
+                                g.CompositingQuality = CompositingQuality.HighQuality;
+                                g.DrawImage(originalImg, 0, 0, newWidth, newHeight);
+                            }
+                            
+                            if ((ext == ".jpg" || ext == ".jpeg") && _jpgEncoder != null) 
+                            { 
+                                resizedImg.Save(destPath, _jpgEncoder, _encoderParams); 
+                            } 
+                            else 
+                            { 
+                                resizedImg.Save(destPath, originalImg.RawFormat); 
+                            }
+                        }
+                    } 
+                    else 
+                    { 
+                        File.Copy(srcPath, destPath); 
+                    }
+                }
+            }
+
+            private ImageCodecInfo GetEncoder(ImageFormat format) 
+            { 
+                ImageCodecInfo[] codecs = ImageCodecInfo.GetImageEncoders(); 
+                return codecs.FirstOrDefault(codec => codec.FormatID == format.Guid); 
+            }
+            
+            public void Dispose() 
+            { 
+                _encoderParams?.Dispose(); 
+            }
+        }
+    }
+}
