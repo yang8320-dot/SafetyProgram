@@ -1,5 +1,5 @@
-/// FILE: Safety_System/DataGridViewAutoCalcHelper.cs ///
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Windows.Forms;
 
@@ -32,7 +32,6 @@ namespace Safety_System
             LockTargetColumns();
         }
 
-        // 🟢 UI 單筆手動輸入時的觸發邏輯
         private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             if (_isBulkUpdating || e.RowIndex < 0 || e.ColumnIndex < 0) return;
@@ -41,16 +40,12 @@ namespace Safety_System
             DataGridViewRow nextRow = (e.RowIndex + 1 < _dgv.Rows.Count) ? _dgv.Rows[e.RowIndex + 1] : null;
             DataGridViewRow prevRow = (e.RowIndex - 1 >= 0) ? _dgv.Rows[e.RowIndex - 1] : null;
 
-            // 1. 本列的日統計 = (下一列數據 - 本列數據)
             CalculateRowUI(currentRow, nextRow);
-
-            // 2. 如果有上一列，因為本列數值變更了，所以要重新計算上一列的日統計
             if (prevRow != null) {
                 CalculateRowUI(prevRow, currentRow);
             }
         }
 
-        // 🟢 單一 UI 列的即時計算 (目標列 vs 下一列)
         private void CalculateRowUI(DataGridViewRow targetRow, DataGridViewRow nextRow)
         {
             if (targetRow.IsNewRow) return;
@@ -72,15 +67,13 @@ namespace Safety_System
                     if (_dgv.Columns.Contains(baseCol))
                     {
                         string targetStr = targetRow.Cells[baseCol].Value?.ToString().Replace(",", "").Trim();
-                        // 確認下一列存在且不是空白新列
                         string nextStr = (nextRow != null && !nextRow.IsNewRow) ? nextRow.Cells[baseCol].Value?.ToString().Replace(",", "").Trim() : null;
                         
                         if (double.TryParse(targetStr, out double targetVal)) {
-                            // 🟢 新邏輯：下一列數值 - 本列數值
                             if (nextStr != null && double.TryParse(nextStr, out double nextVal)) {
                                 targetRow.Cells[colName].Value = (nextVal - targetVal).ToString("0.####");
                             } else {
-                                targetRow.Cells[colName].Value = ""; // 下一天沒資料，則當天消耗量未知
+                                targetRow.Cells[colName].Value = ""; 
                             }
                         } else {
                             targetRow.Cells[colName].Value = "";
@@ -90,64 +83,74 @@ namespace Safety_System
             }
         }
 
-        // 🚀 高效能批次計算核心：在 DataTable 記憶體中運算 (CSV匯入 / 貼上時使用)
-        // 🚀 高效能批次計算核心 (支援進度條回報)
+        // 🚀 高效能批次計算核心：在 DataTable 記憶體中運算
         public void RecalculateTable(DataTable dt, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
             if (dt == null) return;
             string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
 
-            for (int i = 0; i < dt.Rows.Count; i++)
+            // 🟢 極速優化：預先抓出所有目標計算欄位，避免在每一列迴圈中重複掃描 Columns
+            var targetCols = new List<(string ColName, string BaseCol)>();
+            bool hasDateCol = dt.Columns.Contains("日期");
+            bool hasWeekCol = dt.Columns.Contains("星期");
+
+            foreach (DataColumn col in dt.Columns)
             {
-                // 🟢 觸發進度條更新 (每 20 筆更新一次畫面，避免過度耗能)
-                if (progressInt != null && progressStr != null && (i % 20 == 0 || i == dt.Rows.Count - 1))
+                if (col.ColumnName.EndsWith("日統計") || col.ColumnName.EndsWith("月統計") || col.ColumnName.EndsWith("年統計"))
                 {
-                    int percent = (int)((double)(i + 1) / dt.Rows.Count * 100);
+                    string baseCol = col.ColumnName.Substring(0, col.ColumnName.Length - 3);
+                    if (dt.Columns.Contains(baseCol))
+                    {
+                        targetCols.Add((col.ColumnName, baseCol));
+                    }
+                }
+            }
+
+            int totalRows = dt.Rows.Count;
+            for (int i = 0; i < totalRows; i++)
+            {
+                // 🟢 觸發進度條更新
+                if (progressInt != null && progressStr != null && (i % 50 == 0 || i == totalRows - 1))
+                {
+                    int percent = (int)((double)(i + 1) / totalRows * 100);
                     progressInt.Report(percent);
-                    progressStr.Report($"正在重新運算關聯數據： 第 {i + 1} 筆 / 共 {dt.Rows.Count} 筆 ...");
+                    progressStr.Report($"正在重新運算關聯數據： 第 {i + 1} 筆 / 共 {totalRows} 筆 ...");
                 }
 
                 DataRow row = dt.Rows[i];
                 if (row.RowState == DataRowState.Deleted) continue;
                 
-                // 往下尋找第一筆有效資料做為減數 (下一天)
+                if (hasWeekCol && hasDateCol)
+                {
+                    if (DateTime.TryParse(row["日期"]?.ToString(), out DateTime d))
+                        row["星期"] = weekDays[(int)d.DayOfWeek];
+                    else
+                        row["星期"] = "";
+                }
+
+                if (targetCols.Count == 0) continue;
+
                 DataRow nextRow = null;
-                for (int j = i + 1; j < dt.Rows.Count; j++) {
+                for (int j = i + 1; j < totalRows; j++) {
                     if (dt.Rows[j].RowState != DataRowState.Deleted) {
                         nextRow = dt.Rows[j];
                         break;
                     }
                 }
 
-                foreach (DataColumn col in dt.Columns)
+                foreach (var tuple in targetCols)
                 {
-                    string colName = col.ColumnName;
-
-                    if (colName == "星期" && dt.Columns.Contains("日期"))
-                    {
-                        if (DateTime.TryParse(row["日期"]?.ToString(), out DateTime d))
-                            row["星期"] = weekDays[(int)d.DayOfWeek];
-                        else
-                            row["星期"] = "";
-                    }
-                    else if (colName.EndsWith("日統計") || colName.EndsWith("月統計") || colName.EndsWith("年統計"))
-                    {
-                        string baseCol = colName.Substring(0, colName.Length - 3);
-                        if (dt.Columns.Contains(baseCol))
-                        {
-                            string targetStr = row[baseCol]?.ToString().Replace(",", "").Trim();
-                            string nextStr = nextRow?[baseCol]?.ToString().Replace(",", "").Trim();
-                            
-                            if (double.TryParse(targetStr, out double targetVal)) {
-                                if (nextRow != null && double.TryParse(nextStr, out double nextVal)) {
-                                    row[colName] = (nextVal - targetVal).ToString("0.####");
-                                } else {
-                                    row[colName] = "";
-                                }
-                            } else {
-                                row[colName] = "";
-                            }
+                    string targetStr = row[tuple.BaseCol]?.ToString().Replace(",", "").Trim();
+                    string nextStr = nextRow?[tuple.BaseCol]?.ToString().Replace(",", "").Trim();
+                    
+                    if (double.TryParse(targetStr, out double targetVal)) {
+                        if (nextRow != null && double.TryParse(nextStr, out double nextVal)) {
+                            row[tuple.ColName] = (nextVal - targetVal).ToString("0.####");
+                        } else {
+                            row[tuple.ColName] = "";
                         }
+                    } else {
+                        row[tuple.ColName] = "";
                     }
                 }
             }
