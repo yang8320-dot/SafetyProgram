@@ -1,4 +1,3 @@
-/// FILE: Safety_System/LawLogic.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -46,25 +45,35 @@ namespace Safety_System
             return base.GetDropdownList(tableName, columnName);
         }
 
-        // 🟢 配合介面加入進度條參數
-        public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt, IProgress<string> progressStr = null)
+        // 🟢 配合介面加入進度條參數，並回報檢查進度
+        public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
             await Task.Run(() =>
             {
                 progressStr?.Report("正在檢查法規防重寫與重複項目...");
+                progressInt?.Report(10);
                 
                 DataTable dbData = DataManager.GetTableData(dbName, tableName, "", "", "");
                 var existingDict = new Dictionary<string, int>();
 
-                foreach (DataRow dbRow in dbData.Rows) {
+                int totalDb = dbData.Rows.Count;
+                for (int i = 0; i < totalDb; i++) {
+                    DataRow dbRow = dbData.Rows[i];
                     string name = dbRow["法規名稱"]?.ToString().Trim() ?? "";
                     string article = dbRow["條"]?.ToString().Trim() ?? "";
                     string content = dbRow["內容"]?.ToString().Trim() ?? "";
                     string key = $"{name}_|{article}_|{content}";
                     existingDict[key] = Convert.ToInt32(dbRow["Id"]);
+                    
+                    if (progressInt != null && (i % 100 == 0 || i == totalDb - 1)) 
+                        progressInt.Report(10 + (int)(40.0 * i / totalDb));
                 }
 
-                foreach (DataRow row in dt.Rows) {
+                progressInt?.Report(50);
+                
+                int totalRows = dt.Rows.Count;
+                for (int i = 0; i < totalRows; i++) {
+                    DataRow row = dt.Rows[i];
                     if (row.RowState == DataRowState.Deleted) continue;
                     
                     if (row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0)
@@ -81,7 +90,13 @@ namespace Safety_System
                         row["Id"] = existingDict[key];
                         row.Table.Columns["Id"].ReadOnly = isReadOnly;
                     }
+                    
+                    if (progressInt != null && progressStr != null && (i % 100 == 0 || i == totalRows - 1)) {
+                        progressInt.Report(50 + (int)(40.0 * i / totalRows));
+                        progressStr.Report($"正在配對現有資料庫索引： 第 {i + 1} 筆 / 共 {totalRows} 筆");
+                    }
                 }
+                progressInt?.Report(90);
             });
 
             return true;
