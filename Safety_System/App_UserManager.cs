@@ -36,7 +36,7 @@ namespace Safety_System
 
             // 🟢 調整 2：右上角按鈕往右移動 (X 從 275 改為 325)
             Button btnShowDefault = new Button { 
-                Text = "🛡️ 檢視系統預設帳號", 
+                Text = "🛡️ 檢視預設帳號", 
                 Location = new Point(325, 20), 
                 Size = new Size(185, 35), 
                 BackColor = Color.SlateGray, 
