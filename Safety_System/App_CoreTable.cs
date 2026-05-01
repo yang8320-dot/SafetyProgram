@@ -893,7 +893,7 @@ namespace Safety_System
             }
         }
 
-       private async void BtnSave_Click(object sender, EventArgs e) 
+        private async void BtnSave_Click(object sender, EventArgs e) 
         {
             try 
             {
@@ -928,7 +928,6 @@ namespace Safety_System
                         progStr.Report("正在執行模組預處理...");
                         if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dt, progStr)) 
                         {
-                            // 將進度條物件傳入 BulkSaveTable 內
                             success = DataManager.BulkSaveTable(_dbName, _tableName, dt, progInt, progStr); 
                             
                             if (success) 
@@ -1196,6 +1195,9 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
+        // ==============================================================================
+        // 🟢 改用獨立 Helper 與背景複本，避免白畫面與卡死
+        // ==============================================================================
         private void BtnExport_Click(object sender, EventArgs e) 
         {
             DataTable dt = (DataTable)_dgv.DataSource;
@@ -1208,11 +1210,10 @@ namespace Safety_System
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
                 {
-                    DataTable currentDt = (DataTable)_dgv.DataSource; 
-                    DataTable templateDt = currentDt.Clone(); 
-                    
-                    UnfreezeAllColumns();
-                    _dgv.DataSource = null; 
+                    // 🟢 取出隱形複本，不要清空畫面
+                    DataTable boundDt = (DataTable)_dgv.DataSource; 
+                    DataTable workingDt = boundDt.Copy(); 
+                    DataTable templateDt = boundDt.Clone(); 
 
                     using (ProgressForm progForm = new ProgressForm("匯入與運算中..."))
                     {
@@ -1227,25 +1228,27 @@ namespace Safety_System
                                 
                                 foreach (DataRow row in importedDt.Rows)
                                 {
-                                    currentDt.ImportRow(row);
+                                    workingDt.ImportRow(row);
                                 }
 
                                 _calcHelper?.BeginBulkUpdate(); 
-                                _calcHelper?.RecalculateTable(currentDt, progInt, progStr); 
+                                _calcHelper?.RecalculateTable(workingDt, progInt, progStr); 
                                 _calcHelper?.EndBulkUpdate(); 
                                 
                                 progStr.Report("正在格式化資料...");
-                                EnforceDateFormats(currentDt);
+                                EnforceDateFormats(workingDt);
                             }
                         });
                     }
 
-                    _dgv.DataSource = currentDt; 
+                    // 🟢 運算完畢後，瞬間替換畫面
+                    UnfreezeAllColumns();
+                    _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
                     RestoreColumnOrder();
                     ApplyFreezeState();
 
-                    SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{currentDt.Rows.Count}", Color.Green);
+                    SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{workingDt.Rows.Count}", Color.Green);
                     MessageBox.Show("Excel 匯入與運算成功！\n請檢查數據後點擊「儲存數據」。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
@@ -1263,6 +1266,10 @@ namespace Safety_System
                 _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit); 
             }
         }
+        
+        // ====================================================================
+        // ⚠️ 程式碼過長，請見下一則訊息的【下半部】。
+        // ====================================================================
         // --- 這是第二部分的程式碼 ---
         private void BtnRtfToExcel_Click(object sender, EventArgs e) 
         {
@@ -1305,14 +1312,14 @@ namespace Safety_System
                 string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                 int r = _dgv.CurrentCell?.RowIndex ?? 0; 
                 int c = _dgv.CurrentCell?.ColumnIndex ?? 0; 
-                DataTable dt = (DataTable)_dgv.DataSource;
+                
+                // 🟢 取得隱形複本，防止貼上大量資料時畫面變白
+                DataTable boundDt = (DataTable)_dgv.DataSource;
+                DataTable workingDt = boundDt.Copy();
 
                 List<int> readOnlyCols = new List<int>();
                 for (int i = 0; i < _dgv.Columns.Count; i++) if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
 
-                UnfreezeAllColumns();
-                _dgv.DataSource = null; 
-                
                 using (ProgressForm progForm = new ProgressForm("貼上資料與運算中..."))
                 {
                     await progForm.ExecuteAsync(async (progInt, progStr) => 
@@ -1321,27 +1328,29 @@ namespace Safety_System
                         
                         foreach (string line in lines) 
                         {
-                            if (r >= dt.Rows.Count) dt.Rows.Add(dt.NewRow());
+                            if (r >= workingDt.Rows.Count) workingDt.Rows.Add(workingDt.NewRow());
                             string[] cells = line.Split('\t');
                             for (int i = 0; i < cells.Length; i++) 
                             { 
-                                if (c + i < dt.Columns.Count && !readOnlyCols.Contains(c + i)) 
+                                if (c + i < workingDt.Columns.Count && !readOnlyCols.Contains(c + i)) 
                                 { 
-                                    dt.Rows[r][c + i] = cells[i].Trim().Trim('"'); 
+                                    workingDt.Rows[r][c + i] = cells[i].Trim().Trim('"'); 
                                 } 
                             }
                             r++;
                         }
 
                         _calcHelper?.BeginBulkUpdate(); 
-                        _calcHelper?.RecalculateTable(dt, progInt, progStr); 
+                        _calcHelper?.RecalculateTable(workingDt, progInt, progStr); 
                         _calcHelper?.EndBulkUpdate(); 
                         
-                        EnforceDateFormats(dt); 
+                        EnforceDateFormats(workingDt); 
                     });
                 }
 
-                _dgv.DataSource = dt; 
+                // 🟢 運算完畢，瞬間刷新畫面
+                UnfreezeAllColumns();
+                _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
                 RestoreColumnOrder();
                 ApplyFreezeState();
