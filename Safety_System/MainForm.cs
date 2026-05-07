@@ -1,4 +1,3 @@
-/// FILE: Safety_System/MainForm.cs ///
 using System;
 using System.Data;
 using System.Diagnostics;
@@ -142,12 +141,21 @@ namespace Safety_System
 
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
+            
+            // 🟢 新增：水資源管理看板 下方增加 二個程式
+            menuWater.DropDownItems.Add(CreateItem("用水申報", () => new App_WaterReport().GetView()));
+            menuWater.DropDownItems.Add(CreateItem("水資源成本表", () => new App_WaterCost().GetView()));
+
             menuWater.DropDownItems.Add(new ToolStripSeparator());
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理水量記錄", () => new App_CoreTable("Water", "WaterMeterReadings", "【日】廢水處理水量記錄", new WaterLogic()).GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】廢水處理用藥記錄", () => new App_CoreTable("Water", "WaterChemicals", "【日】廢水處理用藥記錄", new WaterLogic()).GetView()));
             menuWater.DropDownItems.Add(CreateItem("【日】自來水使用量", () => new App_CoreTable("Water", "WaterUsageDaily", "【日】自來水使用量", new WaterLogic()).GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_CoreTable("Water", "DischargeData", "【月】納管排放數據", new WaterLogic()).GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_CoreTable("Water", "WaterVolume", "【月】自來水用量統計", new WaterLogic()).GetView()));
+            
+            // 🟢 新增：分隔線 與 水污許可(原物料)
+            menuWater.DropDownItems.Add(new ToolStripSeparator());
+            menuWater.DropDownItems.Add(CreateItem("水污許可(原物料)", () => new App_CoreTable("Water", "WaterPermitMaterial", "水污許可(原物料)", new DefaultLogic()).GetView()));
 
             var menuWaste = new ToolStripMenuItem("產能及廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("產能及廢棄物看板", () => new App_WasteDashboard().GetView()));
@@ -159,6 +167,12 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("【月】切磨月表", () => new App_CoreTable("Waste", "Waste_GCTE", "【月】切磨月表", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_CoreTable("Waste", "Waste_ML", "【月】物料月表", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_CoreTable("Waste", "Waste_Water", "【月】水站月表", new DefaultLogic()).GetView()));
+
+            // 🟢 新增：分隔線 與 廢棄物污許可 三個資料表
+            menuWaste.DropDownItems.Add(new ToolStripSeparator());
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(原物料)", () => new App_CoreTable("Waste", "WastePermitMaterial", "廢棄物污許可(原物料)", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(產品)", () => new App_CoreTable("Waste", "WastePermitProduct", "廢棄物污許可(產品)", new DefaultLogic()).GetView()));
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(廢棄物)", () => new App_CoreTable("Waste", "WastePermitWaste", "廢棄物污許可(廢棄物)", new DefaultLogic()).GetView()));
 
             var menuFire = new ToolStripMenuItem("消防");
             menuFire.DropDownItems.Add(CreateItem("消防看板", () => new App_FireDashboard().GetView()));
@@ -279,7 +293,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
-            // 🟢 加入新增使用者 (Lv3 限定)
             var addUserItem = new ToolStripMenuItem("新增使用者");
             addUserItem.Click += (s, e) => {
                 if (AuthManager.VerifyLv3Only("請輸入【系統管理者】密碼 (Lv3) 以管理使用者：")) {
