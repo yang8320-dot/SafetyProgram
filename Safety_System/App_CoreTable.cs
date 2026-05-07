@@ -333,6 +333,8 @@ namespace Safety_System
             _dgv.DataError += (s, e) => { e.ThrowException = false; };
             _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
             _dgv.CellValueChanged += Dgv_CellValueChanged;
+            
+            // 🟢 修復：寬度改變事件
             _dgv.ColumnWidthChanged += Dgv_ColumnWidthChanged;
 
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
@@ -520,6 +522,8 @@ namespace Safety_System
 
             UnfreezeAllColumns(); 
 
+            // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+            _isApplyingWidths = true;
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -543,6 +547,8 @@ namespace Safety_System
             
             UnfreezeAllColumns();
 
+            // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+            _isApplyingWidths = true;
             _dgv.DataSource = dt; 
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -592,6 +598,8 @@ namespace Safety_System
 
             UnfreezeAllColumns();
 
+            // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+            _isApplyingWidths = true;
             _dgv.DataSource = resultDt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -620,10 +628,12 @@ namespace Safety_System
             }
         }
 
+        // 🟢 修復：過濾不正確的寬度儲存觸發，防止系統自動計算的寬度被覆寫至資料庫
         private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e) 
         {
             if (_isFirstLoad || _isApplyingWidths) return;
-            if (e.Column != null) 
+            
+            if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) 
             { 
                 _columnWidths[e.Column.Name] = e.Column.Width; 
                 SaveColumnWidths(); 
@@ -734,61 +744,76 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
+        // 🟢 修復：重新設計版面格式套用邏輯，確保自定義寬度能完美重現
         private void ApplyGridStyles() 
         {
             _isApplyingWidths = true; 
-
-            if (_dgv.Columns.Contains("Id")) 
+            try
             {
-                _dgv.Columns["Id"].ReadOnly = true;
-                _dgv.Columns["Id"].Visible = false;
-            }
-            
-            if (_dgv.Columns.Contains(_dateColumnName)) 
-            {
-                string fmt = "yyyy-MM-dd";
-                if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
-                else if (_timeMode == TimeMode.Year) fmt = "yyyy";
-                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
-            }
-            
-            foreach (DataGridViewColumn col in _dgv.Columns) 
-            {
-                if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
-
-                if (col.Name.Contains("附件檔案")) 
+                if (_dgv.Columns.Contains("Id")) 
                 {
-                    col.ReadOnly = true; 
-                    col.DefaultCellStyle.ForeColor = Color.Blue;
-                    col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
-                    col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                } 
-                else 
+                    _dgv.Columns["Id"].ReadOnly = true;
+                    _dgv.Columns["Id"].Visible = false;
+                }
+                
+                if (_dgv.Columns.Contains(_dateColumnName)) 
                 {
-                    col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                    string fmt = "yyyy-MM-dd";
+                    if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
+                    else if (_timeMode == TimeMode.Year) fmt = "yyyy";
+                    _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
+                }
+                
+                foreach (DataGridViewColumn col in _dgv.Columns) 
+                {
+                    if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
+
+                    if (col.Name.Contains("附件檔案")) 
+                    {
+                        col.ReadOnly = true; 
+                        col.DefaultCellStyle.ForeColor = Color.Blue;
+                        col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
+                        col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    } 
+                    else 
+                    {
+                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                    }
+                }
+
+                SetupDropdownColumns();
+                
+                // 🟢 關閉全域自動縮放，改由每個欄位單獨控制
+                _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
+
+                foreach (DataGridViewColumn col in _dgv.Columns) 
+                {
+                    // 優先套用使用者在資料庫中儲存的寬度
+                    if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
+                    {
+                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                        col.Width = _columnWidths[col.Name];
+                    }
+                    else
+                    {
+                        // 若無使用者自訂，則根據內容自適應，方便初次閱讀
+                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells;
+
+                        // LawLogic 的特殊初始寬度處理
+                        if (_logic is LawLogic) 
+                        {
+                            if (col.Name == "法規名稱") { col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; col.Width = 250; }
+                            else if (col.Name == "內容") { col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; col.Width = 400; }
+                            else if (col.Name == "重點摘要") { col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; col.Width = 200; }
+                        }
+                    }
                 }
             }
-
-            SetupDropdownColumns();
-            
-            _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
-            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
-            _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-
-            if (_logic is LawLogic) 
+            finally
             {
-                if (_dgv.Columns.Contains("法規名稱")) _dgv.Columns["法規名稱"].Width = 250;
-                if (_dgv.Columns.Contains("內容")) _dgv.Columns["內容"].Width = 400;
-                if (_dgv.Columns.Contains("重點摘要")) _dgv.Columns["重點摘要"].Width = 200;
+                _isApplyingWidths = false; 
             }
-
-            foreach (DataGridViewColumn col in _dgv.Columns) 
-            {
-                if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
-                    col.Width = _columnWidths[col.Name];
-            }
-
-            _isApplyingWidths = false; 
         }
 
         private void SetupDropdownColumns() 
@@ -908,6 +933,9 @@ namespace Safety_System
                 }
 
                 UnfreezeAllColumns();
+
+                // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+                _isApplyingWidths = true;
                 _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
                 RestoreColumnOrder();
@@ -1339,6 +1367,9 @@ namespace Safety_System
                     }
 
                     UnfreezeAllColumns();
+
+                    // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+                    _isApplyingWidths = true;
                     _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
                     RestoreColumnOrder();
