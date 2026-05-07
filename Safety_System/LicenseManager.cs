@@ -1,4 +1,3 @@
-/// FILE: Safety_System/LicenseManager.cs ///
 using System;
 using System.Data;
 using System.Windows.Forms;
@@ -11,8 +10,8 @@ namespace Safety_System
         private const string TableName = "AllowedUsers";
         private static readonly DateTime ExpirationDate = new DateTime(2050, 12, 31);
 
-        // 🟢 將預設帳號名單公開為 public static，讓其他表單可以共用
-        public static readonly string[] DefaultUsers = { "黃忠揚", "TJ700657", "TJ700228", "TJ700533", "TJ200248" };
+        // 🟢 權限修正：將 TJ200248 改為 TJ204159
+        public static readonly string[] DefaultUsers = { "黃忠揚", "TJ700657", "TJ700228", "TJ700533", "TJ204159" };
 
         public static bool VerifyLicense()
         {
