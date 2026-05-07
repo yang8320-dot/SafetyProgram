@@ -31,11 +31,12 @@ namespace Safety_System
             public override string ToString() => ChName; 
         }
 
-        // 🟢 定義資料庫與資料表的中文對照關係 (加入新增的 水污許可 與 廢棄物污許可 表格)
+        // 🟢 定義資料庫與資料表的中文對照關係 (加入新增的 LaborInspection 與 WorkItems 表格)
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
             { "Safety", ("工安", new Dictionary<string, string> { 
                 { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
-                { "TrafficInjury", "交通意外" }, { "WorkInjury", "工傷事件" }, { "MinorInjury", "輕傷事件" } 
+                { "TrafficInjury", "交通意外" }, { "WorkInjury", "工傷事件" }, { "MinorInjury", "輕傷事件" },
+                { "LaborInspection", "勞檢稽查缺失" } // 🟢 新增
             })},
             { "Chemical", ("化學品", new Dictionary<string, string> { 
                 { "SDS_Inventory", "SDS清冊" }, { "EnvTesting", "環測項目" }, { "ExposureLimits", "勞工暴露容許濃度" }, 
@@ -49,14 +50,14 @@ namespace Safety_System
             { "Water", ("水污", new Dictionary<string, string> { 
                 { "DischargeData", "納管排放數據" }, { "WaterMeterReadings", "廢水處理水量記錄" }, { "WaterChemicals", "廢水處理用藥記錄" }, 
                 { "WaterVolume", "自來水用量統計" }, { "WaterUsageDaily", "自來水使用量" },
-                { "WaterPermitMaterial", "水污許可(原物料)" } // 🟢 新增
+                { "WaterPermitMaterial", "水污許可(原物料)" } 
             })},
             { "Waste", ("產能及廢棄物", new Dictionary<string, string> { 
                 { "WasteMonthly", "廢棄物月表" }, { "Waste_IL", "複層月表" }, { "Waste_LM", "膠合月表" }, { "Waste_CR", "鍍板月表" }, 
                 { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" },
-                { "WastePermitMaterial", "廢棄物污許可(原物料)" }, // 🟢 新增
-                { "WastePermitProduct", "廢棄物污許可(產品)" }, // 🟢 新增
-                { "WastePermitWaste", "廢棄物污許可(廢棄物)" } // 🟢 新增
+                { "WastePermitMaterial", "廢棄物污許可(原物料)" }, 
+                { "WastePermitProduct", "廢棄物污許可(產品)" }, 
+                { "WastePermitWaste", "廢棄物污許可(廢棄物)" } 
             })},
             { "Fire", ("消防", new Dictionary<string, string> { 
                 { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
@@ -78,10 +79,11 @@ namespace Safety_System
                 { "VisitorRecord", "來賓拜訪紀錄表" }
             })},
             { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
-            { "Menu1DB", ("選單1", new Dictionary<string, string> { { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
-            { "Menu2DB", ("選單2", new Dictionary<string, string> { { "DataManage2", "資料管理" } })},
-            { "Menu3DB", ("選單3", new Dictionary<string, string> { { "DataManage3", "資料管理3" } })},
-            { "Menu4DB", ("選單4", new Dictionary<string, string> { { "DataManage4", "資料管理4" } })}
+            // 🟢 個人隱藏選單更新，加入 WorkItems，移除 DataManage 舊選項
+            { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" }, { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
+            { "Menu2DB", ("選單2", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
+            { "Menu3DB", ("選單3", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
+            { "Menu4DB", ("選單4", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })}
         };
 
         public Control GetView()
