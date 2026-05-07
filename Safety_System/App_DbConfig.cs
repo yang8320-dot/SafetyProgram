@@ -31,12 +31,11 @@ namespace Safety_System
             public override string ToString() => ChName; 
         }
 
-        // 🟢 定義資料庫與資料表的中文對照關係 (加入新增的 LaborInspection 與 WorkItems 表格)
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
             { "Safety", ("工安", new Dictionary<string, string> { 
                 { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
                 { "TrafficInjury", "交通意外" }, { "WorkInjury", "工傷事件" }, { "MinorInjury", "輕傷事件" },
-                { "LaborInspection", "勞檢稽查缺失" } // 🟢 新增
+                { "LaborInspection", "勞檢稽查缺失" } 
             })},
             { "Chemical", ("化學品", new Dictionary<string, string> { 
                 { "SDS_Inventory", "SDS清冊" }, { "EnvTesting", "環測項目" }, { "ExposureLimits", "勞工暴露容許濃度" }, 
@@ -79,7 +78,6 @@ namespace Safety_System
                 { "VisitorRecord", "來賓拜訪紀錄表" }
             })},
             { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
-            // 🟢 個人隱藏選單更新，加入 WorkItems，移除 DataManage 舊選項
             { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" }, { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
             { "Menu2DB", ("選單2", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
             { "Menu3DB", ("選單3", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
@@ -415,9 +413,75 @@ namespace Safety_System
             }
         }
 
+        // 🟢 驗證隱藏選單密碼的輔助視窗
+        private bool VerifyHiddenMenuPassword(string menuName)
+        {
+            using (Form p = new Form())
+            {
+                p.Width = 460; 
+                p.Height = 220;
+                p.Text = "隱藏選單安全驗證";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+                p.BackColor = Color.White;
+
+                Label lbl = new Label() { Left = 30, Top = 30, Text = $"同步規則包含隱藏表單，請輸入【{menuName}】的密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog() == DialogResult.OK)
+                {
+                    string input = txt.Text.Trim();
+                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
+                    if (unlockedMenu == menuName)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return false;
+                    }
+                }
+                return false; // 取消視窗視同驗證失敗
+            }
+        }
+
         private void BtnSaveSync_Click(object sender, EventArgs e)
         {
             if (!AuthManager.VerifyAdmin()) return;
+
+            // 🟢 新增防護機制：檢查是否設定到隱藏表單
+            HashSet<string> requiredMenusToUnlock = new HashSet<string>();
+            
+            foreach (var r in _syncRows) 
+            {
+                if (r.CboSrcDb.SelectedItem == null || r.CboTgtDb.SelectedItem == null) continue;
+                
+                string srcDb = ((ItemMap)r.CboSrcDb.SelectedItem).EnName;
+                string tgtDb = ((ItemMap)r.CboTgtDb.SelectedItem).EnName;
+
+                if (srcDb == "Menu1DB" || tgtDb == "Menu1DB") requiredMenusToUnlock.Add("選單1");
+                if (srcDb == "Menu2DB" || tgtDb == "Menu2DB") requiredMenusToUnlock.Add("選單2");
+                if (srcDb == "Menu3DB" || tgtDb == "Menu3DB") requiredMenusToUnlock.Add("選單3");
+                if (srcDb == "Menu4DB" || tgtDb == "Menu4DB") requiredMenusToUnlock.Add("選單4");
+            }
+
+            foreach (string menu in requiredMenusToUnlock)
+            {
+                if (!VerifyHiddenMenuPassword(menu))
+                {
+                    MessageBox.Show($"已取消儲存！因為您未通過【{menu}】的密碼驗證。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return; // 密碼錯誤或取消，直接中止儲存
+                }
+            }
 
             try {
                 string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
