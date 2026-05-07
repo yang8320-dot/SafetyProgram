@@ -15,8 +15,6 @@ namespace Safety_System
             { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "DischargeData", "[年月] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterVolume", "[年月] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            
-            // 🟢 新增：水污許可(原物料)
             { "WaterPermitMaterial", "[許可字號] TEXT, [許可效期] TEXT, [類別] TEXT, [名稱] TEXT, [申請每日最大量] TEXT, [單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
             // 法規管理
@@ -37,6 +35,10 @@ namespace Safety_System
             { "TrafficInjury", "[日期] TEXT, [姓名] TEXT, [地點] TEXT, [狀態] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjury", "[日期] TEXT, [單位] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "MinorInjury", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [屬同事件] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 🟢 新增：勞檢稽查缺失
+            { "LaborInspection", "[日期] TEXT, [公文文號] TEXT, [缺失事項] TEXT, [法規] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [法令條款說明] TEXT, [限期改善或罰緩] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
             { "Waste_IL", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [丁基膠MT] TEXT, [結構膠MT] TEXT, [鋁條MT] TEXT, [乾燥劑MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_LM", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [PVB膜MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_CR", "[年月] TEXT, [鍍膜加不良MT] TEXT, [鍍膜生產量MT] TEXT, [除膜生產加不良MT] TEXT, [除膜成品產量MT] TEXT, [靶材MT] TEXT, [隔離粉MT] TEXT, [氧化鈰MT] TEXT, [噴砂底板成品鋁MT] TEXT, [噴砂底板成品其他MT] TEXT, [氧化鋁砂金鋼砂MT] TEXT, [D1099MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -44,8 +46,6 @@ namespace Safety_System
             { "Waste_GCTE", "[年月] TEXT, [切片生產加不良MT] TEXT, [切片生產量MT] TEXT, [磨邊生產量不良MT] TEXT, [砂布輪砂輪片MT] TEXT, [鑽孔生產加不良MT] TEXT, [鑽孔生產量MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_ML", "[年月] TEXT, [甲醇MT] TEXT, [乙醇MT] TEXT, [潤滑油MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_Water", "[年月] TEXT, [D0902MT] TEXT, [D0201MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            
-            // 🟢 新增：廢棄物污許可(原物料)、(產品)、(廢棄物)
             { "WastePermitMaterial", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [原料代碼] TEXT, [原料名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最大使用量t] TEXT, [月平均使用量t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastePermitProduct", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [產品代碼] TEXT, [產品名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最產出量t] TEXT, [月平均產出t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastePermitWaste", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼] TEXT, [其他製程說明] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [廢棄物月最大量] TEXT, [廢棄物月平均量] TEXT, [物理性質] TEXT, [有害特性] TEXT, [主要有害成分] TEXT, [貯存地點] TEXT, [貯存設施容施容量] TEXT, [貯存設施密閉性] TEXT, [清除方式] TEXT, [處理方式] TEXT, [中間處理方法] TEXT, [再利用管理方式] TEXT, [最終處置方式] TEXT, [產出廢液製程編號] TEXT, [清除頻率] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -85,14 +85,12 @@ namespace Safety_System
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
-            // 個人隱藏選單
+            // 個人隱藏選單 (🟢 更新：加入 WorkItems，移除 DataManage 系列)
             { "AccountManage", "[日期] TEXT, [系統名稱] TEXT, [網址] TEXT, [登入帳號] TEXT, [登入密碼] TEXT, [使用者] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "KPI", "[年月] TEXT, [單位] TEXT, [指標名稱] TEXT, [目標值] TEXT, [實際值] TEXT, [達成狀況] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "CultureImprove", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [執行狀況] TEXT, [主責人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PBC", "[年月] TEXT, [單位] TEXT, [姓名] TEXT, [考核項目] TEXT, [自評分數] TEXT, [主管評核] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "DataManage2", "[日期] TEXT, [分類] TEXT, [標題] TEXT, [內容說明] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "DataManage3", "[日期] TEXT, [分類] TEXT, [標題] TEXT, [內容說明] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "DataManage4", "[日期] TEXT, [分類] TEXT, [標題] TEXT, [內容說明] TEXT, [附件檔案] TEXT, [備註] TEXT" }
+            { "WorkItems", "[日期] TEXT, [執行] TEXT, [問題] TEXT, [改善] TEXT, [追蹤] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
         public static readonly Dictionary<string, string[]> HazardSubCategoryMap = new Dictionary<string, string[]>
