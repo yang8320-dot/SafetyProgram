@@ -271,7 +271,6 @@ namespace Safety_System
             
             Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(110, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelRow.FlatAppearance.BorderSize = 0;
-            // 🟢 將點擊事件導向獨立抽出的 ExecuteDeleteRow()
             bDelRow.Click += (s, e) => { ExecuteDeleteRow(); };
 
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
@@ -349,7 +348,6 @@ namespace Safety_System
             return main;
         }
 
-        // 🟢 將刪除邏輯抽離出獨立方法，供按鈕與右鍵選單共同呼叫
         private void ExecuteDeleteRow()
         {
             var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
@@ -374,7 +372,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 初始化右鍵選單：加入儲存、刪除選取列、顯示設定
         private void InitContextMenu()
         {
             _ctxMenu = new ContextMenuStrip { Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -388,7 +385,6 @@ namespace Safety_System
             ToolStripMenuItem itemExport = new ToolStripMenuItem("📤 匯出");
             ToolStripMenuItem itemPdf = new ToolStripMenuItem("📄 導出 PDF");
 
-            // 綁定事件
             itemSave.Click += BtnSave_Click;
             itemDeleteRow.Click += (s, e) => ExecuteDeleteRow();
             itemColSettings.Click += BtnColSettings_Click;
@@ -423,7 +419,6 @@ namespace Safety_System
                 if (e.ColumnIndex >= 0) {
                     _rightClickedColIndex = e.ColumnIndex;
                     if (e.RowIndex >= 0 && e.RowIndex < _dgv.Rows.Count) {
-                        // 🟢 防呆優化：如果點擊的儲存格已經被選取（例如使用者已經用左鍵框選了多列），則不要取消選取
                         if (!_dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected) {
                             _dgv.ClearSelection();
                             _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected = true;
@@ -434,6 +429,7 @@ namespace Safety_System
                 }
             }
         }
+        
         private void UnfreezeAllColumns()
         {
             if (_dgv == null || _dgv.Columns.Count == 0) return;
@@ -830,6 +826,92 @@ namespace Safety_System
                     cboCol.Items.AddRange(finalItems.ToArray()); 
                     _dgv.Columns.Insert(colIndex, cboCol);
                 }
+            }
+        }
+
+        private async void Dgv_KeyDown(object sender, KeyEventArgs e) 
+        {
+            // 🟢 1. Ctrl + S (儲存)
+            if (e.Control && e.KeyCode == Keys.S) 
+            { 
+                e.Handled = true; 
+                e.SuppressKeyPress = true; 
+                _btnSave?.PerformClick(); 
+            }
+            // 🟢 2. Delete 或 Backspace (清除儲存格內容)
+            else if ((e.KeyCode == Keys.Delete || e.KeyCode == Keys.Back) && !_dgv.IsCurrentCellInEditMode)
+            {
+                bool hasCleared = false;
+                foreach (DataGridViewCell cell in _dgv.SelectedCells)
+                {
+                    if (!cell.ReadOnly && cell.OwningColumn.Name != "Id" && cell.OwningColumn.Name != "附件檔案" && !cell.OwningRow.IsNewRow)
+                    {
+                        cell.Value = DBNull.Value;
+                        hasCleared = true;
+                    }
+                }
+                
+                if (hasCleared)
+                {
+                    e.Handled = true;
+                    if (_dgv.DataSource is DataTable dt)
+                    {
+                        _calcHelper?.BeginBulkUpdate();
+                        _calcHelper?.RecalculateTable(dt);
+                        _calcHelper?.EndBulkUpdate();
+                        EnforceDateFormats(dt);
+                    }
+                }
+            }
+            // 🟢 3. Ctrl + V (貼上)
+            else if (e.Control && e.KeyCode == Keys.V) 
+            {
+                string text = Clipboard.GetText(); 
+                if (string.IsNullOrEmpty(text)) return;
+                
+                string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                int r = _dgv.CurrentCell?.RowIndex ?? 0; 
+                int c = _dgv.CurrentCell?.ColumnIndex ?? 0; 
+                
+                DataTable boundDt = (DataTable)_dgv.DataSource;
+                DataTable workingDt = boundDt.Copy();
+
+                List<int> readOnlyCols = new List<int>();
+                for (int i = 0; i < _dgv.Columns.Count; i++) if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
+
+                using (ProgressForm progForm = new ProgressForm("貼上資料與運算中..."))
+                {
+                    await progForm.ExecuteAsync(async (progInt, progStr) => 
+                    {
+                        progStr.Report("正在解析貼上的資料...");
+                        
+                        foreach (string line in lines) 
+                        {
+                            if (r >= workingDt.Rows.Count) workingDt.Rows.Add(workingDt.NewRow());
+                            string[] cells = line.Split('\t');
+                            for (int i = 0; i < cells.Length; i++) 
+                            { 
+                                if (c + i < workingDt.Columns.Count && !readOnlyCols.Contains(c + i)) 
+                                { 
+                                    workingDt.Rows[r][c + i] = cells[i].Trim().Trim('"'); 
+                                } 
+                            }
+                            r++;
+                        }
+
+                        _calcHelper?.BeginBulkUpdate(); 
+                        _calcHelper?.RecalculateTable(workingDt, progInt, progStr); 
+                        _calcHelper?.EndBulkUpdate(); 
+                        
+                        EnforceDateFormats(workingDt); 
+                    });
+                }
+
+                UnfreezeAllColumns();
+                _dgv.DataSource = workingDt; 
+                ApplyGridStyles(); 
+                RestoreColumnOrder();
+                ApplyFreezeState();
             }
         }
 
@@ -1303,65 +1385,6 @@ namespace Safety_System
                         }
                     }
                 }
-            }
-        }
-
-        private async void Dgv_KeyDown(object sender, KeyEventArgs e) 
-        {
-            if (e.Control && e.KeyCode == Keys.S) 
-            { 
-                e.Handled = true; 
-                e.SuppressKeyPress = true; 
-                _btnSave?.PerformClick(); 
-            }
-            else if (e.Control && e.KeyCode == Keys.V) 
-            {
-                string text = Clipboard.GetText(); 
-                if (string.IsNullOrEmpty(text)) return;
-                
-                string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                int r = _dgv.CurrentCell?.RowIndex ?? 0; 
-                int c = _dgv.CurrentCell?.ColumnIndex ?? 0; 
-                
-                DataTable boundDt = (DataTable)_dgv.DataSource;
-                DataTable workingDt = boundDt.Copy();
-
-                List<int> readOnlyCols = new List<int>();
-                for (int i = 0; i < _dgv.Columns.Count; i++) if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
-
-                using (ProgressForm progForm = new ProgressForm("貼上資料與運算中..."))
-                {
-                    await progForm.ExecuteAsync(async (progInt, progStr) => 
-                    {
-                        progStr.Report("正在解析貼上的資料...");
-                        
-                        foreach (string line in lines) 
-                        {
-                            if (r >= workingDt.Rows.Count) workingDt.Rows.Add(workingDt.NewRow());
-                            string[] cells = line.Split('\t');
-                            for (int i = 0; i < cells.Length; i++) 
-                            { 
-                                if (c + i < workingDt.Columns.Count && !readOnlyCols.Contains(c + i)) 
-                                { 
-                                    workingDt.Rows[r][c + i] = cells[i].Trim().Trim('"'); 
-                                } 
-                            }
-                            r++;
-                        }
-
-                        _calcHelper?.BeginBulkUpdate(); 
-                        _calcHelper?.RecalculateTable(workingDt, progInt, progStr); 
-                        _calcHelper?.EndBulkUpdate(); 
-                        
-                        EnforceDateFormats(workingDt); 
-                    });
-                }
-
-                UnfreezeAllColumns();
-                _dgv.DataSource = workingDt; 
-                ApplyGridStyles(); 
-                RestoreColumnOrder();
-                ApplyFreezeState();
             }
         }
 
