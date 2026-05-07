@@ -98,6 +98,10 @@ namespace Safety_System
 
             var menuSafety = new ToolStripMenuItem("工安");
             menuSafety.DropDownItems.Add(CreateItem("工安看板", () => new App_SafetyDashboard().GetView()));
+            
+            // 🟢 需求 1：新增「稽核資料查詢」
+            menuSafety.DropDownItems.Add(CreateItem("稽核資料查詢", () => new App_AuditDashboard().GetView()));
+
             menuSafety.DropDownItems.Add(new ToolStripSeparator());
             menuSafety.DropDownItems.Add(CreateItem("巡檢記錄", () => new App_CoreTable("Safety", "SafetyInspection", "巡檢記錄管理", new DefaultLogic()).GetView()));
             menuSafety.DropDownItems.Add(CreateItem("工傷事件", () => new App_CoreTable("Safety", "WorkInjury", "工傷事件管理", new DefaultLogic()).GetView()));
@@ -105,6 +109,10 @@ namespace Safety_System
             menuSafety.DropDownItems.Add(CreateItem("交通意外", () => new App_CoreTable("Safety", "TrafficInjury", "交通意外紀錄", new DefaultLogic()).GetView()));
             menuSafety.DropDownItems.Add(CreateItem("虛驚事件", () => new App_CoreTable("Safety", "NearMiss", "虛驚事件管理", new DefaultLogic()).GetView()));
             menuSafety.DropDownItems.Add(CreateItem("安全觀察", () => new App_CoreTable("Safety", "SafetyObservation", "安全觀察紀錄", new DefaultLogic()).GetView()));
+            
+            // 🟢 需求 2：在「安全觀察」下方增加分隔線與「勞檢稽查缺失」
+            menuSafety.DropDownItems.Add(new ToolStripSeparator());
+            menuSafety.DropDownItems.Add(CreateItem("勞檢稽查缺失", () => new App_CoreTable("Safety", "LaborInspection", "勞檢稽查缺失", new DefaultLogic()).GetView()));
 
             var menuChemical = new ToolStripMenuItem("化學品");
             menuChemical.DropDownItems.Add(CreateItem("化學品看板", () => new App_ChemDashboard().GetView()));
@@ -142,7 +150,6 @@ namespace Safety_System
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             
-            // 🟢 新增：水資源管理看板 下方增加 二個程式
             menuWater.DropDownItems.Add(CreateItem("用水申報", () => new App_WaterReport().GetView()));
             menuWater.DropDownItems.Add(CreateItem("水資源成本表", () => new App_WaterCost().GetView()));
 
@@ -153,7 +160,6 @@ namespace Safety_System
             menuWater.DropDownItems.Add(CreateItem("【月】納管排放數據", () => new App_CoreTable("Water", "DischargeData", "【月】納管排放數據", new WaterLogic()).GetView()));
             menuWater.DropDownItems.Add(CreateItem("【月】自來水用量統計", () => new App_CoreTable("Water", "WaterVolume", "【月】自來水用量統計", new WaterLogic()).GetView()));
             
-            // 🟢 新增：分隔線 與 水污許可(原物料)
             menuWater.DropDownItems.Add(new ToolStripSeparator());
             menuWater.DropDownItems.Add(CreateItem("水污許可(原物料)", () => new App_CoreTable("Water", "WaterPermitMaterial", "水污許可(原物料)", new DefaultLogic()).GetView()));
 
@@ -168,7 +174,6 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("【月】物料月表", () => new App_CoreTable("Waste", "Waste_ML", "【月】物料月表", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("【月】水站月表", () => new App_CoreTable("Waste", "Waste_Water", "【月】水站月表", new DefaultLogic()).GetView()));
 
-            // 🟢 新增：分隔線 與 廢棄物污許可 三個資料表
             menuWaste.DropDownItems.Add(new ToolStripSeparator());
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(原物料)", () => new App_CoreTable("Waste", "WastePermitMaterial", "廢棄物污許可(原物料)", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(產品)", () => new App_CoreTable("Waste", "WastePermitProduct", "廢棄物污許可(產品)", new DefaultLogic()).GetView()));
@@ -249,20 +254,22 @@ namespace Safety_System
             };
             menuApp.DropDownItems.Add(callExeItem);
 
+            // 🟢 需求 3：修改隱藏選單，每個選單的第一個項目均為 WorkItems，並移除資料管理系列
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
+            _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
             _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_CoreTable("Menu1DB", "KPI", "KPI", new DefaultLogic()).GetView()));
             _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_CoreTable("Menu1DB", "CultureImprove", "文化改善", new DefaultLogic()).GetView()));
             _menu1.DropDownItems.Add(CreateItem("PBC", () => new App_CoreTable("Menu1DB", "PBC", "PBC", new DefaultLogic()).GetView()));
             _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_CoreTable("Menu1DB", "AccountManage", "帳密管理", new DefaultLogic()).GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
-            _menu2.DropDownItems.Add(CreateItem("資料管理", () => new App_CoreTable("Menu2DB", "DataManage2", "資料管理", new DefaultLogic()).GetView()));
+            _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu3 = new ToolStripMenuItem("選單3") { Visible = false };
-            _menu3.DropDownItems.Add(CreateItem("資料管理3", () => new App_CoreTable("Menu3DB", "DataManage3", "資料管理3", new DefaultLogic()).GetView()));
+            _menu3.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu3DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
-            _menu4.DropDownItems.Add(CreateItem("資料管理4", () => new App_CoreTable("Menu4DB", "DataManage4", "資料管理4", new DefaultLogic()).GetView()));
+            _menu4.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu4DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
