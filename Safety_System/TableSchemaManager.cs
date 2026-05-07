@@ -1,4 +1,3 @@
-/// FILE: Safety_System/TableSchemaManager.cs ///
 using System.Collections.Generic;
 using System.Linq;
 
@@ -16,8 +15,11 @@ namespace Safety_System
             { "WaterUsageDaily", "[日期] TEXT, [星期] TEXT, [廠區自來水使用量] TEXT, [行政區自來水使用量] TEXT, [自來水至貯存池] TEXT, [自來水至貯存池日統計] TEXT, [自來水量至清水池] TEXT, [自來水量至清水池日統計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "DischargeData", "[年月] TEXT, [水量] TEXT, [SS] TEXT, [COD] TEXT, [BOD] TEXT, [氨氮] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WaterVolume", "[年月] TEXT, [廠區自來水繳費單] TEXT, [行政區自來水繳費單] TEXT, [彰濱二廠自來水繳費單] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 🟢 新增：水污許可(原物料)
+            { "WaterPermitMaterial", "[許可字號] TEXT, [許可效期] TEXT, [類別] TEXT, [名稱] TEXT, [申請每日最大量] TEXT, [單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 法規管理 (已補上 [附件檔案] TEXT)
+            // 法規管理
             { "環保法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "職安衛法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "消防法規", "[日期] TEXT, [法規名稱] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [目] TEXT, [內容] TEXT, [重點摘要] TEXT, [適用性] TEXT, [有提升績效機會] TEXT, [有潛在不符合風險] TEXT, [鑑別日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -42,6 +44,12 @@ namespace Safety_System
             { "Waste_GCTE", "[年月] TEXT, [切片生產加不良MT] TEXT, [切片生產量MT] TEXT, [磨邊生產量不良MT] TEXT, [砂布輪砂輪片MT] TEXT, [鑽孔生產加不良MT] TEXT, [鑽孔生產量MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_ML", "[年月] TEXT, [甲醇MT] TEXT, [乙醇MT] TEXT, [潤滑油MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_Water", "[年月] TEXT, [D0902MT] TEXT, [D0201MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 🟢 新增：廢棄物污許可(原物料)、(產品)、(廢棄物)
+            { "WastePermitMaterial", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [原料代碼] TEXT, [原料名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最大使用量t] TEXT, [月平均使用量t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WastePermitProduct", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [產品代碼] TEXT, [產品名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最產出量t] TEXT, [月平均產出t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WastePermitWaste", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼] TEXT, [其他製程說明] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [廢棄物月最大量] TEXT, [廢棄物月平均量] TEXT, [物理性質] TEXT, [有害特性] TEXT, [主要有害成分] TEXT, [貯存地點] TEXT, [貯存設施容施容量] TEXT, [貯存設施密閉性] TEXT, [清除方式] TEXT, [處理方式] TEXT, [中間處理方法] TEXT, [再利用管理方式] TEXT, [最終處置方式] TEXT, [產出廢液製程編號] TEXT, [清除頻率] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HazardStats", "[年月] TEXT, [單位] TEXT, [品項] TEXT, [品項單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
