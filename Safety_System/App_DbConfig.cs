@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -32,7 +31,7 @@ namespace Safety_System
             public override string ToString() => ChName; 
         }
 
-        // 定義資料庫與資料表的中文對照關係 (加入 ISO14001 環境溝通 4 張表)
+        // 🟢 定義資料庫與資料表的中文對照關係 (加入新增的 水污許可 與 廢棄物污許可 表格)
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
             { "Safety", ("工安", new Dictionary<string, string> { 
                 { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
@@ -49,11 +48,15 @@ namespace Safety_System
             { "Air", ("空污", new Dictionary<string, string> { { "AirPollution", "空污申報紀錄" } })},
             { "Water", ("水污", new Dictionary<string, string> { 
                 { "DischargeData", "納管排放數據" }, { "WaterMeterReadings", "廢水處理水量記錄" }, { "WaterChemicals", "廢水處理用藥記錄" }, 
-                { "WaterVolume", "自來水用量統計" }, { "WaterUsageDaily", "自來水使用量" } 
+                { "WaterVolume", "自來水用量統計" }, { "WaterUsageDaily", "自來水使用量" },
+                { "WaterPermitMaterial", "水污許可(原物料)" } // 🟢 新增
             })},
             { "Waste", ("產能及廢棄物", new Dictionary<string, string> { 
                 { "WasteMonthly", "廢棄物月表" }, { "Waste_IL", "複層月表" }, { "Waste_LM", "膠合月表" }, { "Waste_CR", "鍍板月表" }, 
-                { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" } 
+                { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" },
+                { "WastePermitMaterial", "廢棄物污許可(原物料)" }, // 🟢 新增
+                { "WastePermitProduct", "廢棄物污許可(產品)" }, // 🟢 新增
+                { "WastePermitWaste", "廢棄物污許可(廢棄物)" } // 🟢 新增
             })},
             { "Fire", ("消防", new Dictionary<string, string> { 
                 { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
@@ -83,7 +86,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 動態補入所有的 CustomMenus
             try {
                 DataTable dtMenus = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
                 if (dtMenus != null) {
@@ -99,9 +101,6 @@ namespace Safety_System
 
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0,0,0,50) };
 
-            // ==========================================
-            // 1. 資料庫存放路徑設定
-            // ==========================================
             GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
@@ -116,7 +115,6 @@ namespace Safety_System
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += (s, e) => {
-                // 🟢 取代原密碼驗證
                 if (!AuthManager.VerifyAdmin()) return; 
 
                 if (System.IO.Directory.Exists(_txtPath.Text)) {
@@ -129,9 +127,6 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            // ==========================================
-            // 2. 資料備份設定
-            // ==========================================
             GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (自動每週備份)", Dock = DockStyle.Top, Height = 220, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxBackup.Margin = new Padding(0, 30, 0, 0);
 
@@ -166,9 +161,6 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
 
-            // ==========================================
-            // 3. 資料表防重寫欄位設定 
-            // ==========================================
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 400, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 30, 0, 0);
 
@@ -200,9 +192,6 @@ namespace Safety_System
                 btnSaveKeys 
             });
 
-            // ==========================================
-            // 4. 資料同步設定
-            // ==========================================
             GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxSync.Margin = new Padding(0, 30, 0, 0);
 
@@ -275,9 +264,6 @@ namespace Safety_System
             pnlSyncBottom.Controls.Add(lblSyncInfo);
             boxSync.Controls.Add(pnlSyncBottom);
 
-            // ==========================================
-            // 5. 刪除資料表設定 (危險操作區)
-            // ==========================================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
 
@@ -558,7 +544,6 @@ namespace Safety_System
             string tableName = ((ItemMap)_cboDelTable.SelectedItem).EnName;
             string chTableName = ((ItemMap)_cboDelTable.SelectedItem).ChName;
 
-            // 🟢 呼叫雙重權限防呆
             if (!AuthManager.VerifyTableDelete()) return;
 
             try {
