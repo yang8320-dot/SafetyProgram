@@ -74,23 +74,23 @@ namespace Safety_System
             return true;
         }
 
-        // 🟢 私有對話框邏輯，供內部共用
+        // 🟢 私有對話框邏輯，供內部共用 (修正視窗高度與 Label 自動換行排版)
         private static string ShowAuthDialog(string prompt)
         {
             using (Form p = new Form())
             {
                 p.Width = 500; 
-                p.Height = 280;
+                p.Height = 300; // 增加視窗高度，容納多行文字
                 p.Text = "權限驗證";
                 p.StartPosition = FormStartPosition.CenterParent;
                 p.FormBorderStyle = FormBorderStyle.FixedDialog;
                 p.MaximizeBox = false; 
                 p.MinimizeBox = false;
 
-                // 🟢 將 AutoSize 設為 false，並指定 Width=420，確保長文字能自動換行
-                Label lbl = new Label() { Left = 30, Top = 25, Width = 420, Height = 60, Text = prompt, AutoSize = false, Font = new Font("Microsoft JhengHei UI", 12F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 95, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 160, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 調整 Label 高度為 90，確保換行文字不會超出邊界被卡掉
+                Label lbl = new Label() { Left = 30, Top = 25, Width = 420, Height = 90, Text = prompt, AutoSize = false, Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 125, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 180, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
 
                 p.Controls.Add(lbl); 
                 p.Controls.Add(txt); 
