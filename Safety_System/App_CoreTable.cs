@@ -820,19 +820,15 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底修正：將資料庫中設定好的選項轉為 ComboBox 欄位
         private void SetupDropdownColumns() 
         {
             foreach (DataGridViewColumn col in _dgv.Columns.Cast<DataGridViewColumn>().ToList()) 
             {
-                // 優先詢問舊有寫死的 DefaultLogic
                 string[] items = _logic.GetDropdownList(_tableName, col.Name);
-                
-                // 🟢 加入新機制：向 App_DropdownManager 索取資料庫中設定好的全部選項
                 string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
                 
                 if (dbItems != null && dbItems.Length > 1) {
-                    items = dbItems; // 若資料庫中有設定，則覆寫預設邏輯
+                    items = dbItems; 
                 }
 
                 if (items != null && items.Length > 0 && !(_dgv.Columns[col.Name] is DataGridViewComboBoxColumn)) 
@@ -1004,7 +1000,6 @@ namespace Safety_System
                     {
                         string parentVal = _dgv.CurrentRow.Cells[parentColName].Value?.ToString() ?? ""; 
                         
-                        // 🟢 優先嘗試向資料庫索取連動選單，如果沒有再問舊系統
                         items = App_DropdownManager.GetOptions(_tableName, colName, parentColName, parentVal);
                         if (items == null || items.Length == 0) {
                             items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
@@ -1156,19 +1151,22 @@ namespace Safety_System
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            // 🟢 當父層的值改變時，自動清空受連動的子層欄位值
-            foreach (var kvp in App_DropdownManager.DropdownCache)
+            // 🟢 修正：使用 BeginInvoke 延遲執行清空子欄位的動作，避免干擾 DataGridView 的 Commit 機制
+            _dgv.BeginInvoke(new Action(() => 
             {
-                var parts = kvp.Key.Split('|');
-                if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName)
+                foreach (var kvp in App_DropdownManager.DropdownCache)
                 {
-                    string childColName = parts[1];
-                    if (_dgv.Columns.Contains(childColName))
+                    var parts = kvp.Key.Split('|');
+                    if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName)
                     {
-                        _dgv.Rows[e.RowIndex].Cells[childColName].Value = "";
+                        string childColName = parts[1];
+                        if (_dgv.Columns.Contains(childColName))
+                        {
+                            _dgv.Rows[e.RowIndex].Cells[childColName].Value = "";
+                        }
                     }
                 }
-            }
+            }));
         }
 
         private void SyncAttachmentPaths(DataTable dt) 
