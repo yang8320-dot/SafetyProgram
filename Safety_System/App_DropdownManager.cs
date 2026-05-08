@@ -37,8 +37,8 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "下拉選單與連動項目管理";
-            // 🟢 調整視窗整體大小，讓空間更寬敞
-            this.Size = new Size(1400, 850);
+            // 🟢 調整視窗整體大小，總寬度加大到 1520
+            this.Size = new Size(1520, 850);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.BackColor = Color.WhiteSmoke;
@@ -74,18 +74,17 @@ namespace Safety_System
 
             for (int i = 0; i < 4; i++)
             {
-                // 🟢 修正重疊問題：改用 TableLayoutPanel 作為每個欄位的內部容器
+                // 🟢 邊界外距 (Margin) 從 10 調整為 15，內距 (Padding) 從 15 調整為 20
                 TableLayoutPanel pCol = new TableLayoutPanel { 
                     Dock = DockStyle.Fill, 
-                    Margin = new Padding(10), 
+                    Margin = new Padding(15), 
                     BackColor = Color.White, 
-                    Padding = new Padding(15),
+                    Padding = new Padding(20),
                     ColumnCount = 1,
                     RowCount = 7
                 };
                 pCol.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pCol.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                // 設定內部列的高度：前 6 列隨內容自動撐開，最後一列填滿剩餘高度給文字框
                 pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Header
                 pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 綁定欄位 Label
                 pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 綁定欄位 ComboBox
@@ -102,7 +101,6 @@ namespace Safety_System
                 Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboParentVals[i] = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,20) };
                 
-                // 第一層隱藏父層選擇條件，為了保持排版對齊，我們改用空白 Label 佔位
                 if (i == 0) {
                     lParent.Visible = false;
                     _cboParentVals[i].Visible = false;
@@ -115,7 +113,6 @@ namespace Safety_System
                 _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
                 if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
 
-                // 將元件依照順序加入內部的 TableLayoutPanel
                 pCol.Controls.Add(lHeader, 0, 0);
                 pCol.Controls.Add(lCol, 0, 1);
                 pCol.Controls.Add(_cboCols[i], 0, 2);
@@ -290,7 +287,7 @@ namespace Safety_System
                 }
 
                 MessageBox.Show("選項設定已儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadDropdownConfigs(); // 更新全域快取
+                LoadDropdownConfigs(); 
                 if (!string.IsNullOrEmpty(_txtOptions[0].Text)) UpdateChildParentVals(1, _txtOptions[0].Text);
 
             } catch (Exception ex) {
