@@ -327,7 +327,6 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 解鎖欄位調整：確保 AllowUserToResizeColumns 為 true
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
@@ -530,7 +529,6 @@ namespace Safety_System
 
             UnfreezeAllColumns(); 
 
-            // 🟢 徹底防閃爍與鎖死：全面凍結 UI 渲染，直至設定完畢
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
@@ -559,7 +557,6 @@ namespace Safety_System
             
             UnfreezeAllColumns();
 
-            // 🟢 徹底防閃爍與鎖死
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
@@ -614,7 +611,6 @@ namespace Safety_System
 
             UnfreezeAllColumns();
 
-            // 🟢 徹底防閃爍與鎖死
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
 
@@ -652,7 +648,6 @@ namespace Safety_System
         {
             if (_isFirstLoad || _isApplyingWidths) return;
             
-            // 🟢 只有在使用者手動調整（AutoSizeMode == NotSet/None）時才記憶寬度，避免系統自適應寬度污染資料庫
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) 
             { 
                 _columnWidths[e.Column.Name] = e.Column.Width; 
@@ -764,7 +759,6 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
-        // 🟢 徹底解決：資料表鎖死與寬度亂跳問題
         private void ApplyGridStyles() 
         {
             if (_dgv.Columns.Contains("Id")) 
@@ -800,34 +794,27 @@ namespace Safety_System
 
             SetupDropdownColumns();
             
-            // 🟢 解鎖拖拉：全域不啟用 AutoSize
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
 
-            // 🟢 讓 WinForms 先幫忙計算一次目前最佳寬度，但不要鎖定
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
 
             foreach (DataGridViewColumn col in _dgv.Columns) 
             {
-                // 🟢 強制把每個欄位設為 None，這步最關鍵，讓游標可以出現拖拉圖示
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
 
-                // 優先套用使用者在資料庫中儲存的歷史寬度
                 if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
                 {
                     col.Width = _columnWidths[col.Name];
                 }
                 else if (_logic is LawLogic) 
                 {
-                    // 針對法規特殊欄位給定預設初始寬度
                     if (col.Name == "法規名稱") col.Width = 250;
                     else if (col.Name == "內容") col.Width = 400;
                     else if (col.Name == "重點摘要") col.Width = 200;
                 }
                 else
                 {
-                    // 若無使用者自訂，則保留剛才 AutoResizeColumns 計算出來的寬度，
-                    // 但稍微加個底限，避免有些空白欄位縮得太小
                     if (col.Width < 80) col.Width = 80;
                 }
             }
@@ -873,14 +860,12 @@ namespace Safety_System
 
         private async void Dgv_KeyDown(object sender, KeyEventArgs e) 
         {
-            // 🟢 1. Ctrl + S (儲存)
             if (e.Control && e.KeyCode == Keys.S) 
             { 
                 e.Handled = true; 
                 e.SuppressKeyPress = true; 
                 _btnSave?.PerformClick(); 
             }
-            // 🟢 2. Delete 或 Backspace (清除儲存格內容)
             else if ((e.KeyCode == Keys.Delete || e.KeyCode == Keys.Back) && !_dgv.IsCurrentCellInEditMode)
             {
                 bool hasCleared = false;
@@ -905,7 +890,6 @@ namespace Safety_System
                     }
                 }
             }
-            // 🟢 3. Ctrl + V (貼上)
             else if (e.Control && e.KeyCode == Keys.V) 
             {
                 string text = Clipboard.GetText(); 
@@ -951,7 +935,6 @@ namespace Safety_System
 
                 UnfreezeAllColumns();
 
-                // 🟢 徹底防閃爍與鎖死
                 _isApplyingWidths = true;
                 _dgv.SuspendLayout();
 
@@ -982,6 +965,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 替換完成的 Dgv_EditingControlShowing (動態連動抓取選項)
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
             e.Control.PreviewKeyDown -= EditingControl_PreviewKeyDown;
@@ -993,16 +977,31 @@ namespace Safety_System
                 if (_dgv.CurrentCell != null) 
                 {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
+                    
+                    // 🟢 智慧掃描快取，尋找當前欄位是否被設定為需要「父層觸發」
+                    string parentColName = "";
+                    foreach (var kvp in App_DropdownManager.DropdownCache)
+                    {
+                        var parts = kvp.Key.Split('|');
+                        if (parts.Length == 4 && parts[0] == _tableName && parts[1] == colName && !string.IsNullOrEmpty(parts[2]))
+                        {
+                            parentColName = parts[2];
+                            break;
+                        }
+                    }
+
                     string[] items = null;
-                    if (colName == "危害類型細分類") 
-                    { 
-                        string parentVal = _dgv.CurrentRow.Cells["危害類型主項"].Value?.ToString() ?? ""; 
+
+                    if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName))
+                    {
+                        // 是連動欄位，取得當下父層儲存格的值來抓選項
+                        string parentVal = _dgv.CurrentRow.Cells[parentColName].Value?.ToString() ?? ""; 
                         items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
-                    } 
-                    else if (colName == "違規樣態類型") 
-                    { 
-                        string parentVal = _dgv.CurrentRow.Cells["危害類型細分類"].Value?.ToString() ?? ""; 
-                        items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
+                    }
+                    else
+                    {
+                        // 一般下拉選單
+                        items = _logic.GetDropdownList(_tableName, colName);
                     }
                     
                     if (items != null) 
@@ -1143,16 +1142,17 @@ namespace Safety_System
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            if (_tableName == "SafetyInspection") 
+            // 🟢 當父層的值改變時，自動清空受連動的子層欄位值
+            foreach (var kvp in App_DropdownManager.DropdownCache)
             {
-                if (colName == "危害類型主項") 
+                var parts = kvp.Key.Split('|');
+                if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName)
                 {
-                    if (_dgv.Columns.Contains("危害類型細分類")) _dgv.Rows[e.RowIndex].Cells["危害類型細分類"].Value = "";
-                    if (_dgv.Columns.Contains("違規樣態類型")) _dgv.Rows[e.RowIndex].Cells["違規樣態類型"].Value = "";
-                } 
-                else if (colName == "危害類型細分類") 
-                {
-                    if (_dgv.Columns.Contains("違規樣態類型")) _dgv.Rows[e.RowIndex].Cells["違規樣態類型"].Value = "";
+                    string childColName = parts[1];
+                    if (_dgv.Columns.Contains(childColName))
+                    {
+                        _dgv.Rows[e.RowIndex].Cells[childColName].Value = "";
+                    }
                 }
             }
         }
@@ -1390,7 +1390,6 @@ namespace Safety_System
 
                     UnfreezeAllColumns();
 
-                    // 🟢 徹底防閃爍與鎖死
                     _isApplyingWidths = true;
                     _dgv.SuspendLayout();
 
