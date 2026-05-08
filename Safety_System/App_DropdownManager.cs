@@ -19,6 +19,14 @@ namespace Safety_System
         private ComboBox[] _cboParentVals;
         private Button _btnSave, _btnExport, _btnImport;
         
+        // 🟢 快取已設定的項目，用於繪製藍色字體
+        private HashSet<string> _configuredDbs = new HashSet<string>();
+        private HashSet<string> _configuredTables = new HashSet<string>();
+        private HashSet<string> _configuredCols = new HashSet<string>();
+
+        private bool _isRevertingDb = false;
+        private bool _isRevertingCol = false;
+
         private class ItemMap {
             public string EnName;
             public string ChName;
@@ -31,11 +39,44 @@ namespace Safety_System
         {
             try {
                 _dbMap = App_DbConfig.GetDbMapCache();
+                RefreshConfiguredCache(); // 🟢 初始化讀取已設定清單
                 InitializeComponent();
                 LoadDropdownConfigs();
             } catch (Exception ex) {
                 MessageBox.Show($"初始化連動選單管理介面時發生嚴重錯誤：\n{ex.Message}\n{ex.StackTrace}", "系統崩潰防護", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // 🟢 從資料庫撈取目前已有設定的表單與欄位，存入快取
+        private void RefreshConfiguredCache()
+        {
+            _configuredDbs.Clear();
+            _configuredTables.Clear();
+            _configuredCols.Clear();
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using(var cmd = new SQLiteCommand("SELECT DISTINCT TableName, ColName FROM DropdownConfigs", conn))
+                    using(var reader = cmd.ExecuteReader()) {
+                        while(reader.Read()) {
+                            string tb = reader["TableName"].ToString();
+                            string col = reader["ColName"].ToString();
+                            _configuredTables.Add(tb);
+                            _configuredCols.Add($"{tb}_{col}"); 
+                        }
+                    }
+                }
+                
+                if (_dbMap != null) {
+                    foreach(var kvp in _dbMap) {
+                        foreach(var tb in kvp.Value.Tables.Keys) {
+                            if (_configuredTables.Contains(tb)) {
+                                _configuredDbs.Add(kvp.Key);
+                            }
+                        }
+                    }
+                }
+            } catch {}
         }
 
         private void InitializeComponent()
@@ -58,10 +99,14 @@ namespace Safety_System
             FlowLayoutPanel flpControls = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
             
             Label lblDb = new Label { Text = "選擇資料庫：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 8, 5, 0) };
-            _cboDb = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 30, 0) };
             
+            // 🟢 開啟自訂繪製模式 (DrawMode.OwnerDrawFixed) 以支援變色
+            _cboDb = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 30, 0), DrawMode = DrawMode.OwnerDrawFixed };
+            _cboDb.DrawItem += CboDb_DrawItem;
+
             Label lblTable = new Label { Text = "選擇資料表：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 8, 5, 0) };
-            _cboTable = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 40, 0) };
+            _cboTable = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 40, 0), DrawMode = DrawMode.OwnerDrawFixed };
+            _cboTable.DrawItem += CboTable_DrawItem;
 
             _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(150, 40), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 15, 0) };
             _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(150, 40), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 0) };
@@ -70,6 +115,7 @@ namespace Safety_System
             flpTopMain.Controls.Add(lblTitle);
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
+            this.Controls.Add(pnlTop);
 
             // ================= 底部儲存區 =================
             Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 90, BackColor = Color.White, Padding = new Padding(20, 15, 20, 15) };
@@ -78,12 +124,13 @@ namespace Safety_System
             _btnSave = new Button { Text = "💾 儲存並套用當前設定", Dock = DockStyle.Right, Width = 250, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnSave.Click += BtnSave_Click;
 
-            Label lblHint = new Label { Text = "※ 第一層的選項修改後，請先點擊【儲存】，再於第二層的「觸發條件」中選取，以設定對應的連動清單。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
+            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以藍色字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
 
             pnlBottom.Controls.Add(lblHint);
             pnlBottom.Controls.Add(_btnSave);
+            this.Controls.Add(pnlBottom);
 
-            // ================= 四層連動編輯區 (完美防破版重構) =================
+            // ================= 四層連動編輯區 =================
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
@@ -95,7 +142,6 @@ namespace Safety_System
 
             for (int i = 0; i < 4; i++)
             {
-                // 1. 每欄的外框底板 (極度緊湊 Margin)
                 Panel pCol = new Panel { 
                     Dock = DockStyle.Fill, 
                     Margin = new Padding(3, 0, 3, 0), 
@@ -103,7 +149,6 @@ namespace Safety_System
                 };
                 pCol.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pCol.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                // 2. 上半部操作區 (使用 FlowLayoutPanel 讓元件順序自動往下排，絕對不會溢出邊界)
                 FlowLayoutPanel flpColTop = new FlowLayoutPanel { 
                     Dock = DockStyle.Top, 
                     AutoSize = true, 
@@ -116,7 +161,12 @@ namespace Safety_System
                 Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0,0,0,15) };
                 
                 Label lCol = new Label { Text = "綁定資料表欄位：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
-                _cboCols[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300 };
+                
+                // 🟢 開啟自訂繪製模式 (DrawMode.OwnerDrawFixed) 以支援變色
+                _cboCols[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300, DrawMode = DrawMode.OwnerDrawFixed };
+                
+                int currentIndex = i; // 閉包捕獲
+                _cboCols[i].DrawItem += (s, e) => CboCols_DrawItem(s, e, currentIndex);
 
                 Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboParentVals[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300 };
@@ -130,7 +180,6 @@ namespace Safety_System
 
                 flpColTop.Controls.AddRange(new Control[] { lHeader, lCol, _cboCols[i], lParent, _cboParentVals[i], lOpt });
 
-                // 讓 ComboBox 寬度跟隨面板縮放
                 int captureIndex = i;
                 flpColTop.Resize += (s, e) => {
                     if (captureIndex < 4) {
@@ -143,7 +192,6 @@ namespace Safety_System
                 _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
                 if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
 
-                // 3. 下半部輸入框 (使用 Dock.Fill 填滿剩下的所有空間，確保底部不會被切掉)
                 Panel pnlTxt = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 0, 15, 15) };
                 _txtOptions[i] = new TextBox { 
                     Dock = DockStyle.Fill, 
@@ -154,14 +202,12 @@ namespace Safety_System
                 };
                 pnlTxt.Controls.Add(_txtOptions[i]);
 
-                // 4. 將上下部加入底板 (必須先加 Fill 再加 Top，這是 C# WinForms 確保 Fill 空間正確的規則)
                 pCol.Controls.Add(pnlTxt);
                 pCol.Controls.Add(flpColTop);
 
                 tlpMain.Controls.Add(pCol, i, 0);
             }
 
-            // 確保 Z-Order 正確，中央區域才能正確吃到所有剩餘高度
             this.Controls.Add(pnlTop);
             this.Controls.Add(pnlBottom);
             this.Controls.Add(tlpMain);
@@ -178,51 +224,180 @@ namespace Safety_System
                 }
             }
             
-            _cboDb.SelectedIndexChanged += (s, e) => {
-                _cboTable.Items.Clear();
-                _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                ClearAllEditors();
+            _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
+            _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
+        }
 
-                if (_cboDb.SelectedItem is ItemMap map && !string.IsNullOrEmpty(map.EnName) && _dbMap.ContainsKey(map.EnName)) {
-                    foreach (var tbl in _dbMap[map.EnName].Tables) {
-                        _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+        // ================= 🟢 自訂繪製邏輯 (藍字高亮) =================
+        private void CboDb_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            var item = _cboDb.Items[e.Index] as ItemMap;
+            bool isConfig = item != null && !string.IsNullOrEmpty(item.EnName) && _configuredDbs.Contains(item.EnName);
+            DrawComboBoxItem(_cboDb, e, isConfig);
+        }
+
+        private void CboTable_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            var item = _cboTable.Items[e.Index] as ItemMap;
+            bool isConfig = item != null && !string.IsNullOrEmpty(item.EnName) && _configuredTables.Contains(item.EnName);
+            DrawComboBoxItem(_cboTable, e, isConfig);
+        }
+
+        private void CboCols_DrawItem(object sender, DrawItemEventArgs e, int colIndex)
+        {
+            if (e.Index < 0) return;
+            string colName = _cboCols[colIndex].Items[e.Index].ToString();
+            string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName ?? "";
+            bool isConfig = !string.IsNullOrEmpty(colName) && _configuredCols.Contains($"{tbName}_{colName}");
+            DrawComboBoxItem(_cboCols[colIndex], e, isConfig);
+        }
+
+        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured)
+        {
+            e.DrawBackground();
+            string text = cbo.Items[e.Index].ToString();
+            
+            Brush textBrush = Brushes.Black;
+            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+                textBrush = Brushes.White;
+            } else if (isConfigured) {
+                textBrush = Brushes.DodgerBlue; // 🟢 已設定項目呈現藍色
+            }
+            
+            e.Graphics.DrawString(text, e.Font, textBrush, e.Bounds);
+            e.DrawFocusRectangle();
+        }
+
+        // ================= 🟢 隱藏選單密碼防護 =================
+        private bool VerifyHiddenMenuPassword(string menuName)
+        {
+            using (Form p = new Form())
+            {
+                p.Width = 460; 
+                p.Height = 220;
+                p.Text = "隱藏選單安全驗證";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+                p.BackColor = Color.White;
+
+                Label lbl = new Label() { Left = 30, Top = 30, Text = $"請輸入【{menuName}】的解鎖密碼以繼續設定：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog(this) == DialogResult.OK)
+                {
+                    string input = txt.Text.Trim();
+                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
+                    if (unlockedMenu == menuName) return true;
+                    
+                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return false; 
+            }
+        }
+
+        private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_isRevertingDb) return;
+
+            var selectedDb = _cboDb.SelectedItem as ItemMap;
+            if (selectedDb != null && selectedDb.EnName.StartsWith("Menu") && selectedDb.EnName.EndsWith("DB"))
+            {
+                string menuName = "";
+                if (selectedDb.EnName == "Menu1DB") menuName = "選單1";
+                if (selectedDb.EnName == "Menu2DB") menuName = "選單2";
+                if (selectedDb.EnName == "Menu3DB") menuName = "選單3";
+                if (selectedDb.EnName == "Menu4DB") menuName = "選單4";
+
+                if (!string.IsNullOrEmpty(menuName))
+                {
+                    if (!VerifyHiddenMenuPassword(menuName))
+                    {
+                        _isRevertingDb = true;
+                        _cboDb.SelectedIndex = 0; // 退回空白
+                        _isRevertingDb = false;
+                        return;
                     }
                 }
-                if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
-            };
+            }
 
-            _cboTable.SelectedIndexChanged += (s, e) => {
-                ClearAllEditors();
-                if (_cboDb.SelectedItem is ItemMap dbMap && _cboTable.SelectedItem is ItemMap tbMap && !string.IsNullOrEmpty(dbMap.EnName) && !string.IsNullOrEmpty(tbMap.EnName)) {
-                    var cols = DataManager.GetColumnNames(dbMap.EnName, tbMap.EnName);
-                    foreach (var cbo in _cboCols) {
-                        cbo.Items.Clear();
-                        cbo.Items.Add("");
-                        foreach (var c in cols) if (c != "Id" && c != "附件檔案" && c != "備註") cbo.Items.Add(c);
-                    }
+            _cboTable.Items.Clear();
+            _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            ClearAllEditors();
+
+            if (selectedDb != null && !string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
+                foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
+                    _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
                 }
-            };
+            }
+            if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
+        }
+
+        private void CboTable_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ClearAllEditors();
+            if (_cboDb.SelectedItem is ItemMap dbMap && _cboTable.SelectedItem is ItemMap tbMap && !string.IsNullOrEmpty(dbMap.EnName) && !string.IsNullOrEmpty(tbMap.EnName)) {
+                var cols = DataManager.GetColumnNames(dbMap.EnName, tbMap.EnName);
+                foreach (var cbo in _cboCols) {
+                    cbo.Items.Clear();
+                    cbo.Items.Add("");
+                    foreach (var c in cols) if (c != "Id" && c != "附件檔案" && c != "備註") cbo.Items.Add(c);
+                }
+            }
         }
 
         private void ClearAllEditors()
         {
+            _isRevertingCol = true;
             for (int i = 0; i < 4; i++) {
                 if (_cboCols[i].Items.Count > 0) _cboCols[i].SelectedIndex = 0;
                 if (i > 0) { _cboParentVals[i].Items.Clear(); _cboParentVals[i].Items.Add(""); }
                 _txtOptions[i].Clear();
             }
+            _isRevertingCol = false;
         }
 
         private void HandleColSelectionChanged(int colIndex)
         {
+            if (_isRevertingCol) return;
+
+            string selectedCol = _cboCols[colIndex].Text;
+            
+            // 🟢 重複欄位防呆機制
+            if (!string.IsNullOrEmpty(selectedCol))
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    if (i != colIndex && _cboCols[i].Text == selectedCol)
+                    {
+                        MessageBox.Show("此欄位已在其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        _isRevertingCol = true;
+                        _cboCols[colIndex].SelectedIndex = 0; // 強制退回空白
+                        _isRevertingCol = false;
+                        return;
+                    }
+                }
+            }
+
             try {
                 if (colIndex == 0)
                 {
-                    string colName = _cboCols[0].Text;
                     string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
-                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
-                        LoadOptionsToTextBox(tbName, colName, "", "", _txtOptions[0]);
+                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
+                        LoadOptionsToTextBox(tbName, selectedCol, "", "", _txtOptions[0]);
                         UpdateChildParentVals(1, _txtOptions[0].Text);
+                    } else {
+                        _txtOptions[0].Clear();
+                        UpdateChildParentVals(1, "");
                     }
                 }
             } catch { }
@@ -241,6 +416,9 @@ namespace Safety_System
                 if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
                     LoadOptionsToTextBox(tbName, colName, parentCol, parentVal, _txtOptions[colIndex]);
                     if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _txtOptions[colIndex].Text);
+                } else {
+                    _txtOptions[colIndex].Clear();
+                    if (colIndex < 3) UpdateChildParentVals(colIndex + 1, "");
                 }
             } catch { }
         }
@@ -252,6 +430,7 @@ namespace Safety_System
                 
                 var opts = parentOptionsText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                 string currentVal = _cboParentVals[childIndex].Text;
+                
                 _cboParentVals[childIndex].Items.Clear();
                 _cboParentVals[childIndex].Items.Add("");
                 foreach (var o in opts) _cboParentVals[childIndex].Items.Add(o.Trim());
@@ -327,6 +506,12 @@ namespace Safety_System
                 }
 
                 MessageBox.Show("選項設定已儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                RefreshConfiguredCache(); 
+                _cboDb.Invalidate(); 
+                _cboTable.Invalidate(); 
+                foreach(var c in _cboCols) c.Invalidate(); 
+
                 LoadDropdownConfigs(); 
                 if (!string.IsNullOrEmpty(_txtOptions[0].Text)) UpdateChildParentVals(1, _txtOptions[0].Text);
 
@@ -401,8 +586,10 @@ namespace Safety_System
                             }
                         }
                         MessageBox.Show("下拉選單設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        
+                        RefreshConfiguredCache();
                         LoadDropdownConfigs();
-                        _cboDb.SelectedIndex = 0; // 刷新畫面
+                        _cboDb.SelectedIndex = 0; 
                     } catch (Exception ex) {
                         MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
