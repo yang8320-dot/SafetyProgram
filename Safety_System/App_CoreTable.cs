@@ -820,12 +820,22 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底修正：將資料庫中設定好的選項轉為 ComboBox 欄位
         private void SetupDropdownColumns() 
         {
             foreach (DataGridViewColumn col in _dgv.Columns.Cast<DataGridViewColumn>().ToList()) 
             {
+                // 優先詢問舊有寫死的 DefaultLogic
                 string[] items = _logic.GetDropdownList(_tableName, col.Name);
-                if (items != null && !(_dgv.Columns[col.Name] is DataGridViewComboBoxColumn)) 
+                
+                // 🟢 加入新機制：向 App_DropdownManager 索取資料庫中設定好的全部選項
+                string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
+                
+                if (dbItems != null && dbItems.Length > 1) {
+                    items = dbItems; // 若資料庫中有設定，則覆寫預設邏輯
+                }
+
+                if (items != null && items.Length > 0 && !(_dgv.Columns[col.Name] is DataGridViewComboBoxColumn)) 
                 {
                     int colIndex = col.Index; 
                     _dgv.Columns.RemoveAt(colIndex);
@@ -965,7 +975,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 替換完成的 Dgv_EditingControlShowing (動態連動抓取選項)
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
             e.Control.PreviewKeyDown -= EditingControl_PreviewKeyDown;
@@ -978,7 +987,6 @@ namespace Safety_System
                 {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
                     
-                    // 🟢 智慧掃描快取，尋找當前欄位是否被設定為需要「父層觸發」
                     string parentColName = "";
                     foreach (var kvp in App_DropdownManager.DropdownCache)
                     {
@@ -994,14 +1002,20 @@ namespace Safety_System
 
                     if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName))
                     {
-                        // 是連動欄位，取得當下父層儲存格的值來抓選項
                         string parentVal = _dgv.CurrentRow.Cells[parentColName].Value?.ToString() ?? ""; 
-                        items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
+                        
+                        // 🟢 優先嘗試向資料庫索取連動選單，如果沒有再問舊系統
+                        items = App_DropdownManager.GetOptions(_tableName, colName, parentColName, parentVal);
+                        if (items == null || items.Length == 0) {
+                            items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
+                        }
                     }
                     else
                     {
-                        // 一般下拉選單
-                        items = _logic.GetDropdownList(_tableName, colName);
+                        items = App_DropdownManager.GetAllOptionsForColumn(_tableName, colName);
+                        if (items == null || items.Length <= 1) {
+                            items = _logic.GetDropdownList(_tableName, colName);
+                        }
                     }
                     
                     if (items != null) 
