@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_CoreTable.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -227,7 +228,15 @@ namespace Safety_System
                     DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); 
                     DataTable dt = (DataTable)_dgv.DataSource;
                     if (!dt.Columns.Contains(_txtNewColName.Text)) dt.Columns.Add(_txtNewColName.Text, typeof(string));
-                    ApplyGridStyles(); UpdateCboColumns(); _txtNewColName.Clear(); 
+                    
+                    _isApplyingWidths = true;
+                    _dgv.SuspendLayout();
+                    ApplyGridStyles(); 
+                    UpdateCboColumns(); 
+                    _dgv.ResumeLayout(true);
+                    _isApplyingWidths = false;
+
+                    _txtNewColName.Clear(); 
                     ApplyFreezeState();
                     MessageBox.Show("欄位新增成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 } 
@@ -318,6 +327,7 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
+            // 🟢 解鎖欄位調整：確保 AllowUserToResizeColumns 為 true
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
@@ -333,8 +343,6 @@ namespace Safety_System
             _dgv.DataError += (s, e) => { e.ThrowException = false; };
             _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
             _dgv.CellValueChanged += Dgv_CellValueChanged;
-            
-            // 🟢 修復：寬度改變事件
             _dgv.ColumnWidthChanged += Dgv_ColumnWidthChanged;
 
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
@@ -522,14 +530,18 @@ namespace Safety_System
 
             UnfreezeAllColumns(); 
 
-            // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+            // 🟢 徹底防閃爍與鎖死：全面凍結 UI 渲染，直至設定完畢
             _isApplyingWidths = true;
+            _dgv.SuspendLayout();
+            
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
-
             ApplyFreezeState(); 
+            
+            _dgv.ResumeLayout(true);
+            _isApplyingWidths = false;
 
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
@@ -547,14 +559,18 @@ namespace Safety_System
             
             UnfreezeAllColumns();
 
-            // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+            // 🟢 徹底防閃爍與鎖死
             _isApplyingWidths = true;
+            _dgv.SuspendLayout();
+            
             _dgv.DataSource = dt; 
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
-
             ApplyFreezeState();
+
+            _dgv.ResumeLayout(true);
+            _isApplyingWidths = false;
 
             SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
         }
@@ -598,14 +614,18 @@ namespace Safety_System
 
             UnfreezeAllColumns();
 
-            // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+            // 🟢 徹底防閃爍與鎖死
             _isApplyingWidths = true;
+            _dgv.SuspendLayout();
+
             _dgv.DataSource = resultDt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
             RestoreColumnOrder();
-
             ApplyFreezeState();
+
+            _dgv.ResumeLayout(true);
+            _isApplyingWidths = false;
 
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
@@ -628,11 +648,11 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修復：過濾不正確的寬度儲存觸發，防止系統自動計算的寬度被覆寫至資料庫
         private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e) 
         {
             if (_isFirstLoad || _isApplyingWidths) return;
             
+            // 🟢 只有在使用者手動調整（AutoSizeMode == NotSet/None）時才記憶寬度，避免系統自適應寬度污染資料庫
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) 
             { 
                 _columnWidths[e.Column.Name] = e.Column.Width; 
@@ -744,75 +764,72 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
-        // 🟢 修復：重新設計版面格式套用邏輯，確保自定義寬度能完美重現
+        // 🟢 徹底解決：資料表鎖死與寬度亂跳問題
         private void ApplyGridStyles() 
         {
-            _isApplyingWidths = true; 
-            try
+            if (_dgv.Columns.Contains("Id")) 
             {
-                if (_dgv.Columns.Contains("Id")) 
-                {
-                    _dgv.Columns["Id"].ReadOnly = true;
-                    _dgv.Columns["Id"].Visible = false;
-                }
-                
-                if (_dgv.Columns.Contains(_dateColumnName)) 
-                {
-                    string fmt = "yyyy-MM-dd";
-                    if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
-                    else if (_timeMode == TimeMode.Year) fmt = "yyyy";
-                    _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
-                }
-                
-                foreach (DataGridViewColumn col in _dgv.Columns) 
-                {
-                    if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
+                _dgv.Columns["Id"].ReadOnly = true;
+                _dgv.Columns["Id"].Visible = false;
+            }
+            
+            if (_dgv.Columns.Contains(_dateColumnName)) 
+            {
+                string fmt = "yyyy-MM-dd";
+                if (_timeMode == TimeMode.YearMonth) fmt = "yyyy-MM";
+                else if (_timeMode == TimeMode.Year) fmt = "yyyy";
+                _dgv.Columns[_dateColumnName].DefaultCellStyle.Format = fmt;
+            }
+            
+            foreach (DataGridViewColumn col in _dgv.Columns) 
+            {
+                if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
 
-                    if (col.Name.Contains("附件檔案")) 
-                    {
-                        col.ReadOnly = true; 
-                        col.DefaultCellStyle.ForeColor = Color.Blue;
-                        col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
-                        col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                    } 
-                    else 
-                    {
-                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-                    }
-                }
-
-                SetupDropdownColumns();
-                
-                // 🟢 關閉全域自動縮放，改由每個欄位單獨控制
-                _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-                _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
-
-                foreach (DataGridViewColumn col in _dgv.Columns) 
+                if (col.Name.Contains("附件檔案")) 
                 {
-                    // 優先套用使用者在資料庫中儲存的寬度
-                    if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
-                    {
-                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                        col.Width = _columnWidths[col.Name];
-                    }
-                    else
-                    {
-                        // 若無使用者自訂，則根據內容自適應，方便初次閱讀
-                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells;
-
-                        // LawLogic 的特殊初始寬度處理
-                        if (_logic is LawLogic) 
-                        {
-                            if (col.Name == "法規名稱") { col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; col.Width = 250; }
-                            else if (col.Name == "內容") { col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; col.Width = 400; }
-                            else if (col.Name == "重點摘要") { col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; col.Width = 200; }
-                        }
-                    }
+                    col.ReadOnly = true; 
+                    col.DefaultCellStyle.ForeColor = Color.Blue;
+                    col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
+                    col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                } 
+                else 
+                {
+                    col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
-            finally
+
+            SetupDropdownColumns();
+            
+            // 🟢 解鎖拖拉：全域不啟用 AutoSize
+            _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
+
+            // 🟢 讓 WinForms 先幫忙計算一次目前最佳寬度，但不要鎖定
+            _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
+
+            foreach (DataGridViewColumn col in _dgv.Columns) 
             {
-                _isApplyingWidths = false; 
+                // 🟢 強制把每個欄位設為 None，這步最關鍵，讓游標可以出現拖拉圖示
+                col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+
+                // 優先套用使用者在資料庫中儲存的歷史寬度
+                if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0)
+                {
+                    col.Width = _columnWidths[col.Name];
+                }
+                else if (_logic is LawLogic) 
+                {
+                    // 針對法規特殊欄位給定預設初始寬度
+                    if (col.Name == "法規名稱") col.Width = 250;
+                    else if (col.Name == "內容") col.Width = 400;
+                    else if (col.Name == "重點摘要") col.Width = 200;
+                }
+                else
+                {
+                    // 若無使用者自訂，則保留剛才 AutoResizeColumns 計算出來的寬度，
+                    // 但稍微加個底限，避免有些空白欄位縮得太小
+                    if (col.Width < 80) col.Width = 80;
+                }
             }
         }
 
@@ -934,12 +951,17 @@ namespace Safety_System
 
                 UnfreezeAllColumns();
 
-                // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+                // 🟢 徹底防閃爍與鎖死
                 _isApplyingWidths = true;
+                _dgv.SuspendLayout();
+
                 _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
                 RestoreColumnOrder();
                 ApplyFreezeState();
+
+                _dgv.ResumeLayout(true);
+                _isApplyingWidths = false;
             }
         }
 
@@ -1368,12 +1390,17 @@ namespace Safety_System
 
                     UnfreezeAllColumns();
 
-                    // 🟢 修復：加上 _isApplyingWidths = true 徹底封鎖 DataSource 賦值時產生的雜訊干擾
+                    // 🟢 徹底防閃爍與鎖死
                     _isApplyingWidths = true;
+                    _dgv.SuspendLayout();
+
                     _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
                     RestoreColumnOrder();
                     ApplyFreezeState();
+
+                    _dgv.ResumeLayout(true);
+                    _isApplyingWidths = false;
 
                     SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{workingDt.Rows.Count}", Color.Green);
                     MessageBox.Show("Excel 匯入與運算成功！\n請檢查數據後點擊「儲存數據」。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
