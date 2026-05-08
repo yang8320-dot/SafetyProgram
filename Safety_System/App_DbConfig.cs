@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -31,10 +32,10 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        // 🟢 將 DbMap 提供為靜態方法供全域取得，減少寫死重複定義
+        // 🟢 修正編譯錯誤：補上具名 Tuple 的完整宣告 (ChDbName, Tables)
         public static Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> GetDbMapCache()
         {
-            var map = new Dictionary<string, (string, Dictionary<string, string>)> {
+            Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> map = new Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> {
                 { "Safety", ("工安", new Dictionary<string, string> { 
                     { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
                     { "TrafficInjury", "交通意外" }, { "WorkInjury", "工傷事件" }, { "MinorInjury", "輕傷事件" },
