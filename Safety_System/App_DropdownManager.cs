@@ -17,9 +17,9 @@ namespace Safety_System
         private TextBox[] _txtOptions;
         private ComboBox[] _cboCols;
         private ComboBox[] _cboParentVals;
-        private Button _btnSave, _btnExport, _btnImport;
+        private Button _btnSave, _btnExport, _btnImport, _btnClearAll;
         
-        // 🟢 快取已設定的項目，用於繪製藍色字體
+        // 🟢 快取已設定的項目，用於繪製深藍色字體
         private HashSet<string> _configuredDbs = new HashSet<string>();
         private HashSet<string> _configuredTables = new HashSet<string>();
         private HashSet<string> _configuredCols = new HashSet<string>();
@@ -39,7 +39,7 @@ namespace Safety_System
         {
             try {
                 _dbMap = App_DbConfig.GetDbMapCache();
-                RefreshConfiguredCache(); // 🟢 初始化讀取已設定清單
+                RefreshConfiguredCache();
                 InitializeComponent();
                 LoadDropdownConfigs();
             } catch (Exception ex) {
@@ -100,7 +100,6 @@ namespace Safety_System
             
             Label lblDb = new Label { Text = "選擇資料庫：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 8, 5, 0) };
             
-            // 🟢 開啟自訂繪製模式 (DrawMode.OwnerDrawFixed) 以支援變色
             _cboDb = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 30, 0), DrawMode = DrawMode.OwnerDrawFixed };
             _cboDb.DrawItem += CboDb_DrawItem;
 
@@ -124,13 +123,24 @@ namespace Safety_System
             _btnSave = new Button { Text = "💾 儲存並套用當前設定", Dock = DockStyle.Right, Width = 250, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnSave.Click += BtnSave_Click;
 
-            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以藍色字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
+            // 🟢 新增一鍵清除按鈕
+            _btnClearAll = new Button { Text = "🗑️ 一鍵清除畫面上設定", Dock = DockStyle.Right, Width = 250, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnClearAll.Click += BtnClearAll_Click;
+
+            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以【深藍色】字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
 
             pnlBottom.Controls.Add(lblHint);
-            pnlBottom.Controls.Add(_btnSave);
+            
+            // 加入 FlowLayoutPanel 控制按鈕排版 (靠右)
+            FlowLayoutPanel flpBtnBottom = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false };
+            flpBtnBottom.Controls.Add(_btnSave);
+            flpBtnBottom.Controls.Add(new Panel { Width = 15, Height = 10 }); // 間距
+            flpBtnBottom.Controls.Add(_btnClearAll);
+            
+            pnlBottom.Controls.Add(flpBtnBottom);
             this.Controls.Add(pnlBottom);
 
-            // ================= 四層連動編輯區 =================
+            // ================= 四層連動編輯區 (完美防護越界與破版) =================
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
@@ -145,54 +155,35 @@ namespace Safety_System
                 Panel pCol = new Panel { 
                     Dock = DockStyle.Fill, 
                     Margin = new Padding(3, 0, 3, 0), 
-                    BackColor = Color.White 
+                    BackColor = Color.White, 
+                    Padding = new Padding(15) 
                 };
                 pCol.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pCol.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                FlowLayoutPanel flpColTop = new FlowLayoutPanel { 
-                    Dock = DockStyle.Top, 
-                    AutoSize = true, 
-                    AutoSizeMode = AutoSizeMode.GrowAndShrink, 
-                    FlowDirection = FlowDirection.TopDown, 
-                    WrapContents = false, 
-                    Padding = new Padding(15, 15, 15, 5) 
-                };
+                Panel pTopControls = new Panel { Dock = DockStyle.Top, Height = 195, BackColor = Color.White };
 
-                Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0,0,0,15) };
+                Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Location = new Point(0, 0) };
                 
-                Label lCol = new Label { Text = "綁定資料表欄位：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
-                
-                // 🟢 開啟自訂繪製模式 (DrawMode.OwnerDrawFixed) 以支援變色
-                _cboCols[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300, DrawMode = DrawMode.OwnerDrawFixed };
+                Label lCol = new Label { Text = "綁定資料表欄位：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(0, 40) };
+                _cboCols[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(0, 65), Width = 300, DrawMode = DrawMode.OwnerDrawFixed };
                 
                 int currentIndex = i; // 閉包捕獲
                 _cboCols[i].DrawItem += (s, e) => CboCols_DrawItem(s, e, currentIndex);
 
-                Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
-                _cboParentVals[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300 };
+                Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(0, 105) };
+                _cboParentVals[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(0, 130), Width = 300 };
                 
-                Label lOpt = new Label { Text = "下拉選項內容 (每一行代表一個選項)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
+                Label lOpt = new Label { Text = "下拉選項內容 (每一行代表一個選項)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(0, 170) };
 
                 if (i == 0) {
                     lParent.Visible = false;
                     _cboParentVals[i].Visible = false;
+                    lOpt.Location = new Point(0, 105);
+                    pTopControls.Height = 135; 
                 }
 
-                flpColTop.Controls.AddRange(new Control[] { lHeader, lCol, _cboCols[i], lParent, _cboParentVals[i], lOpt });
+                pTopControls.Controls.AddRange(new Control[] { lHeader, lCol, _cboCols[i], lParent, _cboParentVals[i], lOpt });
 
-                int captureIndex = i;
-                flpColTop.Resize += (s, e) => {
-                    if (captureIndex < 4) {
-                        _cboCols[captureIndex].Width = flpColTop.Width - 30;
-                        _cboParentVals[captureIndex].Width = flpColTop.Width - 30;
-                    }
-                };
-
-                int colIndex = i;
-                _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
-                if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
-
-                Panel pnlTxt = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 0, 15, 15) };
                 _txtOptions[i] = new TextBox { 
                     Dock = DockStyle.Fill, 
                     Multiline = true, 
@@ -200,18 +191,26 @@ namespace Safety_System
                     WordWrap = false, 
                     Font = new Font("Microsoft JhengHei UI", 12F) 
                 };
-                pnlTxt.Controls.Add(_txtOptions[i]);
 
-                pCol.Controls.Add(pnlTxt);
-                pCol.Controls.Add(flpColTop);
+                int captureIndex = i; 
+                pTopControls.Resize += (s, e) => {
+                    if (captureIndex < 4) {
+                        _cboCols[captureIndex].Width = pTopControls.Width - 5;
+                        _cboParentVals[captureIndex].Width = pTopControls.Width - 5;
+                    }
+                };
+
+                int colIndex = i;
+                _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
+                if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
+
+                pCol.Controls.Add(_txtOptions[i]);
+                pCol.Controls.Add(pTopControls);
 
                 tlpMain.Controls.Add(pCol, i, 0);
             }
 
-            this.Controls.Add(pnlTop);
-            this.Controls.Add(pnlBottom);
             this.Controls.Add(tlpMain);
-            tlpMain.BringToFront(); 
 
             // ================= 事件綁定 =================
             _btnExport.Click += BtnExport_Click;
@@ -228,7 +227,7 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // ================= 🟢 自訂繪製邏輯 (藍字高亮) =================
+        // ================= 🟢 自訂繪製邏輯 (深藍色高亮) =================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -263,11 +262,20 @@ namespace Safety_System
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
                 textBrush = Brushes.White;
             } else if (isConfigured) {
-                textBrush = Brushes.DodgerBlue; // 🟢 已設定項目呈現藍色
+                textBrush = Brushes.DarkBlue; // 🟢 已設定項目呈現深藍色
             }
             
             e.Graphics.DrawString(text, e.Font, textBrush, e.Bounds);
             e.DrawFocusRectangle();
+        }
+
+        // ================= 🟢 一鍵清除畫面上設定 =================
+        private void BtnClearAll_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("確定要清空畫面上所有的選項與連動設定嗎？\n(注意：尚未按下儲存前，資料庫內的設定並不會被刪除。)", "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                ClearAllEditors();
+            }
         }
 
         // ================= 🟢 隱藏選單密碼防護 =================
