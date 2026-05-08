@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_DropdownManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -28,7 +29,7 @@ namespace Safety_System
 
         public App_DropdownManager()
         {
-            _dbMap = App_DbConfig.GetDbMapCache(); // 會在接下來更新 App_DbConfig 時提供這個方法
+            _dbMap = App_DbConfig.GetDbMapCache();
             InitializeComponent();
             LoadDropdownConfigs();
         }
@@ -36,26 +37,27 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "下拉選單與連動項目管理";
-            this.Size = new Size(1300, 800);
+            // 🟢 調整視窗整體大小，讓空間更寬敞
+            this.Size = new Size(1400, 850);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.BackColor = Color.WhiteSmoke;
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
             // ================= 頂部操作區 =================
-            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 100, BackColor = Color.White, Padding = new Padding(20) };
+            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 120, BackColor = Color.White, Padding = new Padding(20) };
             pnlTop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTop.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
             Label lblTitle = new Label { Text = "🔧 下拉選單與連動項目設定", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Location = new Point(20, 20) };
             
-            Label lblDb = new Label { Text = "選擇資料庫：", Location = new Point(20, 65), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _cboDb = new ComboBox { Location = new Point(140, 62), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblDb = new Label { Text = "選擇資料庫：", Location = new Point(20, 75), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _cboDb = new ComboBox { Location = new Point(140, 72), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
             
-            Label lblTable = new Label { Text = "選擇資料表：", Location = new Point(350, 65), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-            _cboTable = new ComboBox { Location = new Point(470, 62), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblTable = new Label { Text = "選擇資料表：", Location = new Point(370, 75), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _cboTable = new ComboBox { Location = new Point(490, 72), Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
 
-            _btnExport = new Button { Text = "📤 匯出 Excel", Location = new Point(760, 58), Size = new Size(130, 35), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-            _btnImport = new Button { Text = "📥 匯入 Excel", Location = new Point(900, 58), Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnExport = new Button { Text = "📤 匯出 Excel", Location = new Point(830, 68), Size = new Size(140, 38), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnImport = new Button { Text = "📥 匯入 Excel", Location = new Point(990, 68), Size = new Size(140, 38), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
 
             pnlTop.Controls.AddRange(new Control[] { lblTitle, lblDb, _cboDb, lblTable, _cboTable, _btnExport, _btnImport });
             this.Controls.Add(pnlTop);
@@ -72,31 +74,55 @@ namespace Safety_System
 
             for (int i = 0; i < 4; i++)
             {
-                Panel pCol = new Panel { Dock = DockStyle.Fill, Margin = new Padding(10), BackColor = Color.White, Padding = new Padding(15) };
+                // 🟢 修正重疊問題：改用 TableLayoutPanel 作為每個欄位的內部容器
+                TableLayoutPanel pCol = new TableLayoutPanel { 
+                    Dock = DockStyle.Fill, 
+                    Margin = new Padding(10), 
+                    BackColor = Color.White, 
+                    Padding = new Padding(15),
+                    ColumnCount = 1,
+                    RowCount = 7
+                };
                 pCol.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pCol.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                Label lHeader = new Label { Text = headers[i], Dock = DockStyle.Top, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Height = 35 };
+                // 設定內部列的高度：前 6 列隨內容自動撐開，最後一列填滿剩餘高度給文字框
+                pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Header
+                pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 綁定欄位 Label
+                pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 綁定欄位 ComboBox
+                pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 觸發條件 Label
+                pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 觸發條件 ComboBox
+                pCol.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 選項內容 Label
+                pCol.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // TextBox
 
-                Label lCol = new Label { Text = "綁定欄位名稱：", Dock = DockStyle.Top, Height = 25, Margin = new Padding(0,10,0,0) };
-                _cboCols[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15) };
+                Label lHeader = new Label { Text = headers[i], Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0,0,0,20) };
 
-                Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Dock = DockStyle.Top, Height = 25, Visible = (i > 0) };
-                _cboParentVals[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Visible = (i > 0) };
+                Label lCol = new Label { Text = "綁定資料表欄位：", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
+                _cboCols[i] = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,20) };
 
-                Label lOpt = new Label { Text = "下拉選項內容 (每行一個選項)：", Dock = DockStyle.Top, Height = 25 };
+                Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
+                _cboParentVals[i] = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,20) };
+                
+                // 第一層隱藏父層選擇條件，為了保持排版對齊，我們改用空白 Label 佔位
+                if (i == 0) {
+                    lParent.Visible = false;
+                    _cboParentVals[i].Visible = false;
+                }
+
+                Label lOpt = new Label { Text = "下拉選項內容 (每行一個選項)：", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _txtOptions[i] = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Microsoft JhengHei UI", 12F) };
 
                 int colIndex = i;
                 _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
                 if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
 
-                pCol.Controls.Add(_txtOptions[i]);
-                pCol.Controls.Add(lOpt);
-                pCol.Controls.Add(_cboParentVals[i]);
-                pCol.Controls.Add(lParent);
-                pCol.Controls.Add(_cboCols[i]);
-                pCol.Controls.Add(lCol);
-                pCol.Controls.Add(lHeader);
+                // 將元件依照順序加入內部的 TableLayoutPanel
+                pCol.Controls.Add(lHeader, 0, 0);
+                pCol.Controls.Add(lCol, 0, 1);
+                pCol.Controls.Add(_cboCols[i], 0, 2);
+                pCol.Controls.Add(lParent, 0, 3);
+                pCol.Controls.Add(_cboParentVals[i], 0, 4);
+                pCol.Controls.Add(lOpt, 0, 5);
+                pCol.Controls.Add(_txtOptions[i], 0, 6);
 
                 tlpMain.Controls.Add(pCol, i, 0);
             }
@@ -104,13 +130,13 @@ namespace Safety_System
             this.Controls.Add(tlpMain);
 
             // ================= 底部儲存區 =================
-            Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 80, BackColor = Color.White, Padding = new Padding(20, 15, 20, 15) };
+            Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 90, BackColor = Color.White, Padding = new Padding(20, 15, 20, 15) };
             pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-            _btnSave = new Button { Text = "💾 儲存並套用當前設定", Dock = DockStyle.Right, Width = 220, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSave = new Button { Text = "💾 儲存並套用當前設定", Dock = DockStyle.Right, Width = 250, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnSave.Click += BtnSave_Click;
 
-            Label lblHint = new Label { Text = "※ 第一層的選項修改後，請先按儲存，再於第二層的「觸發條件」中選取，以設定對應的連動清單。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Padding = new Padding(0, 5, 0, 0) };
+            Label lblHint = new Label { Text = "※ 第一層的選項修改後，請先點擊【儲存】，再於第二層的「觸發條件」中選取，以設定對應的連動清單。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
 
             pnlBottom.Controls.Add(lblHint);
             pnlBottom.Controls.Add(_btnSave);
