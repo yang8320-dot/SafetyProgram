@@ -9,7 +9,6 @@ namespace Safety_System
     {
         public virtual void InitializeSchema(string dbName, string tableName) { }
 
-        // 🟢 配合介面加入 IProgress<int> 參數
         public virtual Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable savingData, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
             return Task.FromResult(true); 
