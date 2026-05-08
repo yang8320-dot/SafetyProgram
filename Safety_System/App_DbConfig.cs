@@ -189,7 +189,7 @@ namespace Safety_System
             Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(30, 280), Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveKeys.Click += BtnSaveKeys_Click;
 
-            // 🟢 新增：防重寫設定清單 按鈕
+            // 🟢 防重寫設定清單 按鈕
             Button btnShowTableKeysList = new Button { Text = "防重寫設定清單", Location = new Point(280, 280), Size = new Size(200, 45), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnShowTableKeysList.Click += BtnShowTableKeysList_Click;
 
@@ -268,7 +268,7 @@ namespace Safety_System
             Button btnSaveSync = new Button { Text = "儲存新增的資料同步設定", Location = new Point(15, 10), Size = new Size(250, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveSync.Click += BtnSaveSync_Click;
             
-            // 🟢 新增：同步設定清單 按鈕
+            // 🟢 同步設定清單 按鈕
             Button btnShowSyncRulesList = new Button { Text = "同步設定清單", Location = new Point(290, 10), Size = new Size(180, 45), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnShowSyncRulesList.Click += BtnShowSyncRulesList_Click;
 
@@ -311,7 +311,6 @@ namespace Safety_System
             main.Controls.Add(spacer2);
             main.Controls.Add(boxPath);
 
-            // 🟢 加入空白選單項目，讓使用者可以取消選擇
             var blankDb = new ItemMap { EnName = "", ChName = "" };
             _cboDb.Items.Add(blankDb);
             _cboDelDb.Items.Add(blankDb);
@@ -335,7 +334,6 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
             _cboDelDb.SelectedIndexChanged += CboDelDb_SelectedIndexChanged;
 
-            // 🟢 進入畫面時，預設選擇空白選項 (防重寫與同步都不會自動帶出舊資料)
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
             if (_cboDelDb.Items.Count > 0) _cboDelDb.SelectedIndex = 0;
 
@@ -349,7 +347,7 @@ namespace Safety_System
                 string tgtM = r.CboTgtMatchCol.Text;
                 if (!string.IsNullOrEmpty(srcM) && !string.IsNullOrEmpty(tgtM)) {
                     if (srcM != tgtM || (srcM.Contains("日") && tgtM.Contains("月"))) {
-                        r.CboSyncType.SelectedIndex = 1; // 單向同步
+                        r.CboSyncType.SelectedIndex = 1; 
                         r.CboSyncType.Enabled = false;
                     } else {
                         r.CboSyncType.Enabled = true;
@@ -412,16 +410,35 @@ namespace Safety_System
             r.CboTgtMatchCol.TextChanged += (s, e) => checkSyncType();
         }
 
-        // 🟢 防重寫設定清單 (視窗)
+        // 🟢 徹底優化：防重寫設定清單 (視窗動態寬度與滾動支援)
         private void BtnShowTableKeysList_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "防重寫設定清單", Size = new Size(800, 500), StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, MinimizeBox = false, BackColor = Color.White })
+            using (Form f = new Form { 
+                Text = "防重寫設定清單", 
+                Size = new Size(900, 550), 
+                StartPosition = FormStartPosition.CenterParent, 
+                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖拉改變視窗大小
+                MaximizeBox = true, 
+                MinimizeBox = false, 
+                BackColor = Color.White 
+            })
             {
-                Label lbl = new Label { Text = "已設定之資料表防重寫規則：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                Label lbl = new Label { Text = "已設定之資料表防重寫規則：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true };
                 f.Controls.Add(lbl);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
                 f.Controls.Add(flp);
+
+                // 讓內容背景條在視窗改變大小時，自動貼合邊緣伸展
+                flp.Resize += (s, ev) => {
+                    foreach (Control c in flp.Controls) {
+                        if (c is Panel pnl) {
+                            Label l = pnl.Controls.OfType<Label>().FirstOrDefault();
+                            int minW = l != null ? TextRenderer.MeasureText(l.Text, l.Font).Width + 100 : 840;
+                            pnl.Width = Math.Max(flp.ClientSize.Width - 25, minW);
+                        }
+                    }
+                };
 
                 Action loadKeys = null;
                 loadKeys = () => {
@@ -447,10 +464,17 @@ namespace Safety_System
                             string c1 = row["Col1"].ToString(); string c2 = row["Col2"].ToString();
                             string c3 = row["Col3"].ToString(); string c4 = row["Col4"].ToString();
 
-                            Panel p = new Panel { Width = 740, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
-                            Label lTxt = new Label { Text = $"庫:[{db}] 表:[{tb}]  ➡️ 規則: {c1} | {c2} | {c3} | {c4}", AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F) };
+                            string text = $"庫:[{db}] 表:[{tb}]  ➡️ 規則: {c1} | {c2} | {c3} | {c4}";
+                            Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F) };
                             
-                            Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(680, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                            // 計算出文字需要的寬度，若超出視窗寬度，則強制延展，讓 FlowLayoutPanel 產生橫向捲軸
+                            int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
+                            int panelW = Math.Max(flp.ClientSize.Width - 25, reqW);
+
+                            Panel p = new Panel { Width = panelW, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
+                            
+                            // 刪除按鈕貼齊右側
+                            Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(panelW - 60, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Anchor = AnchorStyles.Top | AnchorStyles.Right };
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除 [{tb}] 的防重寫設定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
@@ -479,16 +503,35 @@ namespace Safety_System
             }
         }
 
-        // 🟢 同步設定清單 (視窗)
+        // 🟢 徹底優化：同步設定清單 (視窗動態寬度與滾動支援)
         private void BtnShowSyncRulesList_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "同步設定清單", Size = new Size(800, 500), StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, MinimizeBox = false, BackColor = Color.White })
+            using (Form f = new Form { 
+                Text = "同步設定清單", 
+                Size = new Size(900, 550), 
+                StartPosition = FormStartPosition.CenterParent, 
+                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖拉改變視窗大小
+                MaximizeBox = true, 
+                MinimizeBox = false, 
+                BackColor = Color.White 
+            })
             {
-                Label lbl = new Label { Text = "已啟用之跨表同步規則清單：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                Label lbl = new Label { Text = "已啟用之跨表同步規則清單：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true };
                 f.Controls.Add(lbl);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
                 f.Controls.Add(flp);
+
+                // 讓內容背景條在視窗改變大小時，自動貼合邊緣伸展
+                flp.Resize += (s, ev) => {
+                    foreach (Control c in flp.Controls) {
+                        if (c is Panel pnl) {
+                            Label l = pnl.Controls.OfType<Label>().FirstOrDefault();
+                            int minW = l != null ? TextRenderer.MeasureText(l.Text, l.Font).Width + 100 : 840;
+                            pnl.Width = Math.Max(flp.ClientSize.Width - 25, minW);
+                        }
+                    }
+                };
 
                 Action loadRules = null;
                 loadRules = () => {
@@ -514,10 +557,17 @@ namespace Safety_System
                             string tDb = row["TgtDb"].ToString(); string tTb = row["TgtTable"].ToString(); string tSync = row["TgtSyncCol"].ToString();
                             string type = row.Table.Columns.Contains("SyncType") ? row["SyncType"].ToString() : "單向同步";
 
-                            Panel p = new Panel { Width = 740, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
-                            Label lTxt = new Label { Text = $"【{type}】 {sDb}.{sTb}[{sSync}]  ➡️  {tDb}.{tTb}[{tSync}]", AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F) };
+                            string text = $"【{type}】 {sDb}.{sTb}[{sSync}]  ➡️  {tDb}.{tTb}[{tSync}]";
+                            Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F) };
                             
-                            Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(680, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                            // 計算出文字需要的寬度，若超出視窗寬度，則強制延展，讓 FlowLayoutPanel 產生橫向捲軸
+                            int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
+                            int panelW = Math.Max(flp.ClientSize.Width - 25, reqW);
+
+                            Panel p = new Panel { Width = panelW, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
+                            
+                            // 刪除按鈕貼齊右側
+                            Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(panelW - 60, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Anchor = AnchorStyles.Top | AnchorStyles.Right };
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除此同步規則？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
@@ -546,7 +596,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 驗證隱藏選單密碼的輔助視窗
         private bool VerifyHiddenMenuPassword(string menuName)
         {
             using (Form p = new Form())
@@ -635,7 +684,6 @@ namespace Safety_System
 
                             if (string.IsNullOrEmpty(srcDb) || string.IsNullOrEmpty(tgtDb)) continue;
 
-                            // 🟢 改為附加 (INSERT)，不要先 DELETE 全表，才不會覆蓋舊有的設定
                             string sql = "INSERT INTO SyncRules (SrcDb, SrcTable, SrcMatchCol, SrcSyncCol, TgtDb, TgtTable, TgtMatchCol, TgtSyncCol, SyncType) VALUES (@SD, @ST, @SMC, @SSC, @TD, @TT, @TMC, @TSC, @Type)";
                             using (var cmd = new SQLiteCommand(sql, conn, trans)) {
                                 cmd.Parameters.AddWithValue("@SD", srcDb); cmd.Parameters.AddWithValue("@ST", srcTbl);
@@ -651,7 +699,6 @@ namespace Safety_System
                 }
                 MessageBox.Show("新增的資料同步設定已成功儲存至清單！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
-                // 儲存後將介面的 Combo 歸零
                 foreach (var r in _syncRows) {
                     r.CboSrcDb.SelectedIndex = 0; r.CboTgtDb.SelectedIndex = 0;
                     r.CboSrcMatchCol.Text = ""; r.CboSrcSyncCol.Text = "";
@@ -718,7 +765,6 @@ namespace Safety_System
                     }
                 }
                 
-                // 🟢 預設為空，不主動載入已設定的值 (讓使用者自行去清單查看)
                 _cboCol1.SelectedIndex = 0;
                 _cboCol2.SelectedIndex = 0;
                 _cboCol3.SelectedIndex = 0;
@@ -750,7 +796,6 @@ namespace Safety_System
             DataManager.SaveTableKeys(dbName, tableName, c1, c2, c3, c4);
             MessageBox.Show($"【{chTableName}】 防重寫規則儲存成功！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            // 儲存完後歸零
             _cboDb.SelectedIndex = 0;
         }
 
