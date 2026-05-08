@@ -42,6 +42,8 @@ namespace Safety_System
 
         private bool _isFirstLoad = true;
         private bool _isApplyingWidths = false; 
+        // 🟢 新增：防止連動清除時互相干擾的旗標
+        private bool _isCascading = false;
         
         private readonly string _dbName; 
         private readonly string _tableName; 
@@ -1148,30 +1150,36 @@ namespace Safety_System
 
         private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _isCascading) return;
+            
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            // 🟢 修正：使用 BeginInvoke 延遲執行清空子欄位的動作，避免干擾 DataGridView 的 Commit 機制
-            _dgv.BeginInvoke(new Action(() => 
+            // 🟢 徹底修正：使用旗標鎖定，確保清空子層級時不會再次觸發自身事件導致衝突
+            _isCascading = true;
+            try 
             {
-                try {
-                    foreach (var kvp in App_DropdownManager.DropdownCache)
+                foreach (var kvp in App_DropdownManager.DropdownCache)
+                {
+                    var parts = kvp.Key.Split('|');
+                    if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName)
                     {
-                        var parts = kvp.Key.Split('|');
-                        if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName)
+                        string childColName = parts[1];
+                        if (_dgv.Columns.Contains(childColName))
                         {
-                            string childColName = parts[1];
-                            if (_dgv.Columns.Contains(childColName))
+                            if (e.RowIndex < _dgv.Rows.Count) 
                             {
-                                // 安全檢查該 Row 是否還存在 (防呆)
-                                if (e.RowIndex < _dgv.Rows.Count) {
-                                    _dgv.Rows[e.RowIndex].Cells[childColName].Value = "";
-                                }
+                                // 使用 DBNull.Value 確保徹底清空且不干擾編輯器
+                                _dgv.Rows[e.RowIndex].Cells[childColName].Value = DBNull.Value;
                             }
                         }
                     }
-                } catch { } // 忽略背景清空時的任何干擾錯誤
-            }));
+                }
+            } 
+            catch { }
+            finally 
+            {
+                _isCascading = false;
+            }
         }
 
         private void SyncAttachmentPaths(DataTable dt) 
