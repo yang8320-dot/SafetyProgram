@@ -36,7 +36,6 @@ namespace Safety_System
             { "WorkInjury", "[日期] TEXT, [單位] TEXT, [姓名] TEXT, [受傷部位] TEXT, [原因] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "MinorInjury", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [事故類別] TEXT, [事故類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [屬同事件] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
-            // 🟢 新增：勞檢稽查缺失
             { "LaborInspection", "[日期] TEXT, [公文文號] TEXT, [缺失事項] TEXT, [法規] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [法令條款說明] TEXT, [限期改善或罰緩] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
             { "Waste_IL", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [丁基膠MT] TEXT, [結構膠MT] TEXT, [鋁條MT] TEXT, [乾燥劑MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -85,7 +84,7 @@ namespace Safety_System
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
-            // 個人隱藏選單 (🟢 更新：加入 WorkItems，移除 DataManage 系列)
+            // 個人隱藏選單
             { "AccountManage", "[日期] TEXT, [系統名稱] TEXT, [網址] TEXT, [登入帳號] TEXT, [登入密碼] TEXT, [使用者] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "KPI", "[年月] TEXT, [單位] TEXT, [指標名稱] TEXT, [目標值] TEXT, [實際值] TEXT, [達成狀況] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "CultureImprove", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [執行狀況] TEXT, [主責人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -93,97 +92,27 @@ namespace Safety_System
             { "WorkItems", "[日期] TEXT, [執行] TEXT, [問題] TEXT, [改善] TEXT, [追蹤] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
-        public static readonly Dictionary<string, string[]> HazardSubCategoryMap = new Dictionary<string, string[]>
-        {
-            { "物理性", new[] { "PH1_物體飛落、掉落", "PH2_倒塌、崩塌", "PH3_物體破裂", "PH4_墜落、滾落", "PH5_跌倒、滑倒", "PH6_衝撞、被撞、碰撞", "PH7_夾、捲、壓傷", "PH8_切、割、刺、擦傷", "PH9_踩踏、踏穿", "PH10_溺斃", "PH11_與高低溫接觸、凍傷、灼燙傷", "PH12_噪音過高", "PH13_照明不足", "PH14_通風不良、缺氧、窒息", "PH16_游離輻射暴露", "PH17_非醫用游離輻射暴露", "PH18_振動、停電", "PH19_漏電、感電_含靜電及火花", "PH20_壓降", "PH21_漏水", "PH22_爆炸(塵爆)", "PH23_異常氣壓", "PH24_異物入眼" } },
-            { "化學性", new[] { "CH1_火災", "CH2_爆炸", "CH3_與有害物接觸", "CH4_化學品洩漏_含廢液", "CH5_毒氣(氣體)洩漏", "CH6_異味", "CH7_冒煙", "CH8_缺氧，窒息", "CH9_化學品灼或濺傷" } },
-            { "生物性", new[] { "BI1_病媒滋生", "BI2_食物中毒", "BI3_病菌傳染", "BI4_發霉腐敗", "BI5_過敏、不舒服" } },
-            { "人因工程", new[] { "ER1_設計不良導致人為失誤", "ER2_操作高度、空間不適造", "ER3_人工搬運超過荷重造成", "ER4_不適宜之工作姿勢造成傷害", "ER5_重複性操作造成傷害", "ER6_人為不當動作" } },
-            { "社會性", new[] { "EK1_不規律的工作時間", "EK2_工作不安全感", "EK3_職場暴力與恐嚇", "EK4_勞動人力老化", "EK5_工作的增強化(工作負荷量或是壓力的增加)" } },
-            { "其他", new[] { "OT1_交通事故", "OT2_設備、設施損壞", "OT3_影響環境", "OT4_未歸類安全項目", "OT5_其他非安全項目", "OT6_消防相關" } }
-        };
-
-        public static readonly Dictionary<string, string[]> ViolationTypeMap = new Dictionary<string, string[]>
-        {
-            { "PH1_物體飛落、掉落", new[] { "PH101-丟廢玻璃以拋丟方式【★★★】", "PH102-物件掉落【★★★】", "PH103-天車防滑蛇片失效【★★★★】", "PH104-吊掛作業未戴安全帽【★★★】", "PH105-天車燈座護網懸掛【★★★】", "PH106-其它未歸類物體飛落、掉落【★★★】" } },
-            { "PH2_倒塌、崩塌", new[] { "PH201-操作堆高機未戴安全帽或未繫安全帶【★★★】", "PH202-天車吊具作業，人員離開操作位置【★★★】", "PH203-車架鏽蝕【★★★】", "PH204-支撐腳傾斜【★★】", "PH205-倚靠欄杆【★★】", "PH206-D架疊放玻璃二層【★★★】", "PH207-車架超出荷重【★★★】", "PH208-人員離開，設備機具未定位完成【★★★】", "PH209-車架未捆綁固定【★★】", "PH210-高壓鋼瓶未固定【★★★】", "PH211-原(物)料或廢棄物堆疊，過高或未穩固【★★★】", "PH212-車架玻璃破裂【★★★】", "PH213-倚靠玻璃【★★★】", "PH214-吊具一邊底部膠片脫離【★★★】", "PH299-其它未歸類物體倒塌、崩塌危害【★★★】" } },
-            { "PH4_墜落、滾落", new[] { "PH401_高處作業未防護【★★★★】", "PH402_A字梯相關缺失【★★★】", "PH403_堆高機相關缺失【★★★】", "PH404_堆高機未繫安全帶、安全帽【★★★】", "PH405_工作階梯無適當扶手【★★★★】", "PH406_開口處未防護【★★★】", "PH407_人員站A字梯頂板作業【★★★★】" } },
-            { "PH5_跌倒、滑倒", new[] { "PH501_地上玻璃粉塊未清除【★★★】", "PH502_電線橫跨走道，未有防護措施【★★★】", "PH503_鐵棒插在水溝蓋下方翹起【★★★】", "PH504_鐵板一端翹起【★★★】", "PH505_地上坑洞【★★★】", "PH506_地上凸出物【★★★】", "PH507_護欄未裝回【★★★】", "PH508_其它未歸類跌倒、滑倒【★★★】" } },
-            { "PH6_衝撞、被撞、碰撞", new[] { "PH601-置放單片玻璃未採警示措施【★★★】", "PH602-車架置放玻璃尖端凸出未防護【★★★】", "PH603-通道置放車架未警示【★★★】", "PH604-車速過快【★★★★】", "PH605-人員操作堆高機缺失【★★★】", "PH606-堆高機停放手煞車未拉【★★★】", "PH607-堆高機前照燈損壞【★★★】", "PH608-堆高機相關缺失【★★★】", "PH609-行走時使用手機或檢視文件【★★★★】", "PH610-鏟車相關缺失【★★★】", "PH611-手動油壓拖板車相關缺失【★★★】", "PH612-車架置放玻璃凸出未防護【★★★】", "PH613-天車相關缺失【★★★】", "PH299-其它未歸類衝撞、被撞、碰撞【★★★】" } },
-            { "PH7_夾、捲、壓傷", new[] { "PH701-防護罩未定位【★★★】", "PH702-防護罩損壞【★★★】", "PH703-砂輪機無護罩【★★★】", "PH704-人員穿越自動運轉設備【★★★★】", "PH705-人員未戴個人防護具【★★★】", "PH706護欄開口處掛鍊未掛上【★★★】", "PH707-電風扇護網中間網格太寬【★★★】" } },
-            { "PH8_切、割、刺、擦傷", new[] { "PH801-設備、機具未有防護措施【★★★】", "PH802-玻璃未採警示措施【★★★】", "PH803-玻璃尖端、銳角未防護【★★★】", "PH804-地面碎玻璃未清理【★★★】", "PH805-燈管破裂【★★】", "PH806-車架玻璃玻裂【★★★】", "PH807-木條塊尖端、銳角未防護【★★★】", "PH808-背檔破損未防護【★★★】", "PH809-玻璃置放地上倚靠機台【★★★】", "PH810-人員未戴個人防護具【★★★】", "PH811-樣品版未穩妥置放【★★★】", "PH812-其它未歸類切、割、刺、擦傷危害【★★★】" } },
-            { "PH9_踩踏、踏穿", new[] { "PH901_溝渠未加蓋【★★★】", "PH902_其它未歸類踩踏、踏穿危害【★★★】" } },
-            { "PH19_漏電、感電_含靜電及火花", new[] { "PH1901_電動拖板車充電器無插頭護蓋【★★★】", "PH1902_插頭接地線端損壞【★★★】", "PH1903_馬達漏水及未固定【★★】", "PH1904_電風扇電線包覆鐵管鏽蝕【★★★】", "PH1905_電線置於潮濕地面上【★★★★】", "PH1906_未有接地功能【★★★】", "PH1907_插頭或插座損壞【★★★】", "PH1908_電線裸露【★★★★】", "PH1909_其它未歸類感電危害【★★★】" } },
-            { "CH1_火災", new[] { "CH101_易燃物品儲存場所未設置【★★★】", "CH102_易燃物品存放於較高溫環境【★★★★★】", "CH103_油品暫存桶箱內勿有易燃物【★★★★】" } },
-            { "CH3_與有害物接觸", new[] { "CH301_化學品作業未配安個人防護具【★★★】", "CH302_粉塵作業未戴防護具【★★★】", "CH303_玻璃研磨未使用集塵器【★★★】" } },
-            { "CH4_化學品洩漏_含廢液", new[] { "CH401_未設有防止洩漏措施【★★★】" } },
-            { "OT6_消防相關", new[] { "OT601-消防設備被遮蔽【★★】", "OT602-逃生動線受阻礙【★★】", "OT603-消防設備檢點未確實【★★】", "OT604-滅火器過期、銹蝕、損壞【★★★】", "OT605-消防設備缺少或未設置【★★★】", "OT606-火警標示燈箱底座銜接處損壞【★★★】" } },
-            { "OT2_設備、設施損壞", new[] { "OT201_照明設備損壞【★★】", "OT202_落地架損壞【★★★】", "OT203_車架膠條破損【★★★】", "OT204_照明設備未固定【★★】", "OT205_光柵損壞【★★★】" } },
-            { "OT4_未歸類安全項目", new[] { "OT401-自動檢查未確實【★★】", "OT402-工安告示板未更新【★】", "OT403-配電盤前動線阻礙【★★】", "OT404-無相關防護措施【★★★】", "OT405-化學品置放未妥善【★★★】", "OT406-作業人員未受訓或未取得相關資格【★★★】", "OT407-原(物)料、設備器具置放未妥善【★★★】", "OT408-緊急制動裝置損壞【★★★】", "OT409-相關標示不足【★★】", "OT410-個人防護具配戴未確實【★★★】", "OT411-車用滅火器無點檢卡【★★★】", "OT499-其它安全危害【★★★】" } },
-            { "OT5_其他非安全項目", new[] { "OT501-管線銹蝕、漏水【★★】", "OT502-醫藥箱缺失【★★】", "OT503_能源損耗【★★】", "OT504_洗手台排出水流進雨水溝【★★】", "OT505_空壓機排出水流進雨水溝【★★】", "OT506_水噴槍管閥銜接處滴水【★★】" } },
-            { "OT3_影響環境", new[] { "OT301-水溝內菸蒂【★★★】" } }
-        };
-
+        // 🟢 全面移除原本寫死的 Dictionary，改由 DefaultLogic 呼叫 App_DropdownManager 取值
         public static string[] GetDropdownList(string tableName, string columnName)
         {
-            if (tableName == "PurchaseData" && columnName == "ESG分類") 
-                return new[] { "", "碳費", "環境相關盤查", "再生能源費用", "環保設備", "製程優化", "穩定能源供應", "氣候災害韌性建立", "資源效率與循環", "綠色產品研發設計" };
-            
-            if (tableName == "FireSelfInspection" && columnName == "檢點表名稱") 
-                return new[] { "日常火源自行檢查表", "防火避難設施自行檢查紀錄表", "消防安全設備自行檢查紀錄表" };
-            
-            if (tableName == "HazardStats" && columnName == "品項") 
-                return new[] { "物料/超級柴油", "物料/甲醇(物料)", "物料/乙醇", "物料/潤滑油(物料)", "物料/無鉛汽油", "物料/煤油", "鍍板/甲醇(鍍板)", "鍍板/TMPTA", "工務/潤滑油(重機)", "工務/乙炔", "強化/網版清洗劑", "強化/油墨", "強化/油墨(中加移過來)", "水站/氯錠" };
-            
-            if (tableName == "HazardStats" && columnName == "品項單位") 
-                return new[] { "公升", "公斤", "瓶" };
-            
-            if (tableName == "FireSelfInspection" && columnName == "單位") 
-                return new[] { "改切", "磨邊", "強化", "膠合", "複層", "鍍板", "儲運", "品管", "物料", "事務", "工安", "維修", "儀電", "廠務", "製程", "加工"  };
-            
-            if (tableName == "SafetyInspection") 
-            {
-                if (columnName == "單位") return new[] { "改切", "磨邊", "強化", "膠合", "複層", "鍍板", "儲運", "品管", "物料", "事務", "工安", "維修", "儀電", "廠務", "製程", "加工" };
-                if (columnName == "改善進度") return new[] { "未結案", "已結案"};    
-                if (columnName == "違規分類") return new[] { "危險之虞", "廠內規範", "環境管理", "勞檢曾開立之缺失", "與法規抵觸", "工安建議改善項目"};             
-                if (columnName == "危害類型主項") return new[] { "物理性", "化學性", "生物性", "人因工程", "社會性", "其他"};     
-                if (new[] { "列入安全觀查事項", "列入虛驚事項", "不安全行為", "廠內曾發生工傷事件項目" }.Contains(columnName)) return new[] { "", "v"}; 
-
-                if (columnName == "危害類型細分類")
-                {
-                    List<string> allSubCats = new List<string> { "" };
-                    foreach (var arr in HazardSubCategoryMap.Values) allSubCats.AddRange(arr);
-                    return allSubCats.Distinct().ToArray();
-                }
-
-                if (columnName == "違規樣態類型")
-                {
-                    List<string> allViolations = new List<string> { "" };
-                    foreach (var arr in ViolationTypeMap.Values) allViolations.AddRange(arr);
-                    return allViolations.Distinct().ToArray();
-                }
-            }
-
-            return null; 
+            return App_DropdownManager.GetOptions(tableName, columnName);
         }
 
         public static string[] GetDependentDropdownList(string tableName, string columnName, string parentValue)
         {
-            if (tableName == "SafetyInspection")
+            // 動態搜尋父層欄位名稱
+            string parentColName = "";
+            foreach (var kvp in App_DropdownManager.DropdownCache)
             {
-                if (columnName == "危害類型細分類")
+                var parts = kvp.Key.Split('|');
+                if (parts.Length == 4 && parts[0] == tableName && parts[1] == columnName && parts[3] == parentValue)
                 {
-                    if (HazardSubCategoryMap.ContainsKey(parentValue))
-                        return HazardSubCategoryMap[parentValue];
-                }
-                else if (columnName == "違規樣態類型")
-                {
-                    string searchKey = parentValue == "PH2_倒塌、崩塌、掉落" ? "PH2_倒塌、崩塌" : parentValue;
-                    if (ViolationTypeMap.ContainsKey(searchKey))
-                        return ViolationTypeMap[searchKey];
+                    parentColName = parts[2];
+                    break;
                 }
             }
-            return new string[] { "" }; 
+
+            return App_DropdownManager.GetOptions(tableName, columnName, parentColName, parentValue) ?? new string[] { "" };
         }
     }
 }
