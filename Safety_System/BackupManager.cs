@@ -1,5 +1,5 @@
-/// FILE: Safety_System/BackupManager.cs ///
 using System;
+using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -8,12 +8,10 @@ namespace Safety_System
 {
     public static class BackupManager
     {
-        // 預設值
         public static string BackupPath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Backups");
-        public static int KeepCount { get; private set; } = 4; // 預設保留 4 份 (約一個月)
+        public static int KeepCount { get; private set; } = 4; 
         public static DateTime LastBackupDate { get; private set; } = DateTime.MinValue;
 
-        // 🟢 改用 DataManager 全新 DB 存取機制
         public static void LoadConfig()
         {
             string dbPath = DataManager.GetSysSetting("BackupPath", "");
@@ -46,8 +44,6 @@ namespace Safety_System
         public static void RunAutoBackup()
         {
             LoadConfig();
-
-            // 判斷是否超過 7 天
             if ((DateTime.Today - LastBackupDate).TotalDays >= 7)
             {
                 ExecuteBackup();
@@ -60,35 +56,50 @@ namespace Safety_System
             {
                 if (!Directory.Exists(DataManager.BasePath)) return;
 
-                // 1. 建立當天日期的資料夾
                 string folderName = DateTime.Now.ToString("yyyyMMdd_HHmm");
                 string targetDir = Path.Combine(BackupPath, folderName);
                 Directory.CreateDirectory(targetDir);
 
-                // 2. 複製所有 .sqlite 檔案
+                // 🟢 修復：改用 SQLite 原生備份 API (Hot Backup)，徹底解決 File.Copy 造成的檔案鎖死與衝突問題
                 string[] files = Directory.GetFiles(DataManager.BasePath, "*.sqlite");
                 foreach (var file in files)
                 {
                     string destFile = Path.Combine(targetDir, Path.GetFileName(file));
-                    File.Copy(file, destFile, true);
+                    SafeBackupSQLite(file, destFile);
                 }
 
-                // 🟢 將系統核心配置也一併備份
                 string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
                 if (File.Exists(sysDbPath))
                 {
-                    File.Copy(sysDbPath, Path.Combine(targetDir, "SystemConfig.sqlite"), true);
+                    SafeBackupSQLite(sysDbPath, Path.Combine(targetDir, "SystemConfig.sqlite"));
                 }
 
-                // 3. 更新備份紀錄日期為今天
                 UpdateConfigDate(DateTime.Today);
-
-                // 4. 清理舊備份
                 CleanupOldBackups();
             }
             catch (Exception ex)
             {
                 MessageBox.Show("資料庫備份失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // 🟢 原生安全備份方法
+        private static void SafeBackupSQLite(string sourcePath, string destPath)
+        {
+            try
+            {
+                using (var source = new SQLiteConnection($"Data Source={sourcePath};Version=3;"))
+                using (var destination = new SQLiteConnection($"Data Source={destPath};Version=3;"))
+                {
+                    source.Open();
+                    destination.Open();
+                    source.BackupDatabase(destination, "main", "main", -1, null, 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                // 若原生備份失敗 (極少數情況)，降級嘗試 File.Copy
+                try { File.Copy(sourcePath, destPath, true); } catch { throw ex; }
             }
         }
 
