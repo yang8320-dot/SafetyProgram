@@ -408,29 +408,32 @@ namespace Safety_System
             r.CboTgtMatchCol.TextChanged += (s, e) => checkSyncType();
         }
 
-        // 🟢 徹底優化：防重寫設定清單 (修復 Label 被覆蓋的問題)
+        // 🟢 徹底解決圖層遮擋：改用 TableLayoutPanel 保證 Label 與 FlowLayoutPanel 絕對分離
         private void BtnShowTableKeysList_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { 
                 Text = "防重寫設定清單", 
                 Size = new Size(900, 550), 
                 StartPosition = FormStartPosition.CenterParent, 
-                FormBorderStyle = FormBorderStyle.Sizable, 
+                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖曳調整大小
                 MaximizeBox = true, 
                 MinimizeBox = false, 
                 BackColor = Color.White 
             })
             {
-                // 🟢 關閉 AutoSize，強制設定高度為 55，避免高度縮水被下方 Dock.Fill 的元件蓋過去
+                // 使用 TableLayoutPanel 強制劃分上下區塊，杜絕 Z-order 覆蓋問題
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
                 Label lbl = new Label { 
-                    Text = "已設定之資料表防重寫規則：", 
-                    Dock = DockStyle.Top, 
+                    Text = "已設定之資料表防重寫規則 (每個資料表僅限一組)：", 
+                    Dock = DockStyle.Fill, 
                     Padding = new Padding(15, 15, 15, 10), 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
-                    AutoSize = false,
-                    Height = 55
+                    AutoSize = true
                 };
-                f.Controls.Add(lbl);
+                tlp.Controls.Add(lbl, 0, 0);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { 
                     Dock = DockStyle.Fill, 
@@ -439,11 +442,10 @@ namespace Safety_System
                     WrapContents = false, 
                     Padding = new Padding(10) 
                 };
-                f.Controls.Add(flp);
+                tlp.Controls.Add(flp, 0, 1);
+                f.Controls.Add(tlp);
 
-                // 🟢 確保 Label 擁有最高優先佔位權，不會被 Fill 的元件從底部往上疊
-                lbl.BringToFront();
-
+                // 動態調整背景條寬度
                 flp.Resize += (s, ev) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel pnl) {
@@ -522,22 +524,25 @@ namespace Safety_System
                 Text = "同步設定清單", 
                 Size = new Size(900, 550), 
                 StartPosition = FormStartPosition.CenterParent, 
-                FormBorderStyle = FormBorderStyle.Sizable, 
+                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖曳調整大小
                 MaximizeBox = true, 
                 MinimizeBox = false, 
                 BackColor = Color.White 
             })
             {
-                // 🟢 關閉 AutoSize，強制設定高度為 55
+                // 使用 TableLayoutPanel 強制劃分上下區塊，杜絕 Z-order 覆蓋問題
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
                 Label lbl = new Label { 
                     Text = "已啟用之跨表同步規則清單：", 
-                    Dock = DockStyle.Top, 
+                    Dock = DockStyle.Fill, 
                     Padding = new Padding(15, 15, 15, 10), 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
-                    AutoSize = false,
-                    Height = 55
+                    AutoSize = true
                 };
-                f.Controls.Add(lbl);
+                tlp.Controls.Add(lbl, 0, 0);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { 
                     Dock = DockStyle.Fill, 
@@ -546,11 +551,10 @@ namespace Safety_System
                     WrapContents = false, 
                     Padding = new Padding(10) 
                 };
-                f.Controls.Add(flp);
+                tlp.Controls.Add(flp, 0, 1);
+                f.Controls.Add(tlp);
 
-                // 🟢 確保 Label 擁有最高優先佔位權
-                lbl.BringToFront();
-
+                // 動態調整背景條寬度
                 flp.Resize += (s, ev) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel pnl) {
