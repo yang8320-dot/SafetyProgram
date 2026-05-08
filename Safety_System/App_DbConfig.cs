@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -26,79 +25,88 @@ namespace Safety_System
         }
         private List<SyncRowUI> _syncRows = new List<SyncRowUI>();
 
-        private class ItemMap {
+        public class ItemMap {
             public string EnName;
             public string ChName;
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap = new Dictionary<string, (string, Dictionary<string, string>)> {
-            { "Safety", ("工安", new Dictionary<string, string> { 
-                { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
-                { "TrafficInjury", "交通意外" }, { "WorkInjury", "工傷事件" }, { "MinorInjury", "輕傷事件" },
-                { "LaborInspection", "勞檢稽查缺失" } 
-            })},
-            { "Chemical", ("化學品", new Dictionary<string, string> { 
-                { "SDS_Inventory", "SDS清冊" }, { "EnvTesting", "環測項目" }, { "ExposureLimits", "勞工暴露容許濃度" }, 
-                { "ToxicSubstances", "毒性物質" }, { "ConcernedChem", "關注性化學物質" }, { "PriorityMgmtChem", "優先管理化學品" }, 
-                { "ControlledChem", "管制化學品" }, { "SpecificChem", "特定化學物質" }, { "OrganicSolvents", "有機溶劑" }, 
-                { "WorkerHealthProtect", "勞工健康保護" }, { "PublicHazardous", "公共危險物品" }, { "AirPollutionEmerg", "空污緊急應變" }, 
-                { "FactoryHazardous", "工廠危險物品申報" } 
-            })},
-            { "Nursing", ("護理", new Dictionary<string, string> { { "HealthPromotion", "健康促進活動" }, { "WorkInjuryReport", "職災申報紀錄" } })},
-            { "Air", ("空污", new Dictionary<string, string> { { "AirPollution", "空污申報紀錄" } })},
-            { "Water", ("水污", new Dictionary<string, string> { 
-                { "DischargeData", "納管排放數據" }, { "WaterMeterReadings", "廢水處理水量記錄" }, { "WaterChemicals", "廢水處理用藥記錄" }, 
-                { "WaterVolume", "自來水用量統計" }, { "WaterUsageDaily", "自來水使用量" },
-                { "WaterPermitMaterial", "水污許可(原物料)" } 
-            })},
-            { "Waste", ("廢棄物", new Dictionary<string, string> { 
-                { "WasteMonthly", "廢棄物月表" }, { "Waste_IL", "複層月表" }, { "Waste_LM", "膠合月表" }, { "Waste_CR", "鍍板月表" }, 
-                { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" },
-                { "WastePermitMaterial", "廢棄物污許可(原物料)" }, 
-                { "WastePermitProduct", "廢棄物污許可(產品)" }, 
-                { "WastePermitWaste", "廢棄物污許可(廢棄物)" } 
-            })},
-            { "Fire", ("消防", new Dictionary<string, string> { 
-                { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
-            })},
-            { "TestData", ("檢測數據", new Dictionary<string, string> { 
-                { "CoolingWaterSelf", "循環水檢測(自評)" }, { "CoolingWaterVendor", "循環水檢測(廠商)" }, { "DrinkingWater", "飲用水檢測" }, 
-                { "EnvMonitor", "環境監測" }, { "IndustrialZoneTest", "工業區檢驗" }, { "OtherTests", "其它檢測數據" }, 
-                { "SoilGasTest", "土壤氣體檢測" }, { "TCLP", "TCLP毒性特性溶出" }, { "WastewaterPeriodic", "廢水定申檢" }, 
-                { "WastewaterSelfTest", "廢水自主檢驗" }, { "WaterMeterCalibration", "水錶校正" } 
-            })},
-            { "教育訓練", ("教育訓練", new Dictionary<string, string> { { "訓練時數", "教育訓練時數" } })},
-            { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
-            { "ESG", ("ESG", new Dictionary<string, string> { { "ESG_Performance", "ESG績效管理" } })},
-            { "ISO14001", ("ISO14001", new Dictionary<string, string> { 
-                { "TargetManagement", "目標管理" }, 
-                { "EnvInfoReceive", "環境資訊接收管制表" }, 
-                { "InternalComm", "內文聯絡書管制表" }, 
-                { "MailReceive", "郵件收文管制表" }, 
-                { "VisitorRecord", "來賓拜訪紀錄表" }
-            })},
-            { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
-            { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" }, { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
-            { "Menu2DB", ("選單2", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
-            { "Menu3DB", ("選單3", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
-            { "Menu4DB", ("選單4", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })}
-        };
-
-        public Control GetView()
+        // 🟢 將 DbMap 提供為靜態方法供全域取得，減少寫死重複定義
+        public static Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> GetDbMapCache()
         {
+            var map = new Dictionary<string, (string, Dictionary<string, string>)> {
+                { "Safety", ("工安", new Dictionary<string, string> { 
+                    { "NearMiss", "虛驚事件" }, { "SafetyInspection", "巡檢記錄" }, { "SafetyObservation", "安全觀察" }, 
+                    { "TrafficInjury", "交通意外" }, { "WorkInjury", "工傷事件" }, { "MinorInjury", "輕傷事件" },
+                    { "LaborInspection", "勞檢稽查缺失" } 
+                })},
+                { "Chemical", ("化學品", new Dictionary<string, string> { 
+                    { "SDS_Inventory", "SDS清冊" }, { "EnvTesting", "環測項目" }, { "ExposureLimits", "勞工暴露容許濃度" }, 
+                    { "ToxicSubstances", "毒性物質" }, { "ConcernedChem", "關注性化學物質" }, { "PriorityMgmtChem", "優先管理化學品" }, 
+                    { "ControlledChem", "管制化學品" }, { "SpecificChem", "特定化學物質" }, { "OrganicSolvents", "有機溶劑" }, 
+                    { "WorkerHealthProtect", "勞工健康保護" }, { "PublicHazardous", "公共危險物品" }, { "AirPollutionEmerg", "空污緊急應變" }, 
+                    { "FactoryHazardous", "工廠危險物品申報" } 
+                })},
+                { "Nursing", ("護理", new Dictionary<string, string> { { "HealthPromotion", "健康促進活動" }, { "WorkInjuryReport", "職災申報紀錄" } })},
+                { "Air", ("空污", new Dictionary<string, string> { { "AirPollution", "空污申報紀錄" } })},
+                { "Water", ("水污", new Dictionary<string, string> { 
+                    { "DischargeData", "納管排放數據" }, { "WaterMeterReadings", "廢水處理水量記錄" }, { "WaterChemicals", "廢水處理用藥記錄" }, 
+                    { "WaterVolume", "自來水用量統計" }, { "WaterUsageDaily", "自來水使用量" },
+                    { "WaterPermitMaterial", "水污許可(原物料)" } 
+                })},
+                { "Waste", ("廢棄物", new Dictionary<string, string> { 
+                    { "WasteMonthly", "廢棄物月表" }, { "Waste_IL", "複層月表" }, { "Waste_LM", "膠合月表" }, { "Waste_CR", "鍍板月表" }, 
+                    { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" },
+                    { "WastePermitMaterial", "廢棄物污許可(原物料)" }, 
+                    { "WastePermitProduct", "廢棄物污許可(產品)" }, 
+                    { "WastePermitWaste", "廢棄物污許可(廢棄物)" } 
+                })},
+                { "Fire", ("消防", new Dictionary<string, string> { 
+                    { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
+                })},
+                { "TestData", ("檢測數據", new Dictionary<string, string> { 
+                    { "CoolingWaterSelf", "循環水檢測(自評)" }, { "CoolingWaterVendor", "循環水檢測(廠商)" }, { "DrinkingWater", "飲用水檢測" }, 
+                    { "EnvMonitor", "環境監測" }, { "IndustrialZoneTest", "工業區檢驗" }, { "OtherTests", "其它檢測數據" }, 
+                    { "SoilGasTest", "土壤氣體檢測" }, { "TCLP", "TCLP毒性特性溶出" }, { "WastewaterPeriodic", "廢水定申檢" }, 
+                    { "WastewaterSelfTest", "廢水自主檢驗" }, { "WaterMeterCalibration", "水錶校正" } 
+                })},
+                { "教育訓練", ("教育訓練", new Dictionary<string, string> { { "訓練時數", "教育訓練時數" } })},
+                { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
+                { "ESG", ("ESG", new Dictionary<string, string> { { "ESG_Performance", "ESG績效管理" } })},
+                { "ISO14001", ("ISO14001", new Dictionary<string, string> { 
+                    { "TargetManagement", "目標管理" }, 
+                    { "EnvInfoReceive", "環境資訊接收管制表" }, 
+                    { "InternalComm", "內文聯絡書管制表" }, 
+                    { "MailReceive", "郵件收文管制表" }, 
+                    { "VisitorRecord", "來賓拜訪紀錄表" }
+                })},
+                { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
+                { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" }, { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
+                { "Menu2DB", ("選單2", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
+                { "Menu3DB", ("選單3", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
+                { "Menu4DB", ("選單4", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })}
+            };
+
             try {
                 DataTable dtMenus = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
                 if (dtMenus != null) {
                     foreach (DataRow r in dtMenus.Rows) {
                         string dbName = r["資料庫名"].ToString();
                         string tableName = r["資料表名"].ToString();
-                        if (_dbMap.ContainsKey(dbName)) {
-                            _dbMap[dbName].Tables[tableName] = tableName;
+                        if (map.ContainsKey(dbName)) {
+                            map[dbName].Tables[tableName] = tableName;
                         }
                     }
                 }
             } catch { }
+            return map;
+        }
+
+        private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
+
+        public Control GetView()
+        {
+            _dbMap = GetDbMapCache();
 
             Panel main = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0,0,0,50) };
 
@@ -156,10 +164,10 @@ namespace Safety_System
                 MessageBox.Show("備份設定已儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
-            Button btnManualBackup = new Button { Text = "立即執行手動備份", Location = new Point(300, 150), Size = new Size(200, 45), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnManualBackup = new Button { Text = "立即執行手動熱備份", Location = new Point(300, 150), Size = new Size(220, 45), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnManualBackup.Click += (s, e) => {
                 BackupManager.ExecuteBackup();
-                MessageBox.Show("手動備份執行完成！", "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("熱備份(Hot Backup)執行完成！\n不會影響目前操作中的使用者。", "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
@@ -408,20 +416,18 @@ namespace Safety_System
             r.CboTgtMatchCol.TextChanged += (s, e) => checkSyncType();
         }
 
-        // 🟢 徹底解決圖層遮擋：改用 TableLayoutPanel 保證 Label 與 FlowLayoutPanel 絕對分離
         private void BtnShowTableKeysList_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { 
                 Text = "防重寫設定清單", 
                 Size = new Size(900, 550), 
                 StartPosition = FormStartPosition.CenterParent, 
-                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖曳調整大小
+                FormBorderStyle = FormBorderStyle.Sizable,
                 MaximizeBox = true, 
                 MinimizeBox = false, 
                 BackColor = Color.White 
             })
             {
-                // 使用 TableLayoutPanel 強制劃分上下區塊，杜絕 Z-order 覆蓋問題
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -445,7 +451,6 @@ namespace Safety_System
                 tlp.Controls.Add(flp, 0, 1);
                 f.Controls.Add(tlp);
 
-                // 動態調整背景條寬度
                 flp.Resize += (s, ev) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel pnl) {
@@ -517,20 +522,18 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底優化：同步設定清單 (修復 Label 被覆蓋的問題)
         private void BtnShowSyncRulesList_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { 
                 Text = "同步設定清單", 
                 Size = new Size(900, 550), 
                 StartPosition = FormStartPosition.CenterParent, 
-                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖曳調整大小
+                FormBorderStyle = FormBorderStyle.Sizable,
                 MaximizeBox = true, 
                 MinimizeBox = false, 
                 BackColor = Color.White 
             })
             {
-                // 使用 TableLayoutPanel 強制劃分上下區塊，杜絕 Z-order 覆蓋問題
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -554,7 +557,6 @@ namespace Safety_System
                 tlp.Controls.Add(flp, 0, 1);
                 f.Controls.Add(tlp);
 
-                // 動態調整背景條寬度
                 flp.Resize += (s, ev) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel pnl) {
