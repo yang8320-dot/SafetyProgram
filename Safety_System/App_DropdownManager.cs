@@ -29,9 +29,13 @@ namespace Safety_System
 
         public App_DropdownManager()
         {
-            _dbMap = App_DbConfig.GetDbMapCache();
-            InitializeComponent();
-            LoadDropdownConfigs();
+            try {
+                _dbMap = App_DbConfig.GetDbMapCache();
+                InitializeComponent();
+                LoadDropdownConfigs();
+            } catch (Exception ex) {
+                MessageBox.Show($"初始化連動選單管理介面時發生嚴重錯誤：\n{ex.Message}\n{ex.StackTrace}", "系統崩潰防護", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void InitializeComponent()
@@ -81,8 +85,8 @@ namespace Safety_System
             pnlBottom.Controls.Add(_btnSave);
             this.Controls.Add(pnlBottom);
 
-            // ================= 四層連動編輯區 (全面重構排版，解決遮擋與間距問題) =================
-            TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(15, 20, 15, 20) };
+            // ================= 四層連動編輯區 (完美防護越界與破版) =================
+            TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
             _cboCols = new ComboBox[4];
@@ -93,8 +97,7 @@ namespace Safety_System
 
             for (int i = 0; i < 4; i++)
             {
-                // 1. 建立該欄的底板 (外框)
-                // 將 Margin 改為左右各 3，這樣欄與欄之間只會間隔 6px，非常緊湊
+                // 底板：極緊湊設計
                 Panel pCol = new Panel { 
                     Dock = DockStyle.Fill, 
                     Margin = new Padding(3, 0, 3, 0), 
@@ -103,7 +106,7 @@ namespace Safety_System
                 };
                 pCol.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pCol.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                // 2. 建立上方固定高度的控制項區塊 (放棄 TableLayoutPanel，改用絕對定位解決裁切 Bug)
+                // 固定控制區
                 Panel pTopControls = new Panel { Dock = DockStyle.Top, Height = 195, BackColor = Color.White };
 
                 Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Location = new Point(0, 0) };
@@ -119,11 +122,12 @@ namespace Safety_System
                 if (i == 0) {
                     lParent.Visible = false;
                     _cboParentVals[i].Visible = false;
+                    lOpt.Location = new Point(0, 105);
+                    pTopControls.Height = 135; // 第一層高度變矮，讓文字框更大
                 }
 
                 pTopControls.Controls.AddRange(new Control[] { lHeader, lCol, _cboCols[i], lParent, _cboParentVals[i], lOpt });
 
-                // 3. 建立下方的 TextBox (自動填滿剩下的所有空間)
                 _txtOptions[i] = new TextBox { 
                     Dock = DockStyle.Fill, 
                     Multiline = true, 
@@ -132,17 +136,19 @@ namespace Safety_System
                     Font = new Font("Microsoft JhengHei UI", 12F) 
                 };
 
-                // 設定隨視窗寬度自動伸展 ComboBox
+                // 自動隨視窗縮放寬度
+                int captureIndex = i; // 閉包捕獲防呆
                 pTopControls.Resize += (s, e) => {
-                    _cboCols[i].Width = pTopControls.Width - 5;
-                    _cboParentVals[i].Width = pTopControls.Width - 5;
+                    if (captureIndex < 4) {
+                        _cboCols[captureIndex].Width = pTopControls.Width - 5;
+                        _cboParentVals[captureIndex].Width = pTopControls.Width - 5;
+                    }
                 };
 
                 int colIndex = i;
                 _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
                 if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
 
-                // 依序加入底板 (先加 TextBox 填滿，再加 Top 固定)
                 pCol.Controls.Add(_txtOptions[i]);
                 pCol.Controls.Add(pTopControls);
 
@@ -156,8 +162,10 @@ namespace Safety_System
             _btnImport.Click += BtnImport_Click;
 
             _cboDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-            foreach (var kvp in _dbMap) {
-                _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+            if (_dbMap != null) {
+                foreach (var kvp in _dbMap) {
+                    _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                }
             }
             
             _cboDb.SelectedIndexChanged += (s, e) => {
@@ -165,7 +173,7 @@ namespace Safety_System
                 _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
                 ClearAllEditors();
 
-                if (_cboDb.SelectedItem is ItemMap map && !string.IsNullOrEmpty(map.EnName)) {
+                if (_cboDb.SelectedItem is ItemMap map && !string.IsNullOrEmpty(map.EnName) && _dbMap.ContainsKey(map.EnName)) {
                     foreach (var tbl in _dbMap[map.EnName].Tables) {
                         _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
                     }
@@ -197,42 +205,52 @@ namespace Safety_System
 
         private void HandleColSelectionChanged(int colIndex)
         {
-            if (colIndex == 0)
-            {
-                string colName = _cboCols[0].Text;
-                string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
-                if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
-                    LoadOptionsToTextBox(tbName, colName, "", "", _txtOptions[0]);
-                    UpdateChildParentVals(1, _txtOptions[0].Text);
+            try {
+                if (colIndex == 0)
+                {
+                    string colName = _cboCols[0].Text;
+                    string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
+                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
+                        LoadOptionsToTextBox(tbName, colName, "", "", _txtOptions[0]);
+                        UpdateChildParentVals(1, _txtOptions[0].Text);
+                    }
                 }
-            }
+            } catch { }
         }
 
         private void HandleParentValChanged(int colIndex)
         {
-            string colName = _cboCols[colIndex].Text;
-            string parentVal = _cboParentVals[colIndex].Text;
-            string parentCol = _cboCols[colIndex - 1].Text;
-            string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
+            try {
+                if (colIndex <= 0 || colIndex >= 4) return; // 絕對防越界
+                
+                string colName = _cboCols[colIndex].Text;
+                string parentVal = _cboParentVals[colIndex].Text;
+                string parentCol = _cboCols[colIndex - 1].Text;
+                string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
 
-            if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
-                LoadOptionsToTextBox(tbName, colName, parentCol, parentVal, _txtOptions[colIndex]);
-                if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _txtOptions[colIndex].Text);
-            }
+                if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
+                    LoadOptionsToTextBox(tbName, colName, parentCol, parentVal, _txtOptions[colIndex]);
+                    if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _txtOptions[colIndex].Text);
+                }
+            } catch { }
         }
 
         private void UpdateChildParentVals(int childIndex, string parentOptionsText)
         {
-            var opts = parentOptionsText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            string currentVal = _cboParentVals[childIndex].Text;
-            _cboParentVals[childIndex].Items.Clear();
-            _cboParentVals[childIndex].Items.Add("");
-            foreach (var o in opts) _cboParentVals[childIndex].Items.Add(o.Trim());
+            try {
+                if (childIndex <= 0 || childIndex >= 4) return;
+                
+                var opts = parentOptionsText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                string currentVal = _cboParentVals[childIndex].Text;
+                _cboParentVals[childIndex].Items.Clear();
+                _cboParentVals[childIndex].Items.Add("");
+                foreach (var o in opts) _cboParentVals[childIndex].Items.Add(o.Trim());
 
-            if (!string.IsNullOrEmpty(currentVal) && _cboParentVals[childIndex].Items.Contains(currentVal))
-                _cboParentVals[childIndex].Text = currentVal;
-            else
-                _cboParentVals[childIndex].SelectedIndex = 0;
+                if (!string.IsNullOrEmpty(currentVal) && _cboParentVals[childIndex].Items.Contains(currentVal))
+                    _cboParentVals[childIndex].Text = currentVal;
+                else
+                    _cboParentVals[childIndex].SelectedIndex = 0;
+            } catch { }
         }
 
         private void LoadOptionsToTextBox(string tableName, string colName, string parentColName, string parentVal, TextBox txt)
