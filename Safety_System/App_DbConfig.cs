@@ -189,7 +189,6 @@ namespace Safety_System
             Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(30, 280), Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveKeys.Click += BtnSaveKeys_Click;
 
-            // 🟢 防重寫設定清單 按鈕
             Button btnShowTableKeysList = new Button { Text = "防重寫設定清單", Location = new Point(280, 280), Size = new Size(200, 45), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnShowTableKeysList.Click += BtnShowTableKeysList_Click;
 
@@ -268,7 +267,6 @@ namespace Safety_System
             Button btnSaveSync = new Button { Text = "儲存新增的資料同步設定", Location = new Point(15, 10), Size = new Size(250, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveSync.Click += BtnSaveSync_Click;
             
-            // 🟢 同步設定清單 按鈕
             Button btnShowSyncRulesList = new Button { Text = "同步設定清單", Location = new Point(290, 10), Size = new Size(180, 45), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnShowSyncRulesList.Click += BtnShowSyncRulesList_Click;
 
@@ -410,26 +408,42 @@ namespace Safety_System
             r.CboTgtMatchCol.TextChanged += (s, e) => checkSyncType();
         }
 
-        // 🟢 徹底優化：防重寫設定清單 (視窗動態寬度與滾動支援)
+        // 🟢 徹底優化：防重寫設定清單 (修復 Label 被覆蓋的問題)
         private void BtnShowTableKeysList_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { 
                 Text = "防重寫設定清單", 
                 Size = new Size(900, 550), 
                 StartPosition = FormStartPosition.CenterParent, 
-                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖拉改變視窗大小
+                FormBorderStyle = FormBorderStyle.Sizable, 
                 MaximizeBox = true, 
                 MinimizeBox = false, 
                 BackColor = Color.White 
             })
             {
-                Label lbl = new Label { Text = "已設定之資料表防重寫規則：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true };
+                // 🟢 關閉 AutoSize，強制設定高度為 55，避免高度縮水被下方 Dock.Fill 的元件蓋過去
+                Label lbl = new Label { 
+                    Text = "已設定之資料表防重寫規則：", 
+                    Dock = DockStyle.Top, 
+                    Padding = new Padding(15, 15, 15, 10), 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    AutoSize = false,
+                    Height = 55
+                };
                 f.Controls.Add(lbl);
 
-                FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
+                FlowLayoutPanel flp = new FlowLayoutPanel { 
+                    Dock = DockStyle.Fill, 
+                    AutoScroll = true, 
+                    FlowDirection = FlowDirection.TopDown, 
+                    WrapContents = false, 
+                    Padding = new Padding(10) 
+                };
                 f.Controls.Add(flp);
 
-                // 讓內容背景條在視窗改變大小時，自動貼合邊緣伸展
+                // 🟢 確保 Label 擁有最高優先佔位權，不會被 Fill 的元件從底部往上疊
+                lbl.BringToFront();
+
                 flp.Resize += (s, ev) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel pnl) {
@@ -467,13 +481,11 @@ namespace Safety_System
                             string text = $"庫:[{db}] 表:[{tb}]  ➡️ 規則: {c1} | {c2} | {c3} | {c4}";
                             Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F) };
                             
-                            // 計算出文字需要的寬度，若超出視窗寬度，則強制延展，讓 FlowLayoutPanel 產生橫向捲軸
                             int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
                             int panelW = Math.Max(flp.ClientSize.Width - 25, reqW);
 
                             Panel p = new Panel { Width = panelW, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
                             
-                            // 刪除按鈕貼齊右側
                             Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(panelW - 60, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Anchor = AnchorStyles.Top | AnchorStyles.Right };
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
@@ -503,26 +515,42 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底優化：同步設定清單 (視窗動態寬度與滾動支援)
+        // 🟢 徹底優化：同步設定清單 (修復 Label 被覆蓋的問題)
         private void BtnShowSyncRulesList_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { 
                 Text = "同步設定清單", 
                 Size = new Size(900, 550), 
                 StartPosition = FormStartPosition.CenterParent, 
-                FormBorderStyle = FormBorderStyle.Sizable, // 允許拖拉改變視窗大小
+                FormBorderStyle = FormBorderStyle.Sizable, 
                 MaximizeBox = true, 
                 MinimizeBox = false, 
                 BackColor = Color.White 
             })
             {
-                Label lbl = new Label { Text = "已啟用之跨表同步規則清單：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true };
+                // 🟢 關閉 AutoSize，強制設定高度為 55
+                Label lbl = new Label { 
+                    Text = "已啟用之跨表同步規則清單：", 
+                    Dock = DockStyle.Top, 
+                    Padding = new Padding(15, 15, 15, 10), 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    AutoSize = false,
+                    Height = 55
+                };
                 f.Controls.Add(lbl);
 
-                FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
+                FlowLayoutPanel flp = new FlowLayoutPanel { 
+                    Dock = DockStyle.Fill, 
+                    AutoScroll = true, 
+                    FlowDirection = FlowDirection.TopDown, 
+                    WrapContents = false, 
+                    Padding = new Padding(10) 
+                };
                 f.Controls.Add(flp);
 
-                // 讓內容背景條在視窗改變大小時，自動貼合邊緣伸展
+                // 🟢 確保 Label 擁有最高優先佔位權
+                lbl.BringToFront();
+
                 flp.Resize += (s, ev) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel pnl) {
@@ -560,13 +588,11 @@ namespace Safety_System
                             string text = $"【{type}】 {sDb}.{sTb}[{sSync}]  ➡️  {tDb}.{tTb}[{tSync}]";
                             Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F) };
                             
-                            // 計算出文字需要的寬度，若超出視窗寬度，則強制延展，讓 FlowLayoutPanel 產生橫向捲軸
                             int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
                             int panelW = Math.Max(flp.ClientSize.Width - 25, reqW);
 
                             Panel p = new Panel { Width = panelW, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
                             
-                            // 刪除按鈕貼齊右側
                             Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(panelW - 60, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Anchor = AnchorStyles.Top | AnchorStyles.Right };
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
