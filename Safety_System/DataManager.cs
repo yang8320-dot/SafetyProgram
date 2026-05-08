@@ -1,9 +1,9 @@
-/// FILE: Safety_System/DataManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -13,7 +13,7 @@ namespace Safety_System
     public static class DataManager
     {
         private static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
-        private static readonly string SysConfigDbPath = Path.Combine(AppDir, "SystemConfig.sqlite");
+        public static readonly string SysConfigDbPath = Path.Combine(AppDir, "SystemConfig.sqlite");
 
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
 
@@ -31,6 +31,9 @@ namespace Safety_System
             using (var conn = new SQLiteConnection(connStr))
             {
                 conn.Open();
+                // 🟢 開啟 WAL 模式，徹底解決多人連線讀寫時的鎖死問題
+                using (var cmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", conn)) { cmd.ExecuteNonQuery(); }
+
                 using (var cmd = new SQLiteCommand(conn))
                 {
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS SysSettings (KeyName TEXT PRIMARY KEY, KeyValue TEXT);";
@@ -52,8 +55,18 @@ namespace Safety_System
                                         SyncType TEXT DEFAULT '單向同步');";
                     cmd.ExecuteNonQuery();
 
-                    // 支援自訂選單擴充表
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomMenus (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
+                    cmd.ExecuteNonQuery();
+
+                    // 🟢 新增：動態下拉選單設定資料表
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DropdownConfigs (
+                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                                        TableName TEXT, 
+                                        ColName TEXT, 
+                                        ParentColName TEXT, 
+                                        ParentValue TEXT, 
+                                        Options TEXT,
+                                        UNIQUE(TableName, ColName, ParentColName, ParentValue));";
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -159,6 +172,8 @@ namespace Safety_System
                 try {
                     using (var conn = new SQLiteConnection(GetConnString(dbName))) {
                         conn.Open(); 
+                        // 🟢 確保業務庫也開啟 WAL 模式
+                        using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
                         dbAction(conn); 
                         return;
                     }
@@ -203,12 +218,13 @@ namespace Safety_System
             } catch { }
         }
 
-        // 🟢 加入進度條參數，並且使用批次交易加速寫入，提升數十倍效能
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt, IProgress<int> progInt = null, IProgress<string> progStr = null)
         {
             try {
                 using (var conn = new SQLiteConnection(GetConnString(dbName))) {
                     conn.Open();
+                    using (var cmdPragma = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { cmdPragma.ExecuteNonQuery(); }
+
                     using (var trans = conn.BeginTransaction()) {
                         var keys = GetTableKeys(dbName, tableName);
 
@@ -223,8 +239,6 @@ namespace Safety_System
 
                         foreach (DataRow row in dt.Rows) {
                             currentRow++;
-                            
-                            // 🟢 回報寫入資料庫的進度
                             if (progInt != null && progStr != null && (currentRow % 50 == 0 || currentRow == totalRows)) {
                                 progInt.Report((int)((double)currentRow / totalRows * 100));
                                 progStr.Report($"正在高速寫入資料庫： 第 {currentRow} 筆 / 共 {totalRows} 筆");
@@ -293,7 +307,7 @@ namespace Safety_System
                                 cmd.ExecuteNonQuery();
                             }
                         }
-                        trans.Commit(); // 全部語句放入單一交易一次提交，極速提升寫入效能
+                        trans.Commit(); 
                     }
                 }
                 
@@ -345,7 +359,6 @@ namespace Safety_System
             RunSyncEngine(dbName, tableName);
         }
 
-        // 全域自動同步引擎
         public static void RunSyncEngine(string triggerDb, string triggerTable)
         {
             if (_isSyncing) return;
