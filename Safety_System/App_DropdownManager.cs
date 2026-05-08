@@ -17,9 +17,9 @@ namespace Safety_System
         private TextBox[] _txtOptions;
         private ComboBox[] _cboCols;
         private ComboBox[] _cboParentVals;
-        private Button _btnSave, _btnExport, _btnImport, _btnClearAll;
+        private Button _btnSave, _btnExport, _btnImport, _btnClearAll, _btnClearDb;
         
-        // 快取已設定的項目，用於繪製深藍色字體
+        // 快取已設定的項目，用於繪製亮藍色字體
         private HashSet<string> _configuredDbs = new HashSet<string>();
         private HashSet<string> _configuredTables = new HashSet<string>();
         private HashSet<string> _configuredCols = new HashSet<string>();
@@ -97,7 +97,11 @@ namespace Safety_System
             _btnClearAll = new Button { Text = "🗑️ 一鍵清除畫面上設定", Width = 260, Height = 50, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearAll.Click += BtnClearAll_Click;
 
-            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以【深藍色】字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
+            // 🟢 新增：清除資料庫設定按鈕
+            _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnClearDb.Click += BtnClearDb_Click;
+
+            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以【亮藍色粗體】字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -105,6 +109,8 @@ namespace Safety_System
             flpBtnBottom.Controls.Add(_btnSave);
             flpBtnBottom.Controls.Add(new Panel { Width = 15, Height = 10 }); 
             flpBtnBottom.Controls.Add(_btnClearAll);
+            flpBtnBottom.Controls.Add(new Panel { Width = 15, Height = 10 }); 
+            flpBtnBottom.Controls.Add(_btnClearDb);
             
             pnlBottom.Controls.Add(flpBtnBottom);
             this.Controls.Add(pnlBottom); // 第一個加入的元件，永遠在最底
@@ -226,7 +232,7 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // ================= 🟢 自訂繪製邏輯 (深藍色高亮) =================
+        // ================= 🟢 自訂繪製邏輯 (亮藍色粗體高亮) =================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -254,6 +260,8 @@ namespace Safety_System
 
         private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured)
         {
+            if (e.Index < 0) return;
+
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
                 e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
             } else {
@@ -263,22 +271,69 @@ namespace Safety_System
             string text = cbo.Items[e.Index].ToString();
             Brush textBrush = Brushes.Black;
             
-            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
-                textBrush = Brushes.White;
-            } else if (isConfigured) {
-                textBrush = Brushes.DarkBlue; 
+            // 🟢 設定粗體字型資源 (用完必須自動釋放)
+            using (Font boldFont = new Font(e.Font, FontStyle.Bold))
+            {
+                Font currentFont = e.Font;
+
+                if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+                    textBrush = Brushes.White;
+                    if (isConfigured) currentFont = boldFont; // 即使被選中，有設定的依然保持粗體
+                } else if (isConfigured) {
+                    textBrush = Brushes.DodgerBlue; // 🟢 亮藍色
+                    currentFont = boldFont;         // 🟢 粗體
+                }
+                
+                // 稍微往下平移一點，避免文字貼齊邊緣
+                e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             }
-            
-            e.Graphics.DrawString(text, e.Font, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             e.DrawFocusRectangle();
         }
 
         // ================= 🟢 一鍵清除畫面上設定 =================
         private void BtnClearAll_Click(object sender, EventArgs e)
         {
-            if (MessageBox.Show("確定要清空畫面上所有的選項與連動設定嗎？\n(注意：尚未按下儲存前，資料庫內的設定並不會被刪除。)", "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            if (MessageBox.Show("確定要清空畫面上所有的選項與連動設定嗎？\n(注意：尚未按下儲存前，資料庫內的設定並不會被刪除。)", "確認清除畫面", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 ClearAllEditors();
+            }
+        }
+
+        // ================= 🟢 清除資料庫設定 =================
+        private void BtnClearDb_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的下拉選單與連動設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
+            {
+                if (!AuthManager.VerifyAdmin("此為毀滅性操作，請輸入【管理者】密碼以執行：")) return;
+
+                try 
+                {
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                    {
+                        conn.Open();
+                        using (var cmd = new SQLiteCommand("DELETE FROM DropdownConfigs", conn)) 
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    
+                    MessageBox.Show("資料庫設定已全部清空！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    // 重新整理 UI 與快取
+                    ClearAllEditors();
+                    RefreshConfiguredCache();
+                    LoadDropdownConfigs();
+                    
+                    _cboDb.SelectedIndex = 0; 
+                    _cboDb.Invalidate();
+                    _cboTable.Invalidate();
+                    foreach(var c in _cboCols) c.Invalidate();
+                    
+                } 
+                catch (Exception ex) 
+                {
+                    MessageBox.Show($"清除失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
@@ -335,7 +390,7 @@ namespace Safety_System
                     if (!VerifyHiddenMenuPassword(menuName))
                     {
                         _isRevertingDb = true;
-                        _cboDb.SelectedIndex = 0; 
+                        _cboDb.SelectedIndex = 0; // 退回空白
                         _isRevertingDb = false;
                         return;
                     }
@@ -393,7 +448,7 @@ namespace Safety_System
                     {
                         MessageBox.Show("此欄位已在其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         _isRevertingCol = true;
-                        _cboCols[colIndex].SelectedIndex = 0; 
+                        _cboCols[colIndex].SelectedIndex = 0; // 強制退回空白
                         _isRevertingCol = false;
                         return;
                     }
@@ -597,11 +652,17 @@ namespace Safety_System
                                 }
                             }
                         }
-                        MessageBox.Show("下拉選單設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // 🟢 匯入後自動存檔、重整快取與畫面
+                        MessageBox.Show("下拉選單設定已批次匯入並【自動存檔覆寫】成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         
                         RefreshConfiguredCache();
                         LoadDropdownConfigs();
+                        
                         _cboDb.SelectedIndex = 0; 
+                        _cboDb.Invalidate();
+                        _cboTable.Invalidate();
+                        foreach(var c in _cboCols) c.Invalidate();
+                        
                     } catch (Exception ex) {
                         MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
