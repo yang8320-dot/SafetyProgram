@@ -140,16 +140,13 @@ namespace Safety_System
             menuNursing.DropDownItems.Add(CreateItem("健康促進活動", () => new App_CoreTable("Nursing", "HealthPromotion", "健康促進活動", new DefaultLogic()).GetView()));
             menuNursing.DropDownItems.Add(CreateItem("職災申報紀錄", () => new App_CoreTable("Nursing", "WorkInjuryReport", "職災申報紀錄", new DefaultLogic()).GetView()));
 
-            // 🟢 新建大項：空水廢
             var menuAirWaterWaste = new ToolStripMenuItem("空水廢");
 
-            // 空污子項
             var menuAir = new ToolStripMenuItem("空污");
             menuAir.DropDownItems.Add(CreateItem("空污看板", () => new App_AirDashboard().GetView()));
             menuAir.DropDownItems.Add(new ToolStripSeparator());
             menuAir.DropDownItems.Add(CreateItem("空污申報紀錄", () => new App_CoreTable("Air", "AirPollution", "空污申報紀錄", new DefaultLogic()).GetView()));
 
-            // 水污子項
             var menuWater = new ToolStripMenuItem("水污");
             menuWater.DropDownItems.Add(CreateItem("水資源管理看板", () => new App_WaterDashboard().GetView()));
             menuWater.DropDownItems.Add(CreateItem("用水申報", () => new App_WaterReport().GetView()));
@@ -163,7 +160,6 @@ namespace Safety_System
             menuWater.DropDownItems.Add(new ToolStripSeparator());
             menuWater.DropDownItems.Add(CreateItem("水污許可(原物料)", () => new App_CoreTable("Water", "WaterPermitMaterial", "水污許可(原物料)", new DefaultLogic()).GetView()));
 
-            // 廢棄物子項 (更名自產能及廢棄物)
             var menuWaste = new ToolStripMenuItem("廢棄物");
             menuWaste.DropDownItems.Add(CreateItem("廢棄物管理看板", () => new App_WasteDashboard().GetView()));
             menuWaste.DropDownItems.Add(new ToolStripSeparator());
@@ -179,7 +175,6 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(產品)", () => new App_CoreTable("Waste", "WastePermitProduct", "廢棄物污許可(產品)", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(廢棄物)", () => new App_CoreTable("Waste", "WastePermitWaste", "廢棄物污許可(廢棄物)", new DefaultLogic()).GetView()));
 
-            // 🟢 將空、水、廢加入空水廢母選單
             menuAirWaterWaste.DropDownItems.Add(menuAir);
             menuAirWaterWaste.DropDownItems.Add(menuWater);
             menuAirWaterWaste.DropDownItems.Add(menuWaste);
@@ -248,7 +243,6 @@ namespace Safety_System
                 catch (Exception ex) { MessageBox.Show($"執行外部程式失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
             
-            // 🟢 新增：簡易繪圖
             var drawAppItem = new ToolStripMenuItem("簡易繪圖");
             drawAppItem.Click += (s, e) => {
                 string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\Drawing\DrawingApp.exe");
@@ -297,6 +291,17 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
+            // 🟢 新增：下拉選單與連動設定入口
+            var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
+            dropdownItem.Click += (s, e) => {
+                try {
+                    if (AuthManager.VerifyAdmin()) { new App_DropdownManager().ShowDialog(this); } 
+                } catch (Exception ex) {
+                    MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(dropdownItem);
+
             var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
             cleanupItem.Click += (s, e) => {
                 try {
@@ -329,7 +334,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(pwdMgmtItem);
 
-            // 🟢 注意：將原本傳入的 menuAir, menuWater, menuWaste 替換為空水廢下的子節點
             AttachCustomMenus(menuReports, menuSafety, menuChemical, menuChemReg, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, _menu1, _menu2, _menu3, _menu4);
 
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
