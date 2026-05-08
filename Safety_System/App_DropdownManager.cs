@@ -87,19 +87,30 @@ namespace Safety_System
             this.BackColor = Color.WhiteSmoke;
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
-            // ================= 終極防彈排版：最外層主網格 (3列) =================
-            // 保證 上方固定、中間自適應填滿、下方固定，絕對不超出邊界
-            TableLayoutPanel layoutRoot = new TableLayoutPanel {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 3
-            };
-            layoutRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // 頂部操作區
-            layoutRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 中間四欄設定區
-            layoutRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // 底部按鈕區
+            // ================= 1. 底部儲存區 (最先加入，確保鎖死在最下方) =================
+            Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20, 20, 20, 20) };
+            pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-            // ================= 1. 頂部操作區 =================
-            Panel pnlTop = new Panel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Padding = new Padding(20) };
+            _btnSave = new Button { Text = "💾 儲存並套用當前設定", Width = 260, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSave.Click += BtnSave_Click;
+
+            _btnClearAll = new Button { Text = "🗑️ 一鍵清除畫面上設定", Width = 260, Height = 50, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnClearAll.Click += BtnClearAll_Click;
+
+            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以【深藍色】字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
+
+            pnlBottom.Controls.Add(lblHint);
+            
+            FlowLayoutPanel flpBtnBottom = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false };
+            flpBtnBottom.Controls.Add(_btnSave);
+            flpBtnBottom.Controls.Add(new Panel { Width = 15, Height = 10 }); 
+            flpBtnBottom.Controls.Add(_btnClearAll);
+            
+            pnlBottom.Controls.Add(flpBtnBottom);
+            this.Controls.Add(pnlBottom); // 第一個加入的元件，永遠在最底
+
+            // ================= 2. 頂部操作區 =================
+            Panel pnlTop = new Panel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Padding = new Padding(20) };
             pnlTop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTop.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
             FlowLayoutPanel flpTopMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
@@ -123,29 +134,10 @@ namespace Safety_System
             flpTopMain.Controls.Add(lblTitle);
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
-
-            // ================= 2. 底部儲存區 =================
-            Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Height = 90, BackColor = Color.White, Padding = new Padding(20, 15, 20, 15) };
-            pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-
-            _btnSave = new Button { Text = "💾 儲存並套用當前設定", Dock = DockStyle.Right, Width = 250, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-            _btnSave.Click += BtnSave_Click;
-
-            _btnClearAll = new Button { Text = "🗑️ 一鍵清除畫面上設定", Dock = DockStyle.Right, Width = 250, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-            _btnClearAll.Click += BtnClearAll_Click;
-
-            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以【深藍色】字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
-
-            pnlBottom.Controls.Add(lblHint);
             
-            FlowLayoutPanel flpBtnBottom = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false };
-            flpBtnBottom.Controls.Add(_btnSave);
-            flpBtnBottom.Controls.Add(new Panel { Width = 15, Height = 10 }); 
-            flpBtnBottom.Controls.Add(_btnClearAll);
-            
-            pnlBottom.Controls.Add(flpBtnBottom);
+            this.Controls.Add(pnlTop); // 第二個加入，永遠在頂部
 
-            // ================= 3. 中間四層連動編輯區 (全面使用內部網格防護) =================
+            // ================= 3. 中間四層連動編輯區 =================
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
@@ -157,7 +149,6 @@ namespace Safety_System
 
             for (int i = 0; i < 4; i++)
             {
-                // 單欄外框
                 Panel pColBorder = new Panel { 
                     Dock = DockStyle.Fill, 
                     Margin = new Padding(3, 0, 3, 0), 
@@ -166,15 +157,14 @@ namespace Safety_System
                 };
                 pColBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pColBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                // 單欄內部網格 (7 列)，每個控制項都有自己專屬的格子，絕不重疊
                 TableLayoutPanel pColInner = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7 };
-                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 標題
-                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Label 欄位
-                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Cbo 欄位
-                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Label 條件
-                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Cbo 條件
-                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Label 選項
-                pColInner.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // TextBox (填滿剩餘)
+                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+                pColInner.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+                pColInner.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); 
 
                 Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0,0,0,15) };
                 
@@ -197,7 +187,6 @@ namespace Safety_System
                     Font = new Font("Microsoft JhengHei UI", 12F) 
                 };
 
-                // 第一層隱藏父選項
                 if (i == 0) {
                     lParent.Visible = false;
                     _cboParentVals[i].Visible = false;
@@ -219,11 +208,8 @@ namespace Safety_System
                 tlpMain.Controls.Add(pColBorder, i, 0);
             }
 
-            // 依序加入最外層網格
-            layoutRoot.Controls.Add(pnlTop, 0, 0);
-            layoutRoot.Controls.Add(tlpMain, 0, 1);
-            layoutRoot.Controls.Add(pnlBottom, 0, 2);
-            this.Controls.Add(layoutRoot);
+            this.Controls.Add(tlpMain); // 最後加入 Fill
+            tlpMain.BringToFront();     // 確保 Fill 區域正確縮放
 
             // ================= 事件綁定 =================
             _btnExport.Click += BtnExport_Click;
@@ -240,7 +226,7 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // ================= 🟢 改良版自訂繪製邏輯 (深藍色高亮) =================
+        // ================= 🟢 自訂繪製邏輯 (深藍色高亮) =================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -268,7 +254,6 @@ namespace Safety_System
 
         private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured)
         {
-            // 修正背景渲染：選取時畫系統高亮色，未選取時畫白色背景
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
                 e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
             } else {
@@ -284,7 +269,6 @@ namespace Safety_System
                 textBrush = Brushes.DarkBlue; 
             }
             
-            // 稍微往下平移一點，避免文字貼齊邊緣
             e.Graphics.DrawString(text, e.Font, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             e.DrawFocusRectangle();
         }
@@ -351,7 +335,7 @@ namespace Safety_System
                     if (!VerifyHiddenMenuPassword(menuName))
                     {
                         _isRevertingDb = true;
-                        _cboDb.SelectedIndex = 0; // 退回空白
+                        _cboDb.SelectedIndex = 0; 
                         _isRevertingDb = false;
                         return;
                     }
@@ -409,7 +393,7 @@ namespace Safety_System
                     {
                         MessageBox.Show("此欄位已在其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         _isRevertingCol = true;
-                        _cboCols[colIndex].SelectedIndex = 0; // 強制退回空白
+                        _cboCols[colIndex].SelectedIndex = 0; 
                         _isRevertingCol = false;
                         return;
                     }
