@@ -16,7 +16,7 @@ namespace Safety_System
         
         private FlowLayoutPanel _flpCustomMenus;
 
-        // 定義可被擴充的主選單分類，及其對應的實體資料庫名稱
+        // 定義可被擴充的主選單分類，及其對應的實體資料庫名稱 (🟢 修改「廢棄物」名稱)
         private readonly Dictionary<string, string> _categoryToDbMap = new Dictionary<string, string>
         {
             { "日常作業", "Reports" },
@@ -26,7 +26,7 @@ namespace Safety_System
             { "護理", "Nursing" },
             { "空污", "Air" },
             { "水污", "Water" },
-            { "產能及廢棄物", "Waste" },
+            { "廢棄物", "Waste" },
             { "消防", "Fire" },
             { "檢測數據", "TestData" },
             { "教育訓練", "教育訓練" },
@@ -51,7 +51,6 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "選單新增與管理";
-            // 🟢 版面優化：加寬並加高視窗，提供更充裕的排版空間
             this.Size = new Size(650, 750);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -61,7 +60,6 @@ namespace Safety_System
 
             Label lblTitle = new Label { Text = "📂 自訂選單新增與管理", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.SteelBlue, Location = new Point(25, 20), AutoSize = true };
 
-            // 🟢 操作區：拉長寬度並優化元件間距
             GroupBox boxAdd = new GroupBox { Text = "操作區 (新增)", Location = new Point(25, 70), Size = new Size(590, 160), Font = new Font("Microsoft JhengHei UI", 12F) };
 
             Label lblCat = new Label { Text = "目標分類：", Location = new Point(20, 45), AutoSize = true };
@@ -81,7 +79,6 @@ namespace Safety_System
             boxAdd.Controls.Add(_txtMenuName);
             boxAdd.Controls.Add(_btnAdd);
 
-            // 🟢 列表區：同步拉長
             GroupBox boxList = new GroupBox { Text = "已建立之自訂選單 (更名 / 刪除)", Location = new Point(25, 250), Size = new Size(590, 430), Font = new Font("Microsoft JhengHei UI", 12F) };
             
             _flpCustomMenus = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
@@ -126,7 +123,6 @@ namespace Safety_System
 
             if (DataManager.BulkSaveTable("SystemConfig", "CustomMenus", dt))
             {
-                // 從 TableSchemaManager 讀取統一結構
                 string schema = TableSchemaManager.DefaultCustomSchema;
                 string createSql = $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});";
                 DataManager.InitTable(targetDb, newName, createSql);
@@ -155,7 +151,6 @@ namespace Safety_System
                 string dbName = row["資料庫名"].ToString();
                 string tableName = row["資料表名"].ToString();
 
-                // 🟢 列表項目：因應視窗加寬，將項目面寬加大至 540，按鈕往右移動避免擠壓文字
                 Panel pItem = new Panel { Width = 540, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                 Label lName = new Label { Text = $"[{category}] {tableName}", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
