@@ -70,7 +70,6 @@ namespace Safety_System
             flpTopMain.Controls.Add(lblTitle);
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
-            this.Controls.Add(pnlTop);
 
             // ================= 底部儲存區 =================
             Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 90, BackColor = Color.White, Padding = new Padding(20, 15, 20, 15) };
@@ -83,9 +82,8 @@ namespace Safety_System
 
             pnlBottom.Controls.Add(lblHint);
             pnlBottom.Controls.Add(_btnSave);
-            this.Controls.Add(pnlBottom);
 
-            // ================= 四層連動編輯區 (完美防護越界與破版) =================
+            // ================= 四層連動編輯區 (完美防破版重構) =================
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
@@ -97,51 +95,47 @@ namespace Safety_System
 
             for (int i = 0; i < 4; i++)
             {
-                // 底板：極緊湊設計
+                // 1. 每欄的外框底板 (極度緊湊 Margin)
                 Panel pCol = new Panel { 
                     Dock = DockStyle.Fill, 
                     Margin = new Padding(3, 0, 3, 0), 
-                    BackColor = Color.White, 
-                    Padding = new Padding(15) 
+                    BackColor = Color.White 
                 };
                 pCol.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pCol.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                // 固定控制區
-                Panel pTopControls = new Panel { Dock = DockStyle.Top, Height = 195, BackColor = Color.White };
+                // 2. 上半部操作區 (使用 FlowLayoutPanel 讓元件順序自動往下排，絕對不會溢出邊界)
+                FlowLayoutPanel flpColTop = new FlowLayoutPanel { 
+                    Dock = DockStyle.Top, 
+                    AutoSize = true, 
+                    AutoSizeMode = AutoSizeMode.GrowAndShrink, 
+                    FlowDirection = FlowDirection.TopDown, 
+                    WrapContents = false, 
+                    Padding = new Padding(15, 15, 15, 5) 
+                };
 
-                Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Location = new Point(0, 0) };
+                Label lHeader = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0,0,0,15) };
                 
-                Label lCol = new Label { Text = "綁定資料表欄位：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(0, 40) };
-                _cboCols[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(0, 65), Width = 300 };
+                Label lCol = new Label { Text = "綁定資料表欄位：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
+                _cboCols[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300 };
 
-                Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(0, 105) };
-                _cboParentVals[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(0, 130), Width = 300 };
+                Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
+                _cboParentVals[i] = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), Width = 300 };
                 
-                Label lOpt = new Label { Text = "下拉選項內容 (每一行代表一個選項)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Location = new Point(0, 170) };
+                Label lOpt = new Label { Text = "下拉選項內容 (每一行代表一個選項)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
 
                 if (i == 0) {
                     lParent.Visible = false;
                     _cboParentVals[i].Visible = false;
-                    lOpt.Location = new Point(0, 105);
-                    pTopControls.Height = 135; // 第一層高度變矮，讓文字框更大
                 }
 
-                pTopControls.Controls.AddRange(new Control[] { lHeader, lCol, _cboCols[i], lParent, _cboParentVals[i], lOpt });
+                flpColTop.Controls.AddRange(new Control[] { lHeader, lCol, _cboCols[i], lParent, _cboParentVals[i], lOpt });
 
-                _txtOptions[i] = new TextBox { 
-                    Dock = DockStyle.Fill, 
-                    Multiline = true, 
-                    ScrollBars = ScrollBars.Both, 
-                    WordWrap = false, 
-                    Font = new Font("Microsoft JhengHei UI", 12F) 
-                };
-
-                // 自動隨視窗縮放寬度
-                int captureIndex = i; // 閉包捕獲防呆
-                pTopControls.Resize += (s, e) => {
+                // 讓 ComboBox 寬度跟隨面板縮放
+                int captureIndex = i;
+                flpColTop.Resize += (s, e) => {
                     if (captureIndex < 4) {
-                        _cboCols[captureIndex].Width = pTopControls.Width - 5;
-                        _cboParentVals[captureIndex].Width = pTopControls.Width - 5;
+                        _cboCols[captureIndex].Width = flpColTop.Width - 30;
+                        _cboParentVals[captureIndex].Width = flpColTop.Width - 30;
                     }
                 };
 
@@ -149,13 +143,29 @@ namespace Safety_System
                 _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
                 if (i > 0) _cboParentVals[colIndex].SelectedIndexChanged += (s, e) => HandleParentValChanged(colIndex);
 
-                pCol.Controls.Add(_txtOptions[i]);
-                pCol.Controls.Add(pTopControls);
+                // 3. 下半部輸入框 (使用 Dock.Fill 填滿剩下的所有空間，確保底部不會被切掉)
+                Panel pnlTxt = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 0, 15, 15) };
+                _txtOptions[i] = new TextBox { 
+                    Dock = DockStyle.Fill, 
+                    Multiline = true, 
+                    ScrollBars = ScrollBars.Both, 
+                    WordWrap = false, 
+                    Font = new Font("Microsoft JhengHei UI", 12F) 
+                };
+                pnlTxt.Controls.Add(_txtOptions[i]);
+
+                // 4. 將上下部加入底板 (必須先加 Fill 再加 Top，這是 C# WinForms 確保 Fill 空間正確的規則)
+                pCol.Controls.Add(pnlTxt);
+                pCol.Controls.Add(flpColTop);
 
                 tlpMain.Controls.Add(pCol, i, 0);
             }
 
+            // 確保 Z-Order 正確，中央區域才能正確吃到所有剩餘高度
+            this.Controls.Add(pnlTop);
+            this.Controls.Add(pnlBottom);
             this.Controls.Add(tlpMain);
+            tlpMain.BringToFront(); 
 
             // ================= 事件綁定 =================
             _btnExport.Click += BtnExport_Click;
@@ -221,7 +231,7 @@ namespace Safety_System
         private void HandleParentValChanged(int colIndex)
         {
             try {
-                if (colIndex <= 0 || colIndex >= 4) return; // 絕對防越界
+                if (colIndex <= 0 || colIndex >= 4) return;
                 
                 string colName = _cboCols[colIndex].Text;
                 string parentVal = _cboParentVals[colIndex].Text;
