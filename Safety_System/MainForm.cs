@@ -277,20 +277,24 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
+            // 🟢 資料庫設定 (修改為三行提示)
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
-                    if (AuthManager.VerifyAdmin()) { LoadModule(new App_DbConfig().GetView()); } 
+                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { LoadModule(new App_DbConfig().GetView()); } 
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
+            // 🟢 下拉選單與連動設定 (修改為三行提示)
             var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
-                    if (AuthManager.VerifyAdmin()) { new App_DropdownManager().ShowDialog(this); } 
+                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { new App_DropdownManager().ShowDialog(this); } 
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -300,7 +304,8 @@ namespace Safety_System
             var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
             cleanupItem.Click += (s, e) => {
                 try {
-                    if (AuthManager.VerifyAdmin("執行空間清理需要管理者權限，請輸入密碼：")) { LoadModule(new App_AttachmentCleanup().GetView()); } 
+                    string prompt = "執行空間清理需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { LoadModule(new App_AttachmentCleanup().GetView()); } 
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入清理模組：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -309,10 +314,9 @@ namespace Safety_System
 
             var addUserItem = new ToolStripMenuItem("新增使用者");
             addUserItem.Click += (s, e) => {
-                if (AuthManager.VerifyLv3Only("請輸入【系統管理者】密碼 (Lv3) 以管理使用者：")) {
+                string prompt = "管理使用者需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
+                if (AuthManager.VerifyLv3Only(prompt)) {
                     new App_UserManager().ShowDialog(this);
-                } else {
-                    MessageBox.Show("密碼錯誤，拒絕存取。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
             menuSettings.DropDownItems.Add(addUserItem);
