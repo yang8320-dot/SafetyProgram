@@ -16,7 +16,7 @@ namespace Safety_System
         
         private FlowLayoutPanel _flpCustomMenus;
 
-        // 定義可被擴充的主選單分類，及其對應的實體資料庫名稱 (🟢 修改「廢棄物」名稱)
+        // 定義可被擴充的主選單分類，及其對應的實體資料庫名稱
         private readonly Dictionary<string, string> _categoryToDbMap = new Dictionary<string, string>
         {
             { "日常作業", "Reports" },
@@ -89,6 +89,41 @@ namespace Safety_System
             this.Controls.Add(boxList);
         }
 
+        // 🟢 加入隱藏選單的密碼驗證邏輯
+        private bool VerifyHiddenMenuPassword(string menuName)
+        {
+            using (Form p = new Form())
+            {
+                p.Width = 460; 
+                p.Height = 220;
+                p.Text = "個人選單安全驗證";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+                p.BackColor = Color.White;
+
+                Label lbl = new Label() { Left = 30, Top = 30, Text = $"請輸入【{menuName}】的解鎖密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog(this) == DialogResult.OK)
+                {
+                    string input = txt.Text.Trim();
+                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
+                    if (unlockedMenu == menuName) return true;
+                    
+                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return false; 
+            }
+        }
+
         private void BtnAdd_Click(object sender, EventArgs e)
         {
             if (_cboCategory.SelectedItem == null) return;
@@ -101,7 +136,16 @@ namespace Safety_System
                 return;
             }
 
-            if (!AuthManager.VerifyUser("新增自訂選單需要授權，請輸入密碼：")) return;
+            // 🟢 新增限制：若建立在個人選單下，必須先輸入該選單專屬密碼
+            bool isPersonalMenu = category.StartsWith("選單");
+            if (isPersonalMenu)
+            {
+                if (!VerifyHiddenMenuPassword(category)) return;
+            }
+
+            // 🟢 權限提示明確化
+            string authPrompt = "新增自訂選單需要系統權限，\n請輸入【Lv1一般操作、Lv2管理者、Lv3系統管理者】\n任一等級之授權密碼：";
+            if (!AuthManager.VerifyUser(authPrompt)) return;
 
             string targetDb = _categoryToDbMap[category];
             DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
@@ -144,27 +188,94 @@ namespace Safety_System
                 return;
             }
 
-            foreach (DataRow row in dt.Rows)
+            // 🟢 將資料依「分類」進行群組排序
+            var groupedMenus = dt.AsEnumerable()
+                                 .GroupBy(r => r.Field<string>("分類"))
+                                 .OrderBy(g => g.Key);
+
+            foreach (var group in groupedMenus)
             {
-                int id = Convert.ToInt32(row["Id"]);
-                string category = row["分類"].ToString();
-                string dbName = row["資料庫名"].ToString();
-                string tableName = row["資料表名"].ToString();
+                string category = group.Key;
+                bool isPersonalMenu = category.StartsWith("選單");
 
-                Panel pItem = new Panel { Width = 540, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
-                Label lName = new Label { Text = $"[{category}] {tableName}", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // --- 1. 建立分類的群組 Header ---
+                Panel pnlHeader = new Panel { Width = 540, Height = 40, BackColor = Color.LightSteelBlue, Margin = new Padding(0, 5, 0, 0) };
                 
-                Button btnRename = new Button { Text = "✏️ 更名", Width = 80, Height = 35, Location = new Point(360, 5), BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
-                btnRename.Click += (s, e) => ExecuteRename(id, dbName, tableName);
+                Button btnToggle = new Button { 
+                    Text = isPersonalMenu ? "+" : "-", 
+                    Width = 35, 
+                    Height = 35, 
+                    Location = new Point(5, 2), 
+                    Font = new Font("Consolas", 14F, FontStyle.Bold), 
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.WhiteSmoke,
+                    Cursor = Cursors.Hand
+                };
+                btnToggle.FlatAppearance.BorderSize = 0;
 
-                Button btnDel = new Button { Text = "🗑️ 刪除", Width = 80, Height = 35, Location = new Point(450, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand };
-                btnDel.Click += (s, e) => ExecuteDelete(id, dbName, tableName);
+                Label lblCat = new Label { 
+                    Text = $"📂 {category} ({group.Count()} 個選單)", 
+                    Location = new Point(50, 8), 
+                    AutoSize = true, 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
+                    ForeColor = Color.DarkSlateBlue
+                };
 
-                pItem.Controls.Add(lName);
-                pItem.Controls.Add(btnRename);
-                pItem.Controls.Add(btnDel);
+                pnlHeader.Controls.Add(btnToggle);
+                pnlHeader.Controls.Add(lblCat);
 
-                _flpCustomMenus.Controls.Add(pItem);
+                // --- 2. 建立存放選單項目的容器 ---
+                FlowLayoutPanel flpItems = new FlowLayoutPanel { 
+                    Width = 540, 
+                    AutoSize = true, 
+                    FlowDirection = FlowDirection.TopDown, 
+                    WrapContents = false, 
+                    Margin = new Padding(0, 0, 0, 10),
+                    Visible = !isPersonalMenu // 🟢 個人選單預設隱藏，一般選單預設展開
+                };
+
+                // --- 3. 綁定收合/展開與密碼驗證事件 ---
+                btnToggle.Click += (s, e) => {
+                    if (flpItems.Visible) {
+                        flpItems.Visible = false;
+                        btnToggle.Text = "+";
+                    } else {
+                        // 展開時，若是個人選單，要求輸入密碼
+                        if (isPersonalMenu) {
+                            if (!VerifyHiddenMenuPassword(category)) return;
+                        }
+                        flpItems.Visible = true;
+                        btnToggle.Text = "-";
+                    }
+                };
+
+                // --- 4. 繪製群組內的個別選單項目 ---
+                foreach (DataRow row in group)
+                {
+                    int id = Convert.ToInt32(row["Id"]);
+                    string dbName = row["資料庫名"].ToString();
+                    string tableName = row["資料表名"].ToString();
+
+                    Panel pItem = new Panel { Width = 520, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(20, 2, 0, 2) };
+                    Label lName = new Label { Text = $"• {tableName}", Location = new Point(10, 12), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                    
+                    Button btnRename = new Button { Text = "✏️ 更名", Width = 80, Height = 35, Location = new Point(340, 5), BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                    btnRename.FlatAppearance.BorderSize = 0;
+                    btnRename.Click += (s, e) => ExecuteRename(id, dbName, tableName);
+
+                    Button btnDel = new Button { Text = "🗑️ 刪除", Width = 80, Height = 35, Location = new Point(430, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                    btnDel.FlatAppearance.BorderSize = 0;
+                    btnDel.Click += (s, e) => ExecuteDelete(id, dbName, tableName);
+
+                    pItem.Controls.Add(lName);
+                    pItem.Controls.Add(btnRename);
+                    pItem.Controls.Add(btnDel);
+
+                    flpItems.Controls.Add(pItem);
+                }
+
+                _flpCustomMenus.Controls.Add(pnlHeader);
+                _flpCustomMenus.Controls.Add(flpItems);
             }
         }
 
