@@ -42,7 +42,6 @@ namespace Safety_System
 
         private bool _isFirstLoad = true;
         private bool _isApplyingWidths = false; 
-        // 🟢 新增：防止連動清除時互相干擾的旗標
         private bool _isCascading = false;
         
         private readonly string _dbName; 
@@ -424,6 +423,34 @@ namespace Safety_System
             });
         }
 
+        // 🟢 將 DataTable 中新出現的值提前寫入 ComboBox 的 Items，防止 DataError
+        private void PreFillComboBoxItems(DataTable dt)
+        {
+            if (dt == null || _dgv.Columns.Count == 0) return;
+            foreach (DataGridViewColumn col in _dgv.Columns)
+            {
+                if (col is DataGridViewComboBoxColumn cboCol && dt.Columns.Contains(col.Name))
+                {
+                    HashSet<string> existingItems = new HashSet<string>();
+                    foreach (var item in cboCol.Items)
+                    {
+                        existingItems.Add(item.ToString());
+                    }
+
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        if (row.RowState == DataRowState.Deleted) continue;
+                        string val = row[col.Name]?.ToString().Trim();
+                        if (!string.IsNullOrEmpty(val) && !existingItems.Contains(val))
+                        {
+                            existingItems.Add(val);
+                            cboCol.Items.Add(val);
+                        }
+                    }
+                }
+            }
+        }
+
         private void Dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right) {
@@ -534,6 +561,7 @@ namespace Safety_System
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
+            PreFillComboBoxItems(dt); // 🟢 修復下拉選單配對錯誤
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -562,6 +590,7 @@ namespace Safety_System
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
+            PreFillComboBoxItems(dt); // 🟢 修復下拉選單配對錯誤
             _dgv.DataSource = dt; 
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -616,6 +645,7 @@ namespace Safety_System
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
 
+            PreFillComboBoxItems(resultDt); // 🟢 修復下拉選單配對錯誤
             _dgv.DataSource = resultDt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -946,6 +976,7 @@ namespace Safety_System
                 _isApplyingWidths = true;
                 _dgv.SuspendLayout();
 
+                PreFillComboBoxItems(workingDt); // 🟢 修復下拉選單配對錯誤
                 _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
                 RestoreColumnOrder();
@@ -1154,7 +1185,6 @@ namespace Safety_System
             
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            // 🟢 徹底修正：使用旗標鎖定，確保清空子層級時不會再次觸發自身事件導致衝突
             _isCascading = true;
             try 
             {
@@ -1168,7 +1198,6 @@ namespace Safety_System
                         {
                             if (e.RowIndex < _dgv.Rows.Count) 
                             {
-                                // 使用 DBNull.Value 確保徹底清空且不干擾編輯器
                                 _dgv.Rows[e.RowIndex].Cells[childColName].Value = DBNull.Value;
                             }
                         }
@@ -1418,6 +1447,7 @@ namespace Safety_System
                     _isApplyingWidths = true;
                     _dgv.SuspendLayout();
 
+                    PreFillComboBoxItems(workingDt); // 🟢 修復下拉選單配對錯誤
                     _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
                     RestoreColumnOrder();
