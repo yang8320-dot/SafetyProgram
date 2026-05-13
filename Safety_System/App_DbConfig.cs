@@ -125,7 +125,9 @@ namespace Safety_System
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += (s, e) => {
-                if (!AuthManager.VerifyAdmin()) return; 
+                // 🟢 權限檢核：修改路徑需要 Lv2 等級權限，並傳入三行式提示
+                string authPrompt = "變更資料庫路徑需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                if (!AuthManager.VerifyAdmin(authPrompt)) return; 
 
                 if (System.IO.Directory.Exists(_txtPath.Text)) {
                     DataManager.SetBasePath(_txtPath.Text);
@@ -159,7 +161,10 @@ namespace Safety_System
 
             Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 150), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveBackup.Click += (s, e) => {
-                if (!AuthManager.VerifyAdmin()) return;
+                // 🟢 權限檢核：儲存備份設定
+                string authPrompt = "修改備份設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
                 BackupManager.SaveConfig(_txtBackupPath.Text, (int)_numKeepCount.Value);
                 MessageBox.Show("備份設定已儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
@@ -497,7 +502,8 @@ namespace Safety_System
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除 [{tb}] 的防重寫設定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                                    if (AuthManager.VerifyAdmin()) {
+                                    string authPrompt = "刪除防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                                    if (AuthManager.VerifyAdmin(authPrompt)) {
                                         using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
                                             conn.Open();
                                             using (var cmd = new SQLiteCommand("DELETE FROM TableKeys WHERE DbName=@DB AND TableName=@TB", conn)) {
@@ -603,7 +609,8 @@ namespace Safety_System
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除此同步規則？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                                    if (AuthManager.VerifyAdmin()) {
+                                    string authPrompt = "刪除資料同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                                    if (AuthManager.VerifyAdmin(authPrompt)) {
                                         using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
                                             conn.Open();
                                             using (var cmd = new SQLiteCommand("DELETE FROM SyncRules WHERE Id=@Id", conn)) {
@@ -670,7 +677,9 @@ namespace Safety_System
 
         private void BtnSaveSync_Click(object sender, EventArgs e)
         {
-            if (!AuthManager.VerifyAdmin()) return;
+            // 🟢 儲存同步設定加上三行驗證提示
+            string authPrompt = "新增資料同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
             HashSet<string> requiredMenusToUnlock = new HashSet<string>();
             
@@ -806,7 +815,9 @@ namespace Safety_System
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
-            if (!AuthManager.VerifyAdmin()) return; 
+            // 🟢 防重寫設定加上三行驗證提示
+            string authPrompt = "修改防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return; 
 
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) {
                 MessageBox.Show("請先選擇資料庫與資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
@@ -845,6 +856,7 @@ namespace Safety_System
                 MessageBox.Show("請先選擇要刪除的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
+            // VerifyTableDelete 已有自己獨立的雙重嚴格驗證提示
             if (!AuthManager.VerifyTableDelete()) return;
 
             try {
