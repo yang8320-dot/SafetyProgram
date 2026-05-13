@@ -40,7 +40,6 @@ namespace Safety_System
 
         public App_MenuManager()
         {
-            // 初始化自訂選單對照表 (存放在系統資料庫)
             string createSql = "CREATE TABLE IF NOT EXISTS [CustomMenus] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
             DataManager.InitTable("SystemConfig", "CustomMenus", createSql);
             
@@ -89,7 +88,6 @@ namespace Safety_System
             this.Controls.Add(boxList);
         }
 
-        // 🟢 加入隱藏選單的密碼驗證邏輯
         private bool VerifyHiddenMenuPassword(string menuName)
         {
             using (Form p = new Form())
@@ -136,16 +134,15 @@ namespace Safety_System
                 return;
             }
 
-            // 🟢 新增限制：若建立在個人選單下，必須先輸入該選單專屬密碼
             bool isPersonalMenu = category.StartsWith("選單");
             if (isPersonalMenu)
             {
                 if (!VerifyHiddenMenuPassword(category)) return;
             }
 
-            // 🟢 權限提示明確化
-            string authPrompt = "新增自訂選單需要系統權限，\n請輸入【Lv1一般操作、Lv2管理者、Lv3系統管理者】\n任一等級之授權密碼：";
-            if (!AuthManager.VerifyUser(authPrompt)) return;
+            // 🟢 修改為 VerifyAdmin (Lv2 以上)，並套用三行字提示
+            string authPrompt = "新增自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
             string targetDb = _categoryToDbMap[category];
             DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
@@ -188,7 +185,6 @@ namespace Safety_System
                 return;
             }
 
-            // 🟢 修正編譯錯誤：改用標準 LINQ Cast<DataRow>() 替代 AsEnumerable() 
             var groupedMenus = dt.Rows.Cast<DataRow>()
                                  .GroupBy(r => r["分類"].ToString())
                                  .OrderBy(g => g.Key);
@@ -198,7 +194,6 @@ namespace Safety_System
                 string category = group.Key;
                 bool isPersonalMenu = category.StartsWith("選單");
 
-                // --- 1. 建立分類的群組 Header ---
                 Panel pnlHeader = new Panel { Width = 540, Height = 40, BackColor = Color.LightSteelBlue, Margin = new Padding(0, 5, 0, 0) };
                 
                 Button btnToggle = new Button { 
@@ -224,23 +219,20 @@ namespace Safety_System
                 pnlHeader.Controls.Add(btnToggle);
                 pnlHeader.Controls.Add(lblCat);
 
-                // --- 2. 建立存放選單項目的容器 ---
                 FlowLayoutPanel flpItems = new FlowLayoutPanel { 
                     Width = 540, 
                     AutoSize = true, 
                     FlowDirection = FlowDirection.TopDown, 
                     WrapContents = false, 
                     Margin = new Padding(0, 0, 0, 10),
-                    Visible = !isPersonalMenu // 🟢 個人選單預設隱藏，一般選單預設展開
+                    Visible = !isPersonalMenu 
                 };
 
-                // --- 3. 綁定收合/展開與密碼驗證事件 ---
                 btnToggle.Click += (s, e) => {
                     if (flpItems.Visible) {
                         flpItems.Visible = false;
                         btnToggle.Text = "+";
                     } else {
-                        // 展開時，若是個人選單，要求輸入密碼
                         if (isPersonalMenu) {
                             if (!VerifyHiddenMenuPassword(category)) return;
                         }
@@ -249,7 +241,6 @@ namespace Safety_System
                     }
                 };
 
-                // --- 4. 繪製群組內的個別選單項目 ---
                 foreach (DataRow row in group)
                 {
                     int id = Convert.ToInt32(row["Id"]);
@@ -310,7 +301,9 @@ namespace Safety_System
 
         private void ExecuteRename(int id, string dbName, string oldTableName)
         {
-            if (!AuthManager.VerifyUser("更名需要授權，請輸入密碼：")) return;
+            // 🟢 修改為 VerifyAdmin (Lv2 以上)，並套用三行字提示
+            string authPrompt = "更名自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
             string newName = ShowInputBox($"請輸入【{oldTableName}】的新名稱：", "重新命名選單", oldTableName);
             if (string.IsNullOrWhiteSpace(newName) || newName == oldTableName) return;
