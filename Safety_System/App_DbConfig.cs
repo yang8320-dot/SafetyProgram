@@ -32,7 +32,6 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        // 🟢 修正編譯錯誤：補上具名 Tuple 的完整宣告 (ChDbName, Tables)
         public static Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> GetDbMapCache()
         {
             Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> map = new Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> {
@@ -82,7 +81,7 @@ namespace Safety_System
                     { "VisitorRecord", "來賓拜訪紀錄表" }
                 })},
                 { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
-                { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" }, { "AccountManage", "帳密管理" }, { "KPI", "KPI" }, { "CultureImprove", "文化改善" }, { "PBC", "PBC" } })},
+                { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
                 { "Menu2DB", ("選單2", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
                 { "Menu3DB", ("選單3", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
                 { "Menu4DB", ("選單4", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })}
