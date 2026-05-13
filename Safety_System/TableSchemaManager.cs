@@ -1,3 +1,4 @@
+/// FILE: Safety_System/TableSchemaManager.cs ///
 using System.Collections.Generic;
 using System.Linq;
 
@@ -85,10 +86,6 @@ namespace Safety_System
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
             // 個人隱藏選單
-            { "AccountManage", "[日期] TEXT, [系統名稱] TEXT, [網址] TEXT, [登入帳號] TEXT, [登入密碼] TEXT, [使用者] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "KPI", "[年月] TEXT, [單位] TEXT, [指標名稱] TEXT, [目標值] TEXT, [實際值] TEXT, [達成狀況] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "CultureImprove", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [執行狀況] TEXT, [主責人員] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "PBC", "[年月] TEXT, [單位] TEXT, [姓名] TEXT, [考核項目] TEXT, [自評分數] TEXT, [主管評核] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkItems", "[日期] TEXT, [執行] TEXT, [問題] TEXT, [改善] TEXT, [追蹤] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
