@@ -188,9 +188,9 @@ namespace Safety_System
                 return;
             }
 
-            // 🟢 將資料依「分類」進行群組排序
-            var groupedMenus = dt.AsEnumerable()
-                                 .GroupBy(r => r.Field<string>("分類"))
+            // 🟢 修正編譯錯誤：改用標準 LINQ Cast<DataRow>() 替代 AsEnumerable() 
+            var groupedMenus = dt.Rows.Cast<DataRow>()
+                                 .GroupBy(r => r["分類"].ToString())
                                  .OrderBy(g => g.Key);
 
             foreach (var group in groupedMenus)
