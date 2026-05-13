@@ -19,7 +19,6 @@ namespace Safety_System
         private ComboBox[] _cboParentVals;
         private Button _btnSave, _btnExport, _btnImport, _btnClearAll, _btnClearDb;
         
-        // 🟢 Value(bool) 代表「是否為連動」。false=單層(亮藍), true=連動(紅色)
         private Dictionary<string, bool> _configuredDbs = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredTables = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredCols = new Dictionary<string, bool>();
@@ -70,19 +69,15 @@ namespace Safety_System
                             string col = reader["ColName"].ToString();
                             string pCol = reader["ParentColName"].ToString();
 
-                            // 判斷該筆設定是否有父層關聯 (代表這是一個連動群組)
                             bool isLinked = !string.IsNullOrEmpty(pCol);
 
-                            // 處理 Table 快取
                             if (!_configuredTables.ContainsKey(tb)) _configuredTables[tb] = false;
                             if (isLinked) _configuredTables[tb] = true;
 
-                            // 處理 Col 快取 (當前子層)
                             string colKey = $"{tb}_{col}";
                             if (!_configuredCols.ContainsKey(colKey)) _configuredCols[colKey] = false;
                             if (isLinked) _configuredCols[colKey] = true;
 
-                            // 處理 Col 快取 (該子層依賴的父層，父層本身也是連動的一環)
                             if (isLinked) 
                             {
                                 string pColKey = $"{tb}_{pCol}";
@@ -92,7 +87,6 @@ namespace Safety_System
                     }
                 }
                 
-                // 處理 DB 快取 (依據底下的 Table 狀態往上推)
                 if (_dbMap != null) 
                 {
                     foreach(var kvp in _dbMap) 
@@ -121,7 +115,6 @@ namespace Safety_System
             this.BackColor = Color.WhiteSmoke;
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
-            // ================= 1. 底部儲存區 =================
             Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20) };
             pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
@@ -148,7 +141,6 @@ namespace Safety_System
             pnlBottom.Controls.Add(flpBtnBottom);
             this.Controls.Add(pnlBottom); 
 
-            // ================= 2. 頂部操作區 =================
             Panel pnlTop = new Panel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Padding = new Padding(20) };
             pnlTop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTop.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
@@ -176,7 +168,6 @@ namespace Safety_System
             
             this.Controls.Add(pnlTop); 
 
-            // ================= 3. 中間四層連動編輯區 =================
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
@@ -268,7 +259,6 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // ================= 🟢 自訂繪製邏輯 (根據連動狀態切換紅/藍色) =================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -342,7 +332,6 @@ namespace Safety_System
                 } 
                 else if (isConfigured) 
                 {
-                    // 🟢 若有連動關聯，標示深紅色；若僅為單層，標示亮藍色
                     textBrush = isLinked ? Brushes.Crimson : Brushes.DodgerBlue; 
                     currentFont = boldFont;         
                 }
@@ -352,7 +341,6 @@ namespace Safety_System
             e.DrawFocusRectangle();
         }
 
-        // ================= 🟢 一鍵清除畫面上設定 =================
         private void BtnClearAll_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("確定要清空畫面上所有的選項與連動設定嗎？\n(注意：尚未按下儲存前，資料庫內的設定並不會被刪除。)", "確認清除畫面", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
@@ -361,12 +349,13 @@ namespace Safety_System
             }
         }
 
-        // ================= 🟢 清除資料庫設定 =================
         private void BtnClearDb_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的下拉選單與連動設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
             {
-                if (!AuthManager.VerifyAdmin("此為毀滅性操作，請輸入【管理者】密碼以執行：")) return;
+                // 🟢 加入三行式的驗證提示
+                string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
                 try 
                 {
@@ -619,6 +608,10 @@ namespace Safety_System
                 MessageBox.Show("請先選擇資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
+            // 🟢 加入三行式的驗證提示
+            string authPrompt = "儲存下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
 
             try 
@@ -666,7 +659,6 @@ namespace Safety_System
 
                 LoadDropdownConfigs(); 
                 if (!string.IsNullOrEmpty(_txtOptions[0].Text)) UpdateChildParentVals(1, _txtOptions[0].Text);
-
             } 
             catch (Exception ex) 
             {
@@ -709,6 +701,10 @@ namespace Safety_System
 
         private void BtnImport_Click(object sender, EventArgs e)
         {
+            // 🟢 加入三行式的驗證提示
+            string authPrompt = "匯入下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
