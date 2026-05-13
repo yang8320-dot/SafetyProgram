@@ -18,40 +18,34 @@ namespace Safety_System
 
         /// <summary>
         /// 驗證一般使用者權限 (Lv1, Lv2, Lv3 皆可通過)
-        /// 用於：新增/修改欄位、刪除紀錄等日常維護操作
         /// </summary>
-        public static bool VerifyUser(string prompt = "請輸入操作授權密碼：")
+        public static bool VerifyUser(string prompt = "執行此操作需要系統權限\n請輸入【Lv1一般操作】等級以上\n密碼進行授權：")
         {
-            string input = ShowAuthDialog(prompt);
-            return input == Pwd_Lv1 || input == Pwd_Lv2 || input == Pwd_Lv3;
+            return ShowAuthDialog(prompt, input => input == Pwd_Lv1 || input == Pwd_Lv2 || input == Pwd_Lv3);
         }
 
         /// <summary>
         /// 驗證管理者權限 (僅 Lv2, Lv3 可通過)
-        /// 用於：資料庫路徑設定、防重寫規則設定、個人選單密碼變更等
         /// </summary>
-        public static bool VerifyAdmin(string prompt = "此為系統核心設定，請輸入【管理者】密碼：")
+        public static bool VerifyAdmin(string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：")
         {
-            string input = ShowAuthDialog(prompt);
-            return input == Pwd_Lv2 || input == Pwd_Lv3;
+            return ShowAuthDialog(prompt, input => input == Pwd_Lv2 || input == Pwd_Lv3);
         }
 
         /// <summary>
         /// 驗證管理者權限 (嚴格限定僅使用 Lv2 密碼)
         /// </summary>
-        public static bool VerifyLv2Only(string prompt = "請輸入【管理者】密碼 (Lv2)：")
+        public static bool VerifyLv2Only(string prompt = "執行此操作需要系統權限\n請輸入【Lv2管理者】\n密碼進行授權：")
         {
-            string input = ShowAuthDialog(prompt);
-            return input == Pwd_Lv2;
+            return ShowAuthDialog(prompt, input => input == Pwd_Lv2);
         }
 
         /// <summary>
         /// 驗證系統管理者權限 (嚴格限定僅使用 Lv3 密碼)
         /// </summary>
-        public static bool VerifyLv3Only(string prompt = "請輸入【系統管理者】密碼 (Lv3)：")
+        public static bool VerifyLv3Only(string prompt = "執行此操作需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：")
         {
-            string input = ShowAuthDialog(prompt);
-            return input == Pwd_Lv3;
+            return ShowAuthDialog(prompt, input => input == Pwd_Lv3);
         }
 
         /// <summary>
@@ -59,46 +53,58 @@ namespace Safety_System
         /// </summary>
         public static bool VerifyTableDelete()
         {
-            if (!VerifyLv2Only("此為毀滅性操作(1/2)！\n請先輸入【管理者密碼 Lv2】：")) 
+            if (!VerifyLv2Only("此為毀滅性操作(1/2)！\n請先輸入【Lv2管理者】\n密碼進行授權：")) 
             {
-                MessageBox.Show("Lv2 管理者密碼錯誤，拒絕授權。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
 
-            if (!VerifyLv3Only("驗證通過(1/2)！\n請接著輸入【系統管理者密碼 Lv3】以執行最終確認："))
+            if (!VerifyLv3Only("驗證通過(1/2)！\n請接著輸入【Lv3系統管理者】\n密碼以執行最終確認："))
             {
-                MessageBox.Show("Lv3 系統管理者密碼錯誤，操作已取消。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
 
             return true;
         }
 
-        // 🟢 私有對話框邏輯，供內部共用 (修正視窗高度與 Label 自動換行排版)
-        private static string ShowAuthDialog(string prompt)
+        // 🟢 核心視窗邏輯：加入驗證失敗彈窗與重試機制
+        private static bool ShowAuthDialog(string prompt, Func<string, bool> validator)
         {
             using (Form p = new Form())
             {
-                p.Width = 500; 
-                p.Height = 300; // 增加視窗高度，容納多行文字
+                p.Width = 420; 
+                p.Height = 280; 
                 p.Text = "權限驗證";
                 p.StartPosition = FormStartPosition.CenterParent;
                 p.FormBorderStyle = FormBorderStyle.FixedDialog;
                 p.MaximizeBox = false; 
                 p.MinimizeBox = false;
+                p.BackColor = Color.WhiteSmoke;
 
-                // 🟢 調整 Label 高度為 90，確保換行文字不會超出邊界被卡掉
-                Label lbl = new Label() { Left = 30, Top = 25, Width = 420, Height = 90, Text = prompt, AutoSize = false, Font = new Font("Microsoft JhengHei UI", 12F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 370, Left = 30, Top = 125, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認", DialogResult = DialogResult.OK, Left = 280, Top = 180, Width = 120, Height = 40, Font = new Font("Microsoft JhengHei UI", 12F) };
+                Label lbl = new Label() { Left = 30, Top = 25, Width = 350, Height = 80, Text = prompt, AutoSize = false, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 340, Left = 30, Top = 115, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認授權", Left = 135, Top = 175, Width = 130, Height = 45, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+
+                bool isAuthorized = false;
+
+                btn.Click += (s, e) => {
+                    if (validator(txt.Text)) {
+                        isAuthorized = true;
+                        p.DialogResult = DialogResult.OK;
+                    } else {
+                        // 🟢 密碼錯誤對話窗，不關閉驗證視窗，清空後重試
+                        MessageBox.Show("密碼錯誤！授權失敗，請重新輸入！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        txt.Clear();
+                        txt.Focus();
+                    }
+                };
 
                 p.Controls.Add(lbl); 
                 p.Controls.Add(txt); 
                 p.Controls.Add(btn);
-                p.AcceptButton = btn;
+                p.AcceptButton = btn; // 綁定 Enter 鍵觸發按鈕
 
-                if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK) return txt.Text;
-                return "";
+                p.ShowDialog(Form.ActiveForm);
+                return isAuthorized;
             }
         }
     }
