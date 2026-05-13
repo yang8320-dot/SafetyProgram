@@ -19,10 +19,10 @@ namespace Safety_System
         private ComboBox[] _cboParentVals;
         private Button _btnSave, _btnExport, _btnImport, _btnClearAll, _btnClearDb;
         
-        // 快取已設定的項目，用於繪製亮藍色字體
-        private HashSet<string> _configuredDbs = new HashSet<string>();
-        private HashSet<string> _configuredTables = new HashSet<string>();
-        private HashSet<string> _configuredCols = new HashSet<string>();
+        // 🟢 修改快取結構：Value(bool) 代表「是否為連動」。false=單層(亮藍), true=連動(紅色)
+        private Dictionary<string, bool> _configuredDbs = new Dictionary<string, bool>();
+        private Dictionary<string, bool> _configuredTables = new Dictionary<string, bool>();
+        private Dictionary<string, bool> _configuredCols = new Dictionary<string, bool>();
 
         private bool _isRevertingDb = false;
         private bool _isRevertingCol = false;
@@ -55,22 +55,42 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using(var cmd = new SQLiteCommand("SELECT DISTINCT TableName, ColName FROM DropdownConfigs", conn))
+                    using(var cmd = new SQLiteCommand("SELECT TableName, ColName, ParentColName FROM DropdownConfigs", conn))
                     using(var reader = cmd.ExecuteReader()) {
                         while(reader.Read()) {
                             string tb = reader["TableName"].ToString();
                             string col = reader["ColName"].ToString();
-                            _configuredTables.Add(tb);
-                            _configuredCols.Add($"{tb}_{col}"); 
+                            string pCol = reader["ParentColName"].ToString();
+
+                            // 判斷該筆設定是否有父層關聯 (代表這是一個連動群組)
+                            bool isLinked = !string.IsNullOrEmpty(pCol);
+
+                            // 處理 Table 快取
+                            if (!_configuredTables.ContainsKey(tb)) _configuredTables[tb] = false;
+                            if (isLinked) _configuredTables[tb] = true;
+
+                            // 處理 Col 快取 (當前子層)
+                            string colKey = $"{tb}_{col}";
+                            if (!_configuredCols.ContainsKey(colKey)) _configuredCols[colKey] = false;
+                            if (isLinked) _configuredCols[colKey] = true;
+
+                            // 處理 Col 快取 (該子層依賴的父層，父層本身也是連動的一環)
+                            if (isLinked) {
+                                string pColKey = $"{tb}_{pCol}";
+                                _configuredCols[pColKey] = true; 
+                            }
                         }
                     }
                 }
                 
+                // 處理 DB 快取 (依據底下的 Table 狀態往上推)
                 if (_dbMap != null) {
                     foreach(var kvp in _dbMap) {
+                        string dbName = kvp.Key;
                         foreach(var tb in kvp.Value.Tables.Keys) {
-                            if (_configuredTables.Contains(tb)) {
-                                _configuredDbs.Add(kvp.Key);
+                            if (_configuredTables.ContainsKey(tb)) {
+                                if (!_configuredDbs.ContainsKey(dbName)) _configuredDbs[dbName] = false;
+                                if (_configuredTables[tb]) _configuredDbs[dbName] = true;
                             }
                         }
                     }
@@ -97,11 +117,11 @@ namespace Safety_System
             _btnClearAll = new Button { Text = "🗑️ 一鍵清除畫面上設定", Width = 260, Height = 50, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearAll.Click += BtnClearAll_Click;
 
-            // 🟢 新增：清除資料庫設定按鈕
             _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearDb.Click += BtnClearDb_Click;
 
-            Label lblHint = new Label { Text = "※ 已設定過下拉清單的項目，將以【亮藍色粗體】字體標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 5, 0, 0) };
+            // 🟢 修改說明文字
+            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 0, 0, 0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -113,7 +133,7 @@ namespace Safety_System
             flpBtnBottom.Controls.Add(_btnClearDb);
             
             pnlBottom.Controls.Add(flpBtnBottom);
-            this.Controls.Add(pnlBottom); // 第一個加入的元件，永遠在最底
+            this.Controls.Add(pnlBottom); 
 
             // ================= 2. 頂部操作區 =================
             Panel pnlTop = new Panel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Padding = new Padding(20) };
@@ -141,7 +161,7 @@ namespace Safety_System
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
             
-            this.Controls.Add(pnlTop); // 第二個加入，永遠在頂部
+            this.Controls.Add(pnlTop); 
 
             // ================= 3. 中間四層連動編輯區 =================
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
@@ -214,8 +234,8 @@ namespace Safety_System
                 tlpMain.Controls.Add(pColBorder, i, 0);
             }
 
-            this.Controls.Add(tlpMain); // 最後加入 Fill
-            tlpMain.BringToFront();     // 確保 Fill 區域正確縮放
+            this.Controls.Add(tlpMain); 
+            tlpMain.BringToFront();     
 
             // ================= 事件綁定 =================
             _btnExport.Click += BtnExport_Click;
@@ -232,21 +252,31 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // ================= 🟢 自訂繪製邏輯 (亮藍色粗體高亮) =================
+        // ================= 🟢 自訂繪製邏輯 (根據連動狀態切換紅/藍色) =================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
             var item = _cboDb.Items[e.Index] as ItemMap;
-            bool isConfig = item != null && !string.IsNullOrEmpty(item.EnName) && _configuredDbs.Contains(item.EnName);
-            DrawComboBoxItem(_cboDb, e, isConfig);
+            bool isConfig = false;
+            bool isLinked = false;
+            if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredDbs.ContainsKey(item.EnName)) {
+                isConfig = true;
+                isLinked = _configuredDbs[item.EnName];
+            }
+            DrawComboBoxItem(_cboDb, e, isConfig, isLinked);
         }
 
         private void CboTable_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
             var item = _cboTable.Items[e.Index] as ItemMap;
-            bool isConfig = item != null && !string.IsNullOrEmpty(item.EnName) && _configuredTables.Contains(item.EnName);
-            DrawComboBoxItem(_cboTable, e, isConfig);
+            bool isConfig = false;
+            bool isLinked = false;
+            if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredTables.ContainsKey(item.EnName)) {
+                isConfig = true;
+                isLinked = _configuredTables[item.EnName];
+            }
+            DrawComboBoxItem(_cboTable, e, isConfig, isLinked);
         }
 
         private void CboCols_DrawItem(object sender, DrawItemEventArgs e, int colIndex)
@@ -254,11 +284,19 @@ namespace Safety_System
             if (e.Index < 0) return;
             string colName = _cboCols[colIndex].Items[e.Index].ToString();
             string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName ?? "";
-            bool isConfig = !string.IsNullOrEmpty(colName) && _configuredCols.Contains($"{tbName}_{colName}");
-            DrawComboBoxItem(_cboCols[colIndex], e, isConfig);
+            
+            bool isConfig = false;
+            bool isLinked = false;
+            string key = $"{tbName}_{colName}";
+
+            if (!string.IsNullOrEmpty(colName) && _configuredCols.ContainsKey(key)) {
+                isConfig = true;
+                isLinked = _configuredCols[key];
+            }
+            DrawComboBoxItem(_cboCols[colIndex], e, isConfig, isLinked);
         }
 
-        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured)
+        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked)
         {
             if (e.Index < 0) return;
 
@@ -271,20 +309,19 @@ namespace Safety_System
             string text = cbo.Items[e.Index].ToString();
             Brush textBrush = Brushes.Black;
             
-            // 🟢 設定粗體字型資源 (用完必須自動釋放)
             using (Font boldFont = new Font(e.Font, FontStyle.Bold))
             {
                 Font currentFont = e.Font;
 
                 if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
                     textBrush = Brushes.White;
-                    if (isConfigured) currentFont = boldFont; // 即使被選中，有設定的依然保持粗體
+                    if (isConfigured) currentFont = boldFont; 
                 } else if (isConfigured) {
-                    textBrush = Brushes.DodgerBlue; // 🟢 亮藍色
-                    currentFont = boldFont;         // 🟢 粗體
+                    // 🟢 若有連動關聯，標示深紅色；若僅為單層，標示亮藍色
+                    textBrush = isLinked ? Brushes.Crimson : Brushes.DodgerBlue; 
+                    currentFont = boldFont;         
                 }
                 
-                // 稍微往下平移一點，避免文字貼齊邊緣
                 e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             }
             e.DrawFocusRectangle();
@@ -319,7 +356,6 @@ namespace Safety_System
                     
                     MessageBox.Show("資料庫設定已全部清空！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     
-                    // 重新整理 UI 與快取
                     ClearAllEditors();
                     RefreshConfiguredCache();
                     LoadDropdownConfigs();
@@ -337,7 +373,6 @@ namespace Safety_System
             }
         }
 
-        // ================= 🟢 隱藏選單密碼防護 =================
         private bool VerifyHiddenMenuPassword(string menuName)
         {
             using (Form p = new Form())
@@ -390,7 +425,7 @@ namespace Safety_System
                     if (!VerifyHiddenMenuPassword(menuName))
                     {
                         _isRevertingDb = true;
-                        _cboDb.SelectedIndex = 0; // 退回空白
+                        _cboDb.SelectedIndex = 0; 
                         _isRevertingDb = false;
                         return;
                     }
@@ -448,7 +483,7 @@ namespace Safety_System
                     {
                         MessageBox.Show("此欄位已在其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         _isRevertingCol = true;
-                        _cboCols[colIndex].SelectedIndex = 0; // 強制退回空白
+                        _cboCols[colIndex].SelectedIndex = 0; 
                         _isRevertingCol = false;
                         return;
                     }
@@ -587,7 +622,6 @@ namespace Safety_System
             }
         }
 
-        // ================= 匯出與匯入 Excel =================
         private void BtnExport_Click(object sender, EventArgs e)
         {
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統下拉選單設定_" + DateTime.Now.ToString("yyyyMMdd") }) {
@@ -652,7 +686,7 @@ namespace Safety_System
                                 }
                             }
                         }
-                        // 🟢 匯入後自動存檔、重整快取與畫面
+                        
                         MessageBox.Show("下拉選單設定已批次匯入並【自動存檔覆寫】成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         
                         RefreshConfiguredCache();
@@ -661,59 +695,3 @@ namespace Safety_System
                         _cboDb.SelectedIndex = 0; 
                         _cboDb.Invalidate();
                         _cboTable.Invalidate();
-                        foreach(var c in _cboCols) c.Invalidate();
-                        
-                    } catch (Exception ex) {
-                        MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                }
-            }
-        }
-
-        // ================= 全域靜態快取供 TableLogic 使用 =================
-        public static Dictionary<string, string[]> DropdownCache = new Dictionary<string, string[]>();
-
-        public static void LoadDropdownConfigs()
-        {
-            DropdownCache.Clear();
-            try {
-                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
-                    conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT * FROM DropdownConfigs", conn))
-                    using (var reader = cmd.ExecuteReader()) {
-                        while (reader.Read()) {
-                            string tb = reader["TableName"].ToString();
-                            string col = reader["ColName"].ToString();
-                            string pCol = reader["ParentColName"].ToString();
-                            string pVal = reader["ParentValue"].ToString();
-                            string opts = reader["Options"].ToString();
-
-                            string key = $"{tb}|{col}|{pCol}|{pVal}";
-                            var arr = opts.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
-                            DropdownCache[key] = arr;
-                        }
-                    }
-                }
-            } catch { }
-        }
-
-        public static string[] GetOptions(string tableName, string colName, string parentColName = "", string parentValue = "")
-        {
-            string key = $"{tableName}|{colName}|{parentColName}|{parentValue}";
-            if (DropdownCache.ContainsKey(key)) return DropdownCache[key];
-            return null;
-        }
-
-        public static string[] GetAllOptionsForColumn(string tableName, string colName) 
-        {
-            HashSet<string> allOpts = new HashSet<string> { "" };
-            foreach(var kvp in DropdownCache) {
-                var parts = kvp.Key.Split('|');
-                if(parts.Length == 4 && parts[0] == tableName && parts[1] == colName) {
-                    foreach(var opt in kvp.Value) allOpts.Add(opt);
-                }
-            }
-            return allOpts.ToArray();
-        }
-    }
-}
