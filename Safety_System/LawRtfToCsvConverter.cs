@@ -39,7 +39,7 @@ namespace Safety_System
             
             Regex dateRegex = new Regex(@"(修正|發布)日期：?\s*民國\s*(?<year>\d+)\s*年\s*(?<month>\d+)\s*月\s*(?<day>\d+)\s*日");
             
-            // 🟢 優化：支援包含「第 39-1 條」、「第 39 - 1 條」、「第 三十九 之一 條」、「第 39 條之 1」等法條變體
+            // 支援包含「第 39-1 條」、「第 39 - 1 條」等法條變體
             Regex articleRegex = new Regex(@"^第\s*[一二三四五六七八九十百千\d]+\s*(?:[-之]\s*[一二三四五六七八九十百千\d]+\s*)?條(?:[-之]\s*[一二三四五六七八九十百千\d]+)?");
             
             Regex kuanRegex = new Regex(@"^[一二三四五六七八九十百千]+、"); 
@@ -155,6 +155,12 @@ namespace Safety_System
             using (ExcelPackage p = new ExcelPackage())
             {
                 var ws = p.Workbook.Worksheets.Add("法規轉換資料");
+
+                // 🟢 核心修復：強制設定「條、項、款、目」整欄為純文字 (@)，防範 Excel 將 '-' 誤判為日期或運算式
+                ws.Column(3).Style.Numberformat.Format = "@";
+                ws.Column(4).Style.Numberformat.Format = "@";
+                ws.Column(5).Style.Numberformat.Format = "@";
+                ws.Column(6).Style.Numberformat.Format = "@";
                 
                 // 1. 寫入標題
                 for (int c = 0; c < headers.Length; c++) {
@@ -169,10 +175,24 @@ namespace Safety_System
                     }
                 }
 
-                // 3. 設定自動換行與適當欄寬 (內容在第 7 欄)
-                ws.Column(7).Width = 80; 
-                ws.Column(7).Style.WrapText = true;
-                ws.Cells.AutoFitColumns(15, 50);
+                // 🟢 需求 1：根據您指定的尺寸設定各欄位固定寬度 (單位: 字元)
+                ws.Column(1).Width = 12; // A: 日期
+                ws.Column(2).Width = 40; // B: 法規名稱
+                ws.Column(3).Width = 6;  // C: 條
+                ws.Column(4).Width = 6;  // D: 項
+                ws.Column(5).Width = 6;  // E: 款
+                ws.Column(6).Width = 6;  // F: 目
+                
+                ws.Column(7).Width = 75; // G: 內容
+                ws.Column(7).Style.WrapText = true; // 內容較長，允許自動換行
+                
+                ws.Column(8).Width = 40; // H: 重點摘要
+                ws.Column(8).Style.WrapText = true;
+                
+                ws.Column(12).Width = 12; // L: 鑑別日期
+                
+                ws.Column(13).Width = 40; // M: 備註
+                ws.Column(13).Style.WrapText = true;
 
                 int maxRow = records.Count + 1; // 加上標題行
                 
