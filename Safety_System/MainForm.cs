@@ -258,10 +258,6 @@ namespace Safety_System
 
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
-            _menu1.DropDownItems.Add(CreateItem("KPI", () => new App_CoreTable("Menu1DB", "KPI", "KPI", new DefaultLogic()).GetView()));
-            _menu1.DropDownItems.Add(CreateItem("文化改善", () => new App_CoreTable("Menu1DB", "CultureImprove", "文化改善", new DefaultLogic()).GetView()));
-            _menu1.DropDownItems.Add(CreateItem("PBC", () => new App_CoreTable("Menu1DB", "PBC", "PBC", new DefaultLogic()).GetView()));
-            _menu1.DropDownItems.Add(CreateItem("帳密管理", () => new App_CoreTable("Menu1DB", "AccountManage", "帳密管理", new DefaultLogic()).GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
@@ -291,7 +287,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 新增：下拉選單與連動設定入口
             var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
