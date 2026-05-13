@@ -19,7 +19,7 @@ namespace Safety_System
         private ComboBox[] _cboParentVals;
         private Button _btnSave, _btnExport, _btnImport, _btnClearAll, _btnClearDb;
         
-        // 🟢 修改快取結構：Value(bool) 代表「是否為連動」。false=單層(亮藍), true=連動(紅色)
+        // 🟢 Value(bool) 代表「是否為連動」。false=單層(亮藍), true=連動(紅色)
         private Dictionary<string, bool> _configuredDbs = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredTables = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredCols = new Dictionary<string, bool>();
@@ -27,7 +27,8 @@ namespace Safety_System
         private bool _isRevertingDb = false;
         private bool _isRevertingCol = false;
 
-        private class ItemMap {
+        private class ItemMap 
+        {
             public string EnName;
             public string ChName;
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
@@ -37,12 +38,15 @@ namespace Safety_System
 
         public App_DropdownManager()
         {
-            try {
+            try 
+            {
                 _dbMap = App_DbConfig.GetDbMapCache();
                 RefreshConfiguredCache();
                 InitializeComponent();
                 LoadDropdownConfigs();
-            } catch (Exception ex) {
+            } 
+            catch (Exception ex) 
+            {
                 MessageBox.Show($"初始化連動選單管理介面時發生嚴重錯誤：\n{ex.Message}\n{ex.StackTrace}", "系統崩潰防護", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -52,12 +56,16 @@ namespace Safety_System
             _configuredDbs.Clear();
             _configuredTables.Clear();
             _configuredCols.Clear();
-            try {
-                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+            try 
+            {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                {
                     conn.Open();
                     using(var cmd = new SQLiteCommand("SELECT TableName, ColName, ParentColName FROM DropdownConfigs", conn))
-                    using(var reader = cmd.ExecuteReader()) {
-                        while(reader.Read()) {
+                    using(var reader = cmd.ExecuteReader()) 
+                    {
+                        while(reader.Read()) 
+                        {
                             string tb = reader["TableName"].ToString();
                             string col = reader["ColName"].ToString();
                             string pCol = reader["ParentColName"].ToString();
@@ -75,7 +83,8 @@ namespace Safety_System
                             if (isLinked) _configuredCols[colKey] = true;
 
                             // 處理 Col 快取 (該子層依賴的父層，父層本身也是連動的一環)
-                            if (isLinked) {
+                            if (isLinked) 
+                            {
                                 string pColKey = $"{tb}_{pCol}";
                                 _configuredCols[pColKey] = true; 
                             }
@@ -84,18 +93,23 @@ namespace Safety_System
                 }
                 
                 // 處理 DB 快取 (依據底下的 Table 狀態往上推)
-                if (_dbMap != null) {
-                    foreach(var kvp in _dbMap) {
+                if (_dbMap != null) 
+                {
+                    foreach(var kvp in _dbMap) 
+                    {
                         string dbName = kvp.Key;
-                        foreach(var tb in kvp.Value.Tables.Keys) {
-                            if (_configuredTables.ContainsKey(tb)) {
+                        foreach(var tb in kvp.Value.Tables.Keys) 
+                        {
+                            if (_configuredTables.ContainsKey(tb)) 
+                            {
                                 if (!_configuredDbs.ContainsKey(dbName)) _configuredDbs[dbName] = false;
                                 if (_configuredTables[tb]) _configuredDbs[dbName] = true;
                             }
                         }
                     }
                 }
-            } catch {}
+            } 
+            catch { }
         }
 
         private void InitializeComponent()
@@ -107,8 +121,8 @@ namespace Safety_System
             this.BackColor = Color.WhiteSmoke;
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
-            // ================= 1. 底部儲存區 (最先加入，確保鎖死在最下方) =================
-            Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20, 20, 20, 20) };
+            // ================= 1. 底部儲存區 =================
+            Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20) };
             pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
             _btnSave = new Button { Text = "💾 儲存並套用當前設定", Width = 260, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
@@ -120,8 +134,7 @@ namespace Safety_System
             _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearDb.Click += BtnClearDb_Click;
 
-            // 🟢 修改說明文字
-            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0, 0, 0, 0) };
+            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -213,7 +226,8 @@ namespace Safety_System
                     Font = new Font("Microsoft JhengHei UI", 12F) 
                 };
 
-                if (i == 0) {
+                if (i == 0) 
+                {
                     lParent.Visible = false;
                     _cboParentVals[i].Visible = false;
                 }
@@ -242,8 +256,10 @@ namespace Safety_System
             _btnImport.Click += BtnImport_Click;
 
             _cboDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-            if (_dbMap != null) {
-                foreach (var kvp in _dbMap) {
+            if (_dbMap != null) 
+            {
+                foreach (var kvp in _dbMap) 
+                {
                     _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                 }
             }
@@ -259,7 +275,8 @@ namespace Safety_System
             var item = _cboDb.Items[e.Index] as ItemMap;
             bool isConfig = false;
             bool isLinked = false;
-            if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredDbs.ContainsKey(item.EnName)) {
+            if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredDbs.ContainsKey(item.EnName)) 
+            {
                 isConfig = true;
                 isLinked = _configuredDbs[item.EnName];
             }
@@ -272,7 +289,8 @@ namespace Safety_System
             var item = _cboTable.Items[e.Index] as ItemMap;
             bool isConfig = false;
             bool isLinked = false;
-            if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredTables.ContainsKey(item.EnName)) {
+            if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredTables.ContainsKey(item.EnName)) 
+            {
                 isConfig = true;
                 isLinked = _configuredTables[item.EnName];
             }
@@ -289,7 +307,8 @@ namespace Safety_System
             bool isLinked = false;
             string key = $"{tbName}_{colName}";
 
-            if (!string.IsNullOrEmpty(colName) && _configuredCols.ContainsKey(key)) {
+            if (!string.IsNullOrEmpty(colName) && _configuredCols.ContainsKey(key)) 
+            {
                 isConfig = true;
                 isLinked = _configuredCols[key];
             }
@@ -300,9 +319,12 @@ namespace Safety_System
         {
             if (e.Index < 0) return;
 
-            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
+            {
                 e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
-            } else {
+            } 
+            else 
+            {
                 e.Graphics.FillRectangle(Brushes.White, e.Bounds);
             }
             
@@ -313,10 +335,13 @@ namespace Safety_System
             {
                 Font currentFont = e.Font;
 
-                if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+                if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
+                {
                     textBrush = Brushes.White;
                     if (isConfigured) currentFont = boldFont; 
-                } else if (isConfigured) {
+                } 
+                else if (isConfigured) 
+                {
                     // 🟢 若有連動關聯，標示深紅色；若僅為單層，標示亮藍色
                     textBrush = isLinked ? Brushes.Crimson : Brushes.DodgerBlue; 
                     currentFont = boldFont;         
@@ -364,7 +389,6 @@ namespace Safety_System
                     _cboDb.Invalidate();
                     _cboTable.Invalidate();
                     foreach(var c in _cboCols) c.Invalidate();
-                    
                 } 
                 catch (Exception ex) 
                 {
@@ -436,8 +460,10 @@ namespace Safety_System
             _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
             ClearAllEditors();
 
-            if (selectedDb != null && !string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
-                foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
+            if (selectedDb != null && !string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) 
+            {
+                foreach (var tbl in _dbMap[selectedDb.EnName].Tables) 
+                {
                     _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
                 }
             }
@@ -447,9 +473,11 @@ namespace Safety_System
         private void CboTable_SelectedIndexChanged(object sender, EventArgs e)
         {
             ClearAllEditors();
-            if (_cboDb.SelectedItem is ItemMap dbMap && _cboTable.SelectedItem is ItemMap tbMap && !string.IsNullOrEmpty(dbMap.EnName) && !string.IsNullOrEmpty(tbMap.EnName)) {
+            if (_cboDb.SelectedItem is ItemMap dbMap && _cboTable.SelectedItem is ItemMap tbMap && !string.IsNullOrEmpty(dbMap.EnName) && !string.IsNullOrEmpty(tbMap.EnName)) 
+            {
                 var cols = DataManager.GetColumnNames(dbMap.EnName, tbMap.EnName);
-                foreach (var cbo in _cboCols) {
+                foreach (var cbo in _cboCols) 
+                {
                     cbo.Items.Clear();
                     cbo.Items.Add("");
                     foreach (var c in cols) if (c != "Id" && c != "附件檔案" && c != "備註") cbo.Items.Add(c);
@@ -460,7 +488,8 @@ namespace Safety_System
         private void ClearAllEditors()
         {
             _isRevertingCol = true;
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 4; i++) 
+            {
                 if (_cboCols[i].Items.Count > 0) _cboCols[i].SelectedIndex = 0;
                 if (i > 0) { _cboParentVals[i].Items.Clear(); _cboParentVals[i].Items.Add(""); }
                 _txtOptions[i].Clear();
@@ -474,7 +503,6 @@ namespace Safety_System
 
             string selectedCol = _cboCols[colIndex].Text;
             
-            // 🟢 重複欄位防呆機制
             if (!string.IsNullOrEmpty(selectedCol))
             {
                 for (int i = 0; i < 4; i++)
@@ -490,24 +518,30 @@ namespace Safety_System
                 }
             }
 
-            try {
+            try 
+            {
                 if (colIndex == 0)
                 {
                     string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
-                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
+                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) 
+                    {
                         LoadOptionsToTextBox(tbName, selectedCol, "", "", _txtOptions[0]);
                         UpdateChildParentVals(1, _txtOptions[0].Text);
-                    } else {
+                    } 
+                    else 
+                    {
                         _txtOptions[0].Clear();
                         UpdateChildParentVals(1, "");
                     }
                 }
-            } catch { }
+            } 
+            catch { }
         }
 
         private void HandleParentValChanged(int colIndex)
         {
-            try {
+            try 
+            {
                 if (colIndex <= 0 || colIndex >= 4) return;
                 
                 string colName = _cboCols[colIndex].Text;
@@ -515,19 +549,24 @@ namespace Safety_System
                 string parentCol = _cboCols[colIndex - 1].Text;
                 string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
 
-                if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
+                if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) 
+                {
                     LoadOptionsToTextBox(tbName, colName, parentCol, parentVal, _txtOptions[colIndex]);
                     if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _txtOptions[colIndex].Text);
-                } else {
+                } 
+                else 
+                {
                     _txtOptions[colIndex].Clear();
                     if (colIndex < 3) UpdateChildParentVals(colIndex + 1, "");
                 }
-            } catch { }
+            } 
+            catch { }
         }
 
         private void UpdateChildParentVals(int childIndex, string parentOptionsText)
         {
-            try {
+            try 
+            {
                 if (childIndex <= 0 || childIndex >= 4) return;
                 
                 var opts = parentOptionsText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
@@ -541,7 +580,8 @@ namespace Safety_System
                     _cboParentVals[childIndex].Text = currentVal;
                 else
                     _cboParentVals[childIndex].SelectedIndex = 0;
-            } catch { }
+            } 
+            catch { }
         }
 
         private void LoadOptionsToTextBox(string tableName, string colName, string parentColName, string parentVal, TextBox txt)
@@ -552,11 +592,14 @@ namespace Safety_System
 
         private string GetDropdownOptionsFromDB(string tableName, string colName, string parentColName, string parentVal)
         {
-            try {
-                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+            try 
+            {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                {
                     conn.Open();
                     string sql = "SELECT Options FROM DropdownConfigs WHERE TableName=@T AND ColName=@C AND IFNULL(ParentColName,'')=@PC AND IFNULL(ParentValue,'')=@PV";
-                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                    using (var cmd = new SQLiteCommand(sql, conn)) 
+                    {
                         cmd.Parameters.AddWithValue("@T", tableName);
                         cmd.Parameters.AddWithValue("@C", colName);
                         cmd.Parameters.AddWithValue("@PC", parentColName);
@@ -565,22 +608,28 @@ namespace Safety_System
                         return res != null ? res.ToString() : "";
                     }
                 }
-            } catch { return ""; }
+            } 
+            catch { return ""; }
         }
 
         private void BtnSave_Click(object sender, EventArgs e)
         {
-            if (_cboTable.SelectedItem == null || string.IsNullOrEmpty(((ItemMap)_cboTable.SelectedItem).EnName)) {
+            if (_cboTable.SelectedItem == null || string.IsNullOrEmpty(((ItemMap)_cboTable.SelectedItem).EnName)) 
+            {
                 MessageBox.Show("請先選擇資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
 
-            try {
-                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+            try 
+            {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                {
                     conn.Open();
-                    using (var trans = conn.BeginTransaction()) {
-                        for (int i = 0; i < 4; i++) {
+                    using (var trans = conn.BeginTransaction()) 
+                    {
+                        for (int i = 0; i < 4; i++) 
+                        {
                             string colName = _cboCols[i].Text;
                             if (string.IsNullOrEmpty(colName)) continue;
 
@@ -594,7 +643,8 @@ namespace Safety_System
                                            VALUES (@T, @C, @PC, @PV, @Opt) 
                                            ON CONFLICT(TableName, ColName, ParentColName, ParentValue) DO UPDATE SET Options=@Opt";
                             
-                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) 
+                            {
                                 cmd.Parameters.AddWithValue("@T", tbName);
                                 cmd.Parameters.AddWithValue("@C", colName);
                                 cmd.Parameters.AddWithValue("@PC", parentCol);
@@ -617,31 +667,40 @@ namespace Safety_System
                 LoadDropdownConfigs(); 
                 if (!string.IsNullOrEmpty(_txtOptions[0].Text)) UpdateChildParentVals(1, _txtOptions[0].Text);
 
-            } catch (Exception ex) {
+            } 
+            catch (Exception ex) 
+            {
                 MessageBox.Show($"儲存失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void BtnExport_Click(object sender, EventArgs e)
         {
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統下拉選單設定_" + DateTime.Now.ToString("yyyyMMdd") }) {
-                if (sfd.ShowDialog() == DialogResult.OK) {
-                    try {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統下拉選單設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
                         DataTable dt = new DataTable();
-                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                        {
                             conn.Open();
                             using (var cmd = new SQLiteCommand("SELECT TableName AS [資料表名稱], ColName AS [欄位名稱], ParentColName AS [父層欄位], ParentValue AS [觸發條件], Options AS [選項內容(逗號分隔)] FROM DropdownConfigs", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
 
-                        using (ExcelPackage p = new ExcelPackage()) {
+                        using (ExcelPackage p = new ExcelPackage()) 
+                        {
                             var ws = p.Workbook.Worksheets.Add("下拉選單設定");
                             ws.Cells["A1"].LoadFromDataTable(dt, true);
                             ws.Cells.AutoFitColumns();
                             p.SaveAs(new FileInfo(sfd.FileName));
                         }
                         MessageBox.Show("匯出成功！請直接在 Excel 中編輯後匯入。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) {
+                    } 
+                    catch (Exception ex) 
+                    {
                         MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
@@ -650,17 +709,24 @@ namespace Safety_System
 
         private void BtnImport_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) {
-                if (ofd.ShowDialog() == DialogResult.OK) {
-                    try {
-                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) 
+            {
+                if (ofd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
+                        {
                             ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
                             if (ws == null || ws.Dimension == null) return;
 
-                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                            {
                                 conn.Open();
-                                using (var trans = conn.BeginTransaction()) {
-                                    for (int r = 2; r <= ws.Dimension.Rows; r++) {
+                                using (var trans = conn.BeginTransaction()) 
+                                {
+                                    for (int r = 2; r <= ws.Dimension.Rows; r++) 
+                                    {
                                         string tb = ws.Cells[r, 1].Text.Trim();
                                         string col = ws.Cells[r, 2].Text.Trim();
                                         string pCol = ws.Cells[r, 3].Text.Trim();
@@ -673,7 +739,8 @@ namespace Safety_System
                                                        VALUES (@T, @C, @PC, @PV, @Opt) 
                                                        ON CONFLICT(TableName, ColName, ParentColName, ParentValue) DO UPDATE SET Options=@Opt";
                                         
-                                        using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                        using (var cmd = new SQLiteCommand(sql, conn, trans)) 
+                                        {
                                             cmd.Parameters.AddWithValue("@T", tb);
                                             cmd.Parameters.AddWithValue("@C", col);
                                             cmd.Parameters.AddWithValue("@PC", pCol);
@@ -695,3 +762,67 @@ namespace Safety_System
                         _cboDb.SelectedIndex = 0; 
                         _cboDb.Invalidate();
                         _cboTable.Invalidate();
+                        foreach(var c in _cboCols) c.Invalidate();
+                        
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        public static Dictionary<string, string[]> DropdownCache = new Dictionary<string, string[]>();
+
+        public static void LoadDropdownConfigs()
+        {
+            DropdownCache.Clear();
+            try 
+            {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM DropdownConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) 
+                    {
+                        while (reader.Read()) 
+                        {
+                            string tb = reader["TableName"].ToString();
+                            string col = reader["ColName"].ToString();
+                            string pCol = reader["ParentColName"].ToString();
+                            string pVal = reader["ParentValue"].ToString();
+                            string opts = reader["Options"].ToString();
+
+                            string key = $"{tb}|{col}|{pCol}|{pVal}";
+                            var arr = opts.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                            DropdownCache[key] = arr;
+                        }
+                    }
+                }
+            } 
+            catch { }
+        }
+
+        public static string[] GetOptions(string tableName, string colName, string parentColName = "", string parentValue = "")
+        {
+            string key = $"{tableName}|{colName}|{parentColName}|{parentValue}";
+            if (DropdownCache.ContainsKey(key)) return DropdownCache[key];
+            return null;
+        }
+
+        public static string[] GetAllOptionsForColumn(string tableName, string colName) 
+        {
+            HashSet<string> allOpts = new HashSet<string> { "" };
+            foreach(var kvp in DropdownCache) 
+            {
+                var parts = kvp.Key.Split('|');
+                if(parts.Length == 4 && parts[0] == tableName && parts[1] == colName) 
+                {
+                    foreach(var opt in kvp.Value) allOpts.Add(opt);
+                }
+            }
+            return allOpts.ToArray();
+        }
+    }
+}
