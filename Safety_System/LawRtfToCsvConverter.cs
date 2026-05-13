@@ -1,4 +1,4 @@
-/// FILE: Safety_System/LawRtfToExcelConverter.cs ///
+/// FILE: Safety_System/LawRtfToCsvConverter.cs ///
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -37,12 +37,15 @@ namespace Safety_System
             string currentItemLevel4 = ""; 
             StringBuilder currentContent = new StringBuilder();
             
-            List<string[]> records = new List<string[]>();
-            
             Regex dateRegex = new Regex(@"(修正|發布)日期：?\s*民國\s*(?<year>\d+)\s*年\s*(?<month>\d+)\s*月\s*(?<day>\d+)\s*日");
-            Regex articleRegex = new Regex(@"^第\s*[一二三四五六七八九十百千\d]+\s*條(?:-\d+|之\s*[一二三四五六七八九十百千\d]+)?");
+            
+            // 🟢 優化：支援包含「第 39-1 條」、「第 39 - 1 條」、「第 三十九 之一 條」、「第 39 條之 1」等法條變體
+            Regex articleRegex = new Regex(@"^第\s*[一二三四五六七八九十百千\d]+\s*(?:[-之]\s*[一二三四五六七八九十百千\d]+\s*)?條(?:[-之]\s*[一二三四五六七八九十百千\d]+)?");
+            
             Regex kuanRegex = new Regex(@"^[一二三四五六七八九十百千]+、"); 
             Regex muRegex = new Regex(@"^[(（][一二三四五六七八九十百千]+[)）]");
+
+            List<string[]> records = new List<string[]>();
 
             for (int i = 0; i < lines.Length; i++)
             {
@@ -147,7 +150,6 @@ namespace Safety_System
                 records.Add(CreateRecord(lawDate, lawName, currentArticle, currentXiangNumber, currentItemLevel3, currentItemLevel4, currentContent.ToString().Trim()));
             }
 
-            // 移除了「類別」欄位，剩餘 13 個欄位
             string[] headers = { "日期", "法規名稱", "條", "項", "款", "目", "內容", "重點摘要", "適用性", "有提升績效機會", "有潛在不符合風險", "鑑別日期", "備註" };
             
             using (ExcelPackage p = new ExcelPackage())
@@ -175,7 +177,6 @@ namespace Safety_System
                 int maxRow = records.Count + 1; // 加上標題行
                 
                 if (maxRow >= 2) {
-                    // 🟢 4. 在「適用性」欄位 (第 9 欄) 加入下拉選單防呆
                     int applicabilityColIndex = 9; 
                     var valApply = ws.DataValidations.AddListValidation(ws.Cells[2, applicabilityColIndex, maxRow, applicabilityColIndex].Address);
                     valApply.ShowErrorMessage = true;
@@ -187,17 +188,15 @@ namespace Safety_System
                     valApply.Formula.Values.Add("參考");
                     valApply.Formula.Values.Add("確認中");
 
-                    // 🟢 5. 在「有提升績效機會」欄位 (第 10 欄) 加入下拉選單防呆
                     int perfColIndex = 10;
                     var valPerf = ws.DataValidations.AddListValidation(ws.Cells[2, perfColIndex, maxRow, perfColIndex].Address);
                     valPerf.ShowErrorMessage = true;
                     valPerf.ErrorStyle = ExcelDataValidationWarningStyle.stop;
                     valPerf.ErrorTitle = "輸入錯誤";
                     valPerf.Error = "只能選擇空格或 v。";
-                    valPerf.Formula.Values.Add(" "); // 空格選項 (Excel需要這樣設定)
+                    valPerf.Formula.Values.Add(" "); 
                     valPerf.Formula.Values.Add("v");
 
-                    // 🟢 6. 在「有潛在不符合風險」欄位 (第 11 欄) 加入下拉選單防呆
                     int riskColIndex = 11;
                     var valRisk = ws.DataValidations.AddListValidation(ws.Cells[2, riskColIndex, maxRow, riskColIndex].Address);
                     valRisk.ShowErrorMessage = true;
