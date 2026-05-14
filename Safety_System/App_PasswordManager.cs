@@ -80,36 +80,49 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "個人選單密碼管理";
-            this.Size = new Size(500, 520);
+            this.Size = new Size(500, 560); // 稍微加高視窗，容納自動換行的備註
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.BackColor = Color.White;
+            this.BackColor = Color.WhiteSmoke; // 底色調整，增加質感
 
             Label lblTitle = new Label { Text = "🔐 變更個人選單密碼與提示詞", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Location = new Point(40, 20), AutoSize = true };
 
-            Label lbl1 = new Label { Text = "選擇選單：", Location = new Point(40, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboMenu = new ComboBox { Location = new Point(160, 77), Width = 270, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            int labelX = 40;
+            int inputX = 150;
+            int inputW = 280;
+
+            Label lbl1 = new Label { Text = "選擇選單：", Location = new Point(labelX, 85), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboMenu = new ComboBox { Location = new Point(inputX, 82), Width = inputW, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 13F) };
             _cboMenu.Items.AddRange(new string[] { "選單1", "選單2", "選單3", "選單4" });
             _cboMenu.SelectedIndex = 0;
             _cboMenu.SelectedIndexChanged += CboMenu_SelectedIndexChanged;
 
-            Label lblOld = new Label { Text = "原密碼：", Location = new Point(40, 140), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _txtOldPwd = new TextBox { Location = new Point(160, 137), Width = 280, Font = new Font("Microsoft JhengHei UI", 12F), PasswordChar = '*' };
+            Label lblOld = new Label { Text = "原密碼：", Location = new Point(labelX, 145), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtOldPwd = new TextBox { Location = new Point(inputX, 142), Width = inputW, Font = new Font("Microsoft JhengHei UI", 13F), PasswordChar = '*' };
 
-            Label lblNew = new Label { Text = "新密碼：", Location = new Point(40, 200), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _txtNewPwd = new TextBox { Location = new Point(160, 197), Width = 270, Font = new Font("Microsoft JhengHei UI", 12F), PasswordChar = '*' };
+            Label lblNew = new Label { Text = "新密碼：", Location = new Point(labelX, 205), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtNewPwd = new TextBox { Location = new Point(inputX, 202), Width = inputW, Font = new Font("Microsoft JhengHei UI", 13F), PasswordChar = '*' };
 
-            Label lblHint = new Label { Text = "提示詞：", Location = new Point(40, 260), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _txtHint = new TextBox { Location = new Point(160, 257), Width = 270, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblHint = new Label { Text = "提示詞：", Location = new Point(labelX, 265), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtHint = new TextBox { Location = new Point(inputX, 262), Width = inputW, Font = new Font("Microsoft JhengHei UI", 13F) };
 
-            Label lblDesc = new Label { Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼以查詢。\n※ 特權變更：若您輸入的是管理者密碼(Lv2)，可忽略原密碼。", Location = new Point(40, 315), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 10F) };
+            // 🟢 將 AutoSize 設為 false，並指定 Width 和 Height，文字過長會自動折行
+            Label lblDesc = new Label { 
+                Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼以查詢。\n※ 特權變更：若您輸入的是系統管理者密碼(Lv3)，可忽略原密碼限制直接覆蓋。", 
+                Location = new Point(labelX, 320), 
+                AutoSize = false, 
+                Width = 400,
+                Height = 60,
+                ForeColor = Color.DimGray, 
+                Font = new Font("Microsoft JhengHei UI", 10F) 
+            };
 
-            Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 385), Size = new Size(180, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 410), Size = new Size(185, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnSave.Click += BtnSave_Click;
 
-            Button btnForgot = new Button { Text = "❓ 忘記密碼", Location = new Point(250, 385), Size = new Size(180, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnForgot = new Button { Text = "❓ 忘記密碼", Location = new Point(245, 410), Size = new Size(185, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnForgot.Click += BtnForgot_Click;
 
             this.Controls.Add(lblTitle);
@@ -164,12 +177,12 @@ namespace Safety_System
                 return;
             }
 
-            // 🟢 密碼驗證邏輯：如果原密碼輸入的是 Lv2 密碼，允許直接覆蓋 (特權變更)
+            // 🟢 密碼驗證邏輯：如果原密碼輸入的是 Lv3 密碼，允許直接覆蓋 (特權變更)
             if (_txtOldPwd.Text != currentPwd)
             {
-                if (_txtOldPwd.Text == "11914002") // 判斷是否為 Lv2
+                if (_txtOldPwd.Text == "admin") // 🟢 判斷是否為 Lv3
                 {
-                    MessageBox.Show("已使用【管理者權限 Lv2】放行變更！", "特權授權", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("已使用【系統管理者權限 Lv3】放行變更！", "特權授權", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
