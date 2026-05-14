@@ -108,12 +108,11 @@ namespace Safety_System
             Label lblHint = new Label { Text = "提示詞：", Location = new Point(labelX, 265), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtHint = new TextBox { Location = new Point(inputX, 262), Width = inputW, Font = new Font("Microsoft JhengHei UI", 13F) };
 
-            // 🟢 徹底解決截斷問題：使用 AutoSize + MaximumSize，讓文字自動往下延展，不需寫死高度與換行符號
             Label lblDesc = new Label { 
-                Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼查詢。\n※ 特權變更：若輸入系統管理者密碼(Lv3)，可忽略原密碼限制直接進行覆蓋變更。", 
+                Text = "※ 忘記密碼：點擊【忘記密碼】可直接查看您當初設定的提示詞。\n※ 特權變更：若輸入系統管理者密碼(Lv3)，可忽略原密碼限制直接進行覆蓋變更。", 
                 Location = new Point(labelX, 315), 
                 AutoSize = true, 
-                MaximumSize = new Size(420, 0), // 限制最大寬度為 420，高度設為 0 代表無限自動延伸
+                MaximumSize = new Size(420, 0), 
                 ForeColor = Color.DimGray, 
                 Font = new Font("Microsoft JhengHei UI", 10F) 
             };
@@ -215,6 +214,9 @@ namespace Safety_System
             }
         }
 
+        // =========================================================
+        // 🟢 修改區域：忘記密碼功能變更為「直接顯示提示詞」
+        // =========================================================
         private void BtnForgot_Click(object sender, EventArgs e)
         {
             string menuName = _cboMenu.SelectedItem.ToString();
@@ -232,21 +234,19 @@ namespace Safety_System
 
             if (targetRow == null)
             {
-                MessageBox.Show($"【{menuName}】 尚未自訂過密碼，請直接使用系統出廠的預設密碼。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"【{menuName}】 尚未自訂過密碼，\n請直接使用系統出廠的預設密碼。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string actualHint = targetRow["提示詞"].ToString();
-            string inputHint = _txtHint.Text.Trim();
+            string hint = targetRow["提示詞"]?.ToString().Trim();
 
-            if (actualHint == inputHint)
+            if (!string.IsNullOrEmpty(hint))
             {
-                string actualPwd = targetRow["密碼"].ToString();
-                MessageBox.Show($"驗證成功！【{menuName}】 的現有密碼為：\n\n「 {actualPwd} 」", "密碼查詢", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"您為【{menuName}】設定的密碼提示詞為：\n\n「 {hint} 」", "密碼提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                MessageBox.Show("輸入的【提示詞】錯誤，無法查看密碼！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"【{menuName}】未有設定提示關鍵詞，\n請洽詢管理者進行變更密碼。", "無提示詞", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
     }
