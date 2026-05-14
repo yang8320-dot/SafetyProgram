@@ -80,17 +80,18 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "個人選單密碼管理";
-            this.Size = new Size(500, 560); // 稍微加高視窗，容納自動換行的備註
+            this.Size = new Size(500, 560);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.BackColor = Color.WhiteSmoke; // 底色調整，增加質感
+            this.BackColor = Color.WhiteSmoke;
 
             Label lblTitle = new Label { Text = "🔐 變更個人選單密碼與提示詞", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Location = new Point(40, 20), AutoSize = true };
 
             int labelX = 40;
-            int inputX = 150;
+            // 🟢 將輸入框起始位置向右平移 5px (150 -> 155)
+            int inputX = 155; 
             int inputW = 280;
 
             Label lbl1 = new Label { Text = "選擇選單：", Location = new Point(labelX, 85), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -108,21 +109,21 @@ namespace Safety_System
             Label lblHint = new Label { Text = "提示詞：", Location = new Point(labelX, 265), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtHint = new TextBox { Location = new Point(inputX, 262), Width = inputW, Font = new Font("Microsoft JhengHei UI", 13F) };
 
-            // 🟢 將 AutoSize 設為 false，並指定 Width 和 Height，文字過長會自動折行
+            // 🟢 加大 Height 至 85，並微調文字強制換行點，確保兩段文字都能完整顯示
             Label lblDesc = new Label { 
-                Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼以查詢。\n※ 特權變更：若您輸入的是系統管理者密碼(Lv3)，可忽略原密碼限制直接覆蓋。", 
+                Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼查詢。\n※ 特權變更：若輸入系統管理者密碼(Lv3)，可忽略原密碼\n　限制直接進行覆蓋變更。", 
                 Location = new Point(labelX, 320), 
                 AutoSize = false, 
-                Width = 400,
-                Height = 60,
+                Width = 420,
+                Height = 85,
                 ForeColor = Color.DimGray, 
                 Font = new Font("Microsoft JhengHei UI", 10F) 
             };
 
-            Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 410), Size = new Size(185, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 415), Size = new Size(185, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnSave.Click += BtnSave_Click;
 
-            Button btnForgot = new Button { Text = "❓ 忘記密碼", Location = new Point(245, 410), Size = new Size(185, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnForgot = new Button { Text = "❓ 忘記密碼", Location = new Point(245, 415), Size = new Size(185, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnForgot.Click += BtnForgot_Click;
 
             this.Controls.Add(lblTitle);
@@ -177,10 +178,9 @@ namespace Safety_System
                 return;
             }
 
-            // 🟢 密碼驗證邏輯：如果原密碼輸入的是 Lv3 密碼，允許直接覆蓋 (特權變更)
             if (_txtOldPwd.Text != currentPwd)
             {
-                if (_txtOldPwd.Text == "admin") // 🟢 判斷是否為 Lv3
+                if (_txtOldPwd.Text == "admin") 
                 {
                     MessageBox.Show("已使用【系統管理者權限 Lv3】放行變更！", "特權授權", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
