@@ -40,6 +40,7 @@ namespace Safety_System
 
         public App_MenuManager()
         {
+            // 初始化自訂選單對照表 (存放在系統資料庫)
             string createSql = "CREATE TABLE IF NOT EXISTS [CustomMenus] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
             DataManager.InitTable("SystemConfig", "CustomMenus", createSql);
             
@@ -140,7 +141,6 @@ namespace Safety_System
                 if (!VerifyHiddenMenuPassword(category)) return;
             }
 
-            // 🟢 修改為 VerifyAdmin (Lv2 以上)，並套用三行字提示
             string authPrompt = "新增自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -154,6 +154,14 @@ namespace Safety_System
                     MessageBox.Show("該分類下已經存在同名的選單！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
+            }
+
+            // 🟢 防呆：檢查實體資料庫是否已經存在同名的 Table (避免之前刪除不完全)
+            var existingCols = DataManager.GetColumnNames(targetDb, newName);
+            if (existingCols.Count > 0)
+            {
+                MessageBox.Show($"資料庫中已經存在名為【{newName}】的資料表！請更換其他名稱。", "命名衝突", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
 
             DataRow row = dt.NewRow();
@@ -301,7 +309,6 @@ namespace Safety_System
 
         private void ExecuteRename(int id, string dbName, string oldTableName)
         {
-            // 🟢 修改為 VerifyAdmin (Lv2 以上)，並套用三行字提示
             string authPrompt = "更名自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -310,9 +317,18 @@ namespace Safety_System
 
             try
             {
-                DataManager.InitTable(dbName, newName, $"CREATE TABLE IF NOT EXISTS [{newName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT);");
+                // 🟢 修正重點：移除原本的 InitTable，並加上名稱衝突檢查
+                var existingCols = DataManager.GetColumnNames(dbName, newName);
+                if (existingCols.Count > 0)
+                {
+                    MessageBox.Show($"資料庫中已經存在名為【{newName}】的資料表！請更換其他名稱。", "命名衝突", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // 直接更名 (既有的資料與欄位都會原封不動保留)
                 DataManager.RenameTable(dbName, oldTableName, newName);
 
+                // 更新選單目錄清單
                 DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
                 foreach (DataRow r in dt.Rows)
                 {
