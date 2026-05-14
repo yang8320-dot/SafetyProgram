@@ -90,7 +90,6 @@ namespace Safety_System
             Label lblTitle = new Label { Text = "🔐 變更個人選單密碼與提示詞", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Location = new Point(40, 20), AutoSize = true };
 
             int labelX = 40;
-            // 🟢 將輸入框起始位置向右平移 5px (150 -> 155)
             int inputX = 155; 
             int inputW = 280;
 
@@ -109,21 +108,20 @@ namespace Safety_System
             Label lblHint = new Label { Text = "提示詞：", Location = new Point(labelX, 265), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _txtHint = new TextBox { Location = new Point(inputX, 262), Width = inputW, Font = new Font("Microsoft JhengHei UI", 13F) };
 
-            // 🟢 加大 Height 至 85，並微調文字強制換行點，確保兩段文字都能完整顯示
+            // 🟢 徹底解決截斷問題：使用 AutoSize + MaximumSize，讓文字自動往下延展，不需寫死高度與換行符號
             Label lblDesc = new Label { 
-                Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼查詢。\n※ 特權變更：若輸入系統管理者密碼(Lv3)，可忽略原密碼\n　限制直接進行覆蓋變更。", 
-                Location = new Point(labelX, 320), 
-                AutoSize = false, 
-                Width = 420,
-                Height = 85,
+                Text = "※ 忘記密碼：請在上方輸入「提示詞」並點擊忘記密碼查詢。\n※ 特權變更：若輸入系統管理者密碼(Lv3)，可忽略原密碼限制直接進行覆蓋變更。", 
+                Location = new Point(labelX, 315), 
+                AutoSize = true, 
+                MaximumSize = new Size(420, 0), // 限制最大寬度為 420，高度設為 0 代表無限自動延伸
                 ForeColor = Color.DimGray, 
                 Font = new Font("Microsoft JhengHei UI", 10F) 
             };
 
-            Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 415), Size = new Size(185, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnSave = new Button { Text = "💾 變更密碼", Location = new Point(40, 420), Size = new Size(185, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnSave.Click += BtnSave_Click;
 
-            Button btnForgot = new Button { Text = "❓ 忘記密碼", Location = new Point(245, 415), Size = new Size(185, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnForgot = new Button { Text = "❓ 忘記密碼", Location = new Point(245, 420), Size = new Size(185, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnForgot.Click += BtnForgot_Click;
 
             this.Controls.Add(lblTitle);
