@@ -277,7 +277,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
-            // 🟢 資料庫設定 (修改為三行提示)
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
@@ -289,7 +288,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 下拉選單與連動設定 (修改為三行提示)
             var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
@@ -334,6 +332,30 @@ namespace Safety_System
             menuSettings.DropDownItems.Add(pwdMgmtItem);
 
             AttachCustomMenus(menuReports, menuSafety, menuChemical, menuChemReg, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, _menu1, _menu2, _menu3, _menu4);
+
+            // =========================================================================
+            // 🟢 核心修改區塊：根據當前登入之 Windows 帳號，自動決定隱藏選單是否直接開啟
+            // =========================================================================
+            string currentUser = Environment.UserName.Trim();
+
+            if (string.Equals(currentUser, "黃忠揚", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(currentUser, "TJ700657", StringComparison.OrdinalIgnoreCase))
+            {
+                _menu1.Visible = true;
+            }
+            else if (string.Equals(currentUser, "TJ700228", StringComparison.OrdinalIgnoreCase))
+            {
+                _menu2.Visible = true;
+            }
+            else if (string.Equals(currentUser, "TJ700533", StringComparison.OrdinalIgnoreCase))
+            {
+                _menu3.Visible = true;
+            }
+            else if (string.Equals(currentUser, "TJ204159", StringComparison.OrdinalIgnoreCase))
+            {
+                _menu4.Visible = true;
+            }
+            // =========================================================================
 
             _mainMenu.Items.AddRange(new ToolStripItem[] { 
                 menuHome, menuReports, menuSafety, menuChemical, menuNursing, menuAirWaterWaste, 
