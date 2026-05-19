@@ -40,10 +40,10 @@ namespace Safety_System
             GroupBox boxAdd = new GroupBox { Text = "新增外部程式連結", Location = new Point(25, 70), Size = new Size(580, 140) };
             
             Label lblName = new Label { Text = "選單名稱：", Location = new Point(20, 40), AutoSize = true };
-            _txtName = new TextBox { Location = new Point(160, 37), Width = 270 };
+            _txtName = new TextBox { Location = new Point(150, 37), Width = 270 };
 
-            Label lblPath = new Label { Text = "執行路徑 (.exe)：", Location = new Point(20, 85), AutoSize = true };
-            _txtPath = new TextBox { Location = new Point(160, 82), Width = 270 };
+            Label lblPath = new Label { Text = "程式路徑：", Location = new Point(20, 85), AutoSize = true };
+            _txtPath = new TextBox { Location = new Point(150, 82), Width = 270 };
 
             Button btnBrowse = new Button { Text = "瀏覽", Location = new Point(440, 80), Size = new Size(115, 33), Font = new Font("Microsoft JhengHei UI", 11F), Cursor = Cursors.Hand };
             btnBrowse.Click += (s, e) => {
