@@ -31,7 +31,7 @@ namespace Safety_System
             using (var conn = new SQLiteConnection(connStr))
             {
                 conn.Open();
-                // 🟢 開啟 WAL 模式，徹底解決多人連線讀寫時的鎖死問題
+                // 開啟 WAL 模式，徹底解決多人連線讀寫時的鎖死問題
                 using (var cmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", conn)) { cmd.ExecuteNonQuery(); }
 
                 using (var cmd = new SQLiteCommand(conn))
@@ -58,7 +58,6 @@ namespace Safety_System
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomMenus (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 新增：動態下拉選單設定資料表
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DropdownConfigs (
                                         Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                                         TableName TEXT, 
@@ -67,6 +66,10 @@ namespace Safety_System
                                         ParentValue TEXT, 
                                         Options TEXT,
                                         UNIQUE(TableName, ColName, ParentColName, ParentValue));";
+                    cmd.ExecuteNonQuery();
+
+                    // 🟢 新增：應用程式連結設定資料表
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -172,7 +175,6 @@ namespace Safety_System
                 try {
                     using (var conn = new SQLiteConnection(GetConnString(dbName))) {
                         conn.Open(); 
-                        // 🟢 確保業務庫也開啟 WAL 模式
                         using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
                         dbAction(conn); 
                         return;
