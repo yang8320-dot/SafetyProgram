@@ -32,6 +32,7 @@ namespace Safety_System
 
             // 綁定「查詢」相關按鈕
             _btnRead.Click += new EventHandler(async delegate(object s, EventArgs e) {
+                _isFirstLoad = false;
                 _currentSearchMode = SearchMode.DateRange;
                 await ReloadCurrentDataAsync();
             });
@@ -39,6 +40,7 @@ namespace Safety_System
             Button bLimitRead = _btnRead.Tag as Button;
             if (bLimitRead != null) {
                 bLimitRead.Click += new EventHandler(async delegate(object s, EventArgs e) {
+                    _isFirstLoad = false;
                     _currentSearchMode = SearchMode.Limit;
                     int limit = 50;
                     if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
@@ -47,6 +49,7 @@ namespace Safety_System
             }
 
             _btnAdvancedSearch.Click += new EventHandler(async delegate(object s, EventArgs e) {
+                _isFirstLoad = false;
                 _currentSearchMode = SearchMode.Advanced;
                 await ReloadCurrentDataAsync();
             });
@@ -135,7 +138,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底改寫為傳統迴圈，避免 LINQ 解析錯誤
         private void ExecuteDeleteRow()
         {
             List<DataGridViewRow> selectedRows = new List<DataGridViewRow>();
@@ -181,7 +183,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底改寫為傳統迴圈，避免 LINQ 解析錯誤
         private void BtnExport_Click(object sender, EventArgs e) 
         {
             DataTable dt = (DataTable)_dgv.DataSource;
@@ -574,65 +575,6 @@ namespace Safety_System
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
                 _columnWidths[e.Column.Name] = e.Column.Width; SaveColumnWidths(); 
             }
-        }
-
-        // =========================================================
-        // 🟢 傳統排序類別實作 (防範 LINQ 解析失敗)
-        // =========================================================
-        private class ColDisplayIndexComparerDesc : IComparer<DataGridViewColumn> 
-        {
-            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
-                return y.DisplayIndex.CompareTo(x.DisplayIndex);
-            }
-        }
-
-        private class ColDisplayIndexComparerAsc : IComparer<DataGridViewColumn> 
-        {
-            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
-                return x.DisplayIndex.CompareTo(y.DisplayIndex);
-            }
-        }
-
-        private void UnfreezeAllColumns()
-        {
-            if (_dgv == null || _dgv.Columns.Count == 0) return;
-
-            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
-            foreach (DataGridViewColumn c in _dgv.Columns) {
-                cols.Add(c);
-            }
-            
-            // 傳統降冪排序
-            cols.Sort(new ColDisplayIndexComparerDesc());
-
-            foreach (DataGridViewColumn col in cols) {
-                col.Frozen = false;
-            }
-        }
-
-        private void ApplyFreezeState()
-        {
-            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
-
-            try {
-                UnfreezeAllColumns(); 
-                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
-                
-                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
-                foreach (DataGridViewColumn c in _dgv.Columns) {
-                    if (c.DisplayIndex <= targetIndex) {
-                        colsToFreeze.Add(c);
-                    }
-                }
-                
-                // 傳統升冪排序
-                colsToFreeze.Sort(new ColDisplayIndexComparerAsc());
-                                      
-                foreach(DataGridViewColumn col in colsToFreeze) {
-                    col.Frozen = true;
-                }
-            } 
-            catch { }
         }
     }
 }
