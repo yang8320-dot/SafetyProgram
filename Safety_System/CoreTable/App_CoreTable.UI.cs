@@ -195,15 +195,17 @@ namespace Safety_System
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
             _btnExportPdf.FlatAppearance.BorderSize = 0;
 
+            // 🟢 修改區塊：先將查詢、匯出等按鈕加入 Row2，最後再判斷是否加入 RTF轉Excel 按鈕
+            flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
+            flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); 
+            flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
+
+            // 如果是法規模組，將 RTF轉Excel 接續放在最後面
             if (_logic is LawLogic) {
                 _btnRtfToExcel = new Button { Text = "📄 RTF轉 Excel", Size = new Size(160, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
                 _btnRtfToExcel.FlatAppearance.BorderSize = 0;
                 flpAdvRow2.Controls.Add(_btnRtfToExcel);
             }
-
-            flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
-            flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); 
-            flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
 
             tlpAdvLeft.Controls.Add(flpAdvRow1, 0, 0);
             tlpAdvLeft.Controls.Add(flpAdvRow2, 0, 1);
