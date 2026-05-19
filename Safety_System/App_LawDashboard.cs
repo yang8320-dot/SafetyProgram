@@ -194,12 +194,34 @@ namespace Safety_System
                 {
                     _errorLogs.Clear();
                     LoadAndMergeData();
-                    _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
+                    
+                    // 🟢 智慧捕捉：讀取目錄表時，若表不存在則記錄路徑並自動建立
+                    try
+                    {
+                        _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex.Message.Contains("no such table"))
+                        {
+                            string dbPath = Path.Combine(DataManager.BasePath, DbName + ".sqlite");
+                            _errorLogs.Add($"⚠️ 找不到資料表：[法規目錄一覽]\n📂 目標路徑：{dbPath}\n💡 已由系統在背景自動為您建立，後續可正常使用。");
+                            
+                            // 自動修復：主動建立空表以防崩潰
+                            DataManager.InitTable(DbName, "法規目錄一覽", "CREATE TABLE IF NOT EXISTS [法規目錄一覽] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選項類別] TEXT, [流水號] TEXT, [法規名稱] TEXT, [日期] TEXT, [適用性] TEXT, [鑑別日期] TEXT, [再次確認日期] TEXT);");
+                            _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
+                        }
+                        else
+                        {
+                            throw; // 其他嚴重 SQL 錯誤拋出
+                        }
+                    }
+
                     dtStats = BuildStatsData();
                 } 
                 catch (Exception ex) 
                 {
-                    _errorLogs.Add($"[背景運算異常] {ex.Message}");
+                    _errorLogs.Add($"[嚴重運算異常] {ex.Message}");
                 }
             });
 
@@ -219,9 +241,11 @@ namespace Safety_System
 
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
+            // 🟢 優化提示訊息：清楚列出缺少的表與路徑
             if (_errorLogs.Count > 0) 
             {
-                MessageBox.Show("部分資料讀取異常。\n" + string.Join("\n", _errorLogs), "通知", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("部分資料表尚未建立或讀取異常，詳細資訊如下：\n\n" + string.Join("\n\n", _errorLogs), 
+                                "資料庫讀取通知", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -274,7 +298,6 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F), 
                 BorderStyle = BorderStyle.Fixed3D, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None,
-                // 🟢 啟用表頭自動換行，解決擠壓問題
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
             dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -348,7 +371,15 @@ namespace Safety_System
                         _dtAllLaws.Rows.Add(newRow);
                     }
                 } 
-                catch { }
+                catch (Exception ex) 
+                {
+                    // 🟢 智慧捕捉：如果尚未點過個別模組，資料表還不存在，則記錄下來告知使用者
+                    if (ex.Message.Contains("no such table"))
+                    {
+                        string dbPath = Path.Combine(DataManager.BasePath, DbName + ".sqlite");
+                        _errorLogs.Add($"⚠️ 尚未建立或找不到資料表：[{tbl}]\n📂 目標路徑：{dbPath}\n💡 請先點擊上方選單進入「{tbl}」，系統將會自動初始化此表的結構。");
+                    }
+                }
             }
         }
 
@@ -588,7 +619,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 實作與主表相同的「取得欄寬」並傳給新版 Excel 匯出引擎
         private void ExportToExcel(DataGridView dgv, string title)
         {
             if (dgv.Rows.Count == 0) 
@@ -597,7 +627,6 @@ namespace Safety_System
                 return; 
             }
             
-            // 抓取各欄寬度
             Dictionary<string, float> colWidths = new Dictionary<string, float>();
             foreach (DataGridViewColumn col in dgv.Columns)
             {
@@ -631,7 +660,6 @@ namespace Safety_System
                 dt.Rows.Add(dRow);
             }
 
-            // 使用新版引擎匯出 (不含下拉選單，純資料與欄寬等比輸出)
             ExcelHelper.ExportToExcelOrCsv(dt, title, colWidths);
         }
 
