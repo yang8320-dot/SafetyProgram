@@ -1,7 +1,7 @@
+/// FILE: Safety_System/App_CoreTable.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,7 +55,7 @@ namespace Safety_System
         private int _rightClickedColIndex = -1;
         private string _frozenColumnName = null;
 
-        // ================= 建構子與進入點 =================
+        // ================= 建構子 =================
         public App_CoreTable(string dbName, string tableName, string chineseTitle, ITableLogic logic)
         {
             _dbName = dbName;
@@ -64,31 +64,30 @@ namespace Safety_System
             _logic = logic ?? new DefaultLogic(); 
         }
 
+        // ================= 進入點 =================
         public Control GetView()
         {
-            // 1. 初始化資料表結構
             string schema = TableSchemaManager.SchemaMap.ContainsKey(_tableName) 
                             ? TableSchemaManager.SchemaMap[_tableName] 
                             : TableSchemaManager.DefaultCustomSchema;
 
             DataManager.InitTable(_dbName, _tableName, $"CREATE TABLE IF NOT EXISTS [{_tableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
+            
             _logic.InitializeSchema(_dbName, _tableName);
 
-            // 2. 載入記憶設定
             LoadVisibilitySettings();
             LoadColumnWidths(); 
             CheckTimeMode();
 
-            // 3. 呼叫 UI 構建與事件綁定 (實作於 App_CoreTable.UI.cs 與 App_CoreTable.Events.cs)
+            // 呼叫 UI 構建與事件綁定
             Control mainPanel = BuildUI();
             BindEvents();
 
-            // 4. 載入初始資料
             _ = ReloadCurrentDataAsync(); 
             return mainPanel;
         }
 
-        // ================= 核心資料邏輯 =================
+        // ================= 核心邏輯 =================
         private void CheckTimeMode()
         {
             List<string> columns = DataManager.GetColumnNames(_dbName, _tableName);
@@ -237,7 +236,6 @@ namespace Safety_System
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
 
-        // ================= 檔案與記憶功能 =================
         private void LoadColumnWidths() {
             _columnWidths.Clear();
             var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Width");
@@ -261,8 +259,10 @@ namespace Safety_System
 
         private void SaveColumnOrder() { 
             try { 
-                var ordered = _dgv.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToArray(); 
-                DataManager.SaveGridConfig(_dbName, _tableName, "Order", "All", string.Join(",", ordered)); 
+                List<string> orderedCols = new List<string>();
+                foreach (DataGridViewColumn c in _dgv.Columns) orderedCols.Add(c.Name);
+                orderedCols.Sort((a, b) => _dgv.Columns[a].DisplayIndex.CompareTo(_dgv.Columns[b].DisplayIndex));
+                DataManager.SaveGridConfig(_dbName, _tableName, "Order", "All", string.Join(",", orderedCols)); 
             } catch { } 
         }
         
@@ -342,10 +342,10 @@ namespace Safety_System
             foreach (DataGridViewRow row in _dgv.Rows) {
                 if (row.Index == currentRowIndex || row.IsNewRow) continue;
                 if (_dgv.Columns.Contains("附件檔案")) {
-                    string cellVal = row.Cells["附件檔案"].Value?.ToString();
-                    if (!string.IsNullOrEmpty(cellVal)) { 
-                        string[] paths = cellVal.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries); 
-                        if (paths.Contains(relativePath)) { isUsedByOthers = true; break; } 
+                    object cellVal = row.Cells["附件檔案"].Value;
+                    if (cellVal != null) { 
+                        string[] paths = cellVal.ToString().Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries); 
+                        foreach(string p in paths) { if (p == relativePath) { isUsedByOthers = true; break; } }
                     }
                 }
             }
