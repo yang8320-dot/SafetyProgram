@@ -1,6 +1,6 @@
 /// FILE: Safety_System/CoreTable/App_CoreTable.UI.cs ///
 using System;
-using System.Collections.Generic; // 🟢 修正：加入泛型集合的命名空間 (解決 List 與 HashSet 找不到的問題)
+using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Linq;
@@ -45,13 +45,16 @@ namespace Safety_System
 
             int currentYear = DateTime.Now.Year;
             for (int i = currentYear - 25; i <= currentYear + 25; i++) {
-                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i);
+                _cboStartYear.Items.Add(i); 
+                _cboEndYear.Items.Add(i);
             }
             for (int i = 1; i <= 12; i++) {
-                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2"));
+                _cboStartMonth.Items.Add(i.ToString("D2")); 
+                _cboEndMonth.Items.Add(i.ToString("D2"));
             }
             for (int i = 1; i <= 31; i++) {
-                _cboStartDay.Items.Add(i.ToString("D2")); _cboEndDay.Items.Add(i.ToString("D2"));
+                _cboStartDay.Items.Add(i.ToString("D2")); 
+                _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, (_timeMode == TimeMode.Date) ? DateTime.Today.AddDays(-30) : DateTime.Today.AddMonths(-6));
@@ -146,7 +149,8 @@ namespace Safety_System
                     DataTable dt = (DataTable)_dgv.DataSource;
                     if (dt.Columns.Contains(oldName)) dt.Columns[oldName].ColumnName = _txtRenameCol.Text;
                     if (_dgv.Columns.Contains(oldName)) { _dgv.Columns[oldName].HeaderText = _txtRenameCol.Text; _dgv.Columns[oldName].Name = _txtRenameCol.Text; }
-                    UpdateCboColumns(); _txtRenameCol.Clear(); 
+                    UpdateCboColumns(); 
+                    _txtRenameCol.Clear(); 
                     ApplyFreezeState();
                     MessageBox.Show("欄位名稱修改成功！");
                 } 
@@ -209,7 +213,10 @@ namespace Safety_System
             tlpAdvLeft.Controls.Add(flpAdvRow2, 0, 1);
             _boxAdvanced.Controls.Add(tlpAdvLeft);
 
-            _btnToggle.Click += (s, e) => { _boxAdvanced.Visible = !_boxAdvanced.Visible; _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; };
+            _btnToggle.Click += (s, e) => { 
+                _boxAdvanced.Visible = !_boxAdvanced.Visible; 
+                _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; 
+            };
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
@@ -345,7 +352,10 @@ namespace Safety_System
 
         private void SetupDropdownColumns() 
         {
-            foreach (DataGridViewColumn col in _dgv.Columns.Cast<DataGridViewColumn>().ToList()) {
+            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
+            foreach (DataGridViewColumn col in _dgv.Columns) cols.Add(col);
+
+            foreach (DataGridViewColumn col in cols) {
                 string[] items = _logic.GetDropdownList(_tableName, col.Name);
                 string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
                 
@@ -389,7 +399,8 @@ namespace Safety_System
                         if (row.RowState == DataRowState.Deleted) continue;
                         string val = row[col.Name]?.ToString().Trim();
                         if (!string.IsNullOrEmpty(val) && !existingItems.Contains(val)) {
-                            existingItems.Add(val); cboCol.Items.Add(val);
+                            existingItems.Add(val); 
+                            cboCol.Items.Add(val);
                         }
                     }
                 }
@@ -408,4 +419,62 @@ namespace Safety_System
                 if (c.Name != "Id") { _cboSearchColumn.Items.Add(c.Name); } 
             }
             
-            if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn
+            if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn.Items.Contains(currentSearchSel)) { 
+                _cboSearchColumn.SelectedItem = currentSearchSel; 
+            } else if (_cboSearchColumn.Items.Count > 0) { 
+                _cboSearchColumn.SelectedIndex = 0; 
+            }
+        }
+
+        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) 
+        {
+            if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
+            m.SelectedItem = date.Month.ToString("D2"); 
+            d.SelectedItem = date.Day.ToString("D2");
+        }
+
+        // 🟢 徹底移除 LINQ 結構，採用傳統迴圈，完全防範編譯器解析崩潰
+        private void UnfreezeAllColumns()
+        {
+            if (_dgv == null || _dgv.Columns.Count == 0) return;
+
+            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
+            foreach (DataGridViewColumn c in _dgv.Columns) {
+                cols.Add(c);
+            }
+            
+            // 傳統降冪排序 (OrderByDescending 的替代方案)
+            cols.Sort((a, b) => b.DisplayIndex.CompareTo(a.DisplayIndex));
+
+            foreach (DataGridViewColumn col in cols) {
+                col.Frozen = false;
+            }
+        }
+
+        // 🟢 徹底移除 LINQ 結構，採用傳統迴圈，完全防範編譯器解析崩潰
+        private void ApplyFreezeState()
+        {
+            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
+
+            try {
+                UnfreezeAllColumns(); 
+                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
+                
+                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
+                foreach (DataGridViewColumn c in _dgv.Columns) {
+                    if (c.DisplayIndex <= targetIndex) {
+                        colsToFreeze.Add(c);
+                    }
+                }
+                
+                // 傳統升冪排序 (OrderBy 的替代方案)
+                colsToFreeze.Sort((a, b) => a.DisplayIndex.CompareTo(b.DisplayIndex));
+                                      
+                foreach(DataGridViewColumn col in colsToFreeze) {
+                    col.Frozen = true;
+                }
+            } 
+            catch { }
+        }
+    }
+}
