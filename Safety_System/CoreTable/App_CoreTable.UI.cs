@@ -1,4 +1,6 @@
+/// FILE: Safety_System/CoreTable/App_CoreTable.UI.cs ///
 using System;
+using System.Collections.Generic; // 🟢 修正：加入泛型集合的命名空間 (解決 List 與 HashSet 找不到的問題)
 using System.Data;
 using System.Drawing;
 using System.Linq;
@@ -406,41 +408,4 @@ namespace Safety_System
                 if (c.Name != "Id") { _cboSearchColumn.Items.Add(c.Name); } 
             }
             
-            if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn.Items.Contains(currentSearchSel)) { 
-                _cboSearchColumn.SelectedItem = currentSearchSel; 
-            } else if (_cboSearchColumn.Items.Count > 0) { 
-                _cboSearchColumn.SelectedIndex = 0; 
-            }
-        }
-
-        private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date) 
-        {
-            if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
-            m.SelectedItem = date.Month.ToString("D2"); 
-            d.SelectedItem = date.Day.ToString("D2");
-        }
-
-        private void UnfreezeAllColumns()
-        {
-            if (_dgv == null || _dgv.Columns.Count == 0) return;
-            var cols = _dgv.Columns.Cast<DataGridViewColumn>().OrderByDescending(c => c.DisplayIndex).ToList();
-            foreach (var col in cols) col.Frozen = false;
-        }
-
-        private void ApplyFreezeState()
-        {
-            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
-
-            try {
-                UnfreezeAllColumns(); 
-                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
-                
-                var colsToFreeze = _dgv.Columns.Cast<DataGridViewColumn>()
-                                      .Where(c => c.DisplayIndex <= targetIndex)
-                                      .OrderBy(c => c.DisplayIndex).ToList();
-                                      
-                foreach(var col in colsToFreeze) col.Frozen = true;
-            } catch { }
-        }
-    }
-}
+            if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn
