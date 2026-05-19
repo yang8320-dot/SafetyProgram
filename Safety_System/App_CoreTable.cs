@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_CoreTable.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -309,10 +308,6 @@ namespace Safety_System
             _btnExportPdf.FlatAppearance.BorderSize = 0;
             _btnExportPdf.Click += BtnExportPdf_Click;
 
-            flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
-            flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); 
-            flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
-
             if (_logic is LawLogic) {
                 _btnRtfToExcel = new Button { Text = "📄 RTF轉 Excel", Size = new Size(160, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
                 _btnRtfToExcel.FlatAppearance.BorderSize = 0;
@@ -328,10 +323,13 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
+            // 🟢 啟用表頭自動適應高度與換行
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10)
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
+            _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
             _dgv.CellFormatting += Dgv_CellFormatting;
@@ -423,7 +421,6 @@ namespace Safety_System
             });
         }
 
-        // 🟢 將 DataTable 中新出現的值提前寫入 ComboBox 的 Items，防止 DataError
         private void PreFillComboBoxItems(DataTable dt)
         {
             if (dt == null || _dgv.Columns.Count == 0) return;
@@ -561,7 +558,7 @@ namespace Safety_System
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
-            PreFillComboBoxItems(dt); // 🟢 修復下拉選單配對錯誤
+            PreFillComboBoxItems(dt); 
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -590,7 +587,7 @@ namespace Safety_System
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
-            PreFillComboBoxItems(dt); // 🟢 修復下拉選單配對錯誤
+            PreFillComboBoxItems(dt); 
             _dgv.DataSource = dt; 
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -645,7 +642,7 @@ namespace Safety_System
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
 
-            PreFillComboBoxItems(resultDt); // 🟢 修復下拉選單配對錯誤
+            PreFillComboBoxItems(resultDt); 
             _dgv.DataSource = resultDt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -976,7 +973,7 @@ namespace Safety_System
                 _isApplyingWidths = true;
                 _dgv.SuspendLayout();
 
-                PreFillComboBoxItems(workingDt); // 🟢 修復下拉選單配對錯誤
+                PreFillComboBoxItems(workingDt); 
                 _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
                 RestoreColumnOrder();
@@ -1403,7 +1400,23 @@ namespace Safety_System
         private void BtnExport_Click(object sender, EventArgs e) 
         {
             DataTable dt = (DataTable)_dgv.DataSource;
-            ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle);
+
+            // 🟢 收集所有目前的下拉選單選項
+            Dictionary<string, string[]> dropdownData = new Dictionary<string, string[]>();
+            foreach (DataGridViewColumn col in _dgv.Columns)
+            {
+                if (col is DataGridViewComboBoxColumn cboCol)
+                {
+                    var items = cboCol.Items.Cast<object>().Select(x => x.ToString()).ToArray();
+                    if (items.Length > 0)
+                    {
+                        dropdownData[col.Name] = items;
+                    }
+                }
+            }
+
+            // 🟢 傳遞當前顯示的欄寬設定，用作 Excel 匯出排版比例
+            ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle, _columnWidths, dropdownData);
         }
 
         private async void BtnImportExcel_Click(object sender, EventArgs e) 
@@ -1447,7 +1460,7 @@ namespace Safety_System
                     _isApplyingWidths = true;
                     _dgv.SuspendLayout();
 
-                    PreFillComboBoxItems(workingDt); // 🟢 修復下拉選單配對錯誤
+                    PreFillComboBoxItems(workingDt); 
                     _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
                     RestoreColumnOrder();
