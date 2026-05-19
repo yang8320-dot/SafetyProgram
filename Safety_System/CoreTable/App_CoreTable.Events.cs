@@ -1,3 +1,4 @@
+/// FILE: Safety_System/CoreTable/App_CoreTable.Events.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -25,6 +26,29 @@ namespace Safety_System
             _dgv.CellValueChanged += Dgv_CellValueChanged;
             _dgv.ColumnWidthChanged += Dgv_ColumnWidthChanged;
 
+            // 🟢 修復：綁定「儲存」按鈕 (讓實體按鈕與 Ctrl+S 同時生效)
+            _btnSave.Click += BtnSave_Click;
+
+            // 🟢 修復：綁定「查詢」相關按鈕
+            _btnRead.Click += async (s, e) => {
+                _currentSearchMode = SearchMode.DateRange;
+                await ReloadCurrentDataAsync();
+            };
+
+            Button bLimitRead = _btnRead.Tag as Button;
+            if (bLimitRead != null) {
+                bLimitRead.Click += async (s, e) => {
+                    _currentSearchMode = SearchMode.Limit;
+                    if (int.TryParse(_txtLatestCount.Text, out int limit)) _currentLimit = limit;
+                    await ReloadCurrentDataAsync();
+                };
+            }
+
+            _btnAdvancedSearch.Click += async (s, e) => {
+                _currentSearchMode = SearchMode.Advanced;
+                await ReloadCurrentDataAsync();
+            };
+
             // 匯出匯入按鈕
             _btnExport.Click += BtnExport_Click;
             _btnImport.Click += BtnImportExcel_Click;
@@ -47,8 +71,6 @@ namespace Safety_System
             }
 
             if (_btnRtfToExcel != null) _btnRtfToExcel.Click += BtnRtfToExcel_Click;
-
-            // 讀取相關按鈕 (已在 UI 內綁定 async lambda，此處略過)
         }
 
         private async void BtnSave_Click(object sender, EventArgs e) 
@@ -458,29 +480,4 @@ namespace Safety_System
         }
 
         private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e) {
-            if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell) { _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit); }
-        }
-
-        private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e) {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0) {
-                string colName = _dgv.Columns[e.ColumnIndex].Name;
-                if (colName.Contains("附件檔案") && e.Value != null) {
-                    string pathStr = e.Value.ToString();
-                    if (!string.IsNullOrEmpty(pathStr)) {
-                        string[] parts = pathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length > 1) { e.Value = $"📁 [共 {parts.Length} 個檔案]"; } 
-                        else { e.Value = Path.GetFileName(parts[0]); }
-                        e.FormattingApplied = true;
-                    }
-                }
-            }
-        }
-
-        private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e) {
-            if (_isFirstLoad || _isApplyingWidths) return;
-            if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
-                _columnWidths[e.Column.Name] = e.Column.Width; SaveColumnWidths(); 
-            }
-        }
-    }
-}
+            if (_dgv.IsCurrentCellDirty && _dgv.C
