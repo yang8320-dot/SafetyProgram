@@ -1,3 +1,4 @@
+/// FILE: Safety_System/CoreTable/AttachmentManagerUI.cs ///
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -272,7 +273,7 @@ namespace Safety_System
             
             public void Dispose() 
             { 
-                _encoderParams?.Dispose(); 
+                if (_encoderParams != null) _encoderParams.Dispose(); 
             }
         }
     }
