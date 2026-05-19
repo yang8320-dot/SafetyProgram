@@ -84,6 +84,10 @@ namespace Safety_System
 
             _btnToggle = new Button { Text = "+", Size = new Size(45, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold) };
             _btnToggle.FlatAppearance.BorderSize = 0;
+            _btnToggle.Click += delegate(object s, EventArgs e) { 
+                _boxAdvanced.Visible = !_boxAdvanced.Visible; 
+                _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; 
+            };
 
             _btnSave = new Button { Name = "btnSave", Text = "💾 儲存", Size = new Size(95, btnHeight), Margin = new Padding(0, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
             _btnSave.FlatAppearance.BorderSize = 0;
@@ -113,7 +117,7 @@ namespace Safety_System
             _txtNewColName = new TextBox { Width = 110, Margin = ctrlPad };
             Button bAdd = new Button { Text = "新增欄位", Size = new Size(95, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bAdd.FlatAppearance.BorderSize = 0;
-            bAdd.Click += (s, e) => { 
+            bAdd.Click += delegate(object s, EventArgs e) { 
                 if (!string.IsNullOrEmpty(_txtNewColName.Text) && AuthManager.VerifyAdmin()) { 
                     UnfreezeAllColumns();
                     DataManager.AddColumn(_dbName, _tableName, _txtNewColName.Text); 
@@ -137,7 +141,7 @@ namespace Safety_System
             _txtRenameCol = new TextBox { Width = 120, Margin = ctrlPad };
             Button bRen = new Button { Text = "標題更改", Size = new Size(95, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bRen.FlatAppearance.BorderSize = 0;
-            bRen.Click += (s, e) => { 
+            bRen.Click += delegate(object s, EventArgs e) { 
                 if (_cboColumns.SelectedItem != null && !string.IsNullOrEmpty(_txtRenameCol.Text) && AuthManager.VerifyAdmin()) { 
                     UnfreezeAllColumns();
                     string oldName = _cboColumns.SelectedItem.ToString();
@@ -154,7 +158,7 @@ namespace Safety_System
             
             Button bDelCol = new Button { Text = "刪除欄", Size = new Size(80, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelCol.FlatAppearance.BorderSize = 0;
-            bDelCol.Click += (s, e) => { 
+            bDelCol.Click += delegate(object s, EventArgs e) { 
                 if (_cboColumns.SelectedItem != null && AuthManager.VerifyAdmin()) { 
                     string colToDrop = _cboColumns.SelectedItem.ToString();
                     if(MessageBox.Show($"確定刪除整欄【{colToDrop}】？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) { 
@@ -208,11 +212,6 @@ namespace Safety_System
             tlpAdvLeft.Controls.Add(flpAdvRow1, 0, 0);
             tlpAdvLeft.Controls.Add(flpAdvRow2, 0, 1);
             _boxAdvanced.Controls.Add(tlpAdvLeft);
-
-            _btnToggle.Click += delegate(object s, EventArgs e) { 
-                _boxAdvanced.Visible = !_boxAdvanced.Visible; 
-                _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; 
-            };
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
@@ -278,7 +277,6 @@ namespace Safety_System
                 itemImport, itemExport, itemPdf 
             });
 
-            // 暫存控制項供 BindEvents 呼叫
             _ctxMenu.Tag = btnDelRow;
         }
 
@@ -439,6 +437,60 @@ namespace Safety_System
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
             m.SelectedItem = date.Month.ToString("D2"); 
             d.SelectedItem = date.Day.ToString("D2");
+        }
+
+        private class ColDisplayIndexComparerDesc : IComparer<DataGridViewColumn> 
+        {
+            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
+                return y.DisplayIndex.CompareTo(x.DisplayIndex);
+            }
+        }
+
+        private class ColDisplayIndexComparerAsc : IComparer<DataGridViewColumn> 
+        {
+            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
+                return x.DisplayIndex.CompareTo(y.DisplayIndex);
+            }
+        }
+
+        private void UnfreezeAllColumns()
+        {
+            if (_dgv == null || _dgv.Columns.Count == 0) return;
+
+            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
+            foreach (DataGridViewColumn c in _dgv.Columns) {
+                cols.Add(c);
+            }
+            
+            cols.Sort(new ColDisplayIndexComparerDesc());
+
+            foreach (DataGridViewColumn col in cols) {
+                col.Frozen = false;
+            }
+        }
+
+        private void ApplyFreezeState()
+        {
+            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
+
+            try {
+                UnfreezeAllColumns(); 
+                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
+                
+                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
+                foreach (DataGridViewColumn c in _dgv.Columns) {
+                    if (c.DisplayIndex <= targetIndex) {
+                        colsToFreeze.Add(c);
+                    }
+                }
+                
+                colsToFreeze.Sort(new ColDisplayIndexComparerAsc());
+                                      
+                foreach(DataGridViewColumn col in colsToFreeze) {
+                    col.Frozen = true;
+                }
+            } 
+            catch { }
         }
     }
 }
