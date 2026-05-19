@@ -323,7 +323,7 @@ namespace Safety_System
 
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
 
-            // 🟢 啟用表頭自動適應高度與換行
+            // 啟用表頭自動適應高度與換行
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
@@ -1401,7 +1401,6 @@ namespace Safety_System
         {
             DataTable dt = (DataTable)_dgv.DataSource;
 
-            // 🟢 收集所有目前的下拉選單選項
             Dictionary<string, string[]> dropdownData = new Dictionary<string, string[]>();
             foreach (DataGridViewColumn col in _dgv.Columns)
             {
@@ -1415,8 +1414,14 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 傳遞當前顯示的欄寬設定，用作 Excel 匯出排版比例
-            ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle, _columnWidths, dropdownData);
+            // 🟢 修正 CS1503 錯誤：將 int 型別的欄寬轉換為 ExcelHelper 需要的 float 型別
+            Dictionary<string, float> exportWidths = new Dictionary<string, float>();
+            foreach (var kvp in _columnWidths)
+            {
+                exportWidths[kvp.Key] = (float)kvp.Value;
+            }
+
+            ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle, exportWidths, dropdownData);
         }
 
         private async void BtnImportExcel_Click(object sender, EventArgs e) 
