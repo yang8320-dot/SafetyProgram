@@ -34,14 +34,12 @@ namespace Safety_System
             this.Font = new Font("Microsoft JhengHei UI", 12F);
             
             DataManager.LoadConfig();
+            
+            // 🟢 修復：確保在程式啟動時載入下拉選單記憶快取，防止下拉選單出不來
+            App_DropdownManager.LoadDropdownConfigs();
+            
             BackupManager.RunAutoBackup();
             App_PasswordManager.InitDatabase();
-            
-            // 🟢 修復 1：系統啟動時，強制載入全域下拉選單設定快取，解決首次點擊下拉選單無資料的問題
-            App_DropdownManager.LoadDropdownConfigs();
-
-            // 🟢 新增：確保自訂應用連結資料表存在
-            DataManager.InitTable("SystemConfig", "AppLinks", "CREATE TABLE IF NOT EXISTS [AppLinks] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [MenuName] TEXT, [FilePath] TEXT);");
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
             BuildMenu();
@@ -94,8 +92,6 @@ namespace Safety_System
 
         private void BuildMenu()
         {
-            _mainMenu.Items.Clear(); // 確保重新建置時不會重複
-
             var menuHome = new ToolStripMenuItem("首頁");
             menuHome.Click += (s, e) => LoadWelcomeScreen();
 
@@ -239,37 +235,9 @@ namespace Safety_System
             menuISOComm.DropDownItems.Add(CreateItem("來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
             menuISO.DropDownItems.Add(menuISOComm);
 
-            // 🟢 應用程式選單動態載入
+            // 🟢 修改：動態產生應用連結選單
             var menuApp = new ToolStripMenuItem("應用");
-            var callExeItem = new ToolStripMenuItem("tgeOffice導入巡檢");
-            callExeItem.Click += (s, e) => {
-                string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\tgeoffice_dw\FormCrawlerApp.exe");
-                try {
-                    if (File.Exists(exePath)) Process.Start(new ProcessStartInfo { FileName = exePath, UseShellExecute = true });
-                    else MessageBox.Show($"找不到外部程式：\n{exePath}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                catch (Exception ex) { MessageBox.Show($"執行外部程式失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-            };
-            menuApp.DropDownItems.Add(callExeItem);
-            menuApp.DropDownItems.Add(new ToolStripSeparator());
-
-            try {
-                DataTable dtLinks = DataManager.GetTableData("SystemConfig", "AppLinks", "", "", "");
-                if (dtLinks != null && dtLinks.Rows.Count > 0) {
-                    foreach(DataRow row in dtLinks.Rows) {
-                        string mName = row["MenuName"].ToString();
-                        string mPath = row["FilePath"].ToString();
-                        var linkItem = new ToolStripMenuItem(mName);
-                        linkItem.Click += (s, e) => {
-                            try {
-                                if (File.Exists(mPath)) Process.Start(new ProcessStartInfo { FileName = mPath, UseShellExecute = true });
-                                else MessageBox.Show($"找不到外部程式：\n{mPath}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            } catch (Exception ex) { MessageBox.Show($"執行外部程式失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-                        };
-                        menuApp.DropDownItems.Add(linkItem);
-                    }
-                }
-            } catch { }
+            LoadDynamicAppLinks(menuApp);
 
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
@@ -291,18 +259,22 @@ namespace Safety_System
                 new App_MenuManager().ShowDialog(this);
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
-
+            
             // 🟢 新增：應用連結設定
-            var appLinkManagerItem = new ToolStripMenuItem("應用連結設定");
-            appLinkManagerItem.Click += (s, e) => {
-                string prompt = "設定應用連結需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (AuthManager.VerifyAdmin(prompt)) { 
-                    new App_AppLinkManager().ShowDialog(this); 
-                    BuildMenu(); // 動態更新選單
+            var appLinkSettingItem = new ToolStripMenuItem("應用連結設定");
+            appLinkSettingItem.Click += (s, e) => {
+                try {
+                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { 
+                        new App_LinkManager().ShowDialog(this); 
+                        LoadDynamicAppLinks(menuApp); // 設定完後重新載入應用選單
+                    } 
+                } catch (Exception ex) {
+                    MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
-            menuSettings.DropDownItems.Add(appLinkManagerItem);
-            
+            menuSettings.DropDownItems.Add(appLinkSettingItem);
+
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
@@ -384,6 +356,48 @@ namespace Safety_System
                 menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, 
                 menuApp, _menu1, _menu2, _menu3, _menu4, menuSettings 
             });
+        }
+
+        // 🟢 讀取動態應用連結選單
+        private void LoadDynamicAppLinks(ToolStripMenuItem menuApp)
+        {
+            menuApp.DropDownItems.Clear();
+            
+            // 保留原本的預設項 tgeOffice導入巡檢
+            var callExeItem = new ToolStripMenuItem("tgeOffice導入巡檢");
+            callExeItem.Click += (s, e) => {
+                string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\tgeoffice_dw\FormCrawlerApp.exe");
+                try {
+                    if (File.Exists(exePath)) Process.Start(new ProcessStartInfo { FileName = exePath, UseShellExecute = true });
+                    else MessageBox.Show($"找不到外部程式：\n{exePath}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch (Exception ex) { MessageBox.Show($"執行外部程式失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
+            menuApp.DropDownItems.Add(callExeItem);
+
+            // 從資料庫讀取自訂連結
+            try {
+                DataTable dt = DataManager.GetTableData("SystemConfig", "AppLinks", "", "", "");
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    menuApp.DropDownItems.Add(new ToolStripSeparator());
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        string menuName = row["選單名稱"]?.ToString() ?? "未命名";
+                        string exePath = row["執行路徑"]?.ToString() ?? "";
+
+                        var customItem = new ToolStripMenuItem(menuName);
+                        customItem.Click += (s, e) => {
+                            try {
+                                if (File.Exists(exePath)) Process.Start(new ProcessStartInfo { FileName = exePath, UseShellExecute = true });
+                                else MessageBox.Show($"找不到外部程式：\n{exePath}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            }
+                            catch (Exception ex) { MessageBox.Show($"執行外部程式失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                        };
+                        menuApp.DropDownItems.Add(customItem);
+                    }
+                }
+            } catch { }
         }
 
         private void AttachCustomMenus(params ToolStripMenuItem[] mainNodes)
