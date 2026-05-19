@@ -1,4 +1,4 @@
-name: Safety_System
+name: 工安系統
 
 on:
   workflow_dispatch: 
