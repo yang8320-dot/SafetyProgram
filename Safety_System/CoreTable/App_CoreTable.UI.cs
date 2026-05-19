@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
-using System.Linq;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -45,16 +44,13 @@ namespace Safety_System
 
             int currentYear = DateTime.Now.Year;
             for (int i = currentYear - 25; i <= currentYear + 25; i++) {
-                _cboStartYear.Items.Add(i); 
-                _cboEndYear.Items.Add(i);
+                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i);
             }
             for (int i = 1; i <= 12; i++) {
-                _cboStartMonth.Items.Add(i.ToString("D2")); 
-                _cboEndMonth.Items.Add(i.ToString("D2"));
+                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2"));
             }
             for (int i = 1; i <= 31; i++) {
-                _cboStartDay.Items.Add(i.ToString("D2")); 
-                _cboEndDay.Items.Add(i.ToString("D2"));
+                _cboStartDay.Items.Add(i.ToString("D2")); _cboEndDay.Items.Add(i.ToString("D2"));
             }
 
             SetComboDate(_cboStartYear, _cboStartMonth, _cboStartDay, (_timeMode == TimeMode.Date) ? DateTime.Today.AddDays(-30) : DateTime.Today.AddMonths(-6));
@@ -213,7 +209,7 @@ namespace Safety_System
             tlpAdvLeft.Controls.Add(flpAdvRow2, 0, 1);
             _boxAdvanced.Controls.Add(tlpAdvLeft);
 
-            _btnToggle.Click += (s, e) => { 
+            _btnToggle.Click += delegate(object s, EventArgs e) { 
                 _boxAdvanced.Visible = !_boxAdvanced.Visible; 
                 _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; 
             };
@@ -256,7 +252,6 @@ namespace Safety_System
             ToolStripMenuItem itemExport = new ToolStripMenuItem("📤 匯出");
             ToolStripMenuItem itemPdf = new ToolStripMenuItem("📄 導出 PDF");
 
-            // 按鈕與選單事件將在 App_CoreTable.Events 中統一綁定
             itemSave.Tag = "Save";
             itemDeleteRow.Tag = "DeleteRow";
             itemColSettings.Tag = "ColSettings";
@@ -264,14 +259,14 @@ namespace Safety_System
             itemExport.Tag = "Export";
             itemPdf.Tag = "Pdf";
 
-            itemFreeze.Click += (s, e) => {
+            itemFreeze.Click += delegate(object s, EventArgs e) {
                 if (_rightClickedColIndex >= 0 && _rightClickedColIndex < _dgv.Columns.Count) {
                     _frozenColumnName = _dgv.Columns[_rightClickedColIndex].Name;
                     ApplyFreezeState();
                 }
             };
 
-            itemUnfreeze.Click += (s, e) => {
+            itemUnfreeze.Click += delegate(object s, EventArgs e) {
                 _frozenColumnName = null;
                 UnfreezeAllColumns();
             };
@@ -373,11 +368,17 @@ namespace Safety_System
                     
                     if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
                     
-                    List<string> finalItems = new List<string>(items);
-                    if (_dgv.DataSource is DataTable dt) { 
+                    List<string> finalItems = new List<string>();
+                    foreach (string item in items) finalItems.Add(item);
+
+                    if (_dgv.DataSource is DataTable) { 
+                        DataTable dt = (DataTable)_dgv.DataSource;
                         foreach (DataRow row in dt.Rows) { 
-                            string val = row[col.Name]?.ToString().Trim(); 
-                            if (!string.IsNullOrEmpty(val) && !finalItems.Contains(val)) finalItems.Add(val); 
+                            object valObj = row[col.Name];
+                            if (valObj != null) {
+                                string val = valObj.ToString().Trim(); 
+                                if (!string.IsNullOrEmpty(val) && !finalItems.Contains(val)) finalItems.Add(val); 
+                            }
                         } 
                     }
                     
@@ -391,16 +392,20 @@ namespace Safety_System
         {
             if (dt == null || _dgv.Columns.Count == 0) return;
             foreach (DataGridViewColumn col in _dgv.Columns) {
-                if (col is DataGridViewComboBoxColumn cboCol && dt.Columns.Contains(col.Name)) {
-                    HashSet<string> existingItems = new HashSet<string>();
-                    foreach (var item in cboCol.Items) existingItems.Add(item.ToString());
+                if (col is DataGridViewComboBoxColumn && dt.Columns.Contains(col.Name)) {
+                    DataGridViewComboBoxColumn cboCol = (DataGridViewComboBoxColumn)col;
+                    List<string> existingItems = new List<string>();
+                    foreach (object item in cboCol.Items) existingItems.Add(item.ToString());
 
                     foreach (DataRow row in dt.Rows) {
                         if (row.RowState == DataRowState.Deleted) continue;
-                        string val = row[col.Name]?.ToString().Trim();
-                        if (!string.IsNullOrEmpty(val) && !existingItems.Contains(val)) {
-                            existingItems.Add(val); 
-                            cboCol.Items.Add(val);
+                        object valObj = row[col.Name];
+                        if (valObj != null) {
+                            string val = valObj.ToString().Trim();
+                            if (!string.IsNullOrEmpty(val) && !existingItems.Contains(val)) {
+                                existingItems.Add(val); 
+                                cboCol.Items.Add(val);
+                            }
                         }
                     }
                 }
@@ -409,7 +414,10 @@ namespace Safety_System
 
         private void UpdateCboColumns() 
         {
-            string currentSearchSel = _cboSearchColumn.SelectedItem?.ToString();
+            string currentSearchSel = "";
+            if (_cboSearchColumn.SelectedItem != null) {
+                currentSearchSel = _cboSearchColumn.SelectedItem.ToString();
+            }
             _cboColumns.Items.Clear(); 
             _cboSearchColumn.Items.Clear(); 
             _cboSearchColumn.Items.Add(""); 
@@ -431,50 +439,6 @@ namespace Safety_System
             if (y.Items.Contains(date.Year)) y.SelectedItem = date.Year;
             m.SelectedItem = date.Month.ToString("D2"); 
             d.SelectedItem = date.Day.ToString("D2");
-        }
-
-        // 🟢 徹底移除 LINQ 結構，採用傳統迴圈，完全防範編譯器解析崩潰
-        private void UnfreezeAllColumns()
-        {
-            if (_dgv == null || _dgv.Columns.Count == 0) return;
-
-            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
-            foreach (DataGridViewColumn c in _dgv.Columns) {
-                cols.Add(c);
-            }
-            
-            // 傳統降冪排序 (OrderByDescending 的替代方案)
-            cols.Sort((a, b) => b.DisplayIndex.CompareTo(a.DisplayIndex));
-
-            foreach (DataGridViewColumn col in cols) {
-                col.Frozen = false;
-            }
-        }
-
-        // 🟢 徹底移除 LINQ 結構，採用傳統迴圈，完全防範編譯器解析崩潰
-        private void ApplyFreezeState()
-        {
-            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
-
-            try {
-                UnfreezeAllColumns(); 
-                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
-                
-                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
-                foreach (DataGridViewColumn c in _dgv.Columns) {
-                    if (c.DisplayIndex <= targetIndex) {
-                        colsToFreeze.Add(c);
-                    }
-                }
-                
-                // 傳統升冪排序 (OrderBy 的替代方案)
-                colsToFreeze.Sort((a, b) => a.DisplayIndex.CompareTo(b.DisplayIndex));
-                                      
-                foreach(DataGridViewColumn col in colsToFreeze) {
-                    col.Frozen = true;
-                }
-            } 
-            catch { }
         }
     }
 }
