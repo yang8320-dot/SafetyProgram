@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -15,62 +14,72 @@ namespace Safety_System
         private void BindEvents()
         {
             // Grid 視覺與互動事件
-            _dgv.CellFormatting += Dgv_CellFormatting;
-            _dgv.CellClick += Dgv_CellClick;
-            _dgv.CellMouseClick += Dgv_CellMouseClick; 
-            _dgv.KeyDown += Dgv_KeyDown;
-            _dgv.KeyPress += Dgv_KeyPress;
-            _dgv.EditingControlShowing += Dgv_EditingControlShowing;
-            _dgv.DataError += (s, e) => { e.ThrowException = false; };
-            _dgv.CurrentCellDirtyStateChanged += Dgv_CurrentCellDirtyStateChanged;
-            _dgv.CellValueChanged += Dgv_CellValueChanged;
-            _dgv.ColumnWidthChanged += Dgv_ColumnWidthChanged;
+            _dgv.CellFormatting += new DataGridViewCellFormattingEventHandler(Dgv_CellFormatting);
+            _dgv.CellClick += new DataGridViewCellEventHandler(Dgv_CellClick);
+            _dgv.CellMouseClick += new DataGridViewCellMouseEventHandler(Dgv_CellMouseClick); 
+            _dgv.KeyDown += new KeyEventHandler(Dgv_KeyDown);
+            _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
+            _dgv.EditingControlShowing += new DataGridViewEditingControlShowingEventHandler(Dgv_EditingControlShowing);
+            
+            _dgv.DataError += delegate(object s, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; };
+            
+            _dgv.CurrentCellDirtyStateChanged += new EventHandler(Dgv_CurrentCellDirtyStateChanged);
+            _dgv.CellValueChanged += new DataGridViewCellEventHandler(Dgv_CellValueChanged);
+            _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
 
-            // 🟢 修復：綁定「儲存」按鈕 (讓實體按鈕與 Ctrl+S 同時生效)
-            _btnSave.Click += BtnSave_Click;
+            // 綁定「儲存」按鈕
+            _btnSave.Click += new EventHandler(BtnSave_Click);
 
-            // 🟢 修復：綁定「查詢」相關按鈕
-            _btnRead.Click += async (s, e) => {
+            // 綁定「查詢」相關按鈕
+            _btnRead.Click += new EventHandler(async delegate(object s, EventArgs e) {
                 _currentSearchMode = SearchMode.DateRange;
                 await ReloadCurrentDataAsync();
-            };
+            });
 
             Button bLimitRead = _btnRead.Tag as Button;
             if (bLimitRead != null) {
-                bLimitRead.Click += async (s, e) => {
+                bLimitRead.Click += new EventHandler(async delegate(object s, EventArgs e) {
                     _currentSearchMode = SearchMode.Limit;
-                    if (int.TryParse(_txtLatestCount.Text, out int limit)) _currentLimit = limit;
+                    int limit = 50;
+                    if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
                     await ReloadCurrentDataAsync();
-                };
+                });
             }
 
-            _btnAdvancedSearch.Click += async (s, e) => {
+            _btnAdvancedSearch.Click += new EventHandler(async delegate(object s, EventArgs e) {
                 _currentSearchMode = SearchMode.Advanced;
                 await ReloadCurrentDataAsync();
-            };
+            });
 
             // 匯出匯入按鈕
-            _btnExport.Click += BtnExport_Click;
-            _btnImport.Click += BtnImportExcel_Click;
-            _btnExportPdf.Click += BtnExportPdf_Click;
-            _btnColSettings.Click += BtnColSettings_Click;
+            _btnExport.Click += new EventHandler(BtnExport_Click);
+            _btnImport.Click += new EventHandler(BtnImportExcel_Click);
+            _btnExportPdf.Click += new EventHandler(BtnExportPdf_Click);
+            _btnColSettings.Click += new EventHandler(BtnColSettings_Click);
 
             // 綁定動態生成的刪除按鈕
             Button btnDelRow = _ctxMenu.Tag as Button;
-            if (btnDelRow != null) btnDelRow.Click += (s, e) => ExecuteDeleteRow();
+            if (btnDelRow != null) {
+                btnDelRow.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
+            }
 
             // 綁定右鍵選單的點擊行為
             foreach (ToolStripItem item in _ctxMenu.Items)
             {
-                if (item.Tag?.ToString() == "Save") item.Click += BtnSave_Click;
-                if (item.Tag?.ToString() == "DeleteRow") item.Click += (s, e) => ExecuteDeleteRow();
-                if (item.Tag?.ToString() == "ColSettings") item.Click += BtnColSettings_Click;
-                if (item.Tag?.ToString() == "Import") item.Click += BtnImportExcel_Click;
-                if (item.Tag?.ToString() == "Export") item.Click += BtnExport_Click;
-                if (item.Tag?.ToString() == "Pdf") item.Click += BtnExportPdf_Click;
+                if (item.Tag != null) {
+                    string tagStr = item.Tag.ToString();
+                    if (tagStr == "Save") item.Click += new EventHandler(BtnSave_Click);
+                    if (tagStr == "DeleteRow") item.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
+                    if (tagStr == "ColSettings") item.Click += new EventHandler(BtnColSettings_Click);
+                    if (tagStr == "Import") item.Click += new EventHandler(BtnImportExcel_Click);
+                    if (tagStr == "Export") item.Click += new EventHandler(BtnExport_Click);
+                    if (tagStr == "Pdf") item.Click += new EventHandler(BtnExportPdf_Click);
+                }
             }
 
-            if (_btnRtfToExcel != null) _btnRtfToExcel.Click += BtnRtfToExcel_Click;
+            if (_btnRtfToExcel != null) {
+                _btnRtfToExcel.Click += new EventHandler(BtnRtfToExcel_Click);
+            }
         }
 
         private async void BtnSave_Click(object sender, EventArgs e) 
@@ -92,7 +101,7 @@ namespace Safety_System
                 
                 using (ProgressForm progForm = new ProgressForm("儲存數據中..."))
                 {
-                    await progForm.ExecuteAsync(async (progInt, progStr) => 
+                    await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr) 
                     { 
                         progStr.Report("正在格式化資料與同步附件路徑...");
                         EnforceDateFormats(dt); 
@@ -126,44 +135,75 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底改寫為傳統迴圈，避免 LINQ 解析錯誤
         private void ExecuteDeleteRow()
         {
-            var selectedRows = _dgv.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow).Where(r => !r.IsNewRow && r.Cells["Id"].Value != DBNull.Value).Distinct().ToList();
+            List<DataGridViewRow> selectedRows = new List<DataGridViewRow>();
+            foreach (DataGridViewCell cell in _dgv.SelectedCells) {
+                DataGridViewRow r = cell.OwningRow;
+                if (!r.IsNewRow && r.Cells["Id"].Value != DBNull.Value) {
+                    if (!selectedRows.Contains(r)) {
+                        selectedRows.Add(r);
+                    }
+                }
+            }
+
             if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                 if (AuthManager.VerifyUser()) {
                     DataTable dt = (DataTable)_dgv.DataSource;
-                    foreach (var r in selectedRows) {
+                    foreach (DataGridViewRow r in selectedRows) {
                         if (_dgv.Columns.Contains("附件檔案")) {
-                            string relPathStr = r.Cells["附件檔案"].Value?.ToString();
-                            if (!string.IsNullOrEmpty(relPathStr)) {
-                                string[] paths = relPathStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                                foreach (var p in paths) DeletePhysicalFile(p, r.Index);
+                            object val = r.Cells["附件檔案"].Value;
+                            if (val != null) {
+                                string relPathStr = val.ToString();
+                                if (!string.IsNullOrEmpty(relPathStr)) {
+                                    string[] paths = relPathStr.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                                    foreach (string p in paths) {
+                                        DeletePhysicalFile(p, r.Index);
+                                    }
+                                }
                             }
                         }
                         int id = Convert.ToInt32(r.Cells["Id"].Value);
                         DataManager.DeleteRecord(_dbName, _tableName, id);
-                        DataRow rowToDelete = dt.Rows.Cast<DataRow>().FirstOrDefault(dr => dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id);
-                        if (rowToDelete != null) rowToDelete.Delete();
+                        
+                        for (int i = 0; i < dt.Rows.Count; i++) {
+                            DataRow dr = dt.Rows[i];
+                            if (dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id) {
+                                dr.Delete();
+                                break;
+                            }
+                        }
                     }
-                    dt.AcceptChanges(); MessageBox.Show("刪除成功！");
+                    dt.AcceptChanges(); 
+                    MessageBox.Show("刪除成功！");
                 }
             }
         }
 
+        // 🟢 徹底改寫為傳統迴圈，避免 LINQ 解析錯誤
         private void BtnExport_Click(object sender, EventArgs e) 
         {
             DataTable dt = (DataTable)_dgv.DataSource;
 
             Dictionary<string, string[]> dropdownData = new Dictionary<string, string[]>();
             foreach (DataGridViewColumn col in _dgv.Columns) {
-                if (col is DataGridViewComboBoxColumn cboCol) {
-                    var items = cboCol.Items.Cast<object>().Select(x => x.ToString()).ToArray();
-                    if (items.Length > 0) dropdownData[col.Name] = items;
+                if (col is DataGridViewComboBoxColumn) {
+                    DataGridViewComboBoxColumn cboCol = (DataGridViewComboBoxColumn)col;
+                    List<string> itemsList = new List<string>();
+                    foreach (object obj in cboCol.Items) {
+                        itemsList.Add(obj.ToString());
+                    }
+                    if (itemsList.Count > 0) {
+                        dropdownData[col.Name] = itemsList.ToArray();
+                    }
                 }
             }
 
             Dictionary<string, float> exportWidths = new Dictionary<string, float>();
-            foreach (var kvp in _columnWidths) exportWidths[kvp.Key] = (float)kvp.Value;
+            foreach (KeyValuePair<string, int> kvp in _columnWidths) {
+                exportWidths[kvp.Key] = (float)kvp.Value;
+            }
 
             ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle, exportWidths, dropdownData);
         }
@@ -180,7 +220,7 @@ namespace Safety_System
 
                     using (ProgressForm progForm = new ProgressForm("匯入與運算中..."))
                     {
-                        await progForm.ExecuteAsync(async (progInt, progStr) => 
+                        await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr) 
                         {
                             DataTable importedDt = await ExcelHelper.ImportToDataTableAsync(ofd.FileName, templateDt, progInt, progStr);
 
@@ -190,9 +230,11 @@ namespace Safety_System
                                 
                                 foreach (DataRow row in importedDt.Rows) workingDt.ImportRow(row);
 
-                                _calcHelper?.BeginBulkUpdate(); 
-                                _calcHelper?.RecalculateTable(workingDt, progInt, progStr); 
-                                _calcHelper?.EndBulkUpdate(); 
+                                if (_calcHelper != null) {
+                                    _calcHelper.BeginBulkUpdate(); 
+                                    _calcHelper.RecalculateTable(workingDt, progInt, progStr); 
+                                    _calcHelper.EndBulkUpdate(); 
+                                }
                                 
                                 progStr.Report("正在格式化資料...");
                                 EnforceDateFormats(workingDt);
@@ -236,14 +278,15 @@ namespace Safety_System
                 
                 foreach (DataGridViewColumn col in _dgv.Columns) { 
                     if (col.Name == "Id") continue; 
-                    bool isChecked = _columnVisibility.ContainsKey(col.Name) ? _columnVisibility[col.Name] : true; 
+                    bool isChecked = true;
+                    if (_columnVisibility.ContainsKey(col.Name)) isChecked = _columnVisibility[col.Name];
                     clbCols.Items.Add(col.Name, isChecked); 
                 }
                 
                 f.Controls.Add(clbCols);
                 
                 Button btnSaveLocal = new Button { Text = "💾 儲存並套用設定", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
-                btnSaveLocal.Click += (s, ev) => { 
+                btnSaveLocal.Click += delegate(object s, EventArgs ev) { 
                     for (int i = 0; i < clbCols.Items.Count; i++) { 
                         string colName = clbCols.Items[i].ToString(); 
                         bool isChecked = clbCols.GetItemChecked(i); 
@@ -281,7 +324,8 @@ namespace Safety_System
         private async void Dgv_KeyDown(object sender, KeyEventArgs e) 
         {
             if (e.Control && e.KeyCode == Keys.S) { 
-                e.Handled = true; e.SuppressKeyPress = true; _btnSave?.PerformClick(); 
+                e.Handled = true; e.SuppressKeyPress = true; 
+                if (_btnSave != null) _btnSave.PerformClick(); 
             }
             else if ((e.KeyCode == Keys.Delete || e.KeyCode == Keys.Back) && !_dgv.IsCurrentCellInEditMode) {
                 bool hasCleared = false;
@@ -293,10 +337,13 @@ namespace Safety_System
                 
                 if (hasCleared) {
                     e.Handled = true;
-                    if (_dgv.DataSource is DataTable dt) {
-                        _calcHelper?.BeginBulkUpdate();
-                        _calcHelper?.RecalculateTable(dt);
-                        _calcHelper?.EndBulkUpdate();
+                    if (_dgv.DataSource is DataTable) {
+                        DataTable dt = (DataTable)_dgv.DataSource;
+                        if (_calcHelper != null) {
+                            _calcHelper.BeginBulkUpdate();
+                            _calcHelper.RecalculateTable(dt);
+                            _calcHelper.EndBulkUpdate();
+                        }
                         EnforceDateFormats(dt);
                     }
                 }
@@ -305,18 +352,26 @@ namespace Safety_System
                 string text = Clipboard.GetText(); 
                 if (string.IsNullOrEmpty(text)) return;
                 
-                string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                int r = _dgv.CurrentCell?.RowIndex ?? 0; 
-                int c = _dgv.CurrentCell?.ColumnIndex ?? 0; 
+                string[] splitChars = new string[] { "\r\n", "\r", "\n" };
+                string[] lines = text.Split(splitChars, StringSplitOptions.RemoveEmptyEntries);
+                
+                int r = 0;
+                int c = 0;
+                if (_dgv.CurrentCell != null) {
+                    r = _dgv.CurrentCell.RowIndex;
+                    c = _dgv.CurrentCell.ColumnIndex;
+                }
                 
                 DataTable boundDt = (DataTable)_dgv.DataSource;
                 DataTable workingDt = boundDt.Copy();
 
                 List<int> readOnlyCols = new List<int>();
-                for (int i = 0; i < _dgv.Columns.Count; i++) if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
+                for (int i = 0; i < _dgv.Columns.Count; i++) {
+                    if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
+                }
 
                 using (ProgressForm progForm = new ProgressForm("貼上資料與運算中...")) {
-                    await progForm.ExecuteAsync(async (progInt, progStr) => {
+                    await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr) {
                         progStr.Report("正在解析貼上的資料...");
                         
                         foreach (string line in lines) {
@@ -330,9 +385,11 @@ namespace Safety_System
                             r++;
                         }
 
-                        _calcHelper?.BeginBulkUpdate(); 
-                        _calcHelper?.RecalculateTable(workingDt, progInt, progStr); 
-                        _calcHelper?.EndBulkUpdate(); 
+                        if (_calcHelper != null) {
+                            _calcHelper.BeginBulkUpdate(); 
+                            _calcHelper.RecalculateTable(workingDt, progInt, progStr); 
+                            _calcHelper.EndBulkUpdate(); 
+                        }
                         EnforceDateFormats(workingDt); 
                     });
                 }
@@ -357,7 +414,8 @@ namespace Safety_System
             if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode) {
                 if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar)) {
                     _dgv.BeginEdit(true); 
-                    if (_dgv.EditingControl is TextBox txt) { 
+                    if (_dgv.EditingControl is TextBox) { 
+                        TextBox txt = (TextBox)_dgv.EditingControl;
                         txt.Text = e.KeyChar.ToString(); 
                         txt.SelectionStart = txt.Text.Length; 
                         e.Handled = true; 
@@ -368,17 +426,18 @@ namespace Safety_System
 
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
-            e.Control.PreviewKeyDown -= EditingControl_PreviewKeyDown;
-            e.Control.PreviewKeyDown += EditingControl_PreviewKeyDown;
+            e.Control.PreviewKeyDown -= new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
+            e.Control.PreviewKeyDown += new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
 
-            if (e.Control is ComboBox cbo) {
+            if (e.Control is ComboBox) {
+                ComboBox cbo = (ComboBox)e.Control;
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
                 if (_dgv.CurrentCell != null) {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
                     string parentColName = "";
                     
-                    foreach (var kvp in App_DropdownManager.DropdownCache) {
-                        var parts = kvp.Key.Split('|');
+                    foreach (KeyValuePair<string, string[]> kvp in App_DropdownManager.DropdownCache) {
+                        string[] parts = kvp.Key.Split('|');
                         if (parts.Length == 4 && parts[0] == _tableName && parts[1] == colName && !string.IsNullOrEmpty(parts[2])) {
                             parentColName = parts[2]; break;
                         }
@@ -386,7 +445,10 @@ namespace Safety_System
 
                     string[] items = null;
                     if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName)) {
-                        string parentVal = _dgv.CurrentRow.Cells[parentColName].Value?.ToString() ?? ""; 
+                        string parentVal = "";
+                        object rawVal = _dgv.CurrentRow.Cells[parentColName].Value;
+                        if (rawVal != null) parentVal = rawVal.ToString();
+
                         items = App_DropdownManager.GetOptions(_tableName, colName, parentColName, parentVal);
                         if (items == null || items.Length == 0) items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
                     } else {
@@ -396,15 +458,17 @@ namespace Safety_System
                     
                     if (items != null) { 
                         object currentVal = _dgv.CurrentCell.Value; 
-                        cbo.Items.Clear(); cbo.Items.AddRange(items); 
+                        cbo.Items.Clear(); 
+                        cbo.Items.AddRange(items); 
                         if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal; 
                     }
                 }
             }
-            else if (e.Control is TextBox txt) { 
+            else if (e.Control is TextBox) { 
+                TextBox txt = (TextBox)e.Control;
                 txt.Multiline = true; 
-                txt.KeyDown -= TextBox_KeyDown; 
-                txt.KeyDown += TextBox_KeyDown; 
+                txt.KeyDown -= new KeyEventHandler(TextBox_KeyDown); 
+                txt.KeyDown += new KeyEventHandler(TextBox_KeyDown); 
             }
         }
 
@@ -414,7 +478,8 @@ namespace Safety_System
 
         private void TextBox_KeyDown(object sender, KeyEventArgs e) {
             if (e.Alt && e.KeyCode == Keys.Enter) { 
-                if (sender is TextBox txt) { 
+                if (sender is TextBox) { 
+                    TextBox txt = (TextBox)sender;
                     int selectionStart = txt.SelectionStart; 
                     txt.Text = txt.Text.Insert(selectionStart, Environment.NewLine); 
                     txt.SelectionStart = selectionStart + Environment.NewLine.Length; 
@@ -426,4 +491,148 @@ namespace Safety_System
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e) 
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow) {
-                if (_dgv.Columns[e.ColumnIndex].N
+                if (_dgv.Columns[e.ColumnIndex].Name.Contains("附件檔案")) {
+                    string currentVal = "";
+                    object rawVal = _dgv[e.ColumnIndex, e.RowIndex].Value;
+                    if (rawVal != null) currentVal = rawVal.ToString();
+
+                    string rowDateStr = "";
+                    object rawDateVal = _dgv[_dateColumnName, e.RowIndex].Value;
+                    if (rawDateVal != null) rowDateStr = rawDateVal.ToString();
+
+                    string targetFolder = GetExpectedFolderName(rowDateStr);
+                    
+                    using (var frm = new AttachmentManagerUI(currentVal, _dbName, _tableName, targetFolder, delegate(string path) { DeletePhysicalFile(path, e.RowIndex); })) {
+                        if (frm.ShowDialog() == DialogResult.OK) { 
+                            _dgv[e.ColumnIndex, e.RowIndex].Value = frm.FinalPathsString; 
+                            _dgv.EndEdit(); 
+                        }
+                    }
+                } else { 
+                    _logic.OnCellClick(_dgv, e); 
+                }
+            }
+        }
+
+        private void Dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right) {
+                if (e.ColumnIndex >= 0) {
+                    _rightClickedColIndex = e.ColumnIndex;
+                    if (e.RowIndex >= 0 && e.RowIndex < _dgv.Rows.Count) {
+                        if (!_dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected) {
+                            _dgv.ClearSelection();
+                            _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Selected = true;
+                            _dgv.CurrentCell = _dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                        }
+                    }
+                    _ctxMenu.Show(Cursor.Position);
+                }
+            }
+        }
+
+        private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _isCascading) return;
+            string colName = _dgv.Columns[e.ColumnIndex].Name;
+
+            _isCascading = true;
+            try {
+                foreach (KeyValuePair<string, string[]> kvp in App_DropdownManager.DropdownCache) {
+                    string[] parts = kvp.Key.Split('|');
+                    if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName) {
+                        string childColName = parts[1];
+                        if (_dgv.Columns.Contains(childColName)) {
+                            if (e.RowIndex < _dgv.Rows.Count) _dgv.Rows[e.RowIndex].Cells[childColName].Value = DBNull.Value;
+                        }
+                    }
+                }
+            } catch { } finally { _isCascading = false; }
+        }
+
+        private void Dgv_CurrentCellDirtyStateChanged(object sender, EventArgs e) {
+            if (_dgv.IsCurrentCellDirty && _dgv.CurrentCell is DataGridViewComboBoxCell) { _dgv.CommitEdit(DataGridViewDataErrorContexts.Commit); }
+        }
+
+        private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e) {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0) {
+                string colName = _dgv.Columns[e.ColumnIndex].Name;
+                if (colName.Contains("附件檔案") && e.Value != null) {
+                    string pathStr = e.Value.ToString();
+                    if (!string.IsNullOrEmpty(pathStr)) {
+                        string[] parts = pathStr.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 1) { e.Value = $"📁 [共 {parts.Length} 個檔案]"; } 
+                        else { e.Value = Path.GetFileName(parts[0]); }
+                        e.FormattingApplied = true;
+                    }
+                }
+            }
+        }
+
+        private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e) {
+            if (_isFirstLoad || _isApplyingWidths) return;
+            if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
+                _columnWidths[e.Column.Name] = e.Column.Width; SaveColumnWidths(); 
+            }
+        }
+
+        // =========================================================
+        // 🟢 傳統排序類別實作 (防範 LINQ 解析失敗)
+        // =========================================================
+        private class ColDisplayIndexComparerDesc : IComparer<DataGridViewColumn> 
+        {
+            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
+                return y.DisplayIndex.CompareTo(x.DisplayIndex);
+            }
+        }
+
+        private class ColDisplayIndexComparerAsc : IComparer<DataGridViewColumn> 
+        {
+            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
+                return x.DisplayIndex.CompareTo(y.DisplayIndex);
+            }
+        }
+
+        private void UnfreezeAllColumns()
+        {
+            if (_dgv == null || _dgv.Columns.Count == 0) return;
+
+            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
+            foreach (DataGridViewColumn c in _dgv.Columns) {
+                cols.Add(c);
+            }
+            
+            // 傳統降冪排序
+            cols.Sort(new ColDisplayIndexComparerDesc());
+
+            foreach (DataGridViewColumn col in cols) {
+                col.Frozen = false;
+            }
+        }
+
+        private void ApplyFreezeState()
+        {
+            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
+
+            try {
+                UnfreezeAllColumns(); 
+                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
+                
+                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
+                foreach (DataGridViewColumn c in _dgv.Columns) {
+                    if (c.DisplayIndex <= targetIndex) {
+                        colsToFreeze.Add(c);
+                    }
+                }
+                
+                // 傳統升冪排序
+                colsToFreeze.Sort(new ColDisplayIndexComparerAsc());
+                                      
+                foreach(DataGridViewColumn col in colsToFreeze) {
+                    col.Frozen = true;
+                }
+            } 
+            catch { }
+        }
+    }
+}
