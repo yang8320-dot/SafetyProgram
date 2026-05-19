@@ -1,4 +1,4 @@
-name: Build MiniImageStudio
+name: Build 圖片工具
 
 on:
   workflow_dispatch:
