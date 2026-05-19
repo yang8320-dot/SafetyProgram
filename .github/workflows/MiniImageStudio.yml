@@ -1,4 +1,4 @@
-name: Build 圖片工具
+name: 圖片工具
 
 on:
   workflow_dispatch:
