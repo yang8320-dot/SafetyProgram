@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Drawing; // 🟢 修正：加入 System.Drawing 以解析 Color 屬性
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
