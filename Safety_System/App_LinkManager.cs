@@ -1,3 +1,4 @@
+/// FILE: Safety_System/App_LinkManager.cs ///
 using System;
 using System.Data;
 using System.Drawing;
@@ -15,6 +16,10 @@ namespace Safety_System
 
         public App_LinkManager()
         {
+            // 🟢 修正：在畫面初始化前，強制確保資料庫與資料表結構存在，防止開啟或新增時崩潰
+            string createSql = "CREATE TABLE IF NOT EXISTS [AppLinks] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
+            DataManager.InitTable(DbName, TableName, createSql);
+
             InitializeComponent();
             LoadData();
         }
@@ -69,10 +74,26 @@ namespace Safety_System
 
         private void LoadData()
         {
-            DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
-            _dgv.DataSource = dt;
-            if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].Visible = false;
-            _dgv.ClearSelection();
+            try
+            {
+                DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
+                
+                // 🟢 雙重防呆：如果撈回來的表因為例外而完全沒有欄位，手動補齊結構避免出錯
+                if (dt != null && dt.Columns.Count == 0)
+                {
+                    dt.Columns.Add("Id", typeof(int));
+                    dt.Columns.Add("選單名稱", typeof(string));
+                    dt.Columns.Add("執行路徑", typeof(string));
+                }
+
+                _dgv.DataSource = dt;
+                if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].Visible = false;
+                _dgv.ClearSelection();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("讀取資料失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void BtnAdd_Click(object sender, EventArgs e)
@@ -85,17 +106,33 @@ namespace Safety_System
                 return;
             }
 
-            DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
-            DataRow r = dt.NewRow();
-            r["選單名稱"] = name;
-            r["執行路徑"] = path;
-            dt.Rows.Add(r);
+            try
+            {
+                DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
+                
+                // 防呆：確保 DataTable 具有結構
+                if (dt.Columns.Count == 0)
+                {
+                    dt.Columns.Add("Id", typeof(int));
+                    dt.Columns.Add("選單名稱", typeof(string));
+                    dt.Columns.Add("執行路徑", typeof(string));
+                }
 
-            if (DataManager.BulkSaveTable(DbName, TableName, dt)) {
-                _txtName.Clear();
-                _txtPath.Clear();
-                LoadData();
-                MessageBox.Show("新增成功！關閉視窗後選單即會更新。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                DataRow r = dt.NewRow();
+                r["選單名稱"] = name;
+                r["執行路徑"] = path;
+                dt.Rows.Add(r);
+
+                if (DataManager.BulkSaveTable(DbName, TableName, dt)) {
+                    _txtName.Clear();
+                    _txtPath.Clear();
+                    LoadData();
+                    MessageBox.Show("新增成功！關閉視窗後選單即會更新。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("新增儲存失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -104,9 +141,16 @@ namespace Safety_System
             if (_dgv.SelectedRows.Count == 0) return;
 
             if (MessageBox.Show("確定要刪除選取的連結嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                int id = Convert.ToInt32(_dgv.SelectedRows[0].Cells["Id"].Value);
-                DataManager.DeleteRecord(DbName, TableName, id);
-                LoadData();
+                try
+                {
+                    int id = Convert.ToInt32(_dgv.SelectedRows[0].Cells["Id"].Value);
+                    DataManager.DeleteRecord(DbName, TableName, id);
+                    LoadData();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("刪除失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
     }
