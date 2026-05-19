@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_LawDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -9,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using OfficeOpenXml;
 using System.IO;
+using System.Linq;
 
 namespace Safety_System
 {
@@ -16,7 +16,6 @@ namespace Safety_System
     {
         private const string DbName = "法規";
         
-        // 🟢 將「消防法規」納入系統掃描陣列中
         private readonly string[] _tableNames = { "環保法規", "職安衛法規", "消防法規", "其它法規" };
         
         private DataTable _dtAllLaws;
@@ -274,8 +273,11 @@ namespace Safety_System
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
                 Font = new Font("Microsoft JhengHei UI", 11F), 
                 BorderStyle = BorderStyle.Fixed3D, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None,
+                // 🟢 啟用表頭自動換行，解決擠壓問題
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
+            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             dgv.RowTemplate.Height = 35;
             dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
             
@@ -299,10 +301,7 @@ namespace Safety_System
             dgv.CellBorderStyle = DataGridViewCellBorderStyle.Single;
             
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; 
-            dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing;
-            dgv.ColumnHeadersHeight = 50; 
-            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
-
+            
             return dgv;
         }
 
@@ -589,6 +588,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 實作與主表相同的「取得欄寬」並傳給新版 Excel 匯出引擎
         private void ExportToExcel(DataGridView dgv, string title)
         {
             if (dgv.Rows.Count == 0) 
@@ -597,51 +597,42 @@ namespace Safety_System
                 return; 
             }
             
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = title + "_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            // 抓取各欄寬度
+            Dictionary<string, float> colWidths = new Dictionary<string, float>();
+            foreach (DataGridViewColumn col in dgv.Columns)
             {
-                if (sfd.ShowDialog() == DialogResult.OK) 
+                if (col.Visible)
                 {
-                    try 
-                    {
-                        DataTable dt = new DataTable();
-                        List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
-
-                        foreach (DataGridViewColumn col in dgv.Columns) 
-                        {
-                            if (col.Visible) 
-                            {
-                                visCols.Add(col);
-                                dt.Columns.Add(col.HeaderText.Replace("\n", ""));
-                            }
-                        }
-                        
-                        foreach (DataGridViewRow row in dgv.Rows) 
-                        {
-                            if (row.IsNewRow) continue;
-                            DataRow dRow = dt.NewRow();
-                            for (int i = 0; i < visCols.Count; i++) 
-                            {
-                                var cellVal = row.Cells[visCols[i].Index].Value;
-                                dRow[i] = cellVal != null ? cellVal.ToString() : "";
-                            }
-                            dt.Rows.Add(dRow);
-                        }
-
-                        using (ExcelPackage p = new ExcelPackage()) 
-                        {
-                            var ws = p.Workbook.Worksheets.Add("Data");
-                            ws.Cells["A1"].LoadFromDataTable(dt, true);
-                            ws.Cells.AutoFitColumns(); 
-                            p.SaveAs(new FileInfo(sfd.FileName));
-                        }
-                        MessageBox.Show("Excel 匯出成功！");
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show("Excel 匯出失敗：" + ex.Message); 
-                    }
+                    colWidths[col.HeaderText.Replace("\n", "")] = col.Width;
                 }
             }
+
+            DataTable dt = new DataTable();
+            List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
+
+            foreach (DataGridViewColumn col in dgv.Columns) 
+            {
+                if (col.Visible) 
+                {
+                    visCols.Add(col);
+                    dt.Columns.Add(col.HeaderText.Replace("\n", ""));
+                }
+            }
+            
+            foreach (DataGridViewRow row in dgv.Rows) 
+            {
+                if (row.IsNewRow) continue;
+                DataRow dRow = dt.NewRow();
+                for (int i = 0; i < visCols.Count; i++) 
+                {
+                    var cellVal = row.Cells[visCols[i].Index].Value;
+                    dRow[i] = cellVal != null ? cellVal.ToString() : "";
+                }
+                dt.Rows.Add(dRow);
+            }
+
+            // 使用新版引擎匯出 (不含下拉選單，純資料與欄寬等比輸出)
+            ExcelHelper.ExportToExcelOrCsv(dt, title, colWidths);
         }
 
         private void ExportToPdf(DataGridView dgv, string fileName, string reportTitle)
