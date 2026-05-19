@@ -16,7 +16,7 @@ namespace Safety_System
 
         public App_LinkManager()
         {
-            // 🟢 修正：在畫面初始化前，強制確保資料庫與資料表結構存在，防止開啟或新增時崩潰
+            // 在畫面初始化前，強制確保資料庫與資料表結構存在，防止開啟或新增時崩潰
             string createSql = "CREATE TABLE IF NOT EXISTS [AppLinks] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
             DataManager.InitTable(DbName, TableName, createSql);
 
@@ -27,7 +27,7 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "應用連結設定 (可自訂外部程式快捷鍵)";
-            this.Size = new Size(650, 500);
+            this.Size = new Size(650, 560);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -40,32 +40,34 @@ namespace Safety_System
             GroupBox boxAdd = new GroupBox { Text = "新增外部程式連結", Location = new Point(25, 70), Size = new Size(580, 140) };
             
             Label lblName = new Label { Text = "選單名稱：", Location = new Point(20, 40), AutoSize = true };
-            _txtName = new TextBox { Location = new Point(110, 37), Width = 150 };
+            _txtName = new TextBox { Location = new Point(160, 37), Width = 270 };
 
             Label lblPath = new Label { Text = "執行路徑 (.exe)：", Location = new Point(20, 85), AutoSize = true };
-            _txtPath = new TextBox { Location = new Point(160, 82), Width = 280 };
+            _txtPath = new TextBox { Location = new Point(160, 82), Width = 270 };
 
-            Button btnBrowse = new Button { Text = "瀏覽", Location = new Point(450, 80), Size = new Size(60, 30), Font = new Font("Microsoft JhengHei UI", 10F) };
+            Button btnBrowse = new Button { Text = "瀏覽", Location = new Point(440, 80), Size = new Size(115, 33), Font = new Font("Microsoft JhengHei UI", 11F), Cursor = Cursors.Hand };
             btnBrowse.Click += (s, e) => {
                 using (OpenFileDialog ofd = new OpenFileDialog { Filter = "執行檔 (*.exe)|*.exe|所有檔案 (*.*)|*.*", Title = "選擇外部應用程式" }) {
                     if (ofd.ShowDialog() == DialogResult.OK) _txtPath.Text = ofd.FileName;
                 }
             };
 
-            Button btnAdd = new Button { Text = "➕ 新增", Location = new Point(280, 32), Size = new Size(100, 35), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnAdd = new Button { Text = "➕ 新增", Location = new Point(440, 35), Size = new Size(115, 38), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnAdd.FlatAppearance.BorderSize = 0;
             btnAdd.Click += BtnAdd_Click;
 
             boxAdd.Controls.AddRange(new Control[] { lblName, _txtName, lblPath, _txtPath, btnBrowse, btnAdd });
 
             _dgv = new DataGridView {
-                Location = new Point(25, 230), Size = new Size(580, 200),
+                Location = new Point(25, 230), Size = new Size(580, 215), 
                 BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = false, ReadOnly = true,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false,
+                // 🟢 修正：將 Fill 改為 DisplayedCells，文字長度超過視窗時就會自動產生水平捲軸
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, 
+                RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
             };
 
-            Button btnDel = new Button { Text = "🗑️ 刪除選取連結", Location = new Point(25, 440), Size = new Size(180, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnDel = new Button { Text = "🗑️ 刪除選取連結", Location = new Point(25, 460), Size = new Size(180, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnDel.FlatAppearance.BorderSize = 0;
             btnDel.Click += BtnDel_Click;
 
@@ -78,7 +80,6 @@ namespace Safety_System
             {
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
                 
-                // 🟢 雙重防呆：如果撈回來的表因為例外而完全沒有欄位，手動補齊結構避免出錯
                 if (dt != null && dt.Columns.Count == 0)
                 {
                     dt.Columns.Add("Id", typeof(int));
@@ -88,6 +89,10 @@ namespace Safety_System
 
                 _dgv.DataSource = dt;
                 if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].Visible = false;
+                
+                // 🟢 微調：確保即使名稱很短，也不會太擠，同時路徑保持自動延展
+                if (_dgv.Columns.Contains("選單名稱")) _dgv.Columns["選單名稱"].MinimumWidth = 150;
+
                 _dgv.ClearSelection();
             }
             catch (Exception ex)
@@ -110,7 +115,6 @@ namespace Safety_System
             {
                 DataTable dt = DataManager.GetTableData(DbName, TableName, "", "", "");
                 
-                // 防呆：確保 DataTable 具有結構
                 if (dt.Columns.Count == 0)
                 {
                     dt.Columns.Add("Id", typeof(int));
