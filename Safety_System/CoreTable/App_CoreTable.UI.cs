@@ -213,7 +213,6 @@ namespace Safety_System
                 _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; 
             };
 
-            // 🟢 系統性優化 3：加入畫面刷新按鈕與狀態指示，方便 5 人共用時一鍵抓最新資料
             FlowLayoutPanel pnlStatus = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(0, 5, 0, 5) };
             
             _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 5, 15, 0) };
@@ -230,6 +229,12 @@ namespace Safety_System
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Click += async (s, e) => {
                 _isFirstLoad = false;
+                
+                // 🟢 系統防護 4：熱更新。當使用者點擊重整時，順便重新載入快取的下拉選單與欄位設定
+                App_DropdownManager.LoadDropdownConfigs();
+                LoadVisibilitySettings();
+                LoadColumnWidths();
+                
                 await ReloadCurrentDataAsync();
             };
 
@@ -250,7 +255,7 @@ namespace Safety_System
 
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(_boxAdvanced, 0, 1); 
-            main.Controls.Add(pnlStatus, 0, 2);  // 取代原本單獨的 _lblStatus
+            main.Controls.Add(pnlStatus, 0, 2); 
             main.Controls.Add(_dgv, 0, 3);
 
             _btnRead.Tag = bLimitRead; 
@@ -300,7 +305,6 @@ namespace Safety_System
             _ctxMenu.Tag = btnDelRow;
         }
 
-        // 🟢 系統性優化 3：在 SetUIState 加入「最後更新時間」，讓大家知道資料是不是最新的
         private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
             _btnRead.Enabled = isEnabled; 
