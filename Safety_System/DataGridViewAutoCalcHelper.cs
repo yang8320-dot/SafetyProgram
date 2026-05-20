@@ -86,7 +86,7 @@ namespace Safety_System
         // 🚀 高效能批次計算核心：在 DataTable 記憶體中運算
         public void RecalculateTable(DataTable dt, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
-            if (dt == null) return;
+            if (dt == null || dt.Rows.Count == 0) return;
             string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
 
             // 🟢 極速優化：預先抓出所有目標計算欄位，避免在每一列迴圈中重複掃描 Columns
@@ -107,9 +107,10 @@ namespace Safety_System
             }
 
             int totalRows = dt.Rows.Count;
+            
+            // 🟢 效能優化：不再尋找未知的 nextRow，而是透過線性遍歷直接比對上下相鄰列
             for (int i = 0; i < totalRows; i++)
             {
-                // 🟢 觸發進度條更新
                 if (progressInt != null && progressStr != null && (i % 50 == 0 || i == totalRows - 1))
                 {
                     int percent = (int)((double)(i + 1) / totalRows * 100);
@@ -130,6 +131,7 @@ namespace Safety_System
 
                 if (targetCols.Count == 0) continue;
 
+                // 尋找下一筆「未被刪除」的資料
                 DataRow nextRow = null;
                 for (int j = i + 1; j < totalRows; j++) {
                     if (dt.Rows[j].RowState != DataRowState.Deleted) {
