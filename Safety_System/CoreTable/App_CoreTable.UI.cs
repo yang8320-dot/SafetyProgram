@@ -172,7 +172,6 @@ namespace Safety_System
             
             Button bDelRow = new Button { Text = "🗑 刪除列", Size = new Size(110, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255, 59, 48), ForeColor = Color.White };
             bDelRow.FlatAppearance.BorderSize = 0;
-            // 事件將於 App_CoreTable.Events 綁定
 
             _btnColSettings = new Button { Text = "👁️ 顯示設定", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(142, 142, 147), ForeColor = Color.White };
             _btnColSettings.FlatAppearance.BorderSize = 0;
@@ -195,12 +194,10 @@ namespace Safety_System
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
             _btnExportPdf.FlatAppearance.BorderSize = 0;
 
-            // 🟢 修改區塊：先將查詢、匯出等按鈕加入 Row2，最後再判斷是否加入 RTF轉Excel 按鈕
             flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
             flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); 
             flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
 
-            // 如果是法規模組，將 RTF轉Excel 接續放在最後面
             if (_logic is LawLogic) {
                 _btnRtfToExcel = new Button { Text = "📄 RTF轉 Excel", Size = new Size(160, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
                 _btnRtfToExcel.FlatAppearance.BorderSize = 0;
@@ -216,7 +213,28 @@ namespace Safety_System
                 _btnToggle.Text = _boxAdvanced.Visible ? "-" : "+"; 
             };
 
-            _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 5) };
+            // 🟢 系統性優化 3：加入畫面刷新按鈕與狀態指示，方便 5 人共用時一鍵抓最新資料
+            FlowLayoutPanel pnlStatus = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(0, 5, 0, 5) };
+            
+            _lblStatus = new Label { Text = "系統就緒", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 5, 15, 0) };
+
+            Button btnRefresh = new Button { 
+                Text = "🔄 重新載入最新資料", 
+                Size = new Size(180, 32), 
+                BackColor = Color.LightSlateGray, 
+                ForeColor = Color.White, 
+                Cursor = Cursors.Hand, 
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold)
+            };
+            btnRefresh.FlatAppearance.BorderSize = 0;
+            btnRefresh.Click += async (s, e) => {
+                _isFirstLoad = false;
+                await ReloadCurrentDataAsync();
+            };
+
+            pnlStatus.Controls.Add(btnRefresh);
+            pnlStatus.Controls.Add(_lblStatus);
 
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
@@ -232,10 +250,9 @@ namespace Safety_System
 
             main.Controls.Add(boxTop, 0, 0); 
             main.Controls.Add(_boxAdvanced, 0, 1); 
-            main.Controls.Add(_lblStatus, 0, 2);
+            main.Controls.Add(pnlStatus, 0, 2);  // 取代原本單獨的 _lblStatus
             main.Controls.Add(_dgv, 0, 3);
 
-            // 將按鈕暫存至動態變數供 BindEvents 綁定
             _btnRead.Tag = bLimitRead; 
 
             return main;
@@ -283,6 +300,7 @@ namespace Safety_System
             _ctxMenu.Tag = btnDelRow;
         }
 
+        // 🟢 系統性優化 3：在 SetUIState 加入「最後更新時間」，讓大家知道資料是不是最新的
         private void SetUIState(bool isEnabled, string statusText, Color statusColor) 
         {
             _btnRead.Enabled = isEnabled; 
@@ -294,7 +312,7 @@ namespace Safety_System
             _btnAdvancedSearch.Enabled = isEnabled; 
             if(_btnRtfToExcel != null) _btnRtfToExcel.Enabled = isEnabled;
             
-            _lblStatus.Text = statusText; 
+            _lblStatus.Text = $"{statusText} (最後讀取: {DateTime.Now.ToString("HH:mm:ss")})"; 
             _lblStatus.ForeColor = statusColor;
         }
 
