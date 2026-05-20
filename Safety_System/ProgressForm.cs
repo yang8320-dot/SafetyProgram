@@ -31,20 +31,22 @@ namespace Safety_System
             var progressInt = new Progress<int>(percent => {
                 if (percent >= 0 && percent <= 100 && _progressBar.Value != percent) {
                     _progressBar.Value = percent;
-                    _progressBar.Refresh(); // 🟢 強制刷新，防止畫面假死
+                    // 🟢 避免 UI 執行緒過載假死
+                    Application.DoEvents(); 
                 }
             });
 
             var progressStr = new Progress<string>(text => {
                 if (_lblStatus.Text != text) {
                     _lblStatus.Text = text;
-                    _lblStatus.Refresh(); // 🟢 強制刷新
+                    _lblStatus.Refresh();
                 }
             });
 
             this.Shown += async (s, e) => {
                 try { 
-                    // 🟢 徹底修復：確保 Task.Run 內部的 async 方法被完整等待，解決提早關閉造成的死鎖
+                    // 🟢 徹底修復：先讓出控制權，確保彈出視窗(UI)被完美繪製後，才開始背景高速運算
+                    await Task.Yield();
                     await Task.Run(async () => await work(progressInt, progressStr)); 
                 }
                 catch (Exception ex) { MessageBox.Show($"發生錯誤：\n{ex.Message}"); }
