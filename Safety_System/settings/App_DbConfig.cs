@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_DbConfig.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -18,6 +17,10 @@ namespace Safety_System
         
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2, _cboCol3, _cboCol4;
         private ComboBox _cboDelDb, _cboDelTable;
+
+        // 🟢 稽核日誌專用變數
+        private ComboBox _cboAuditDb, _cboAuditTable;
+        private DataGridView _dgvAudit;
 
         private class SyncRowUI {
             public ComboBox CboSrcDb, CboSrcTable, CboSrcMatchCol, CboSrcSyncCol;
@@ -125,7 +128,6 @@ namespace Safety_System
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += (s, e) => {
-                // 🟢 權限檢核：修改路徑需要 Lv2 等級權限，並傳入三行式提示
                 string authPrompt = "變更資料庫路徑需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return; 
 
@@ -161,7 +163,6 @@ namespace Safety_System
 
             Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 150), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveBackup.Click += (s, e) => {
-                // 🟢 權限檢核：儲存備份設定
                 string authPrompt = "修改備份設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -177,32 +178,59 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
 
-            // 3. 防重寫規則區塊
-            GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 400, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            // 🟢 3. 新增操作軌跡(Audit) 區塊
+            GroupBox boxAudit = new GroupBox { Text = "🕵️ 操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 450, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
+            boxAudit.Margin = new Padding(0, 30, 0, 0);
+
+            Label lblAuditDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboAuditDb = new ComboBox { Location = new Point(140, 43), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
+            Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(350, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboAuditTable = new ComboBox { Location = new Point(460, 43), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 40), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnSearchAudit.Click += BtnSearchAudit_Click;
+
+            _dgvAudit = new DataGridView { 
+                Location = new Point(30, 95), 
+                Size = new Size(950, 330),
+                BackgroundColor = Color.WhiteSmoke, 
+                AllowUserToAddRows = false, 
+                ReadOnly = true,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, 
+                RowHeadersVisible = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                Font = new Font("Microsoft JhengHei UI", 11F)
+            };
+
+            boxAudit.Controls.AddRange(new Control[] { lblAuditDb, _cboAuditDb, lblAuditTable, _cboAuditTable, btnSearchAudit, _dgvAudit });
+
+            // 4. 防重寫規則區塊
+            GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 360, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxKeys.Margin = new Padding(0, 30, 0, 0);
 
-            Label lblDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboDb = new ComboBox { Location = new Point(160, 58), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 50), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboDb = new ComboBox { Location = new Point(160, 48), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Label lblTable = new Label { Text = "選擇資料表:", Location = new Point(420, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboTable = new ComboBox { Location = new Point(540, 58), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblTable = new Label { Text = "選擇資料表:", Location = new Point(420, 50), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboTable = new ComboBox { Location = new Point(540, 48), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCol1 = new Label { Text = "判斷欄位一:", Location = new Point(30, 130), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol1 = new ComboBox { Location = new Point(160, 128), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblCol1 = new Label { Text = "判斷欄位一:", Location = new Point(30, 110), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol1 = new ComboBox { Location = new Point(160, 108), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(420, 130), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol2 = new ComboBox { Location = new Point(540, 128), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblCol2 = new Label { Text = "判斷欄位二:", Location = new Point(420, 110), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol2 = new ComboBox { Location = new Point(540, 108), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCol3 = new Label { Text = "判斷欄位三:", Location = new Point(30, 200), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol3 = new ComboBox { Location = new Point(160, 198), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblCol3 = new Label { Text = "判斷欄位三:", Location = new Point(30, 170), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol3 = new ComboBox { Location = new Point(160, 168), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblCol4 = new Label { Text = "判斷欄位四:", Location = new Point(420, 200), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboCol4 = new ComboBox { Location = new Point(540, 198), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblCol4 = new Label { Text = "判斷欄位四:", Location = new Point(420, 170), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboCol4 = new ComboBox { Location = new Point(540, 168), Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(30, 280), Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnSaveKeys = new Button { Text = "儲存防重寫規則", Location = new Point(30, 240), Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveKeys.Click += BtnSaveKeys_Click;
 
-            Button btnShowTableKeysList = new Button { Text = "防重寫設定清單", Location = new Point(280, 280), Size = new Size(200, 45), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnShowTableKeysList = new Button { Text = "防重寫設定清單", Location = new Point(280, 240), Size = new Size(200, 45), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnShowTableKeysList.Click += BtnShowTableKeysList_Click;
 
             boxKeys.Controls.AddRange(new Control[] { 
@@ -212,7 +240,7 @@ namespace Safety_System
                 btnSaveKeys, btnShowTableKeysList 
             });
 
-            // 4. 資料同步區塊
+            // 5. 資料同步區塊
             GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxSync.Margin = new Padding(0, 30, 0, 0);
 
@@ -290,7 +318,7 @@ namespace Safety_System
             pnlSyncBottom.Controls.Add(lblSyncInfo);
             boxSync.Controls.Add(pnlSyncBottom);
 
-            // 5. 刪除資料表區塊
+            // 6. 刪除資料表區塊
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
 
@@ -311,20 +339,24 @@ namespace Safety_System
             Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer3 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer4 = new Panel { Dock = DockStyle.Top, Height = 30 };
+            Panel spacer5 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
             main.Controls.Add(boxDelete);
-            main.Controls.Add(spacer4);
+            main.Controls.Add(spacer5);
             main.Controls.Add(boxSync);
-            main.Controls.Add(spacer3);
+            main.Controls.Add(spacer4);
             main.Controls.Add(boxKeys);
-            main.Controls.Add(spacer1);
-            main.Controls.Add(boxBackup);
+            main.Controls.Add(spacer3);
+            main.Controls.Add(boxAudit);
             main.Controls.Add(spacer2);
+            main.Controls.Add(boxBackup);
+            main.Controls.Add(spacer1);
             main.Controls.Add(boxPath);
 
             var blankDb = new ItemMap { EnName = "", ChName = "" };
             _cboDb.Items.Add(blankDb);
             _cboDelDb.Items.Add(blankDb);
+            _cboAuditDb.Items.Add(blankDb);
             
             foreach (var sr in _syncRows) {
                 sr.CboSrcDb.Items.Add(blankDb);
@@ -334,6 +366,7 @@ namespace Safety_System
             foreach (var kvp in _dbMap) {
                 _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                 _cboDelDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                _cboAuditDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                 
                 foreach (var sr in _syncRows) {
                     sr.CboSrcDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
@@ -344,11 +377,97 @@ namespace Safety_System
             _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
             _cboDelDb.SelectedIndexChanged += CboDelDb_SelectedIndexChanged;
+            _cboAuditDb.SelectedIndexChanged += CboAuditDb_SelectedIndexChanged;
 
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
             if (_cboDelDb.Items.Count > 0) _cboDelDb.SelectedIndex = 0;
+            if (_cboAuditDb.Items.Count > 0) _cboAuditDb.SelectedIndex = 0;
 
             return main;
+        }
+
+        // 🟢 查詢操作紀錄按鈕邏輯
+        private void BtnSearchAudit_Click(object sender, EventArgs e)
+        {
+            if (_cboAuditDb.SelectedItem == null || _cboAuditTable.SelectedItem == null) {
+                MessageBox.Show("請先選擇要查詢的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            }
+
+            string dbName = ((ItemMap)_cboAuditDb.SelectedItem).EnName;
+            string tableName = ((ItemMap)_cboAuditTable.SelectedItem).EnName;
+
+            if (string.IsNullOrEmpty(dbName) || string.IsNullOrEmpty(tableName)) {
+                MessageBox.Show("請先選擇要查詢的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            }
+
+            try 
+            {
+                DataTable dt = DataManager.GetTableData(dbName, tableName, "", "", "");
+                
+                if (dt != null && dt.Rows.Count > 0) 
+                {
+                    // 只過濾出我們需要的關鍵欄位供查詢
+                    DataTable dtAudit = new DataTable();
+                    dtAudit.Columns.Add("系統流水號(Id)", typeof(int));
+                    
+                    if (dt.Columns.Contains("日期")) dtAudit.Columns.Add("發生日期", typeof(string));
+                    else if (dt.Columns.Contains("年月")) dtAudit.Columns.Add("發生年月", typeof(string));
+                    
+                    if (dt.Columns.Contains("法規名稱")) dtAudit.Columns.Add("法規名稱", typeof(string));
+                    else if (dt.Columns.Contains("化學物質名稱")) dtAudit.Columns.Add("化學物質名稱", typeof(string));
+
+                    dtAudit.Columns.Add("最後修改人", typeof(string));
+                    dtAudit.Columns.Add("最後修改時間", typeof(string));
+
+                    foreach (DataRow r in dt.Rows) 
+                    {
+                        DataRow newRow = dtAudit.NewRow();
+                        newRow["系統流水號(Id)"] = r["Id"];
+                        
+                        if (dt.Columns.Contains("日期")) newRow["發生日期"] = r["日期"];
+                        else if (dt.Columns.Contains("年月")) newRow["發生年月"] = r["年月"];
+                        
+                        if (dt.Columns.Contains("法規名稱")) newRow["法規名稱"] = r["法規名稱"];
+                        else if (dt.Columns.Contains("化學物質名稱")) newRow["化學物質名稱"] = r["化學物質名稱"];
+
+                        newRow["最後修改人"] = dt.Columns.Contains("最後修改人") ? r["最後修改人"]?.ToString() : "無紀錄";
+                        newRow["最後修改時間"] = dt.Columns.Contains("修改時間") ? r["修改時間"]?.ToString() : "無紀錄";
+
+                        dtAudit.Rows.Add(newRow);
+                    }
+
+                    // 將最新的修改排在最上面
+                    dtAudit.DefaultView.Sort = "最後修改時間 DESC";
+                    _dgvAudit.DataSource = dtAudit.DefaultView.ToTable();
+                }
+                else
+                {
+                    MessageBox.Show("該資料表目前沒有任何資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _dgvAudit.DataSource = null;
+                }
+            } 
+            catch (Exception ex) 
+            {
+                MessageBox.Show("查詢失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void CboAuditDb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try {
+                if (_cboAuditTable == null) return;
+                _cboAuditTable.Items.Clear();
+                _cboAuditTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
+
+                if (_cboAuditDb.SelectedItem == null) return;
+                
+                var selectedDb = (ItemMap)_cboAuditDb.SelectedItem;
+                if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
+                    foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
+                        _cboAuditTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                    }
+                }
+            } catch { }
         }
 
         private void BindSyncRowEvents(SyncRowUI r)
@@ -657,7 +776,7 @@ namespace Safety_System
                 p.Controls.Add(btn);
                 p.AcceptButton = btn;
 
-                if (p.ShowDialog() == DialogResult.OK)
+                if (p.ShowDialog(this) == DialogResult.OK)
                 {
                     string input = txt.Text.Trim();
                     string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
@@ -677,7 +796,6 @@ namespace Safety_System
 
         private void BtnSaveSync_Click(object sender, EventArgs e)
         {
-            // 🟢 儲存同步設定加上三行驗證提示
             string authPrompt = "新增資料同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -815,7 +933,6 @@ namespace Safety_System
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
-            // 🟢 防重寫設定加上三行驗證提示
             string authPrompt = "修改防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return; 
 
@@ -856,7 +973,6 @@ namespace Safety_System
                 MessageBox.Show("請先選擇要刪除的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            // VerifyTableDelete 已有自己獨立的雙重嚴格驗證提示
             if (!AuthManager.VerifyTableDelete()) return;
 
             try {
