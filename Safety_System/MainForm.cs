@@ -25,7 +25,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v9.5 - 空水廢重構與進階同步版)";
+            this.Text = "工安系統看板 (v9.6 - 企業級協作防護版)";
             
             this.WindowState = FormWindowState.Maximized;
             this.Size = new Size(1440, 810);
@@ -35,7 +35,6 @@ namespace Safety_System
             
             DataManager.LoadConfig();
             
-            // 🟢 修復：確保在程式啟動時載入下拉選單記憶快取，防止下拉選單出不來
             App_DropdownManager.LoadDropdownConfigs();
             
             BackupManager.RunAutoBackup();
@@ -58,8 +57,10 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
+        // 🟢 系統性優化 1：關閉系統前，強制結束所有編輯狀態，確保最後一筆游標停留的資料不會遺失
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            ForceEndCurrentEdit();
             base.OnFormClosing(e);
             Environment.Exit(0);
         }
@@ -71,7 +72,7 @@ namespace Safety_System
                 Button activeSaveButton = FindControlByName(_contentPanel, "btnSave") as Button;
                 if (activeSaveButton != null && activeSaveButton.Enabled)
                 {
-                    this.Validate(); 
+                    ForceEndCurrentEdit();
                     activeSaveButton.PerformClick();
                     return true; 
                 }
@@ -88,6 +89,37 @@ namespace Safety_System
                 if (found != null) return found;
             }
             return null;
+        }
+
+        // 🟢 系統性優化 2：用來強制目前畫面上的 DataGridView 結束編輯模式並觸發 Validated
+        private void ForceEndCurrentEdit()
+        {
+            this.Validate();
+            
+            // 遞迴尋找目前畫面上的 DataGridView 並結束編輯
+            void SearchAndEndEdit(Control parent)
+            {
+                foreach (Control c in parent.Controls)
+                {
+                    if (c is DataGridView dgv && dgv.IsCurrentCellInEditMode)
+                    {
+                        dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                        dgv.EndEdit();
+                        
+                        // 強制移開焦點來觸發 RowValidated 事件 (也就是我們上一階段加的即時存檔)
+                        if (dgv.CurrentCell != null)
+                        {
+                            dgv.CurrentCell = null;
+                        }
+                    }
+                    else if (c.HasChildren)
+                    {
+                        SearchAndEndEdit(c);
+                    }
+                }
+            }
+            
+            SearchAndEndEdit(_contentPanel);
         }
 
         private void BuildMenu()
@@ -235,7 +267,6 @@ namespace Safety_System
             menuISOComm.DropDownItems.Add(CreateItem("來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
             menuISO.DropDownItems.Add(menuISOComm);
 
-            // 🟢 修改：動態產生應用連結選單
             var menuApp = new ToolStripMenuItem("應用");
             LoadDynamicAppLinks(menuApp);
 
@@ -260,14 +291,13 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
-            // 🟢 新增：應用連結設定
             var appLinkSettingItem = new ToolStripMenuItem("應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                     if (AuthManager.VerifyAdmin(prompt)) { 
                         new App_LinkManager().ShowDialog(this); 
-                        LoadDynamicAppLinks(menuApp); // 設定完後重新載入應用選單
+                        LoadDynamicAppLinks(menuApp); 
                     } 
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -358,12 +388,10 @@ namespace Safety_System
             });
         }
 
-        // 🟢 讀取動態應用連結選單
         private void LoadDynamicAppLinks(ToolStripMenuItem menuApp)
         {
             menuApp.DropDownItems.Clear();
             
-            // 保留原本的預設項 tgeOffice導入巡檢
             var callExeItem = new ToolStripMenuItem("tgeOffice導入巡檢");
             callExeItem.Click += (s, e) => {
                 string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"app\tgeoffice_dw\FormCrawlerApp.exe");
@@ -375,7 +403,6 @@ namespace Safety_System
             };
             menuApp.DropDownItems.Add(callExeItem);
 
-            // 從資料庫讀取自訂連結
             try {
                 DataTable dt = DataManager.GetTableData("SystemConfig", "AppLinks", "", "", "");
                 if (dt != null && dt.Rows.Count > 0)
@@ -476,6 +503,9 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(text);
             item.Click += (s, e) => {
+                // 🟢 在載入新畫面之前，確保舊畫面(如果有)的資料已經觸發最後的 RowValidated 自動存檔
+                ForceEndCurrentEdit();
+                
                 try { LoadModule(getViewFunc()); } 
                 catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
@@ -486,6 +516,8 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(tableName);
             item.Click += (s, e) => {
+                ForceEndCurrentEdit();
+                
                 try { LoadModule(new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView()); } 
                 catch (Exception ex) { MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
@@ -516,6 +548,7 @@ namespace Safety_System
 
         private void LoadWelcomeScreen()
         {
+            ForceEndCurrentEdit();
             try { LoadModule(new App_HomeDashboard().GetView()); } 
             catch { }
         }
