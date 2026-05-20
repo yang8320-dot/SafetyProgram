@@ -1,4 +1,3 @@
-/// FILE: Safety_System/App_AttachmentCleanup.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
@@ -18,6 +17,8 @@ namespace Safety_System
 
         // 儲存掃描出的多餘檔案絕對路徑
         private List<string> _orphanFiles = new List<string>();
+        // 🟢 企業級防護 3：受保護的檔案 (剛建立 24H 內，可能正處於離列存檔前的暫存狀態)
+        private int _protectedFilesCount = 0;
 
         public Control GetView()
         {
@@ -38,7 +39,7 @@ namespace Safety_System
 
             Label lblDesc = new Label
             {
-                Text = "此功能將掃描所有資料庫與資料表，並比對「附件」資料夾中的實體檔案。\n找出【未被任何資料紀錄綁定】的多餘孤兒檔案，幫助您釋放伺服器/硬碟空間。",
+                Text = "此功能將掃描所有資料庫與資料表，並比對「附件」資料夾中的實體檔案。\n找出【未被任何資料紀錄綁定】的多餘孤兒檔案，幫助您釋放伺服器/硬碟空間。\n\n⚠️ 防呆機制：為避免誤刪同事「剛上傳但尚未點擊存檔」的圖片，建立時間於【24 小時內】的檔案將被系統強制保護，拒絕刪除。",
                 AutoSize = true,
                 Font = new Font("Microsoft JhengHei UI", 11F),
                 ForeColor = Color.DimGray,
@@ -105,6 +106,7 @@ namespace Safety_System
             _btnClean.Enabled = false;
             _rtbLog.Clear();
             _orphanFiles.Clear();
+            _protectedFilesCount = 0;
             _lblStatus.Text = "掃描進行中，請稍候...";
             _lblStatus.ForeColor = Color.Orange;
 
@@ -195,6 +197,8 @@ namespace Safety_System
                     Log($"📂 實體資料夾掃描完成，共有 {physicalFiles.Length} 個檔案。");
 
                     int matchCount = 0;
+                    DateTime cutoffTime = DateTime.Now.AddHours(-24); // 24小時安全保護傘
+
                     foreach (var file in physicalFiles)
                     {
                         // 將絕對路徑轉為相對路徑 (例如: 附件/Water/WaterMeterReadings/2023-10/123.pdf)
@@ -206,12 +210,22 @@ namespace Safety_System
                         }
                         else
                         {
-                            _orphanFiles.Add(file);
-                            Log($"🔍 發現多餘檔案: {relPath}", Color.DimGray);
+                            // 🟢 企業級防護 3：如果檔案是在 24 小時內建立的，強制保護不列入孤兒名單
+                            FileInfo fi = new FileInfo(file);
+                            if (fi.CreationTime > cutoffTime || fi.LastWriteTime > cutoffTime)
+                            {
+                                _protectedFilesCount++;
+                                Log($"🛡️ 略過新建立或修改的未綁定檔案: {relPath} (受 24H 保護傘保護)", Color.DarkGoldenrod);
+                            }
+                            else
+                            {
+                                _orphanFiles.Add(file);
+                                Log($"🔍 發現過期多餘檔案: {relPath}", Color.DimGray);
+                            }
                         }
                     }
 
-                    Log($"✅ 實體檔案比對完成！正常使用中的檔案: {matchCount} 個，多餘檔案: {_orphanFiles.Count} 個。", Color.Green);
+                    Log($"✅ 實體檔案比對完成！正常使用中: {matchCount} 個，受保護(暫存)中: {_protectedFilesCount} 個，多餘待清理: {_orphanFiles.Count} 個。", Color.Green);
                 }
                 catch (Exception ex)
                 {
@@ -219,7 +233,7 @@ namespace Safety_System
                 }
             });
 
-            _lblStatus.Text = $"掃描結束。發現 {_orphanFiles.Count} 個多餘檔案。";
+            _lblStatus.Text = $"掃描結束。發現 {_orphanFiles.Count} 個可安全清理的多餘檔案，{_protectedFilesCount} 個受保護檔案。";
             _lblStatus.ForeColor = _orphanFiles.Count > 0 ? Color.IndianRed : Color.ForestGreen;
             
             _btnScan.Enabled = true;
