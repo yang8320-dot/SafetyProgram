@@ -183,7 +183,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 核心優化：刪除資料的連動防護 (自動重算縫合時間軸，並回存受影響的相鄰紀錄)
+        // 🟢 最終優化 3：刪除資料時改用極速 SQL 引擎檢查附件，解決大量刪除卡頓問題
         private void ExecuteDeleteRow()
         {
             List<DataGridViewRow> selectedRows = new List<DataGridViewRow>();
@@ -198,68 +198,85 @@ namespace Safety_System
 
             if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後系統將自動重算受影響之日期差值)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                 if (AuthManager.VerifyUser()) {
-                    DataTable dt = (DataTable)_dgv.DataSource;
-                    foreach (DataGridViewRow r in selectedRows) {
-                        
-                        if (_dgv.Columns.Contains("附件檔案")) {
-                            object val = r.Cells["附件檔案"].Value;
-                            if (val != null) {
-                                string relPathStr = val.ToString();
-                                if (!string.IsNullOrEmpty(relPathStr)) {
-                                    string[] paths = relPathStr.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                                    foreach (string p in paths) {
-                                        DeletePhysicalFile(p, r.Index);
-                                    }
-                                }
-                            }
-                        }
-
-                        // 1. 實體刪除資料庫紀錄
-                        int id = Convert.ToInt32(r.Cells["Id"].Value);
-                        DataManager.DeleteRecord(_dbName, _tableName, id);
-                        
-                        // 2. 從畫面上移除
-                        for (int i = 0; i < dt.Rows.Count; i++) {
-                            DataRow dr = dt.Rows[i];
-                            if (dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id) {
-                                dr.Delete();
-                                break;
-                            }
-                        }
-                    }
                     
-                    // 3. 提交刪除狀態 (讓被刪除的列真正從 dt 集合中清除)
-                    dt.AcceptChanges(); 
+                    if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                    // 4. 觸發自動運算引擎：將時間軸斷點兩端無縫接合重算
-                    if (_calcHelper != null) {
-                        _calcHelper.BeginBulkUpdate();
-                        _calcHelper.RecalculateTable(dt);
-                        _calcHelper.EndBulkUpdate();
-                    }
-
-                    // 5. 抓出「因為時間軸重算而改變」的相鄰紀錄，並在背景自動回存！
-                    Task.Run(() => 
+                    try
                     {
-                        try 
-                        {
-                            foreach (DataRow row in dt.Rows) 
-                            {
-                                if (row.RowState == DataRowState.Modified) 
-                                {
-                                    DataManager.UpsertRecord(_dbName, _tableName, row);
-                                    
-                                    if (_dgv.InvokeRequired) {
-                                        _dgv.Invoke(new Action(() => row.AcceptChanges()));
-                                    } else {
-                                        row.AcceptChanges();
+                        DataTable dt = (DataTable)_dgv.DataSource;
+                        foreach (DataGridViewRow r in selectedRows) {
+                            
+                            // 1. 刪除前檢查附件是否可回收
+                            if (_dgv.Columns.Contains("附件檔案")) {
+                                object val = r.Cells["附件檔案"].Value;
+                                if (val != null) {
+                                    string relPathStr = val.ToString();
+                                    if (!string.IsNullOrEmpty(relPathStr)) {
+                                        string[] paths = relPathStr.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                                        foreach (string p in paths) {
+                                            // 極速檢查：如果資料庫裡沒有其他紀錄用到這個檔案，就真的刪除它
+                                            if (!DataManager.IsAttachmentInUse(_dbName, _tableName, p))
+                                            {
+                                                try {
+                                                    string absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, p);
+                                                    if (File.Exists(absPath)) File.Delete(absPath);
+                                                } catch { }
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        } catch { }
-                    });
 
-                    MessageBox.Show("刪除成功！系統已將資料斷點無縫重算完畢。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            // 2. 實體刪除資料庫紀錄 (DataManager 會自動在背景寫入 System_DeleteLogs)
+                            int id = Convert.ToInt32(r.Cells["Id"].Value);
+                            DataManager.DeleteRecord(_dbName, _tableName, id);
+                            
+                            // 3. 從畫面上移除
+                            for (int i = 0; i < dt.Rows.Count; i++) {
+                                DataRow dr = dt.Rows[i];
+                                if (dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id) {
+                                    dr.Delete();
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        dt.AcceptChanges(); 
+
+                        // 4. 觸發自動運算引擎：將時間軸斷點兩端無縫接合重算
+                        if (_calcHelper != null) {
+                            _calcHelper.BeginBulkUpdate();
+                            _calcHelper.RecalculateTable(dt);
+                            _calcHelper.EndBulkUpdate();
+                        }
+
+                        // 5. 抓出「因為時間軸重算而改變」的相鄰紀錄，並在背景自動回存
+                        Task.Run(() => 
+                        {
+                            try 
+                            {
+                                foreach (DataRow row in dt.Rows) 
+                                {
+                                    if (row.RowState == DataRowState.Modified) 
+                                    {
+                                        DataManager.UpsertRecord(_dbName, _tableName, row);
+                                        
+                                        if (_dgv.InvokeRequired) {
+                                            _dgv.Invoke(new Action(() => row.AcceptChanges()));
+                                        } else {
+                                            row.AcceptChanges();
+                                        }
+                                    }
+                                }
+                            } catch { }
+                        });
+
+                        MessageBox.Show("刪除成功！系統已將資料斷點無縫重算完畢。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    finally
+                    {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
                 }
             }
         }
