@@ -11,7 +11,6 @@ namespace Safety_System
 {
     public partial class App_CoreTable
     {
-        // 🟢 控制是否暫停自動觸發事件 (供 Excel 匯入或大量貼上時使用)
         private bool _isBulkUpdating = false;
 
         private void BindEvents()
@@ -30,7 +29,6 @@ namespace Safety_System
             _dgv.CellValueChanged += new DataGridViewCellEventHandler(Dgv_CellValueChanged);
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
 
-            // 🟢 新增：當使用者離開一列時，檢查是否有修改，若有則即時在背景儲存
             _dgv.RowValidated += new DataGridViewCellEventHandler(Dgv_RowValidated);
 
             // 綁定「儲存」按鈕
@@ -91,8 +89,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 核心優化：離列即時儲存 (Row Validated)
-        // 當使用者編輯完一行並點擊其他行時，系統會在背景自動儲存這行，降低 5 人衝突！
         private void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
         {
             if (_isBulkUpdating || _dgv.DataSource == null) return;
@@ -105,16 +101,13 @@ namespace Safety_System
                     if (drv != null) 
                     {
                         DataRow row = drv.Row;
-                        // 如果該列有被修改過，或是新增加的資料
                         if (row.RowState == DataRowState.Added || row.RowState == DataRowState.Modified) 
                         {
-                            // 背景非同步儲存單列，完全不卡頓 UI
                             Task.Run(() => 
                             {
                                 try 
                                 {
                                     DataManager.UpsertRecord(_dbName, _tableName, row);
-                                    // 必須回到 UI 執行緒執行 AcceptChanges
                                     if (_dgv.InvokeRequired) {
                                         _dgv.Invoke(new Action(() => row.AcceptChanges()));
                                     } else {
@@ -144,13 +137,12 @@ namespace Safety_System
                 SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
                 
                 DataTable dtSource = (DataTable)_dgv.DataSource;
-                // 🟢 核心優化：極速儲存！只抓取有被修改過的資料，避免全表掃描造成卡頓
                 DataTable dtChanges = dtSource.GetChanges(); 
 
                 if (dtChanges == null || dtChanges.Rows.Count == 0)
                 {
                     SetUIState(true, "無異動資料需要儲存。", Color.Green); 
-                    return; // 沒有改變就直接結束，不跑進度條
+                    return; 
                 }
 
                 bool success = false;
@@ -166,7 +158,6 @@ namespace Safety_System
                         progStr.Report("正在執行模組預處理...");
                         if (await _logic.OnBeforeSaveAsync(_dbName, _tableName, dtChanges, progInt, progStr)) 
                         {
-                            // 傳入的 dtChanges 通常只有少數幾筆，寫入極快！
                             success = DataManager.BulkSaveTable(_dbName, _tableName, dtChanges, progInt, progStr); 
                             
                             if (success) {
@@ -178,10 +169,9 @@ namespace Safety_System
                 }
                 
                 if (success) { 
-                    dtSource.AcceptChanges(); // 將 UI 的 DataTable 狀態標記為已儲存
+                    dtSource.AcceptChanges(); 
                     SetUIState(true, "資料儲存成功！", Color.Green); 
                     MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
-                    // 不再強制重載畫面，保持使用者捲動位置
                 } else { 
                     SetUIState(true, "資料儲存失敗", Color.Red); 
                 }
@@ -193,6 +183,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 核心優化：刪除資料的連動防護 (自動重算縫合時間軸，並回存受影響的相鄰紀錄)
         private void ExecuteDeleteRow()
         {
             List<DataGridViewRow> selectedRows = new List<DataGridViewRow>();
@@ -205,10 +196,11 @@ namespace Safety_System
                 }
             }
 
-            if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+            if (selectedRows.Count > 0 && MessageBox.Show($"確定要刪除選取的 {selectedRows.Count} 筆資料嗎？\n(刪除後系統將自動重算受影響之日期差值)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                 if (AuthManager.VerifyUser()) {
                     DataTable dt = (DataTable)_dgv.DataSource;
                     foreach (DataGridViewRow r in selectedRows) {
+                        
                         if (_dgv.Columns.Contains("附件檔案")) {
                             object val = r.Cells["附件檔案"].Value;
                             if (val != null) {
@@ -221,9 +213,12 @@ namespace Safety_System
                                 }
                             }
                         }
+
+                        // 1. 實體刪除資料庫紀錄
                         int id = Convert.ToInt32(r.Cells["Id"].Value);
                         DataManager.DeleteRecord(_dbName, _tableName, id);
                         
+                        // 2. 從畫面上移除
                         for (int i = 0; i < dt.Rows.Count; i++) {
                             DataRow dr = dt.Rows[i];
                             if (dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id) {
@@ -232,8 +227,39 @@ namespace Safety_System
                             }
                         }
                     }
+                    
+                    // 3. 提交刪除狀態 (讓被刪除的列真正從 dt 集合中清除)
                     dt.AcceptChanges(); 
-                    MessageBox.Show("刪除成功！");
+
+                    // 4. 觸發自動運算引擎：將時間軸斷點兩端無縫接合重算
+                    if (_calcHelper != null) {
+                        _calcHelper.BeginBulkUpdate();
+                        _calcHelper.RecalculateTable(dt);
+                        _calcHelper.EndBulkUpdate();
+                    }
+
+                    // 5. 抓出「因為時間軸重算而改變」的相鄰紀錄，並在背景自動回存！
+                    Task.Run(() => 
+                    {
+                        try 
+                        {
+                            foreach (DataRow row in dt.Rows) 
+                            {
+                                if (row.RowState == DataRowState.Modified) 
+                                {
+                                    DataManager.UpsertRecord(_dbName, _tableName, row);
+                                    
+                                    if (_dgv.InvokeRequired) {
+                                        _dgv.Invoke(new Action(() => row.AcceptChanges()));
+                                    } else {
+                                        row.AcceptChanges();
+                                    }
+                                }
+                            }
+                        } catch { }
+                    });
+
+                    MessageBox.Show("刪除成功！系統已將資料斷點無縫重算完畢。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
@@ -274,7 +300,7 @@ namespace Safety_System
                     DataTable workingDt = boundDt.Copy(); 
                     DataTable templateDt = boundDt.Clone(); 
 
-                    _isBulkUpdating = true; // 🟢 暫停所有離列自動儲存
+                    _isBulkUpdating = true; 
                     
                     using (ProgressForm progForm = new ProgressForm("匯入與運算中..."))
                     {
@@ -312,13 +338,13 @@ namespace Safety_System
 
                     _dgv.ResumeLayout(true);
                     _isApplyingWidths = false;
-                    _isBulkUpdating = false; // 恢復離列自動儲存
+                    _isBulkUpdating = false; 
 
                     SetUIState(true, $"Excel 匯入完成！新增資料後總筆數：{workingDt.Rows.Count}", Color.Green);
                     
                     if (MessageBox.Show("Excel 匯入運算完成！\n是否要【立即寫入】資料庫？\n(選擇「否」則可先檢查畫面，後續再手動點擊「儲存」按鈕)", "確認寫入", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                     {
-                        _btnSave.PerformClick(); // 呼叫優化過後的極速儲存
+                        _btnSave.PerformClick(); 
                     }
                 }
             }
@@ -433,7 +459,7 @@ namespace Safety_System
                     if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
                 }
 
-                _isBulkUpdating = true; // 🟢 暫停所有離列自動儲存
+                _isBulkUpdating = true; 
 
                 using (ProgressForm progForm = new ProgressForm("貼上資料與運算中...")) {
                     await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr) {
@@ -471,7 +497,7 @@ namespace Safety_System
 
                 _dgv.ResumeLayout(true);
                 _isApplyingWidths = false;
-                _isBulkUpdating = false; // 恢復離列自動儲存
+                _isBulkUpdating = false; 
             }
         }
 
