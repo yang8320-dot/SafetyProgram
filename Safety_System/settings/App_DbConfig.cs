@@ -178,7 +178,7 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
 
-            // 🟢 3. 新增操作軌跡(Audit) 區塊
+            // 3. 操作軌跡(Audit) 區塊
             GroupBox boxAudit = new GroupBox { Text = "🕵️ 操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 450, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
             boxAudit.Margin = new Padding(0, 30, 0, 0);
 
@@ -386,7 +386,6 @@ namespace Safety_System
             return main;
         }
 
-        // 🟢 查詢操作紀錄按鈕邏輯
         private void BtnSearchAudit_Click(object sender, EventArgs e)
         {
             if (_cboAuditDb.SelectedItem == null || _cboAuditTable.SelectedItem == null) {
@@ -406,7 +405,6 @@ namespace Safety_System
                 
                 if (dt != null && dt.Rows.Count > 0) 
                 {
-                    // 只過濾出我們需要的關鍵欄位供查詢
                     DataTable dtAudit = new DataTable();
                     dtAudit.Columns.Add("系統流水號(Id)", typeof(int));
                     
@@ -436,7 +434,6 @@ namespace Safety_System
                         dtAudit.Rows.Add(newRow);
                     }
 
-                    // 將最新的修改排在最上面
                     dtAudit.DefaultView.Sort = "最後修改時間 DESC";
                     _dgvAudit.DataSource = dtAudit.DefaultView.ToTable();
                 }
@@ -643,6 +640,7 @@ namespace Safety_System
                 };
 
                 loadKeys();
+                // 🟢 修復：改為無參數呼叫 ShowDialog()
                 f.ShowDialog();
             }
         }
@@ -750,6 +748,7 @@ namespace Safety_System
                 };
 
                 loadRules();
+                // 🟢 修復：改為無參數呼叫 ShowDialog()
                 f.ShowDialog();
             }
         }
@@ -776,7 +775,8 @@ namespace Safety_System
                 p.Controls.Add(btn);
                 p.AcceptButton = btn;
 
-                if (p.ShowDialog(this) == DialogResult.OK)
+                // 🟢 修復：將 ShowDialog() 改為傳入 null 或是 Form.ActiveForm
+                if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK)
                 {
                     string input = txt.Text.Trim();
                     string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
