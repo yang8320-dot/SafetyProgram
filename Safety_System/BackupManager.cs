@@ -46,7 +46,31 @@ namespace Safety_System
             LoadConfig();
             if ((DateTime.Today - LastBackupDate).TotalDays >= 7)
             {
-                ExecuteBackup();
+                // 🟢 系統性優化 5：備份併發控制 (避免 5 人同時啟動造成 I/O 風暴)
+                string lockTimeStr = DataManager.GetSysSetting("BackupLockTime", "");
+                
+                // 檢查是否有人正在備份 (設定鎖定時間在 10 分鐘內視為鎖定中)
+                if (DateTime.TryParse(lockTimeStr, out DateTime lockTime))
+                {
+                    if ((DateTime.Now - lockTime).TotalMinutes < 10)
+                    {
+                        // 已經有其他使用者的電腦正在執行備份，本機自動跳過
+                        return;
+                    }
+                }
+
+                // 搶佔備份鎖 (寫入當前時間)
+                DataManager.SetSysSetting("BackupLockTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+
+                try
+                {
+                    ExecuteBackup();
+                }
+                finally
+                {
+                    // 備份完成後解除鎖定 (清空時間)
+                    DataManager.SetSysSetting("BackupLockTime", "");
+                }
             }
         }
 
@@ -60,7 +84,6 @@ namespace Safety_System
                 string targetDir = Path.Combine(BackupPath, folderName);
                 Directory.CreateDirectory(targetDir);
 
-                // 🟢 修復：改用 SQLite 原生備份 API (Hot Backup)，徹底解決 File.Copy 造成的檔案鎖死與衝突問題
                 string[] files = Directory.GetFiles(DataManager.BasePath, "*.sqlite");
                 foreach (var file in files)
                 {
@@ -83,7 +106,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 原生安全備份方法
         private static void SafeBackupSQLite(string sourcePath, string destPath)
         {
             try
@@ -98,7 +120,6 @@ namespace Safety_System
             }
             catch (Exception ex)
             {
-                // 若原生備份失敗 (極少數情況)，降級嘗試 File.Copy
                 try { File.Copy(sourcePath, destPath, true); } catch { throw ex; }
             }
         }
