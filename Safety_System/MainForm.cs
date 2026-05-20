@@ -3,6 +3,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -57,7 +58,6 @@ namespace Safety_System
             LoadWelcomeScreen();
         }
 
-        // 🟢 系統性優化 1：關閉系統前，強制結束所有編輯狀態，確保最後一筆游標停留的資料不會遺失
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             ForceEndCurrentEdit();
@@ -91,12 +91,10 @@ namespace Safety_System
             return null;
         }
 
-        // 🟢 系統性優化 2：用來強制目前畫面上的 DataGridView 結束編輯模式並觸發 Validated
         private void ForceEndCurrentEdit()
         {
             this.Validate();
             
-            // 遞迴尋找目前畫面上的 DataGridView 並結束編輯
             void SearchAndEndEdit(Control parent)
             {
                 foreach (Control c in parent.Controls)
@@ -106,7 +104,6 @@ namespace Safety_System
                         dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
                         dgv.EndEdit();
                         
-                        // 強制移開焦點來觸發 RowValidated 事件 (也就是我們上一階段加的即時存檔)
                         if (dgv.CurrentCell != null)
                         {
                             dgv.CurrentCell = null;
@@ -305,7 +302,7 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(appLinkSettingItem);
 
-            var dbConfigItem = new ToolStripMenuItem("資料庫設定");
+            var dbConfigItem = new ToolStripMenuItem("系統參數與稽核設定");
             dbConfigItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -338,7 +335,7 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
-            var addUserItem = new ToolStripMenuItem("新增使用者");
+            var addUserItem = new ToolStripMenuItem("新增登入授權使用者");
             addUserItem.Click += (s, e) => {
                 string prompt = "管理使用者需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
@@ -347,13 +344,18 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(addUserItem);
 
+            // 🟢 企業級防護 5：資料庫時光機還原功能
+            var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫時光機還原");
+            restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
+            menuSettings.DropDownItems.Add(restoreDbItem);
+
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
             
-            var unlockMenuItem = new ToolStripMenuItem("開啟個人選單");
+            var unlockMenuItem = new ToolStripMenuItem("開啟個人隱藏選單");
             unlockMenuItem.Click += UnlockMenu_Click;
             menuSettings.DropDownItems.Add(unlockMenuItem);
 
-            var pwdMgmtItem = new ToolStripMenuItem("密碼管理");
+            var pwdMgmtItem = new ToolStripMenuItem("變更個人選單密碼");
             pwdMgmtItem.Click += (s, e) => {
                 new App_PasswordManager().ShowDialog(this);
             };
@@ -386,6 +388,107 @@ namespace Safety_System
                 menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, 
                 menuApp, _menu1, _menu2, _menu3, _menu4, menuSettings 
             });
+        }
+
+        // 🟢 資料庫時光機還原邏輯
+        private void ShowDatabaseRestoreDialog()
+        {
+            if (!AuthManager.VerifyLv3Only("執行資料庫還原是極度危險操作！\n這將會覆蓋當前所有的最新資料。\n請輸入【Lv3系統管理者】密碼：")) 
+                return;
+
+            BackupManager.LoadConfig();
+            string backupDir = BackupManager.BackupPath;
+
+            if (!Directory.Exists(backupDir))
+            {
+                MessageBox.Show("找不到備份資料夾，無法進行還原！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var directories = new DirectoryInfo(backupDir).GetDirectories()
+                                .OrderByDescending(d => d.CreationTime)
+                                .ToList();
+
+            if (directories.Count == 0)
+            {
+                MessageBox.Show("目前沒有任何可用的備份還原點！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (Form f = new Form())
+            {
+                f.Text = "⏳ 資料庫時光機還原";
+                f.Size = new Size(500, 400);
+                f.StartPosition = FormStartPosition.CenterParent;
+                f.FormBorderStyle = FormBorderStyle.FixedDialog;
+                f.MaximizeBox = false;
+                f.MinimizeBox = false;
+                f.BackColor = Color.White;
+
+                Label lbl = new Label { Text = "⚠️ 警告：還原後，目前資料庫的「所有資料」都會被指定的備份時間點覆蓋，請謹慎選擇！", ForeColor = Color.Crimson, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Location = new Point(20, 20), AutoSize = true, MaximumSize = new Size(450, 0) };
+                
+                ListBox lbBackups = new ListBox { Location = new Point(25, 80), Size = new Size(430, 200), Font = new Font("Consolas", 14F) };
+                foreach (var dir in directories)
+                {
+                    string formattedName = dir.Name;
+                    if (formattedName.Length == 13) // yyyyMMdd_HHmm
+                    {
+                        formattedName = $"{formattedName.Substring(0,4)}年{formattedName.Substring(4,2)}月{formattedName.Substring(6,2)}日 {formattedName.Substring(9,2)}:{formattedName.Substring(11,2)}";
+                    }
+                    lbBackups.Items.Add(new { Display = formattedName, Path = dir.FullName });
+                }
+                
+                lbBackups.DisplayMember = "Display";
+                lbBackups.ValueMember = "Path";
+                lbBackups.SelectedIndex = 0;
+
+                Button btnRestore = new Button { Text = "⚡ 立即覆蓋並重啟系統", Location = new Point(130, 300), Size = new Size(220, 45), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                
+                btnRestore.Click += (s, e) => {
+                    if (lbBackups.SelectedItem == null) return;
+
+                    dynamic selected = lbBackups.SelectedItem;
+                    string sourceDir = selected.Path;
+
+                    if (MessageBox.Show($"您確定要將系統時光倒流至：\n\n【{selected.Display}】嗎？\n\n(系統將自動關閉並覆蓋實體檔案)", "最終確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
+                    {
+                        try
+                        {
+                            string targetDir = DataManager.BasePath;
+                            string[] backupFiles = Directory.GetFiles(sourceDir, "*.sqlite");
+
+                            // 關閉目前資料庫的所有連線並強制資源回收
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+
+                            foreach (var file in backupFiles)
+                            {
+                                string destFile = Path.Combine(targetDir, Path.GetFileName(file));
+                                File.Copy(file, destFile, true);
+                            }
+
+                            // 順便還原 SystemConfig (如果在備份裡)
+                            string sysConfigBackup = Path.Combine(sourceDir, "SystemConfig.sqlite");
+                            if (File.Exists(sysConfigBackup))
+                            {
+                                File.Copy(sysConfigBackup, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite"), true);
+                            }
+
+                            MessageBox.Show("還原成功！系統將自動關閉，請重新啟動軟體。", "時光機作業完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            Environment.Exit(0);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"還原失敗：{ex.Message}\n可能是有其他同仁正在使用系統，導致檔案鎖定。請確保所有人都關閉軟體後再試一次。", "嚴重錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                };
+
+                f.Controls.Add(lbl);
+                f.Controls.Add(lbBackups);
+                f.Controls.Add(btnRestore);
+                f.ShowDialog();
+            }
         }
 
         private void LoadDynamicAppLinks(ToolStripMenuItem menuApp)
@@ -467,7 +570,7 @@ namespace Safety_System
             {
                 p.Width = 400; 
                 p.Height = 220;
-                p.Text = "解鎖個人選單";
+                p.Text = "解鎖個人隱藏選單";
                 p.StartPosition = FormStartPosition.CenterParent;
                 p.FormBorderStyle = FormBorderStyle.FixedDialog;
                 p.MaximizeBox = false; 
@@ -503,7 +606,6 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(text);
             item.Click += (s, e) => {
-                // 🟢 在載入新畫面之前，確保舊畫面(如果有)的資料已經觸發最後的 RowValidated 自動存檔
                 ForceEndCurrentEdit();
                 
                 try { LoadModule(getViewFunc()); } 
