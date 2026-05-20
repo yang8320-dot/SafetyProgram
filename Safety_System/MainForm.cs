@@ -344,7 +344,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(addUserItem);
 
-            // 🟢 企業級防護 5：資料庫時光機還原功能
             var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫時光機還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
@@ -390,7 +389,13 @@ namespace Safety_System
             });
         }
 
-        // 🟢 資料庫時光機還原邏輯
+        // 🟢 修復：改為自定義 BackupItem 類別，避免呼叫 dynamic 時找不到 Microsoft.CSharp
+        private class BackupItem 
+        {
+            public string Display { get; set; }
+            public string Path { get; set; }
+        }
+
         private void ShowDatabaseRestoreDialog()
         {
             if (!AuthManager.VerifyLv3Only("執行資料庫還原是極度危險操作！\n這將會覆蓋當前所有的最新資料。\n請輸入【Lv3系統管理者】密碼：")) 
@@ -431,11 +436,12 @@ namespace Safety_System
                 foreach (var dir in directories)
                 {
                     string formattedName = dir.Name;
-                    if (formattedName.Length == 13) // yyyyMMdd_HHmm
+                    if (formattedName.Length == 13) 
                     {
                         formattedName = $"{formattedName.Substring(0,4)}年{formattedName.Substring(4,2)}月{formattedName.Substring(6,2)}日 {formattedName.Substring(9,2)}:{formattedName.Substring(11,2)}";
                     }
-                    lbBackups.Items.Add(new { Display = formattedName, Path = dir.FullName });
+                    // 使用強型別 BackupItem 裝載
+                    lbBackups.Items.Add(new BackupItem { Display = formattedName, Path = dir.FullName });
                 }
                 
                 lbBackups.DisplayMember = "Display";
@@ -447,7 +453,8 @@ namespace Safety_System
                 btnRestore.Click += (s, e) => {
                     if (lbBackups.SelectedItem == null) return;
 
-                    dynamic selected = lbBackups.SelectedItem;
+                    // 🟢 修復：將 selected 轉型為 BackupItem，捨棄 dynamic
+                    BackupItem selected = (BackupItem)lbBackups.SelectedItem;
                     string sourceDir = selected.Path;
 
                     if (MessageBox.Show($"您確定要將系統時光倒流至：\n\n【{selected.Display}】嗎？\n\n(系統將自動關閉並覆蓋實體檔案)", "最終確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
@@ -457,7 +464,6 @@ namespace Safety_System
                             string targetDir = DataManager.BasePath;
                             string[] backupFiles = Directory.GetFiles(sourceDir, "*.sqlite");
 
-                            // 關閉目前資料庫的所有連線並強制資源回收
                             GC.Collect();
                             GC.WaitForPendingFinalizers();
 
@@ -467,7 +473,6 @@ namespace Safety_System
                                 File.Copy(file, destFile, true);
                             }
 
-                            // 順便還原 SystemConfig (如果在備份裡)
                             string sysConfigBackup = Path.Combine(sourceDir, "SystemConfig.sqlite");
                             if (File.Exists(sysConfigBackup))
                             {
