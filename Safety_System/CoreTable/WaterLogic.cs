@@ -15,16 +15,18 @@ namespace Safety_System
 
         public override async Task<bool> OnBeforeSaveAsync(string dbName, string tableName, DataTable dt, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
+            // 如果傳入的 DataTable 是空的，或沒有任何修改，直接放行
+            if (dt == null || dt.Rows.Count == 0) return true;
+
             await Task.Run(() =>
             {
-                if (dt == null || dt.Rows.Count == 0) return;
-
                 progressStr?.Report("正在擷取水資源歷史數據基期...");
                 progressInt?.Report(5); 
                 
                 string dateCol = dt.Columns.Contains("日期") ? "日期" : (dt.Columns.Contains("年月") ? "年月" : "");
                 if (string.IsNullOrEmpty(dateCol)) return;
 
+                // 🟢 核心優化：只針對「有異動 (Added / Modified)」的資料列進行處理
                 var validRows = dt.Rows.Cast<DataRow>().Where(r => r.RowState != DataRowState.Deleted).ToList();
                 if (validRows.Count == 0) return;
 
@@ -33,14 +35,17 @@ namespace Safety_System
 
                 DataTable baseHistoryDt = dt.Clone(); 
                 try {
-                    DataTable allDbData = DataManager.GetTableData(dbName, tableName, "", "", "");
-                    var baseRows = allDbData.Rows.Cast<DataRow>()
-                                    .Where(r => string.Compare(r[dateCol]?.ToString(), minDate) < 0)
-                                    .OrderByDescending(r => r[dateCol]?.ToString())
-                                    .Take(10);
+                    // 🟢 效能大躍進：不要全表撈取！只利用 SQL 語法撈取「小於 minDate」的最近 5 筆紀錄當作計算基期
+                    string sqlFetchBase = $"SELECT * FROM [{tableName}] WHERE [{dateCol}] < '{minDate}' ORDER BY [{dateCol}] DESC LIMIT 5";
                     
-                    foreach (var r in baseRows) {
-                        baseHistoryDt.ImportRow(r);
+                    using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={System.IO.Path.Combine(DataManager.BasePath, dbName + ".sqlite")};Version=3;"))
+                    {
+                        conn.Open();
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand(sqlFetchBase, conn))
+                        using (var da = new System.Data.SQLite.SQLiteDataAdapter(cmd))
+                        {
+                            da.Fill(baseHistoryDt);
+                        }
                     }
                 } catch { }
 
@@ -51,6 +56,7 @@ namespace Safety_System
                 if (baseHistoryDt.Rows.Count > 0) calcPool.Merge(baseHistoryDt);
                 calcPool.Merge(dt);
 
+                // 依日期排序以利計算前後差值
                 calcPool.DefaultView.Sort = $"{dateCol} ASC";
                 DataTable sortedPool = calcPool.DefaultView.ToTable();
 
@@ -100,6 +106,7 @@ namespace Safety_System
                 
                 int totalValid = validRows.Count;
                 
+                // 將計算結果暫存為 Dictionary，供快速映射回原 DataTable (O(1) 搜尋)
                 var calcDict = new Dictionary<string, DataRow>();
                 foreach (DataRow r in sortedPool.Rows) {
                     string d = r[dateCol]?.ToString();
@@ -123,6 +130,7 @@ namespace Safety_System
                     if (targetDate != null && calcDict.TryGetValue(targetDate, out DataRow calcRow))
                     {
                         foreach (DataColumn col in dt.Columns) {
+                            // 只映射有被計算出來的「統計欄位」或「星期」
                             if (col.ColumnName.EndsWith("統計") || col.ColumnName == "星期") {
                                 targetRow[col.ColumnName] = calcRow[col.ColumnName];
                             }
