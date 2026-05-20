@@ -36,60 +36,28 @@ namespace Safety_System
         {
             if (_isBulkUpdating || e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
-            DataGridViewRow currentRow = _dgv.Rows[e.RowIndex];
-            DataGridViewRow nextRow = (e.RowIndex + 1 < _dgv.Rows.Count) ? _dgv.Rows[e.RowIndex + 1] : null;
-            DataGridViewRow prevRow = (e.RowIndex - 1 >= 0) ? _dgv.Rows[e.RowIndex - 1] : null;
-
-            CalculateRowUI(currentRow, nextRow);
-            if (prevRow != null) {
-                CalculateRowUI(prevRow, currentRow);
-            }
-        }
-
-        private void CalculateRowUI(DataGridViewRow targetRow, DataGridViewRow nextRow)
-        {
-            if (targetRow.IsNewRow) return;
-            string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
-
-            foreach (DataGridViewColumn col in _dgv.Columns)
+            // 🟢 絕對時間序防護：
+            // 當使用者手動修改某個水錶度數時，因為會影響到「上一次」與「這一次」的差值
+            // 為防止使用者在畫面上反向排序造成誤算，直接在記憶體中快速重算一次整份表的時間軸
+            DataTable dt = _dgv.DataSource as DataTable;
+            if (dt != null)
             {
-                string colName = col.Name;
-                if (colName == "星期" && _dgv.Columns.Contains("日期"))
-                {
-                    if (DateTime.TryParse(targetRow.Cells["日期"].Value?.ToString(), out DateTime d))
-                        targetRow.Cells["星期"].Value = weekDays[(int)d.DayOfWeek];
-                    else
-                        targetRow.Cells["星期"].Value = "";
-                }
-                else if (colName.EndsWith("日統計") || colName.EndsWith("月統計") || colName.EndsWith("年統計"))
-                {
-                    string baseCol = colName.Substring(0, colName.Length - 3);
-                    if (_dgv.Columns.Contains(baseCol))
-                    {
-                        string targetStr = targetRow.Cells[baseCol].Value?.ToString().Replace(",", "").Trim();
-                        string nextStr = (nextRow != null && !nextRow.IsNewRow) ? nextRow.Cells[baseCol].Value?.ToString().Replace(",", "").Trim() : null;
-                        
-                        if (double.TryParse(targetStr, out double targetVal)) {
-                            if (nextStr != null && double.TryParse(nextStr, out double nextVal)) {
-                                targetRow.Cells[colName].Value = (nextVal - targetVal).ToString("0.####");
-                            } else {
-                                targetRow.Cells[colName].Value = ""; 
-                            }
-                        } else {
-                            targetRow.Cells[colName].Value = "";
-                        }
-                    }
+                _isBulkUpdating = true;
+                try {
+                    RecalculateTable(dt);
+                } finally {
+                    _isBulkUpdating = false;
                 }
             }
         }
 
-        // 🚀 高效能批次計算核心：在 DataTable 記憶體中運算
+        // 🚀 高效能時間軸批次計算核心 (絕對時間序平滑計算)
         public void RecalculateTable(DataTable dt, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
         {
             if (dt == null || dt.Rows.Count == 0) return;
             string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
 
-            // 🟢 極速優化：預先抓出所有目標計算欄位，避免在每一列迴圈中重複掃描 Columns
+            // 1. 抓出所有目標計算欄位
             var targetCols = new List<(string ColName, string BaseCol)>();
             bool hasDateCol = dt.Columns.Contains("日期");
             bool hasWeekCol = dt.Columns.Contains("星期");
@@ -106,21 +74,41 @@ namespace Safety_System
                 }
             }
 
-            int totalRows = dt.Rows.Count;
+            // 2. 🟢 獲取所有未刪除的列，並嚴格依照「日期」進行升冪排序 (完全無視 UI 畫面的排列順序)
+            var validRows = new List<DataRow>();
+            foreach (DataRow r in dt.Rows) 
+            {
+                if (r.RowState != DataRowState.Deleted) validRows.Add(r);
+            }
+
+            if (hasDateCol)
+            {
+                validRows.Sort((a, b) => {
+                    DateTime da, db;
+                    bool parseA = DateTime.TryParse(a["日期"]?.ToString(), out da);
+                    bool parseB = DateTime.TryParse(b["日期"]?.ToString(), out db);
+                    if (parseA && parseB) return da.CompareTo(db);
+                    if (parseA) return -1;
+                    if (parseB) return 1;
+                    return 0;
+                });
+            }
+
+            int totalRows = validRows.Count;
             
-            // 🟢 效能優化：不再尋找未知的 nextRow，而是透過線性遍歷直接比對上下相鄰列
+            // 3. 執行時間軸差值運算 (永遠拿時間軸上的「下一筆實際紀錄」來減)
             for (int i = 0; i < totalRows; i++)
             {
                 if (progressInt != null && progressStr != null && (i % 50 == 0 || i == totalRows - 1))
                 {
                     int percent = (int)((double)(i + 1) / totalRows * 100);
                     progressInt.Report(percent);
-                    progressStr.Report($"正在重新運算關聯數據： 第 {i + 1} 筆 / 共 {totalRows} 筆 ...");
+                    progressStr.Report($"正在進行時間軸關聯重算： 第 {i + 1} 筆 / 共 {totalRows} 筆 ...");
                 }
 
-                DataRow row = dt.Rows[i];
-                if (row.RowState == DataRowState.Deleted) continue;
-                
+                DataRow row = validRows[i];
+                DataRow nextRow = (i + 1 < totalRows) ? validRows[i + 1] : null;
+
                 if (hasWeekCol && hasDateCol)
                 {
                     if (DateTime.TryParse(row["日期"]?.ToString(), out DateTime d))
@@ -131,15 +119,6 @@ namespace Safety_System
 
                 if (targetCols.Count == 0) continue;
 
-                // 尋找下一筆「未被刪除」的資料
-                DataRow nextRow = null;
-                for (int j = i + 1; j < totalRows; j++) {
-                    if (dt.Rows[j].RowState != DataRowState.Deleted) {
-                        nextRow = dt.Rows[j];
-                        break;
-                    }
-                }
-
                 foreach (var tuple in targetCols)
                 {
                     string targetStr = row[tuple.BaseCol]?.ToString().Replace(",", "").Trim();
@@ -147,6 +126,7 @@ namespace Safety_System
                     
                     if (double.TryParse(targetStr, out double targetVal)) {
                         if (nextRow != null && double.TryParse(nextStr, out double nextVal)) {
+                            // 直接相減，確保總消耗量正確紀錄
                             row[tuple.ColName] = (nextVal - targetVal).ToString("0.####");
                         } else {
                             row[tuple.ColName] = "";
