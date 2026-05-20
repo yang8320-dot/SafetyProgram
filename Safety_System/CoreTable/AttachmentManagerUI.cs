@@ -1,4 +1,3 @@
-/// FILE: Safety_System/CoreTable/AttachmentManagerUI.cs ///
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -104,8 +103,33 @@ namespace Safety_System
                 Button bOpen = new Button { Text = "開啟", Width = 100, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                 bOpen.Click += (s, e) => 
                 { 
-                    try { System.Diagnostics.Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path)); } 
-                    catch (Exception ex) { MessageBox.Show("開啟失敗：" + ex.Message); } 
+                    try 
+                    { 
+                        // 🟢 系統性優化 4：附件檔案共用衝突防護
+                        // 不直接開啟網路硬碟上的實體檔案，而是複製到使用者的本機暫存區再開啟
+                        // 避免 A 打開檔案時鎖定，導致 B 無法刪除或覆寫該檔案
+                        string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                        if (File.Exists(sourcePath))
+                        {
+                            string tempFolder = Path.Combine(Path.GetTempPath(), "SafetySystem_Viewer");
+                            if (!Directory.Exists(tempFolder)) Directory.CreateDirectory(tempFolder);
+                            
+                            // 加入時間戳記避免同名檔案衝突
+                            string tempFileName = $"{DateTime.Now.ToString("HHmmss")}_{Path.GetFileName(path)}";
+                            string tempFilePath = Path.Combine(tempFolder, tempFileName);
+                            
+                            File.Copy(sourcePath, tempFilePath, true);
+                            System.Diagnostics.Process.Start(tempFilePath); 
+                        }
+                        else
+                        {
+                            MessageBox.Show("找不到原始實體檔案，可能已被其他使用者移動或刪除。", "開啟失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        MessageBox.Show("開啟失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    } 
                 };
                 
                 Button bDownload = new Button { Text = "下載", Width = 100, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
@@ -143,7 +167,7 @@ namespace Safety_System
                 Button bDel = new Button { Text = "刪除", Width = 100, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bDel.Click += (s, e) => 
                 { 
-                    if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
+                    if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?\n(這將從硬碟永久移除檔案)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
                     { 
                         _deleteAction(path); 
                         _paths.Remove(path); 
