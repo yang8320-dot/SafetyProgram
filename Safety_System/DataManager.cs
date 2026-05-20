@@ -31,7 +31,6 @@ namespace Safety_System
             using (var conn = new SQLiteConnection(connStr))
             {
                 conn.Open();
-                // 開啟 WAL 模式，徹底解決多人連線讀寫時的鎖死問題
                 using (var cmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", conn)) { cmd.ExecuteNonQuery(); }
 
                 using (var cmd = new SQLiteCommand(conn))
@@ -68,7 +67,6 @@ namespace Safety_System
                                         UNIQUE(TableName, ColName, ParentColName, ParentValue));";
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 新增：應用程式連結設定資料表
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
                     cmd.ExecuteNonQuery();
                 }
@@ -165,17 +163,18 @@ namespace Safety_System
         private static string GetConnString(string dbName)
         {
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
+            // 🟢 優化連線池與超時設定，降低多人鎖死機率
             return string.Format("Data Source={0};Version=3;Default Timeout=30;Pooling=True;Max Pool Size=100;", fullPath);
         }
 
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
         {
-            int maxRetries = 5;
+            int maxRetries = 10; // 🟢 增加重試次數至 10 次，每次間隔漸增，因應 5 人環境
             for (int i = 1; i <= maxRetries; i++) {
                 try {
                     using (var conn = new SQLiteConnection(GetConnString(dbName))) {
                         conn.Open(); 
-                        using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", conn)) { pragmaCmd.ExecuteNonQuery(); }
+                        using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;", conn)) { pragmaCmd.ExecuteNonQuery(); }
                         dbAction(conn); 
                         return;
                     }
@@ -220,12 +219,15 @@ namespace Safety_System
             } catch { }
         }
 
+        // 🟢 極速優化：傳入的 dt 通常已經是 dt.GetChanges()，只包含被修改的列，大幅降低鎖死時間
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt, IProgress<int> progInt = null, IProgress<string> progStr = null)
         {
+            if (dt == null || dt.Rows.Count == 0) return true; // 沒有異動直接返回成功
+
             try {
                 using (var conn = new SQLiteConnection(GetConnString(dbName))) {
                     conn.Open();
-                    using (var cmdPragma = new SQLiteCommand("PRAGMA journal_mode=WAL;", conn)) { cmdPragma.ExecuteNonQuery(); }
+                    using (var cmdPragma = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;", conn)) { cmdPragma.ExecuteNonQuery(); }
 
                     using (var trans = conn.BeginTransaction()) {
                         var keys = GetTableKeys(dbName, tableName);
@@ -322,8 +324,11 @@ namespace Safety_System
             }
         }
 
+        // 🟢 單筆寫入防呆：提供給「換行自動儲存」使用
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
+            if (row.RowState == DataRowState.Deleted || row.RowState == DataRowState.Unchanged) return;
+
             ExecuteWithRetry(dbName, conn => {
                 bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0;
                 var cmd = new SQLiteCommand(conn);
@@ -350,7 +355,9 @@ namespace Safety_System
                 }
                 cmd.ExecuteNonQuery();
             });
-            RunSyncEngine(dbName, tableName);
+            
+            // 背景觸發同步引擎，不阻礙前端 UI
+            ThreadPool.QueueUserWorkItem(_ => RunSyncEngine(dbName, tableName));
         }
 
         public static void DeleteRecord(string dbName, string tableName, int id) 
@@ -358,7 +365,7 @@ namespace Safety_System
             ExecuteWithRetry(dbName, conn => {
                 using (var cmd = new SQLiteCommand($"DELETE FROM [{tableName}] WHERE Id=@Id", conn)) { cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery(); }
             });
-            RunSyncEngine(dbName, tableName);
+            ThreadPool.QueueUserWorkItem(_ => RunSyncEngine(dbName, tableName));
         }
 
         public static void RunSyncEngine(string triggerDb, string triggerTable)
