@@ -163,13 +163,23 @@ namespace Safety_System
         private static string GetConnString(string dbName)
         {
             string fullPath = Path.Combine(BasePath, dbName + ".sqlite");
-            // 🟢 優化連線池與超時設定，降低多人鎖死機率
             return string.Format("Data Source={0};Version=3;Default Timeout=30;Pooling=True;Max Pool Size=100;", fullPath);
+        }
+
+        // 🟢 企業級防護 1：嚴格的網路狀態偵測
+        private static void EnsureNetworkConnection()
+        {
+            if (!Directory.Exists(BasePath))
+            {
+                throw new IOException($"網路連線不穩或實體路徑不可用！\n路徑：{BasePath}\n為保護資料庫免於損壞，系統已自動攔截此次儲存動作。請確認區網連線正常後再試一次。");
+            }
         }
 
         private static void ExecuteWithRetry(string dbName, Action<SQLiteConnection> dbAction)
         {
-            int maxRetries = 10; // 🟢 增加重試次數至 10 次，每次間隔漸增，因應 5 人環境
+            EnsureNetworkConnection(); // 寫入前先驗證網路是否存活
+
+            int maxRetries = 10;
             for (int i = 1; i <= maxRetries; i++) {
                 try {
                     using (var conn = new SQLiteConnection(GetConnString(dbName))) {
@@ -182,6 +192,24 @@ namespace Safety_System
                     if (i == maxRetries) throw;
                     Thread.Sleep(100 * i);
                 }
+            }
+        }
+
+        // 🟢 企業級防護 2：自動稽核欄位偵測與建立
+        private static void EnsureAuditColumns(SQLiteConnection conn, string tableName)
+        {
+            List<string> existingCols = new List<string>();
+            using (var cmd = new SQLiteCommand($"PRAGMA table_info([{tableName}])", conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read()) existingCols.Add(reader["name"].ToString());
+            }
+
+            if (!existingCols.Contains("最後修改人")) {
+                using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] ADD COLUMN [最後修改人] TEXT", conn)) cmd.ExecuteNonQuery();
+            }
+            if (!existingCols.Contains("修改時間")) {
+                using (var cmd = new SQLiteCommand($"ALTER TABLE [{tableName}] ADD COLUMN [修改時間] TEXT", conn)) cmd.ExecuteNonQuery();
             }
         }
 
@@ -219,15 +247,22 @@ namespace Safety_System
             } catch { }
         }
 
-        // 🟢 極速優化：傳入的 dt 通常已經是 dt.GetChanges()，只包含被修改的列，大幅降低鎖死時間
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt, IProgress<int> progInt = null, IProgress<string> progStr = null)
         {
-            if (dt == null || dt.Rows.Count == 0) return true; // 沒有異動直接返回成功
+            if (dt == null || dt.Rows.Count == 0) return true; 
 
             try {
+                EnsureNetworkConnection();
+
                 using (var conn = new SQLiteConnection(GetConnString(dbName))) {
                     conn.Open();
                     using (var cmdPragma = new SQLiteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;", conn)) { cmdPragma.ExecuteNonQuery(); }
+
+                    // 自動檢查並建立稽核欄位
+                    EnsureAuditColumns(conn, tableName);
+
+                    string currentUser = Environment.UserName.Trim();
+                    string currentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
                     using (var trans = conn.BeginTransaction()) {
                         var keys = GetTableKeys(dbName, tableName);
@@ -288,24 +323,36 @@ namespace Safety_System
                                     int targetId = existingId != -1 ? existingId : Convert.ToInt32(row["Id"]);
                                     string sql = $"UPDATE [{tableName}] SET ";
                                     foreach (DataColumn col in dt.Columns) {
-                                        if (col.ColumnName == "Id") continue;
+                                        if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
                                         cmd.Parameters.AddWithValue("@" + safeParamName, val);
                                     }
+                                    // 🟢 寫入稽核資料
+                                    sqlParts.Add("[最後修改人]=@SysUser");
+                                    sqlParts.Add("[修改時間]=@SysTime");
+                                    cmd.Parameters.AddWithValue("@SysUser", currentUser);
+                                    cmd.Parameters.AddWithValue("@SysTime", currentTime);
+
                                     cmd.CommandText = sql + string.Join(", ", sqlParts) + " WHERE Id=" + targetId;
                                 } else {
                                     List<string> colNames = new List<string>();
                                     List<string> paramNames = new List<string>();
                                     foreach (DataColumn col in dt.Columns) {
-                                        if (col.ColumnName == "Id") continue;
+                                        if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                                         colNames.Add($"[{col.ColumnName}]");
                                         paramNames.Add($"@{safeParamName}");
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
                                         cmd.Parameters.AddWithValue("@" + safeParamName, val);
                                     }
+                                    // 🟢 寫入稽核資料
+                                    colNames.Add("[最後修改人]"); paramNames.Add("@SysUser");
+                                    colNames.Add("[修改時間]"); paramNames.Add("@SysTime");
+                                    cmd.Parameters.AddWithValue("@SysUser", currentUser);
+                                    cmd.Parameters.AddWithValue("@SysTime", currentTime);
+
                                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", colNames)}) VALUES ({string.Join(", ", paramNames)})";
                                 }
                                 cmd.ExecuteNonQuery();
@@ -319,44 +366,57 @@ namespace Safety_System
                 RunSyncEngine(dbName, tableName);
                 return true;
             } catch (Exception ex) {
-                MessageBox.Show("批次儲存失敗：" + ex.Message);
+                MessageBox.Show("儲存中斷：" + ex.Message, "系統保護機制", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
         }
 
-        // 🟢 單筆寫入防呆：提供給「換行自動儲存」使用
         public static void UpsertRecord(string dbName, string tableName, DataRow row)
         {
             if (row.RowState == DataRowState.Deleted || row.RowState == DataRowState.Unchanged) return;
 
             ExecuteWithRetry(dbName, conn => {
+                EnsureAuditColumns(conn, tableName);
+
                 bool isUpdate = row.Table.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0;
+                string currentUser = Environment.UserName.Trim();
+                string currentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
                 var cmd = new SQLiteCommand(conn);
                 if (isUpdate) {
                     List<string> sets = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
-                        if (col.ColumnName == "Id") continue;
+                        if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         sets.Add($"[{col.ColumnName}]=@{safeParamName}");
                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
                     }
+                    sets.Add("[最後修改人]=@SysUser");
+                    sets.Add("[修改時間]=@SysTime");
+                    cmd.Parameters.AddWithValue("@SysUser", currentUser);
+                    cmd.Parameters.AddWithValue("@SysTime", currentTime);
+
                     cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sets)} WHERE Id=" + row["Id"];
                 } else {
                     List<string> c = new List<string>();
                     List<string> v = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
-                        if (col.ColumnName == "Id") continue;
+                        if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
                         c.Add($"[{col.ColumnName}]"); 
                         v.Add($"@{safeParamName}");
                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
                     }
+                    c.Add("[最後修改人]"); v.Add("@SysUser");
+                    c.Add("[修改時間]"); v.Add("@SysTime");
+                    cmd.Parameters.AddWithValue("@SysUser", currentUser);
+                    cmd.Parameters.AddWithValue("@SysTime", currentTime);
+
                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
                 }
                 cmd.ExecuteNonQuery();
             });
             
-            // 背景觸發同步引擎，不阻礙前端 UI
             ThreadPool.QueueUserWorkItem(_ => RunSyncEngine(dbName, tableName));
         }
 
