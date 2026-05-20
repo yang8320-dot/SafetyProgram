@@ -21,6 +21,7 @@ namespace Safety_System
         // 🟢 稽核日誌專用變數
         private ComboBox _cboAuditDb, _cboAuditTable;
         private DataGridView _dgvAudit;
+        private CheckBox _chkShowDeletedLogs; // 🟢 查詢刪除紀錄的勾選框
 
         private class SyncRowUI {
             public ComboBox CboSrcDb, CboSrcTable, CboSrcMatchCol, CboSrcSyncCol;
@@ -178,7 +179,7 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, btnSaveBackup, btnManualBackup });
 
-            // 3. 操作軌跡(Audit) 區塊
+            // 3. 操作軌跡(Audit) 區塊 (包含刪除日誌查詢)
             GroupBox boxAudit = new GroupBox { Text = "🕵️ 操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 450, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
             boxAudit.Margin = new Padding(0, 30, 0, 0);
 
@@ -188,7 +189,10 @@ namespace Safety_System
             Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(350, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboAuditTable = new ComboBox { Location = new Point(460, 43), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 40), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            // 🟢 新增查詢刪除紀錄的勾選框
+            _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(740, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
+
+            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 50), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnSearchAudit.Click += BtnSearchAudit_Click;
 
             _dgvAudit = new DataGridView { 
@@ -203,7 +207,7 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F)
             };
 
-            boxAudit.Controls.AddRange(new Control[] { lblAuditDb, _cboAuditDb, lblAuditTable, _cboAuditTable, btnSearchAudit, _dgvAudit });
+            boxAudit.Controls.AddRange(new Control[] { lblAuditDb, _cboAuditDb, lblAuditTable, _cboAuditTable, _chkShowDeletedLogs, btnSearchAudit, _dgvAudit });
 
             // 4. 防重寫規則區塊
             GroupBox boxKeys = new GroupBox { Text = "資料表防重寫欄位設定 (空值則正常寫入不防呆)", Dock = DockStyle.Top, Height = 360, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
@@ -386,6 +390,7 @@ namespace Safety_System
             return main;
         }
 
+        // 🟢 加入刪除日誌的查詢邏輯
         private void BtnSearchAudit_Click(object sender, EventArgs e)
         {
             if (_cboAuditDb.SelectedItem == null || _cboAuditTable.SelectedItem == null) {
@@ -401,46 +406,75 @@ namespace Safety_System
 
             try 
             {
-                DataTable dt = DataManager.GetTableData(dbName, tableName, "", "", "");
-                
-                if (dt != null && dt.Rows.Count > 0) 
+                if (_chkShowDeletedLogs.Checked)
                 {
-                    DataTable dtAudit = new DataTable();
-                    dtAudit.Columns.Add("系統流水號(Id)", typeof(int));
-                    
-                    if (dt.Columns.Contains("日期")) dtAudit.Columns.Add("發生日期", typeof(string));
-                    else if (dt.Columns.Contains("年月")) dtAudit.Columns.Add("發生年月", typeof(string));
-                    
-                    if (dt.Columns.Contains("法規名稱")) dtAudit.Columns.Add("法規名稱", typeof(string));
-                    else if (dt.Columns.Contains("化學物質名稱")) dtAudit.Columns.Add("化學物質名稱", typeof(string));
-
-                    dtAudit.Columns.Add("最後修改人", typeof(string));
-                    dtAudit.Columns.Add("最後修改時間", typeof(string));
-
-                    foreach (DataRow r in dt.Rows) 
-                    {
-                        DataRow newRow = dtAudit.NewRow();
-                        newRow["系統流水號(Id)"] = r["Id"];
-                        
-                        if (dt.Columns.Contains("日期")) newRow["發生日期"] = r["日期"];
-                        else if (dt.Columns.Contains("年月")) newRow["發生年月"] = r["年月"];
-                        
-                        if (dt.Columns.Contains("法規名稱")) newRow["法規名稱"] = r["法規名稱"];
-                        else if (dt.Columns.Contains("化學物質名稱")) newRow["化學物質名稱"] = r["化學物質名稱"];
-
-                        newRow["最後修改人"] = dt.Columns.Contains("最後修改人") ? r["最後修改人"]?.ToString() : "無紀錄";
-                        newRow["最後修改時間"] = dt.Columns.Contains("修改時間") ? r["修改時間"]?.ToString() : "無紀錄";
-
-                        dtAudit.Rows.Add(newRow);
+                    // 查詢刪除紀錄 (從 System_DeleteLogs)
+                    DataTable dtDel = new DataTable();
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        conn.Open();
+                        string sql = "SELECT RecordId AS [原系統流水號(Id)], DeletedBy AS [執行刪除者], DeletedTime AS [刪除時間] FROM System_DeleteLogs WHERE DbName=@DB AND TableName=@TB ORDER BY DeletedTime DESC";
+                        using (var cmd = new SQLiteCommand(sql, conn)) {
+                            cmd.Parameters.AddWithValue("@DB", dbName);
+                            cmd.Parameters.AddWithValue("@TB", tableName);
+                            using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtDel);
+                        }
                     }
 
-                    dtAudit.DefaultView.Sort = "最後修改時間 DESC";
-                    _dgvAudit.DataSource = dtAudit.DefaultView.ToTable();
+                    if (dtDel.Rows.Count > 0) {
+                        _dgvAudit.DataSource = dtDel;
+                        _dgvAudit.Columns["執行刪除者"].DefaultCellStyle.ForeColor = Color.Crimson;
+                        _dgvAudit.Columns["執行刪除者"].DefaultCellStyle.Font = new Font(_dgvAudit.Font, FontStyle.Bold);
+                    } else {
+                        MessageBox.Show("該資料表目前沒有任何被刪除的紀錄。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        _dgvAudit.DataSource = null;
+                    }
                 }
                 else
                 {
-                    MessageBox.Show("該資料表目前沒有任何資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    _dgvAudit.DataSource = null;
+                    // 查詢現存資料的操作紀錄
+                    DataTable dt = DataManager.GetTableData(dbName, tableName, "", "", "");
+                    
+                    if (dt != null && dt.Rows.Count > 0) 
+                    {
+                        DataTable dtAudit = new DataTable();
+                        dtAudit.Columns.Add("系統流水號(Id)", typeof(int));
+                        
+                        if (dt.Columns.Contains("日期")) dtAudit.Columns.Add("發生日期", typeof(string));
+                        else if (dt.Columns.Contains("年月")) dtAudit.Columns.Add("發生年月", typeof(string));
+                        
+                        if (dt.Columns.Contains("法規名稱")) dtAudit.Columns.Add("法規名稱", typeof(string));
+                        else if (dt.Columns.Contains("化學物質名稱")) dtAudit.Columns.Add("化學物質名稱", typeof(string));
+
+                        dtAudit.Columns.Add("最後修改人", typeof(string));
+                        dtAudit.Columns.Add("最後修改時間", typeof(string));
+
+                        foreach (DataRow r in dt.Rows) 
+                        {
+                            DataRow newRow = dtAudit.NewRow();
+                            newRow["系統流水號(Id)"] = r["Id"];
+                            
+                            if (dt.Columns.Contains("日期")) newRow["發生日期"] = r["日期"];
+                            else if (dt.Columns.Contains("年月")) newRow["發生年月"] = r["年月"];
+                            
+                            if (dt.Columns.Contains("法規名稱")) newRow["法規名稱"] = r["法規名稱"];
+                            else if (dt.Columns.Contains("化學物質名稱")) newRow["化學物質名稱"] = r["化學物質名稱"];
+
+                            newRow["最後修改人"] = dt.Columns.Contains("最後修改人") ? r["最後修改人"]?.ToString() : "無紀錄";
+                            newRow["最後修改時間"] = dt.Columns.Contains("修改時間") ? r["修改時間"]?.ToString() : "無紀錄";
+
+                            dtAudit.Rows.Add(newRow);
+                        }
+
+                        dtAudit.DefaultView.Sort = "最後修改時間 DESC";
+                        _dgvAudit.DataSource = dtAudit.DefaultView.ToTable();
+                        _dgvAudit.Columns["最後修改人"].DefaultCellStyle.ForeColor = Color.DarkSlateBlue;
+                        _dgvAudit.Columns["最後修改人"].DefaultCellStyle.Font = new Font(_dgvAudit.Font, FontStyle.Bold);
+                    }
+                    else
+                    {
+                        MessageBox.Show("該資料表目前沒有任何現存資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        _dgvAudit.DataSource = null;
+                    }
                 }
             } 
             catch (Exception ex) 
@@ -640,7 +674,6 @@ namespace Safety_System
                 };
 
                 loadKeys();
-                // 🟢 修復：改為無參數呼叫 ShowDialog()
                 f.ShowDialog();
             }
         }
@@ -748,7 +781,6 @@ namespace Safety_System
                 };
 
                 loadRules();
-                // 🟢 修復：改為無參數呼叫 ShowDialog()
                 f.ShowDialog();
             }
         }
@@ -775,7 +807,6 @@ namespace Safety_System
                 p.Controls.Add(btn);
                 p.AcceptButton = btn;
 
-                // 🟢 修復：將 ShowDialog() 改為傳入 null 或是 Form.ActiveForm
                 if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK)
                 {
                     string input = txt.Text.Trim();
