@@ -230,7 +230,6 @@ namespace Safety_System
             btnRefresh.Click += async (s, e) => {
                 _isFirstLoad = false;
                 
-                // 🟢 系統防護 4：熱更新。當使用者點擊重整時，順便重新載入快取的下拉選單與欄位設定
                 App_DropdownManager.LoadDropdownConfigs();
                 LoadVisibilitySettings();
                 LoadColumnWidths();
@@ -241,9 +240,11 @@ namespace Safety_System
             pnlStatus.Controls.Add(btnRefresh);
             pnlStatus.Controls.Add(_lblStatus);
 
+            // 🟢 修改：移除 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells，避免水平滾軸無法拖拉的 WinForms Bug
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells, AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, 
+                AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -350,6 +351,7 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            // 🟢 在這裡靜態計算一次列高即可，不會造成拖曳滾軸卡死
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
 
