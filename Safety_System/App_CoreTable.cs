@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing; // 🟢 修正：加入 System.Drawing 以解析 Color 屬性
+using System.Drawing; 
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -251,6 +251,10 @@ namespace Safety_System
             _columnVisibility.Clear();
             var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Visibility");
             foreach (var kvp in dict) _columnVisibility[kvp.Key] = (kvp.Value == "1");
+
+            // 🟢 修改：預設不顯示最後修改人與修改時間
+            if (!_columnVisibility.ContainsKey("最後修改人")) _columnVisibility["最後修改人"] = false;
+            if (!_columnVisibility.ContainsKey("修改時間")) _columnVisibility["修改時間"] = false;
         }
 
         private void SaveVisibilitySettings() {
