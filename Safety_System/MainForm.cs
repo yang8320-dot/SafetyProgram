@@ -459,10 +459,12 @@ namespace Safety_System
                 Panel pnlSpecific = new Panel { Location = new Point(60, 245), Size = new Size(465, 110), BorderStyle = BorderStyle.FixedSingle, Enabled = false };
                 
                 Label lblDb = new Label { Text = "資料庫：", Location = new Point(15, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                ComboBox cboDb = new ComboBox { Location = new Point(90, 18), Width = 350, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 🟢 修正：將 X 座標由 90 改為 115，寬度由 350 改為 325，避免字體放大時重疊
+                ComboBox cboDb = new ComboBox { Location = new Point(115, 18), Width = 325, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                 Label lblTb = new Label { Text = "資料表：", Location = new Point(15, 65), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                ComboBox cboTb = new ComboBox { Location = new Point(90, 63), Width = 350, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 🟢 修正：將 X 座標由 90 改為 115，寬度由 350 改為 325，避免字體放大時重疊
+                ComboBox cboTb = new ComboBox { Location = new Point(115, 63), Width = 325, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = "*", ChName = "-- 還原整個資料庫 --" });
 
                 pnlSpecific.Controls.Add(lblDb);
