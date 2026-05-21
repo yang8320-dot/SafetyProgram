@@ -1,4 +1,6 @@
+/// FILE: Safety_System/MainForm.cs ///
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing;
@@ -344,7 +346,8 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(addUserItem);
 
-            var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫時光機還原");
+            // 🟢 修改 1：更名為「資料庫還原」
+            var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
 
@@ -389,16 +392,16 @@ namespace Safety_System
             });
         }
 
-        // 🟢 修復：改為自定義 BackupItem 類別，避免呼叫 dynamic 時找不到 Microsoft.CSharp
         private class BackupItem 
         {
             public string Display { get; set; }
             public string Path { get; set; }
         }
 
+        // 🟢 修改 2：實作自定義細粒度資料庫還原對話框
         private void ShowDatabaseRestoreDialog()
         {
-            if (!AuthManager.VerifyLv3Only("執行資料庫還原是極度危險操作！\n這將會覆蓋當前所有的最新資料。\n請輸入【Lv3系統管理者】密碼：")) 
+            if (!AuthManager.VerifyLv3Only("執行資料庫還原是極度危險操作！\n這將會覆蓋當前的資料。\n請輸入【Lv3系統管理者】密碼：")) 
                 return;
 
             BackupManager.LoadConfig();
@@ -422,17 +425,19 @@ namespace Safety_System
 
             using (Form f = new Form())
             {
-                f.Text = "⏳ 資料庫時光機還原";
-                f.Size = new Size(500, 400);
+                f.Text = "⏳ 資料庫還原";
+                f.Size = new Size(580, 520);
                 f.StartPosition = FormStartPosition.CenterParent;
                 f.FormBorderStyle = FormBorderStyle.FixedDialog;
                 f.MaximizeBox = false;
                 f.MinimizeBox = false;
                 f.BackColor = Color.White;
 
-                Label lbl = new Label { Text = "⚠️ 警告：還原後，目前資料庫的「所有資料」都會被指定的備份時間點覆蓋，請謹慎選擇！", ForeColor = Color.Crimson, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Location = new Point(20, 20), AutoSize = true, MaximumSize = new Size(450, 0) };
+                Label lblWarn = new Label { Text = "⚠️ 警告：還原後，目標資料將會被指定的備份時間點覆蓋！", ForeColor = Color.Crimson, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Location = new Point(25, 20), AutoSize = true };
                 
-                ListBox lbBackups = new ListBox { Location = new Point(25, 80), Size = new Size(430, 200), Font = new Font("Consolas", 14F) };
+                Label lblStep1 = new Label { Text = "1. 選擇要還原的備份時間點：", Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(25, 60), AutoSize = true };
+                ComboBox cboTime = new ComboBox { Location = new Point(25, 85), Width = 500, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Consolas", 12F) };
+                
                 foreach (var dir in directories)
                 {
                     string formattedName = dir.Name;
@@ -440,46 +445,135 @@ namespace Safety_System
                     {
                         formattedName = $"{formattedName.Substring(0,4)}年{formattedName.Substring(4,2)}月{formattedName.Substring(6,2)}日 {formattedName.Substring(9,2)}:{formattedName.Substring(11,2)}";
                     }
-                    // 使用強型別 BackupItem 裝載
-                    lbBackups.Items.Add(new BackupItem { Display = formattedName, Path = dir.FullName });
+                    cboTime.Items.Add(new BackupItem { Display = formattedName, Path = dir.FullName });
                 }
-                
-                lbBackups.DisplayMember = "Display";
-                lbBackups.ValueMember = "Path";
-                lbBackups.SelectedIndex = 0;
+                cboTime.DisplayMember = "Display";
+                cboTime.ValueMember = "Path";
+                cboTime.SelectedIndex = 0;
 
-                Button btnRestore = new Button { Text = "⚡ 立即覆蓋並重啟系統", Location = new Point(130, 300), Size = new Size(220, 45), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Label lblStep2 = new Label { Text = "2. 選擇還原範圍 (可指定特定資料庫與資料表)：", Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(25, 140), AutoSize = true };
+                
+                RadioButton rbAll = new RadioButton { Text = "🔥 災難還原 (覆蓋還原「全部」系統資料庫)", Location = new Point(40, 175), AutoSize = true, Checked = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.Crimson };
+                RadioButton rbSpecific = new RadioButton { Text = "🎯 選擇性還原 (僅還原特定的資料庫或資料表)", Location = new Point(40, 210), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+
+                Panel pnlSpecific = new Panel { Location = new Point(60, 245), Size = new Size(465, 110), BorderStyle = BorderStyle.FixedSingle, Enabled = false };
+                
+                Label lblDb = new Label { Text = "資料庫：", Location = new Point(15, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cboDb = new ComboBox { Location = new Point(90, 18), Width = 350, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+                Label lblTb = new Label { Text = "資料表：", Location = new Point(15, 65), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cboTb = new ComboBox { Location = new Point(90, 63), Width = 350, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = "*", ChName = "-- 還原整個資料庫 --" });
+
+                pnlSpecific.Controls.Add(lblDb);
+                pnlSpecific.Controls.Add(cboDb);
+                pnlSpecific.Controls.Add(lblTb);
+                pnlSpecific.Controls.Add(cboTb);
+
+                // 綁定連動
+                rbAll.CheckedChanged += (s, e) => pnlSpecific.Enabled = rbSpecific.Checked;
+                
+                var dbMap = App_DbConfig.GetDbMapCache();
+                foreach (var kvp in dbMap) {
+                    cboDb.Items.Add(new App_DbConfig.ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                }
+                if (cboDb.Items.Count > 0) cboDb.SelectedIndex = 0;
+
+                cboDb.SelectedIndexChanged += (s, e) => {
+                    cboTb.Items.Clear();
+                    cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = "*", ChName = "-- 還原整個資料庫 --" });
+                    
+                    if (cboDb.SelectedItem is App_DbConfig.ItemMap map && !string.IsNullOrEmpty(map.EnName) && dbMap.ContainsKey(map.EnName)) {
+                        foreach (var tbl in dbMap[map.EnName].Tables) {
+                            cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                        }
+                    }
+                    cboTb.SelectedIndex = 0;
+                };
+
+                Button btnRestore = new Button { Text = "⚡ 立即執行還原並重啟系統", Location = new Point(170, 400), Size = new Size(240, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
                 
                 btnRestore.Click += (s, e) => {
-                    if (lbBackups.SelectedItem == null) return;
+                    if (cboTime.SelectedItem == null) return;
+                    BackupItem selectedTime = (BackupItem)cboTime.SelectedItem;
+                    string sourceDir = selectedTime.Path;
 
-                    // 🟢 修復：將 selected 轉型為 BackupItem，捨棄 dynamic
-                    BackupItem selected = (BackupItem)lbBackups.SelectedItem;
-                    string sourceDir = selected.Path;
+                    string confirmMsg = "";
+                    bool isFullRestore = rbAll.Checked;
+                    string targetDb = "";
+                    string targetTb = "";
 
-                    if (MessageBox.Show($"您確定要將系統時光倒流至：\n\n【{selected.Display}】嗎？\n\n(系統將自動關閉並覆蓋實體檔案)", "最終確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
+                    if (isFullRestore) {
+                        confirmMsg = $"您確定要將系統時光倒流至：\n\n【{selectedTime.Display}】嗎？\n\n(系統將自動關閉並覆蓋實體檔案)";
+                    } else {
+                        targetDb = ((App_DbConfig.ItemMap)cboDb.SelectedItem).EnName;
+                        targetTb = ((App_DbConfig.ItemMap)cboTb.SelectedItem).EnName;
+                        
+                        string dbChName = ((App_DbConfig.ItemMap)cboDb.SelectedItem).ChName;
+                        string tbChName = ((App_DbConfig.ItemMap)cboTb.SelectedItem).ChName;
+
+                        if (targetTb == "*") {
+                            confirmMsg = $"您即將還原單一資料庫：\n\n【{dbChName}】 ({targetDb})\n時間點：【{selectedTime.Display}】\n\n確定執行嗎？";
+                        } else {
+                            confirmMsg = $"您即將還原單一資料表：\n\n庫：{dbChName} ({targetDb})\n表：{tbChName} ({targetTb})\n時間點：【{selectedTime.Display}】\n\n(注意：系統將只抽取該表內容覆蓋當前資料庫)\n確定執行嗎？";
+                        }
+                    }
+
+                    if (MessageBox.Show(confirmMsg, "最終確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
                     {
                         try
                         {
-                            string targetDir = DataManager.BasePath;
-                            string[] backupFiles = Directory.GetFiles(sourceDir, "*.sqlite");
-
                             GC.Collect();
                             GC.WaitForPendingFinalizers();
+                            string destDir = DataManager.BasePath;
 
-                            foreach (var file in backupFiles)
+                            if (isFullRestore) 
                             {
-                                string destFile = Path.Combine(targetDir, Path.GetFileName(file));
-                                File.Copy(file, destFile, true);
+                                // 覆蓋全部
+                                string[] backupFiles = Directory.GetFiles(sourceDir, "*.sqlite");
+                                foreach (var file in backupFiles)
+                                {
+                                    string destFile = Path.Combine(destDir, Path.GetFileName(file));
+                                    File.Copy(file, destFile, true);
+                                }
+                                string sysConfigBackup = Path.Combine(sourceDir, "SystemConfig.sqlite");
+                                if (File.Exists(sysConfigBackup)) {
+                                    File.Copy(sysConfigBackup, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite"), true);
+                                }
+                            } 
+                            else 
+                            {
+                                // 選擇性還原
+                                string sourceDbFile = Path.Combine(sourceDir, targetDb + ".sqlite");
+                                string destDbFile = Path.Combine(destDir, targetDb + ".sqlite");
+
+                                if (!File.Exists(sourceDbFile)) {
+                                    MessageBox.Show("選擇的備份時間點中，找不到該資料庫檔案！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                    return;
+                                }
+
+                                if (targetTb == "*") {
+                                    // 覆蓋整個單一庫
+                                    File.Copy(sourceDbFile, destDbFile, true);
+                                } else {
+                                    // 精細抽出單一表 (透過 SQLite 跨庫 Insert/Replace)
+                                    string attachSql = $"ATTACH DATABASE '{sourceDbFile}' AS BackupDB;";
+                                    string clearSql = $"DELETE FROM main.[{targetTb}];";
+                                    string copySql = $"INSERT INTO main.[{targetTb}] SELECT * FROM BackupDB.[{targetTb}];";
+                                    
+                                    using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={destDbFile};Version=3;")) {
+                                        conn.Open();
+                                        using (var cmd = new System.Data.SQLite.SQLiteCommand(conn)) {
+                                            cmd.CommandText = attachSql; cmd.ExecuteNonQuery();
+                                            cmd.CommandText = clearSql; cmd.ExecuteNonQuery();
+                                            cmd.CommandText = copySql; cmd.ExecuteNonQuery();
+                                            cmd.CommandText = "DETACH DATABASE BackupDB;"; cmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
                             }
 
-                            string sysConfigBackup = Path.Combine(sourceDir, "SystemConfig.sqlite");
-                            if (File.Exists(sysConfigBackup))
-                            {
-                                File.Copy(sysConfigBackup, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite"), true);
-                            }
-
-                            MessageBox.Show("還原成功！系統將自動關閉，請重新啟動軟體。", "時光機作業完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show("還原成功！系統將自動關閉，請重新啟動軟體。", "還原作業完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             Environment.Exit(0);
                         }
                         catch (Exception ex)
@@ -489,8 +583,13 @@ namespace Safety_System
                     }
                 };
 
-                f.Controls.Add(lbl);
-                f.Controls.Add(lbBackups);
+                f.Controls.Add(lblWarn);
+                f.Controls.Add(lblStep1);
+                f.Controls.Add(cboTime);
+                f.Controls.Add(lblStep2);
+                f.Controls.Add(rbAll);
+                f.Controls.Add(rbSpecific);
+                f.Controls.Add(pnlSpecific);
                 f.Controls.Add(btnRestore);
                 f.ShowDialog();
             }
