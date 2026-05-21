@@ -1,3 +1,4 @@
+/// FILE: Safety_System/BackupManager.cs ///
 using System;
 using System.Data.SQLite;
 using System.IO;
@@ -9,28 +10,36 @@ namespace Safety_System
     public static class BackupManager
     {
         public static string BackupPath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Backups");
-        public static int KeepCount { get; private set; } = 4; 
+        public static int KeepCount { get; private set; } = 30; // 🟢 預設改為保留 30 份 (約一個月)
+        public static int BackupIntervalDays { get; private set; } = 1; // 🟢 新增：預設每 1 天執行一次
         public static DateTime LastBackupDate { get; private set; } = DateTime.MinValue;
 
         public static void LoadConfig()
         {
             string dbPath = DataManager.GetSysSetting("BackupPath", "");
             string dbKeep = DataManager.GetSysSetting("BackupKeepCount", "");
+            string dbInterval = DataManager.GetSysSetting("BackupIntervalDays", ""); // 🟢 讀取自訂的備份頻率
             string dbDate = DataManager.GetSysSetting("LastBackupDate", "");
 
             if (!string.IsNullOrEmpty(dbPath)) BackupPath = dbPath;
             if (int.TryParse(dbKeep, out int count)) KeepCount = count;
+            if (int.TryParse(dbInterval, out int interval)) BackupIntervalDays = interval;
             if (DateTime.TryParse(dbDate, out DateTime date)) LastBackupDate = date;
 
             if (!Directory.Exists(BackupPath)) Directory.CreateDirectory(BackupPath);
         }
 
-        public static void SaveConfig(string path, int count)
+        // 🟢 修改：加入 intervalDays 參數
+        public static void SaveConfig(string path, int count, int intervalDays)
         {
             BackupPath = path;
             KeepCount = count;
+            BackupIntervalDays = intervalDays;
+            
             DataManager.SetSysSetting("BackupPath", path);
             DataManager.SetSysSetting("BackupKeepCount", count.ToString());
+            DataManager.SetSysSetting("BackupIntervalDays", intervalDays.ToString());
+            
             UpdateConfigDate(LastBackupDate);
             if (!Directory.Exists(BackupPath)) Directory.CreateDirectory(BackupPath);
         }
@@ -44,9 +53,11 @@ namespace Safety_System
         public static void RunAutoBackup()
         {
             LoadConfig();
-            if ((DateTime.Today - LastBackupDate).TotalDays >= 7)
+            
+            // 🟢 修改：以使用者自訂的 BackupIntervalDays 作為判斷基準
+            if ((DateTime.Today - LastBackupDate).TotalDays >= BackupIntervalDays)
             {
-                // 🟢 系統性優化 5：備份併發控制 (避免 5 人同時啟動造成 I/O 風暴)
+                // 系統性優化 5：備份併發控制 (避免 5 人同時啟動造成 I/O 風暴)
                 string lockTimeStr = DataManager.GetSysSetting("BackupLockTime", "");
                 
                 // 檢查是否有人正在備份 (設定鎖定時間在 10 分鐘內視為鎖定中)
@@ -102,6 +113,7 @@ namespace Safety_System
             }
             catch (Exception ex)
             {
+                // 背景執行時跳出警告可能會稍微干擾操作，但對防護來說是必要的提示
                 MessageBox.Show("資料庫備份失敗：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
