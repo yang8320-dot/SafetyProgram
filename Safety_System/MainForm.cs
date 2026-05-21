@@ -37,10 +37,14 @@ namespace Safety_System
             this.Font = new Font("Microsoft JhengHei UI", 12F);
             
             DataManager.LoadConfig();
-            
             App_DropdownManager.LoadDropdownConfigs();
             
-            BackupManager.RunAutoBackup();
+            // 🟢 極限流暢優化：將備份程序推入獨立的背景 Task 執行緒
+            // 第一位開啟軟體的人不會再遇到畫面卡住的問題，可以馬上開始操作系統。
+            System.Threading.Tasks.Task.Run(() => {
+                try { BackupManager.RunAutoBackup(); } catch { }
+            });
+            
             App_PasswordManager.InitDatabase();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
@@ -346,7 +350,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(addUserItem);
 
-            // 🟢 修改 1：更名為「資料庫還原」
             var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
@@ -398,7 +401,6 @@ namespace Safety_System
             public string Path { get; set; }
         }
 
-        // 🟢 修改 2：實作自定義細粒度資料庫還原對話框
         private void ShowDatabaseRestoreDialog()
         {
             if (!AuthManager.VerifyLv3Only("執行資料庫還原是極度危險操作！\n這將會覆蓋當前的資料。\n請輸入【Lv3系統管理者】密碼：")) 
@@ -459,11 +461,9 @@ namespace Safety_System
                 Panel pnlSpecific = new Panel { Location = new Point(60, 245), Size = new Size(465, 110), BorderStyle = BorderStyle.FixedSingle, Enabled = false };
                 
                 Label lblDb = new Label { Text = "資料庫：", Location = new Point(15, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                // 🟢 修正：將 X 座標由 90 改為 115，寬度由 350 改為 325，避免字體放大時重疊
                 ComboBox cboDb = new ComboBox { Location = new Point(115, 18), Width = 325, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                 Label lblTb = new Label { Text = "資料表：", Location = new Point(15, 65), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                // 🟢 修正：將 X 座標由 90 改為 115，寬度由 350 改為 325，避免字體放大時重疊
                 ComboBox cboTb = new ComboBox { Location = new Point(115, 63), Width = 325, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = "*", ChName = "-- 還原整個資料庫 --" });
 
