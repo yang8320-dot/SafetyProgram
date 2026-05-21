@@ -183,7 +183,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 最終優化 3：刪除資料時改用極速 SQL 引擎檢查附件，解決大量刪除卡頓問題
         private void ExecuteDeleteRow()
         {
             List<DataGridViewRow> selectedRows = new List<DataGridViewRow>();
@@ -372,6 +371,7 @@ namespace Safety_System
             PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle);
         }
 
+        // 🟢 修改：攔截勾選事件以進行密碼防呆驗證
         private void BtnColSettings_Click(object sender, EventArgs e) 
         {
             if (_dgv.Columns.Count == 0) return;
@@ -388,6 +388,16 @@ namespace Safety_System
                     if (_columnVisibility.ContainsKey(col.Name)) isChecked = _columnVisibility[col.Name];
                     clbCols.Items.Add(col.Name, isChecked); 
                 }
+
+                // 加入事件攔截驗證：僅當勾選時進行攔截
+                clbCols.ItemCheck += (s, ev) => {
+                    string colName = clbCols.Items[ev.Index].ToString();
+                    if ((colName == "最後修改人" || colName == "修改時間") && ev.NewValue == CheckState.Checked) {
+                        if (!AuthManager.VerifyLv3Only("顯示修改紀錄需要系統管理者權限\n請輸入【Lv3系統管理者】密碼：")) {
+                            ev.NewValue = CheckState.Unchecked;
+                        }
+                    }
+                };
                 
                 f.Controls.Add(clbCols);
                 
