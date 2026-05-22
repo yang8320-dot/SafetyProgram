@@ -240,13 +240,14 @@ namespace Safety_System
             pnlStatus.Controls.Add(btnRefresh);
             pnlStatus.Controls.Add(_lblStatus);
 
-            // 🟢 修改：移除 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells，避免水平滾軸無法拖拉的 WinForms Bug
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, 
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
+            // 🟢 強制整個 DGV 預設開啟自動換列
+            _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
@@ -337,21 +338,22 @@ namespace Safety_System
             
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
+                
+                // 🟢 確保所有欄位，無差別套用自動換列
+                col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
                 if (col.Name.Contains("附件檔案")) {
                     col.ReadOnly = true; 
                     col.DefaultCellStyle.ForeColor = Color.Blue;
                     col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                } else {
-                    col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 }
             }
 
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            // 🟢 在這裡靜態計算一次列高即可，不會造成拖曳滾軸卡死
+            // 讀取後重算一次整體高度
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
 
@@ -392,6 +394,7 @@ namespace Safety_System
                     };
                     
                     if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
+                    cboCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // 下拉選單也要能換列
                     
                     List<string> finalItems = new List<string>();
                     foreach (string item in items) finalItems.Add(item);
