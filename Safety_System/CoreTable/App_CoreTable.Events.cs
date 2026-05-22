@@ -733,4 +733,14 @@ namespace Safety_System
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
                 _columnWidths[e.Column.Name] = e.Column.Width; 
                 // 立即存入資料庫
-                DataMa
+                DataManager.SaveGridConfig(_dbName, _tableName, "Width", e.Column.Name, e.Column.Width.ToString());
+            }
+        }
+
+        // 🟢 修正：即時將欄位拖曳順序存入資料庫
+        private void Dgv_ColumnDisplayIndexChanged(object sender, DataGridViewColumnEventArgs e) {
+            if (_isFirstLoad || _isApplyingWidths) return;
+            SaveColumnOrder();
+        }
+    }
+}
