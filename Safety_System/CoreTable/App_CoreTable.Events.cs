@@ -28,19 +28,15 @@ namespace Safety_System
             _dgv.CurrentCellDirtyStateChanged += new EventHandler(Dgv_CurrentCellDirtyStateChanged);
             _dgv.CellValueChanged += new DataGridViewCellEventHandler(Dgv_CellValueChanged);
             
-            // 🟢 修正：綁定排序完成事件，確保點擊標題排序後自動換行高度不消失
             _dgv.Sorted += new EventHandler(Dgv_Sorted);
 
-            // 🟢 修正：即時儲存寬距與排序變更
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
             _dgv.ColumnDisplayIndexChanged += new DataGridViewColumnEventHandler(Dgv_ColumnDisplayIndexChanged);
 
             _dgv.RowValidated += new DataGridViewCellEventHandler(Dgv_RowValidated);
 
-            // 綁定「儲存」按鈕
             _btnSave.Click += new EventHandler(BtnSave_Click);
 
-            // 綁定「查詢」相關按鈕
             _btnRead.Click += new EventHandler(async delegate(object s, EventArgs e) {
                 _isFirstLoad = false;
                 _currentSearchMode = SearchMode.DateRange;
@@ -52,8 +48,10 @@ namespace Safety_System
                 bLimitRead.Click += new EventHandler(async delegate(object s, EventArgs e) {
                     _isFirstLoad = false;
                     _currentSearchMode = SearchMode.Limit;
-                    int limit = 50;
+                    
+                    int limit = 100; // 🟢 修正：這裡的預設值也改為 100 確保一致性
                     if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
+                    
                     await ReloadCurrentDataAsync();
                 });
             }
@@ -64,25 +62,23 @@ namespace Safety_System
                 await ReloadCurrentDataAsync();
             });
 
-            // 匯出匯入按鈕
             _btnExport.Click += new EventHandler(BtnExport_Click);
             _btnImport.Click += new EventHandler(BtnImportExcel_Click);
             _btnExportPdf.Click += new EventHandler(BtnExportPdf_Click);
             _btnColSettings.Click += new EventHandler(BtnColSettings_Click);
 
-            // 綁定動態生成的刪除按鈕
             Button btnDelRow = _ctxMenu.Tag as Button;
             if (btnDelRow != null) {
                 btnDelRow.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
             }
 
-            // 綁定右鍵選單的點擊行為
             foreach (ToolStripItem item in _ctxMenu.Items)
             {
                 if (item.Tag != null) {
                     string tagStr = item.Tag.ToString();
                     if (tagStr == "Save") item.Click += new EventHandler(BtnSave_Click);
                     if (tagStr == "DeleteRow") item.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
+                    if (tagStr == "OpenUrl") item.Click += new EventHandler(BtnOpenUrl_Click); // 🟢 綁定「開啟網址」事件
                     if (tagStr == "ColSettings") item.Click += new EventHandler(BtnColSettings_Click);
                     if (tagStr == "Import") item.Click += new EventHandler(BtnImportExcel_Click);
                     if (tagStr == "Export") item.Click += new EventHandler(BtnExport_Click);
@@ -95,7 +91,50 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修正：實作排序後重新計算列高的邏輯
+        // 🟢 實作：開啟網址功能 (具備防護與自適應退回預設瀏覽器)
+        private void BtnOpenUrl_Click(object sender, EventArgs e)
+        {
+            if (_rightClickedColIndex >= 0 && _dgv.CurrentCell != null)
+            {
+                int r = _dgv.CurrentCell.RowIndex;
+                int c = _rightClickedColIndex;
+                
+                object val = _dgv.Rows[r].Cells[c].Value;
+                if (val != null)
+                {
+                    string url = val.ToString().Trim();
+                    if (string.IsNullOrWhiteSpace(url)) return;
+
+                    // 確保網址開頭有 http，否則系統會報錯
+                    if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                        !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        url = "http://" + url;
+                    }
+
+                    // 取出預設開啟瀏覽器，未設定則使用 chrome.exe
+                    string browser = DataManager.GetSysSetting("DefaultBrowser", "chrome.exe");
+
+                    try 
+                    {
+                        System.Diagnostics.Process.Start(browser, url);
+                    } 
+                    catch 
+                    {
+                        try 
+                        {
+                            // 若使用者的電腦沒有安裝 Chrome，或是設定錯誤，退回使用 Windows 預設瀏覽器開啟
+                            System.Diagnostics.Process.Start(url);
+                        } 
+                        catch (Exception ex) 
+                        {
+                            MessageBox.Show($"無法開啟網址！\n請確認網址格式是否正確：\n\n{url}\n\n錯誤訊息：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+            }
+        }
+
         private void Dgv_Sorted(object sender, EventArgs e)
         {
             if (!_isApplyingWidths && _dgv.Rows.Count > 0)
@@ -148,7 +187,6 @@ namespace Safety_System
                 
                 if (_dgv.BindingContext != null && _dgv.DataSource != null) _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
 
-                // 🟢 修正：存檔前先記下畫面滾軸位置與當前游標儲存格
                 int scrollRow = _dgv.FirstDisplayedScrollingRowIndex;
                 int scrollCol = _dgv.FirstDisplayedScrollingColumnIndex;
                 int curRow = _dgv.CurrentCell?.RowIndex ?? -1;
@@ -192,10 +230,8 @@ namespace Safety_System
                 if (success) { 
                     dtSource.AcceptChanges(); 
 
-                    // 🟢 修正：存檔後強制重新計算每一列的高度，確保自動換行畫面不縮回單行
                     try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
 
-                    // 🟢 修正：完美還原畫面的相對位置，防止跳動
                     try {
                         if (scrollRow >= 0 && scrollRow < _dgv.Rows.Count) _dgv.FirstDisplayedScrollingRowIndex = scrollRow;
                         if (scrollCol >= 0 && scrollCol < _dgv.Columns.Count) _dgv.FirstDisplayedScrollingColumnIndex = scrollCol;
@@ -275,7 +311,6 @@ namespace Safety_System
                         
                         dt.AcceptChanges(); 
 
-                        // 🟢 修正：刪除後強制重新計算每一列的高度，確保自動換行畫面不縮回單行
                         try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
 
                         // 4. 觸發自動運算引擎：將時間軸斷點兩端無縫接合重算
@@ -689,7 +724,6 @@ namespace Safety_System
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _isCascading) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            // 🟢 修正：強制該列動態調整高度，讓文字自動換行可以完美顯示
             if (!_isApplyingWidths && !_isFirstLoad) {
                 try { _dgv.AutoResizeRow(e.RowIndex, DataGridViewAutoSizeRowMode.AllCellsExceptHeader); } catch { }
             }
@@ -727,17 +761,14 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修正：即時將寬度變化存入資料庫
         private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e) {
             if (_isFirstLoad || _isApplyingWidths) return;
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
                 _columnWidths[e.Column.Name] = e.Column.Width; 
-                // 立即存入資料庫
                 DataManager.SaveGridConfig(_dbName, _tableName, "Width", e.Column.Name, e.Column.Width.ToString());
             }
         }
 
-        // 🟢 修正：即時將欄位拖曳順序存入資料庫
         private void Dgv_ColumnDisplayIndexChanged(object sender, DataGridViewColumnEventArgs e) {
             if (_isFirstLoad || _isApplyingWidths) return;
             SaveColumnOrder();
