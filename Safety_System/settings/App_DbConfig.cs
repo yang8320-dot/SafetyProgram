@@ -144,32 +144,31 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            // 2. 備份區塊 (🟢 修正：高度加高，按鈕下移，避免與 DPI 縮放重疊)
-            GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (背景自動執行)", Dock = DockStyle.Top, Height = 280, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            // 2. 備份區塊 (🟢 高度加高，Y軸推移避開重疊)
+            GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (背景自動執行)", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxBackup.Margin = new Padding(0, 30, 0, 0);
 
             BackupManager.LoadConfig();
 
-            Label lblB1 = new Label { Text = "備份存放路徑:", Location = new Point(30, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _txtBackupPath = new TextBox { Location = new Point(200, 42), Width = 430, ReadOnly = true, Text = BackupManager.BackupPath, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblB1 = new Label { Text = "備份存放路徑:", Location = new Point(30, 50), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _txtBackupPath = new TextBox { Location = new Point(200, 47), Width = 430, ReadOnly = true, Text = BackupManager.BackupPath, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Button btnBrowseBackup = new Button { Text = "選擇資料夾", Location = new Point(650, 40), Size = new Size(150, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnBrowseBackup = new Button { Text = "選擇資料夾", Location = new Point(650, 45), Size = new Size(150, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
             btnBrowseBackup.Click += (s, e) => {
                 using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇備份資料存放的資料夾" }) {
                     if (fbd.ShowDialog() == DialogResult.OK) _txtBackupPath.Text = fbd.SelectedPath;
                 }
             };
 
-            Label lblB2 = new Label { Text = "保留舊備份份數:", Location = new Point(30, 95), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _numKeepCount = new NumericUpDown { Location = new Point(200, 93), Width = 80, Minimum = 1, Maximum = 365, Value = BackupManager.KeepCount, Font = new Font("Microsoft JhengHei UI", 12F) };
-            Label lblB3 = new Label { Text = "份 (建議保留 30 份，約一個月)", Location = new Point(290, 95), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+            Label lblB2 = new Label { Text = "保留舊備份份數:", Location = new Point(30, 105), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _numKeepCount = new NumericUpDown { Location = new Point(200, 103), Width = 80, Minimum = 1, Maximum = 365, Value = BackupManager.KeepCount, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblB3 = new Label { Text = "份 (建議保留 30 份，約一個月)", Location = new Point(290, 105), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-            Label lblB4 = new Label { Text = "自動備份頻率:", Location = new Point(30, 140), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _numIntervalDays = new NumericUpDown { Location = new Point(200, 138), Width = 80, Minimum = 1, Maximum = 30, Value = BackupManager.BackupIntervalDays, Font = new Font("Microsoft JhengHei UI", 12F) };
-            Label lblB5 = new Label { Text = "天執行一次 (建議設為 1 天)", Location = new Point(290, 140), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
+            Label lblB4 = new Label { Text = "自動備份執行頻率:", Location = new Point(30, 160), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _numIntervalDays = new NumericUpDown { Location = new Point(200, 158), Width = 80, Minimum = 1, Maximum = 30, Value = BackupManager.BackupIntervalDays, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblB5 = new Label { Text = "天執行一次 (建議設為 1 天)", Location = new Point(290, 160), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-            // 🟢 按鈕往下推移 (Y=190 -> 210)
-            Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 210), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 220), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveBackup.Click += (s, e) => {
                 string authPrompt = "修改備份設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return;
@@ -178,7 +177,7 @@ namespace Safety_System
                 MessageBox.Show("備份設定已儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
-            Button btnManualBackup = new Button { Text = "立即執行手動熱備份", Location = new Point(300, 210), Size = new Size(220, 45), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnManualBackup = new Button { Text = "立即執行手動熱備份", Location = new Point(300, 220), Size = new Size(220, 45), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnManualBackup.Click += (s, e) => {
                 BackupManager.ExecuteBackup();
                 MessageBox.Show("熱備份(Hot Backup)執行完成！\n不會影響目前操作中的使用者。", "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -186,28 +185,27 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, lblB4, _numIntervalDays, lblB5, btnSaveBackup, btnManualBackup });
 
-            // 3. 操作軌跡(Audit) 區塊 (🟢 修正：高度加高，元件往下推移避開標題)
-            GroupBox boxAudit = new GroupBox { Text = "🕵️ 操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 520, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
+            // 3. 操作軌跡(Audit) 區塊 (🟢 高度加高，Y軸推移避開標題)
+            GroupBox boxAudit = new GroupBox { Text = "🕵️ 操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 540, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
             boxAudit.Margin = new Padding(0, 30, 0, 0);
 
-            // 🟢 往下推移 (Y=45 -> 55)
-            Label lblAuditDb = new Label { Text = "資料庫:", Location = new Point(30, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
-            _cboAuditDb = new ComboBox { Location = new Point(140, 53), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblAuditDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboAuditDb = new ComboBox { Location = new Point(140, 58), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Label lblAuditTable = new Label { Text = "資料表:", Location = new Point(350, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
-            _cboAuditTable = new ComboBox { Location = new Point(460, 53), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(350, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboAuditTable = new ComboBox { Location = new Point(460, 58), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // 🟢 將 CheckBox 與下拉選單對齊，往下推移 (Y=20 -> 55)
-            _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(740, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
+            // 🟢 與下拉選單對齊 (Y=60)
+            _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(740, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
 
-            // 🟢 查詢按鈕往下移 (Y=50 -> 95)
-            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 95), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            // 🟢 往下推 (Y=110)
+            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 110), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnSearchAudit.Click += BtnSearchAudit_Click;
 
-            // 🟢 DGV 往下推移並稍微加大高度 (Y=95 -> 145)
+            // 🟢 DGV 往下推移 (Y=170)
             _dgvAudit = new DataGridView { 
-                Location = new Point(30, 145), 
-                Size = new Size(950, 350),
+                Location = new Point(30, 170), 
+                Size = new Size(950, 330),
                 BackgroundColor = Color.WhiteSmoke, 
                 AllowUserToAddRows = false, 
                 ReadOnly = true,
