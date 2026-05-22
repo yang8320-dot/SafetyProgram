@@ -49,7 +49,7 @@ namespace Safety_System
                     _isFirstLoad = false;
                     _currentSearchMode = SearchMode.Limit;
                     
-                    int limit = 100; // 🟢 修正：這裡的預設值也改為 100 確保一致性
+                    int limit = 100; // 預設改為 100
                     if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
                     
                     await ReloadCurrentDataAsync();
@@ -64,7 +64,7 @@ namespace Safety_System
 
             _btnExport.Click += new EventHandler(BtnExport_Click);
             _btnImport.Click += new EventHandler(BtnImportExcel_Click);
-            _btnExportPdf.Click += new EventHandler(BtnExportPdf_Click);
+            _btnExportPdf.Click += new EventHandler(BtnExportPdf_Click); // 綁定匯出 PDF 彈窗事件
             _btnColSettings.Click += new EventHandler(BtnColSettings_Click);
 
             Button btnDelRow = _ctxMenu.Tag as Button;
@@ -78,7 +78,7 @@ namespace Safety_System
                     string tagStr = item.Tag.ToString();
                     if (tagStr == "Save") item.Click += new EventHandler(BtnSave_Click);
                     if (tagStr == "DeleteRow") item.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
-                    if (tagStr == "OpenUrl") item.Click += new EventHandler(BtnOpenUrl_Click); // 🟢 綁定「開啟網址」事件
+                    if (tagStr == "OpenUrl") item.Click += new EventHandler(BtnOpenUrl_Click); // 開啟網址事件
                     if (tagStr == "ColSettings") item.Click += new EventHandler(BtnColSettings_Click);
                     if (tagStr == "Import") item.Click += new EventHandler(BtnImportExcel_Click);
                     if (tagStr == "Export") item.Click += new EventHandler(BtnExport_Click);
@@ -91,7 +91,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 實作：開啟網址功能 (具備防護與自適應退回預設瀏覽器)
+        // 🟢 實作：開啟網址功能
         private void BtnOpenUrl_Click(object sender, EventArgs e)
         {
             if (_rightClickedColIndex >= 0 && _dgv.CurrentCell != null)
@@ -105,29 +105,18 @@ namespace Safety_System
                     string url = val.ToString().Trim();
                     if (string.IsNullOrWhiteSpace(url)) return;
 
-                    // 確保網址開頭有 http，否則系統會報錯
                     if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
                         !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                     {
                         url = "http://" + url;
                     }
 
-                    // 取出預設開啟瀏覽器，未設定則使用 chrome.exe
                     string browser = DataManager.GetSysSetting("DefaultBrowser", "chrome.exe");
 
-                    try 
-                    {
-                        System.Diagnostics.Process.Start(browser, url);
-                    } 
-                    catch 
-                    {
-                        try 
-                        {
-                            // 若使用者的電腦沒有安裝 Chrome，或是設定錯誤，退回使用 Windows 預設瀏覽器開啟
-                            System.Diagnostics.Process.Start(url);
-                        } 
-                        catch (Exception ex) 
-                        {
+                    try { System.Diagnostics.Process.Start(browser, url); } 
+                    catch {
+                        try { System.Diagnostics.Process.Start(url); } 
+                        catch (Exception ex) {
                             MessageBox.Show($"無法開啟網址！\n請確認網址格式是否正確：\n\n{url}\n\n錯誤訊息：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
@@ -274,8 +263,6 @@ namespace Safety_System
                     {
                         DataTable dt = (DataTable)_dgv.DataSource;
                         foreach (DataGridViewRow r in selectedRows) {
-                            
-                            // 1. 刪除前檢查附件是否可回收
                             if (_dgv.Columns.Contains("附件檔案")) {
                                 object val = r.Cells["附件檔案"].Value;
                                 if (val != null) {
@@ -295,11 +282,9 @@ namespace Safety_System
                                 }
                             }
 
-                            // 2. 實體刪除資料庫紀錄
                             int id = Convert.ToInt32(r.Cells["Id"].Value);
                             DataManager.DeleteRecord(_dbName, _tableName, id);
                             
-                            // 3. 從畫面上移除
                             for (int i = 0; i < dt.Rows.Count; i++) {
                                 DataRow dr = dt.Rows[i];
                                 if (dr.RowState != DataRowState.Deleted && Convert.ToInt32(dr["Id"]) == id) {
@@ -313,14 +298,12 @@ namespace Safety_System
 
                         try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
 
-                        // 4. 觸發自動運算引擎：將時間軸斷點兩端無縫接合重算
                         if (_calcHelper != null) {
                             _calcHelper.BeginBulkUpdate();
                             _calcHelper.RecalculateTable(dt);
                             _calcHelper.EndBulkUpdate();
                         }
 
-                        // 5. 抓出「因為時間軸重算而改變」的相鄰紀錄，並在背景自動回存
                         Task.Run(() => 
                         {
                             try 
@@ -330,7 +313,6 @@ namespace Safety_System
                                     if (row.RowState == DataRowState.Modified) 
                                     {
                                         DataManager.UpsertRecord(_dbName, _tableName, row);
-                                        
                                         if (_dgv.InvokeRequired) {
                                             _dgv.Invoke(new Action(() => row.AcceptChanges()));
                                         } else {
@@ -437,9 +419,54 @@ namespace Safety_System
             }
         }
 
+        // 🟢 實作：匯出 PDF 前，跳出選擇紙張大小與方向視窗
         private void BtnExportPdf_Click(object sender, EventArgs e) 
         {
-            PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle);
+            if (_dgv.Rows.Count <= 1 && _dgv.AllowUserToAddRows) 
+            { 
+                MessageBox.Show("目前沒有資料可供導出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                return; 
+            }
+
+            using (Form f = new Form())
+            {
+                f.Width = 350;
+                f.Height = 250;
+                f.Text = "PDF 輸出設定";
+                f.StartPosition = FormStartPosition.CenterParent;
+                f.FormBorderStyle = FormBorderStyle.FixedDialog;
+                f.MaximizeBox = false;
+                f.MinimizeBox = false;
+                f.BackColor = Color.White;
+
+                Label lbl1 = new Label { Text = "請選擇紙張大小：", Location = new Point(30, 30), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+                ComboBox cboSize = new ComboBox { Location = new Point(170, 27), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                cboSize.Items.AddRange(new string[] { "A4", "A3" });
+                cboSize.SelectedIndex = 0;
+
+                Label lbl2 = new Label { Text = "請選擇紙張方向：", Location = new Point(30, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+                ComboBox cboLayout = new ComboBox { Location = new Point(170, 77), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                cboLayout.Items.AddRange(new string[] { "直式", "橫式" });
+                cboLayout.SelectedIndex = 1; // 預設橫式
+
+                Button btnOk = new Button { Text = "確認導出", Location = new Point(110, 140), Size = new Size(120, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnOk.Click += delegate(object senderObj, EventArgs ev) {
+                    f.DialogResult = DialogResult.OK;
+                };
+
+                f.Controls.Add(lbl1); f.Controls.Add(cboSize);
+                f.Controls.Add(lbl2); f.Controls.Add(cboLayout);
+                f.Controls.Add(btnOk);
+
+                if (f.ShowDialog(Form.ActiveForm) == DialogResult.OK)
+                {
+                    bool isA3 = cboSize.SelectedItem.ToString() == "A3";
+                    bool isLandscape = cboLayout.SelectedItem.ToString() == "橫式";
+                    
+                    // 呼叫 PdfHelper 執行匯出，傳遞參數
+                    PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle, isA3, isLandscape);
+                }
+            }
         }
 
         private void BtnColSettings_Click(object sender, EventArgs e) 
