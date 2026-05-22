@@ -60,7 +60,7 @@ namespace Safety_System
             _btnRead.FlatAppearance.BorderSize = 0;
             
             Label lblLatestCount = new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(15, 8, 5, 0) };
-            _txtLatestCount = new TextBox { Width = 50, Text = "50", Margin = ctrlPad }; 
+            _txtLatestCount = new TextBox { Width = 50, Text = "100", Margin = ctrlPad }; // 🟢 修正：預設改為 100
             
             Button bLimitRead = new Button { Text = "查詢", Size = new Size(80, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bLimitRead.FlatAppearance.BorderSize = 0;
@@ -247,7 +247,6 @@ namespace Safety_System
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
             
-            // 🟢 強制整個 DGV 預設開啟自動換列防護 (全域等級)
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.RowsDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -273,6 +272,10 @@ namespace Safety_System
 
             ToolStripMenuItem itemSave = new ToolStripMenuItem("💾 儲存");
             ToolStripMenuItem itemDeleteRow = new ToolStripMenuItem("🗑️ 刪除選取列");
+            
+            // 🟢 修正：加入開啟網址選項
+            ToolStripMenuItem itemOpenUrl = new ToolStripMenuItem("🌐 開啟網址");
+            
             ToolStripMenuItem itemColSettings = new ToolStripMenuItem("👁️ 顯示設定");
             ToolStripMenuItem itemFreeze = new ToolStripMenuItem("❄️ 凍結此欄(含)以左視窗");
             ToolStripMenuItem itemUnfreeze = new ToolStripMenuItem("🔥 取消凍結");
@@ -282,6 +285,7 @@ namespace Safety_System
 
             itemSave.Tag = "Save";
             itemDeleteRow.Tag = "DeleteRow";
+            itemOpenUrl.Tag = "OpenUrl"; // 🟢 綁定 Tag
             itemColSettings.Tag = "ColSettings";
             itemImport.Tag = "Import";
             itemExport.Tag = "Export";
@@ -301,6 +305,7 @@ namespace Safety_System
 
             _ctxMenu.Items.AddRange(new ToolStripItem[] { 
                 itemSave, itemDeleteRow, new ToolStripSeparator(),
+                itemOpenUrl, new ToolStripSeparator(), // 🟢 加入清單
                 itemFreeze, itemUnfreeze, new ToolStripSeparator(),
                 itemColSettings, new ToolStripSeparator(),
                 itemImport, itemExport, itemPdf 
@@ -341,7 +346,6 @@ namespace Safety_System
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
                 
-                // 🟢 確保所有個別欄位，無差別強制套用自動換列
                 col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
                 if (col.Name.Contains("附件檔案")) {
@@ -355,7 +359,6 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            // 🟢 修正：將 DisplayedCells 變更為 AllCellsExceptHeaders，強制重新計算每一列的高度
             _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders);
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
 
@@ -396,7 +399,7 @@ namespace Safety_System
                     };
                     
                     if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
-                    cboCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // 下拉選單也要能換列
+                    cboCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
                     
                     List<string> finalItems = new List<string>();
                     foreach (string item in items) finalItems.Add(item);
