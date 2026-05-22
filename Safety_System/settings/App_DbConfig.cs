@@ -164,7 +164,7 @@ namespace Safety_System
             _numKeepCount = new NumericUpDown { Location = new Point(200, 93), Width = 80, Minimum = 1, Maximum = 365, Value = BackupManager.KeepCount, Font = new Font("Microsoft JhengHei UI", 12F) };
             Label lblB3 = new Label { Text = "份 (建議保留 30 份，約一個月)", Location = new Point(290, 95), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-            Label lblB4 = new Label { Text = "自動備份執行頻率:", Location = new Point(30, 140), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblB4 = new Label { Text = "自動備份頻率:", Location = new Point(30, 140), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _numIntervalDays = new NumericUpDown { Location = new Point(200, 138), Width = 80, Minimum = 1, Maximum = 30, Value = BackupManager.BackupIntervalDays, Font = new Font("Microsoft JhengHei UI", 12F) };
             Label lblB5 = new Label { Text = "天執行一次 (建議設為 1 天)", Location = new Point(290, 140), AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) };
 
@@ -191,10 +191,10 @@ namespace Safety_System
             boxAudit.Margin = new Padding(0, 30, 0, 0);
 
             // 🟢 往下推移 (Y=45 -> 55)
-            Label lblAuditDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            Label lblAuditDb = new Label { Text = "資料庫:", Location = new Point(30, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboAuditDb = new ComboBox { Location = new Point(140, 53), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(350, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            Label lblAuditTable = new Label { Text = "資料表:", Location = new Point(350, 55), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboAuditTable = new ComboBox { Location = new Point(460, 53), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             // 🟢 將 CheckBox 與下拉選單對齊，往下推移 (Y=20 -> 55)
