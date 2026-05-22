@@ -40,7 +40,6 @@ namespace Safety_System
             App_DropdownManager.LoadDropdownConfigs();
             
             // 🟢 極限流暢優化：將備份程序推入獨立的背景 Task 執行緒
-            // 第一位開啟軟體的人不會再遇到畫面卡住的問題，可以馬上開始操作系統。
             System.Threading.Tasks.Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
             });
@@ -110,10 +109,7 @@ namespace Safety_System
                         dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
                         dgv.EndEdit();
                         
-                        if (dgv.CurrentCell != null)
-                        {
-                            dgv.CurrentCell = null;
-                        }
+                        // 🟢 修正：移除 dgv.CurrentCell = null; 避免存檔時畫面焦點跳轉回最上方
                     }
                     else if (c.HasChildren)
                     {
