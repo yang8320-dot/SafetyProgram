@@ -27,7 +27,10 @@ namespace Safety_System
             
             _dgv.CurrentCellDirtyStateChanged += new EventHandler(Dgv_CurrentCellDirtyStateChanged);
             _dgv.CellValueChanged += new DataGridViewCellEventHandler(Dgv_CellValueChanged);
+            
+            // 🟢 修正：即時儲存寬距與排序變更
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
+            _dgv.ColumnDisplayIndexChanged += new DataGridViewColumnEventHandler(Dgv_ColumnDisplayIndexChanged);
 
             _dgv.RowValidated += new DataGridViewCellEventHandler(Dgv_RowValidated);
 
@@ -133,6 +136,12 @@ namespace Safety_System
                 
                 if (_dgv.BindingContext != null && _dgv.DataSource != null) _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
 
+                // 🟢 修正：存檔前先記下畫面滾軸位置與當前游標儲存格
+                int scrollRow = _dgv.FirstDisplayedScrollingRowIndex;
+                int scrollCol = _dgv.FirstDisplayedScrollingColumnIndex;
+                int curRow = _dgv.CurrentCell?.RowIndex ?? -1;
+                int curCol = _dgv.CurrentCell?.ColumnIndex ?? -1;
+
                 SaveColumnOrder(); 
                 SetUIState(false, "資料庫寫入與檔案同步中，請稍候...", Color.Orange);
                 
@@ -170,6 +179,16 @@ namespace Safety_System
                 
                 if (success) { 
                     dtSource.AcceptChanges(); 
+
+                    // 🟢 修正：完美還原畫面的相對位置，防止跳動
+                    try {
+                        if (scrollRow >= 0 && scrollRow < _dgv.Rows.Count) _dgv.FirstDisplayedScrollingRowIndex = scrollRow;
+                        if (scrollCol >= 0 && scrollCol < _dgv.Columns.Count) _dgv.FirstDisplayedScrollingColumnIndex = scrollCol;
+                        if (curRow >= 0 && curRow < _dgv.Rows.Count && curCol >= 0 && curCol < _dgv.Columns.Count) {
+                            _dgv.CurrentCell = _dgv[curCol, curRow];
+                        }
+                    } catch { }
+
                     SetUIState(true, "資料儲存成功！", Color.Green); 
                     MessageBox.Show("儲存完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); 
                 } else { 
@@ -213,7 +232,6 @@ namespace Safety_System
                                     if (!string.IsNullOrEmpty(relPathStr)) {
                                         string[] paths = relPathStr.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
                                         foreach (string p in paths) {
-                                            // 極速檢查：如果資料庫裡沒有其他紀錄用到這個檔案，就真的刪除它
                                             if (!DataManager.IsAttachmentInUse(_dbName, _tableName, p))
                                             {
                                                 try {
@@ -226,7 +244,7 @@ namespace Safety_System
                                 }
                             }
 
-                            // 2. 實體刪除資料庫紀錄 (DataManager 會自動在背景寫入 System_DeleteLogs)
+                            // 2. 實體刪除資料庫紀錄
                             int id = Convert.ToInt32(r.Cells["Id"].Value);
                             DataManager.DeleteRecord(_dbName, _tableName, id);
                             
@@ -371,7 +389,6 @@ namespace Safety_System
             PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle);
         }
 
-        // 🟢 修改：攔截勾選事件以進行密碼防呆驗證
         private void BtnColSettings_Click(object sender, EventArgs e) 
         {
             if (_dgv.Columns.Count == 0) return;
@@ -389,7 +406,6 @@ namespace Safety_System
                     clbCols.Items.Add(col.Name, isChecked); 
                 }
 
-                // 加入事件攔截驗證：僅當勾選時進行攔截
                 clbCols.ItemCheck += (s, ev) => {
                     string colName = clbCols.Items[ev.Index].ToString();
                     if ((colName == "最後修改人" || colName == "修改時間") && ev.NewValue == CheckState.Checked) {
@@ -655,6 +671,11 @@ namespace Safety_System
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _isCascading) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
+            // 🟢 修正：強制該列動態調整高度，讓文字自動換行可以完美顯示
+            if (!_isApplyingWidths && !_isFirstLoad) {
+                try { _dgv.AutoResizeRow(e.RowIndex, DataGridViewAutoSizeRowMode.AllCellsExceptHeader); } catch { }
+            }
+
             _isCascading = true;
             try {
                 foreach (KeyValuePair<string, string[]> kvp in App_DropdownManager.DropdownCache) {
@@ -688,11 +709,20 @@ namespace Safety_System
             }
         }
 
+        // 🟢 修正：即時將寬度變化存入資料庫
         private void Dgv_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e) {
             if (_isFirstLoad || _isApplyingWidths) return;
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
-                _columnWidths[e.Column.Name] = e.Column.Width; SaveColumnWidths(); 
+                _columnWidths[e.Column.Name] = e.Column.Width; 
+                // 立即存入資料庫
+                DataManager.SaveGridConfig(_dbName, _tableName, "Width", e.Column.Name, e.Column.Width.ToString());
             }
+        }
+
+        // 🟢 修正：即時將欄位拖曳順序存入資料庫
+        private void Dgv_ColumnDisplayIndexChanged(object sender, DataGridViewColumnEventArgs e) {
+            if (_isFirstLoad || _isApplyingWidths) return;
+            SaveColumnOrder();
         }
     }
 }
