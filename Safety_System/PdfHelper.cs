@@ -9,7 +9,8 @@ namespace Safety_System
 {
     public static class PdfHelper
     {
-        public static void ExportDataGridViewToPdf(DataGridView dgv, string reportTitle, string fileNamePrefix)
+        // 🟢 新增參數：isA3 (是否為 A3 紙張)、isLandscape (是否橫向)
+        public static void ExportDataGridViewToPdf(DataGridView dgv, string reportTitle, string fileNamePrefix, bool isA3 = false, bool isLandscape = true)
         {
             if (dgv.Rows.Count <= 1 && dgv.AllowUserToAddRows) 
             { 
@@ -28,14 +29,27 @@ namespace Safety_System
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
                     pd.PrinterSettings.PrintFileName = sfd.FileName;
-                    pd.DefaultPageSettings.Landscape = true;
+                    
+                    // 🟢 根據參數設定紙張方向
+                    pd.DefaultPageSettings.Landscape = isLandscape;
+
+                    // 🟢 根據參數設定紙張大小：預設 A4 (8.27 x 11.69 英吋)，A3 為 (11.69 x 16.54 英吋)
+                    if (isA3)
+                    {
+                        // PrintDocument 使用百分之一英吋作為單位 (1169 x 1654)
+                        pd.DefaultPageSettings.PaperSize = new PaperSize("A3", 1169, 1654);
+                    }
+                    else
+                    {
+                        // A4 size
+                        pd.DefaultPageSettings.PaperSize = new PaperSize("A4", 827, 1169);
+                    }
+
                     pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40);
 
                     int rowIndex = 0;
                     int pageNumber = 1;
-                    int rowsPerPageEstimate = 20;
-                    int totalPages = (int)Math.Ceiling((double)(dgv.Rows.Count) / rowsPerPageEstimate);
-
+                    
                     pd.PrintPage += (s, ev) =>
                     {
                         Graphics g = ev.Graphics;
@@ -43,25 +57,29 @@ namespace Safety_System
                         float y = ev.MarginBounds.Top;
                         float pageWidth = ev.MarginBounds.Width;
 
-                        Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
-                        Font fSubTitle = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold);
-                        Font fBody = new Font("Microsoft JhengHei UI", 9F);
-                        Font fHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
+                        // 🟢 如果是 A3，字體可以稍微放大
+                        float fontSizeBonus = isA3 ? 2F : 0F;
+
+                        Font fTitle = new Font("Microsoft JhengHei UI", 18F + fontSizeBonus, FontStyle.Bold);
+                        Font fSubTitle = new Font("Microsoft JhengHei UI", 14F + fontSizeBonus, FontStyle.Bold);
+                        Font fBody = new Font("Microsoft JhengHei UI", 9F + fontSizeBonus);
+                        Font fHead = new Font("Microsoft JhengHei UI", 9F + fontSizeBonus, FontStyle.Bold);
 
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                         StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
                         g.DrawString("台灣玻璃工業股份有限公司-彰濱廠", fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter);
-                        y += 35;
+                        y += 35 + fontSizeBonus;
                         g.DrawString(reportTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 30), sfCenter);
-                        y += 30;
+                        y += 30 + fontSizeBonus;
 
                         g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fBody, Brushes.Gray, new RectangleF(x, y, pageWidth, 25), sfLeft);
-                        y += 25;
+                        y += 25 + fontSizeBonus;
 
                         var visCols = dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
                         if (visCols.Count == 0) return;
 
+                        // 依比例分配欄寬至滿版
                         float totalGridWidth = visCols.Sum(c => c.Width);
                         float[] actualColWidths = new float[visCols.Count];
                         for (int i = 0; i < visCols.Count; i++)
@@ -70,7 +88,7 @@ namespace Safety_System
                         }
 
                         float currX = x;
-                        float rowH = 32;
+                        float rowH = 32 + fontSizeBonus * 2;
 
                         // 畫表頭
                         for (int i = 0; i < visCols.Count; i++)
@@ -88,6 +106,7 @@ namespace Safety_System
                         {
                             if (dgv.Rows[rowIndex].IsNewRow) { rowIndex++; continue; }
 
+                            // 動態計算當前資料列高度 (自動換行)
                             float maxRowH = rowH;
                             for (int i = 0; i < visCols.Count; i++)
                             {
@@ -96,9 +115,10 @@ namespace Safety_System
                                 if (sSize.Height + 10 > maxRowH) maxRowH = sSize.Height + 10;
                             }
 
+                            // 判斷是否需要換頁
                             if (y + maxRowH > ev.MarginBounds.Bottom - 30)
                             {
-                                g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
+                                g.DrawString($"- {pageNumber} -", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
                                 pageNumber++;
                                 ev.HasMorePages = true;
                                 return;
@@ -118,7 +138,7 @@ namespace Safety_System
                             rowIndex++;
                         }
 
-                        g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
+                        g.DrawString($"- {pageNumber} -", fBody, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, pageWidth, 20), sfCenter);
                         ev.HasMorePages = false;
                         rowIndex = 0;
                         pageNumber = 1;
