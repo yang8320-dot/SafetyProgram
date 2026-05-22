@@ -246,8 +246,10 @@ namespace Safety_System
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
-            // 🟢 強制整個 DGV 預設開啟自動換列
+            
+            // 🟢 強制整個 DGV 預設開啟自動換列防護 (全域等級)
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            _dgv.RowsDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
@@ -339,7 +341,7 @@ namespace Safety_System
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 if (_columnVisibility.ContainsKey(col.Name)) col.Visible = _columnVisibility[col.Name];
                 
-                // 🟢 確保所有欄位，無差別套用自動換列
+                // 🟢 確保所有個別欄位，無差別強制套用自動換列
                 col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
                 if (col.Name.Contains("附件檔案")) {
@@ -353,8 +355,8 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            // 讀取後重算一次整體高度
-            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.DisplayedCells);
+            // 🟢 修正：將 DisplayedCells 變更為 AllCellsExceptHeaders，強制重新計算每一列的高度
+            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders);
             _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
