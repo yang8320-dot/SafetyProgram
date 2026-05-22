@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_CoreTable.cs ///
+/// FILE: Safety_System/CoreTable/App_CoreTable.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -19,7 +19,7 @@ namespace Safety_System
 
         private enum SearchMode { DateRange, Limit, Advanced }
         private SearchMode _currentSearchMode = SearchMode.DateRange;
-        private int _currentLimit = 50; 
+        private int _currentLimit = 100; // 🟢 修正：預設值改為 100
 
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
@@ -152,7 +152,8 @@ namespace Safety_System
             string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
 
             await Task.Run(() => {
-                dt = _isFirstLoad ? DataManager.GetLatestRecords(_dbName, _tableName, 30) : DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
+                // 🟢 修正：首次載入預設為 100 筆
+                dt = _isFirstLoad ? DataManager.GetLatestRecords(_dbName, _tableName, 100) : DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
                 EnforceDateFormats(dt);
             });
 
@@ -169,6 +170,10 @@ namespace Safety_System
             
             _dgv.ResumeLayout(true);
             _isApplyingWidths = false;
+            
+            // 🟢 修正：在佈局恢復後強制重新計算一次列高，確保能正常換行
+            try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
+
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
@@ -191,6 +196,10 @@ namespace Safety_System
 
             _dgv.ResumeLayout(true);
             _isApplyingWidths = false;
+
+            // 🟢 修正：在佈局恢復後強制重新計算一次列高
+            try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
+
             SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
         }
 
@@ -235,6 +244,10 @@ namespace Safety_System
 
             _dgv.ResumeLayout(true);
             _isApplyingWidths = false;
+
+            // 🟢 修正：在佈局恢復後強制重新計算一次列高
+            try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
+
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
 
@@ -390,7 +403,6 @@ namespace Safety_System
             if (_timeMode == TimeMode.YearMonth) format = "yyyy-MM"; 
             else if (_timeMode == TimeMode.Year) format = "yyyy";
             
-            // 🟢 用正則表達式快速匹配「民國年」格式：開頭為 2 或 3 位數字，後接斜線或橫線
             Regex rocRegex = new Regex(@"^(?<year>[1-9]\d{1,2})[-/](?<month>\d{1,2})[-/](?<day>\d{1,2})$");
             Regex rocYmRegex = new Regex(@"^(?<year>[1-9]\d{1,2})[-/](?<month>\d{1,2})$");
 
@@ -401,14 +413,13 @@ namespace Safety_System
                 if (!string.IsNullOrWhiteSpace(val)) {
                     val = val.Trim();
 
-                    // 1. 判斷是否為民國年格式 (如：114-05-10 或 114/05)
                     Match matchDate = rocRegex.Match(val);
                     Match matchYm = rocYmRegex.Match(val);
 
                     if (matchDate.Success)
                     {
                         int twYear = int.Parse(matchDate.Groups["year"].Value);
-                        if (twYear < 200) // 確保真的是民國年，而非原本就是西元年少打
+                        if (twYear < 200) 
                         {
                             val = $"{twYear + 1911}-{matchDate.Groups["month"].Value}-{matchDate.Groups["day"].Value}";
                         }
@@ -422,10 +433,8 @@ namespace Safety_System
                         }
                     }
 
-                    // 2. 將剩餘的斜線統一替換
                     val = val.Replace("/", "-");
 
-                    // 3. 根據 TimeMode 套用西元標準格式
                     if (_timeMode == TimeMode.Year && val.Length == 4 && int.TryParse(val, out _)) { 
                         row[_dateColumnName] = val; 
                         continue; 
