@@ -60,7 +60,7 @@ namespace Safety_System
             _btnRead.FlatAppearance.BorderSize = 0;
             
             Label lblLatestCount = new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(15, 8, 5, 0) };
-            _txtLatestCount = new TextBox { Width = 50, Text = "100", Margin = ctrlPad }; // 🟢 修正：預設改為 100
+            _txtLatestCount = new TextBox { Width = 50, Text = "100", Margin = ctrlPad }; 
             
             Button bLimitRead = new Button { Text = "查詢", Size = new Size(80, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bLimitRead.FlatAppearance.BorderSize = 0;
@@ -272,10 +272,7 @@ namespace Safety_System
 
             ToolStripMenuItem itemSave = new ToolStripMenuItem("💾 儲存");
             ToolStripMenuItem itemDeleteRow = new ToolStripMenuItem("🗑️ 刪除選取列");
-            
-            // 🟢 修正：加入開啟網址選項
             ToolStripMenuItem itemOpenUrl = new ToolStripMenuItem("🌐 開啟網址");
-            
             ToolStripMenuItem itemColSettings = new ToolStripMenuItem("👁️ 顯示設定");
             ToolStripMenuItem itemFreeze = new ToolStripMenuItem("❄️ 凍結此欄(含)以左視窗");
             ToolStripMenuItem itemUnfreeze = new ToolStripMenuItem("🔥 取消凍結");
@@ -285,7 +282,7 @@ namespace Safety_System
 
             itemSave.Tag = "Save";
             itemDeleteRow.Tag = "DeleteRow";
-            itemOpenUrl.Tag = "OpenUrl"; // 🟢 綁定 Tag
+            itemOpenUrl.Tag = "OpenUrl";
             itemColSettings.Tag = "ColSettings";
             itemImport.Tag = "Import";
             itemExport.Tag = "Export";
@@ -305,7 +302,7 @@ namespace Safety_System
 
             _ctxMenu.Items.AddRange(new ToolStripItem[] { 
                 itemSave, itemDeleteRow, new ToolStripSeparator(),
-                itemOpenUrl, new ToolStripSeparator(), // 🟢 加入清單
+                itemOpenUrl, new ToolStripSeparator(), 
                 itemFreeze, itemUnfreeze, new ToolStripSeparator(),
                 itemColSettings, new ToolStripSeparator(),
                 itemImport, itemExport, itemPdf 
@@ -526,6 +523,56 @@ namespace Safety_System
                 }
             } 
             catch { }
+        }
+
+        // 🟢 實作：匯出 PDF 前，先讓使用者選擇紙張大小與方向
+        private void BtnExportPdf_Click(object sender, EventArgs e) 
+        {
+            if (_dgv.Rows.Count <= 1 && _dgv.AllowUserToAddRows) 
+            { 
+                MessageBox.Show("目前沒有資料可供導出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
+                return; 
+            }
+
+            using (Form f = new Form())
+            {
+                f.Width = 350;
+                f.Height = 250;
+                f.Text = "PDF 輸出設定";
+                f.StartPosition = FormStartPosition.CenterParent;
+                f.FormBorderStyle = FormBorderStyle.FixedDialog;
+                f.MaximizeBox = false;
+                f.MinimizeBox = false;
+                f.BackColor = Color.White;
+
+                Label lbl1 = new Label { Text = "請選擇紙張大小：", Location = new Point(30, 30), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+                ComboBox cboSize = new ComboBox { Location = new Point(170, 27), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                cboSize.Items.AddRange(new string[] { "A4", "A3" });
+                cboSize.SelectedIndex = 0;
+
+                Label lbl2 = new Label { Text = "請選擇紙張方向：", Location = new Point(30, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+                ComboBox cboLayout = new ComboBox { Location = new Point(170, 77), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                cboLayout.Items.AddRange(new string[] { "直式", "橫式" });
+                cboLayout.SelectedIndex = 1; // 預設橫式
+
+                Button btnOk = new Button { Text = "確認導出", Location = new Point(110, 140), Size = new Size(120, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnOk.Click += delegate(object senderObj, EventArgs ev) {
+                    f.DialogResult = DialogResult.OK;
+                };
+
+                f.Controls.Add(lbl1); f.Controls.Add(cboSize);
+                f.Controls.Add(lbl2); f.Controls.Add(cboLayout);
+                f.Controls.Add(btnOk);
+
+                if (f.ShowDialog(this) == DialogResult.OK)
+                {
+                    bool isA3 = cboSize.SelectedItem.ToString() == "A3";
+                    bool isLandscape = cboLayout.SelectedItem.ToString() == "橫式";
+                    
+                    // 呼叫 PdfHelper 執行匯出，傳遞參數
+                    PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle, isA3, isLandscape);
+                }
+            }
         }
     }
 }
