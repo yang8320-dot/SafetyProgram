@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing; 
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -252,7 +253,6 @@ namespace Safety_System
             var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Visibility");
             foreach (var kvp in dict) _columnVisibility[kvp.Key] = (kvp.Value == "1");
 
-            // 🟢 修改：預設不顯示最後修改人與修改時間
             if (!_columnVisibility.ContainsKey("最後修改人")) _columnVisibility["最後修改人"] = false;
             if (!_columnVisibility.ContainsKey("修改時間")) _columnVisibility["修改時間"] = false;
         }
@@ -390,13 +390,50 @@ namespace Safety_System
             if (_timeMode == TimeMode.YearMonth) format = "yyyy-MM"; 
             else if (_timeMode == TimeMode.Year) format = "yyyy";
             
+            // 🟢 用正則表達式快速匹配「民國年」格式：開頭為 2 或 3 位數字，後接斜線或橫線
+            Regex rocRegex = new Regex(@"^(?<year>[1-9]\d{1,2})[-/](?<month>\d{1,2})[-/](?<day>\d{1,2})$");
+            Regex rocYmRegex = new Regex(@"^(?<year>[1-9]\d{1,2})[-/](?<month>\d{1,2})$");
+
             foreach (DataRow row in dt.Rows) {
                 if (row.RowState == DataRowState.Deleted) continue;
                 string val = row[_dateColumnName]?.ToString();
+
                 if (!string.IsNullOrWhiteSpace(val)) {
+                    val = val.Trim();
+
+                    // 1. 判斷是否為民國年格式 (如：114-05-10 或 114/05)
+                    Match matchDate = rocRegex.Match(val);
+                    Match matchYm = rocYmRegex.Match(val);
+
+                    if (matchDate.Success)
+                    {
+                        int twYear = int.Parse(matchDate.Groups["year"].Value);
+                        if (twYear < 200) // 確保真的是民國年，而非原本就是西元年少打
+                        {
+                            val = $"{twYear + 1911}-{matchDate.Groups["month"].Value}-{matchDate.Groups["day"].Value}";
+                        }
+                    }
+                    else if (matchYm.Success)
+                    {
+                        int twYear = int.Parse(matchYm.Groups["year"].Value);
+                        if (twYear < 200)
+                        {
+                            val = $"{twYear + 1911}-{matchYm.Groups["month"].Value}";
+                        }
+                    }
+
+                    // 2. 將剩餘的斜線統一替換
                     val = val.Replace("/", "-");
-                    if (_timeMode == TimeMode.Year && val.Length == 4 && int.TryParse(val, out _)) { row[_dateColumnName] = val; continue; }
-                    if (DateTime.TryParse(val, out DateTime d)) { row[_dateColumnName] = d.ToString(format); }
+
+                    // 3. 根據 TimeMode 套用西元標準格式
+                    if (_timeMode == TimeMode.Year && val.Length == 4 && int.TryParse(val, out _)) { 
+                        row[_dateColumnName] = val; 
+                        continue; 
+                    }
+
+                    if (DateTime.TryParse(val, out DateTime d)) { 
+                        row[_dateColumnName] = d.ToString(format); 
+                    }
                 }
             }
         }
