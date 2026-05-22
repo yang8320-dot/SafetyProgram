@@ -28,6 +28,9 @@ namespace Safety_System
             _dgv.CurrentCellDirtyStateChanged += new EventHandler(Dgv_CurrentCellDirtyStateChanged);
             _dgv.CellValueChanged += new DataGridViewCellEventHandler(Dgv_CellValueChanged);
             
+            // 🟢 修正：綁定排序完成事件，確保點擊標題排序後自動換行高度不消失
+            _dgv.Sorted += new EventHandler(Dgv_Sorted);
+
             // 🟢 修正：即時儲存寬距與排序變更
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
             _dgv.ColumnDisplayIndexChanged += new DataGridViewColumnEventHandler(Dgv_ColumnDisplayIndexChanged);
@@ -89,6 +92,15 @@ namespace Safety_System
 
             if (_btnRtfToExcel != null) {
                 _btnRtfToExcel.Click += new EventHandler(BtnRtfToExcel_Click);
+            }
+        }
+
+        // 🟢 修正：實作排序後重新計算列高的邏輯
+        private void Dgv_Sorted(object sender, EventArgs e)
+        {
+            if (!_isApplyingWidths && _dgv.Rows.Count > 0)
+            {
+                try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
             }
         }
 
@@ -180,6 +192,9 @@ namespace Safety_System
                 if (success) { 
                     dtSource.AcceptChanges(); 
 
+                    // 🟢 修正：存檔後強制重新計算每一列的高度，確保自動換行畫面不縮回單行
+                    try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
+
                     // 🟢 修正：完美還原畫面的相對位置，防止跳動
                     try {
                         if (scrollRow >= 0 && scrollRow < _dgv.Rows.Count) _dgv.FirstDisplayedScrollingRowIndex = scrollRow;
@@ -259,6 +274,9 @@ namespace Safety_System
                         }
                         
                         dt.AcceptChanges(); 
+
+                        // 🟢 修正：刪除後強制重新計算每一列的高度，確保自動換行畫面不縮回單行
+                        try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
 
                         // 4. 觸發自動運算引擎：將時間軸斷點兩端無縫接合重算
                         if (_calcHelper != null) {
@@ -715,14 +733,4 @@ namespace Safety_System
             if (e.Column != null && e.Column.Visible && e.Column.Width > 0 && e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.None) { 
                 _columnWidths[e.Column.Name] = e.Column.Width; 
                 // 立即存入資料庫
-                DataManager.SaveGridConfig(_dbName, _tableName, "Width", e.Column.Name, e.Column.Width.ToString());
-            }
-        }
-
-        // 🟢 修正：即時將欄位拖曳順序存入資料庫
-        private void Dgv_ColumnDisplayIndexChanged(object sender, DataGridViewColumnEventArgs e) {
-            if (_isFirstLoad || _isApplyingWidths) return;
-            SaveColumnOrder();
-        }
-    }
-}
+                DataMa
