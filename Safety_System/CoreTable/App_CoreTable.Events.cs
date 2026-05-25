@@ -419,7 +419,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 實作：匯出 PDF 前，跳出選擇紙張大小與方向視窗 (已修正文字與選單遮擋問題)
         private void BtnExportPdf_Click(object sender, EventArgs e) 
         {
             if (_dgv.Rows.Count <= 1 && _dgv.AllowUserToAddRows) 
@@ -430,7 +429,7 @@ namespace Safety_System
 
             using (Form f = new Form())
             {
-                f.Width = 380; // 🟢 視窗加寬
+                f.Width = 420; 
                 f.Height = 250;
                 f.Text = "PDF 輸出設定";
                 f.StartPosition = FormStartPosition.CenterParent;
@@ -440,16 +439,16 @@ namespace Safety_System
                 f.BackColor = Color.White;
 
                 Label lbl1 = new Label { Text = "請選擇紙張大小：", Location = new Point(30, 30), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-                ComboBox cboSize = new ComboBox { Location = new Point(190, 27), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) }; // 🟢 X 右推
+                ComboBox cboSize = new ComboBox { Location = new Point(220, 27), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
                 cboSize.Items.AddRange(new string[] { "A4", "A3" });
                 cboSize.SelectedIndex = 0;
 
                 Label lbl2 = new Label { Text = "請選擇紙張方向：", Location = new Point(30, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-                ComboBox cboLayout = new ComboBox { Location = new Point(190, 77), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) }; // 🟢 X 右推
+                ComboBox cboLayout = new ComboBox { Location = new Point(220, 77), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
                 cboLayout.Items.AddRange(new string[] { "直式", "橫式" });
                 cboLayout.SelectedIndex = 1; // 預設橫式
 
-                Button btnOk = new Button { Text = "確認導出", Location = new Point(125, 140), Size = new Size(120, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand }; // 🟢 X 重新置中
+                Button btnOk = new Button { Text = "確認導出", Location = new Point(140, 140), Size = new Size(120, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnOk.Click += delegate(object senderObj, EventArgs ev) {
                     f.DialogResult = DialogResult.OK;
                 };
