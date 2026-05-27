@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_MenuManager.cs ///
+/// FILE: Safety_System/settings/App_MenuManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -16,7 +16,6 @@ namespace Safety_System
         
         private FlowLayoutPanel _flpCustomMenus;
 
-        // 定義可被擴充的主選單分類，及其對應的實體資料庫名稱
         private readonly Dictionary<string, string> _categoryToDbMap = new Dictionary<string, string>
         {
             { "日常作業", "Reports" },
@@ -40,7 +39,6 @@ namespace Safety_System
 
         public App_MenuManager()
         {
-            // 初始化自訂選單對照表 (存放在系統資料庫)
             string createSql = "CREATE TABLE IF NOT EXISTS [CustomMenus] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
             DataManager.InitTable("SystemConfig", "CustomMenus", createSql);
             
@@ -89,40 +87,6 @@ namespace Safety_System
             this.Controls.Add(boxList);
         }
 
-        private bool VerifyHiddenMenuPassword(string menuName)
-        {
-            using (Form p = new Form())
-            {
-                p.Width = 460; 
-                p.Height = 220;
-                p.Text = "個人選單安全驗證";
-                p.StartPosition = FormStartPosition.CenterParent;
-                p.FormBorderStyle = FormBorderStyle.FixedDialog;
-                p.MaximizeBox = false; 
-                p.MinimizeBox = false;
-                p.BackColor = Color.White;
-
-                Label lbl = new Label() { Left = 30, Top = 30, Text = $"請輸入【{menuName}】的解鎖密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
-
-                p.Controls.Add(lbl); 
-                p.Controls.Add(txt); 
-                p.Controls.Add(btn);
-                p.AcceptButton = btn;
-
-                if (p.ShowDialog(this) == DialogResult.OK)
-                {
-                    string input = txt.Text.Trim();
-                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
-                    if (unlockedMenu == menuName) return true;
-                    
-                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                return false; 
-            }
-        }
-
         private void BtnAdd_Click(object sender, EventArgs e)
         {
             if (_cboCategory.SelectedItem == null) return;
@@ -138,7 +102,8 @@ namespace Safety_System
             bool isPersonalMenu = category.StartsWith("選單");
             if (isPersonalMenu)
             {
-                if (!VerifyHiddenMenuPassword(category)) return;
+                // 🟢 統一呼叫 AuthManager 進行密碼驗證
+                if (!AuthManager.VerifyHiddenMenu(category)) return;
             }
 
             string authPrompt = "新增自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -156,7 +121,6 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 防呆：檢查實體資料庫是否已經存在同名的 Table (避免之前刪除不完全)
             var existingCols = DataManager.GetColumnNames(targetDb, newName);
             if (existingCols.Count > 0)
             {
@@ -242,7 +206,8 @@ namespace Safety_System
                         btnToggle.Text = "+";
                     } else {
                         if (isPersonalMenu) {
-                            if (!VerifyHiddenMenuPassword(category)) return;
+                            // 🟢 統一呼叫 AuthManager 進行密碼驗證
+                            if (!AuthManager.VerifyHiddenMenu(category)) return;
                         }
                         flpItems.Visible = true;
                         btnToggle.Text = "-";
@@ -317,7 +282,6 @@ namespace Safety_System
 
             try
             {
-                // 🟢 修正重點：移除原本的 InitTable，並加上名稱衝突檢查
                 var existingCols = DataManager.GetColumnNames(dbName, newName);
                 if (existingCols.Count > 0)
                 {
@@ -325,10 +289,8 @@ namespace Safety_System
                     return;
                 }
 
-                // 直接更名 (既有的資料與欄位都會原封不動保留)
                 DataManager.RenameTable(dbName, oldTableName, newName);
 
-                // 更新選單目錄清單
                 DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
                 foreach (DataRow r in dt.Rows)
                 {
