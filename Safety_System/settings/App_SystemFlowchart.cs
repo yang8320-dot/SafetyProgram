@@ -26,8 +26,8 @@ namespace Safety_System
         {
             public string SystemDbName { get; set; }
             public string SystemTableName { get; set; }
-            public string ChDbName { get; set; }   // 顯示用中文庫名
-            public string ChTableName { get; set; } // 顯示用中文表名
+            public string ChDbName { get; set; }   
+            public string ChTableName { get; set; } 
             public RectangleF Bounds { get; set; }
             public int Level { get; set; } = 0; 
             public bool HasBackgroundCalc { get; set; } 
@@ -89,7 +89,8 @@ namespace Safety_System
             _graphPanel.Paint += GraphPanel_Paint;
             _graphPanel.MouseMove += GraphPanel_MouseMove;
             
-            Button btnRefresh = new Button { Text = "重新整理流程", Size = new Size(130, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            // 🌟 修正按鈕寬度，避免文字截斷
+            Button btnRefresh = new Button { Text = "重新整理流程圖", Size = new Size(180, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Click += (s, e) => LoadGraphData();
 
@@ -116,7 +117,6 @@ namespace Safety_System
             _nodes.Clear();
             _syncEdges.Clear();
 
-            // 1. 讀取使用者自訂同步規則 (直連 SysConfigDbPath 解決路徑問題)
             try
             {
                 DataTable dtSync = new DataTable();
@@ -158,7 +158,6 @@ namespace Safety_System
             }
             catch { }
 
-            // 2. 系統強制聚合流程
             string[] lawTables = { "環保法規", "職安衛法規", "消防法規", "其它法規" };
             foreach(var lawTb in lawTables)
             {
@@ -166,7 +165,6 @@ namespace Safety_System
                         $"掃描同法規名稱進行歸類聚合\n提取最新日期與最高適用性回填", EdgeCat.SystemSync);
             }
 
-            // 3. 系統內部運算
             string[] waterTables = { "WaterMeterReadings", "WaterUsageDaily" };
             foreach(var wTb in waterTables)
             {
@@ -187,7 +185,6 @@ namespace Safety_System
                 string chDb = db;
                 string chTb = tb;
 
-                // 從 App_DbConfig 撈出中文對照表
                 var dbMap = App_DbConfig.GetDbMapCache();
                 if (dbMap.ContainsKey(db)) {
                     chDb = dbMap[db].ChDbName;
@@ -221,9 +218,6 @@ namespace Safety_System
             });
         }
 
-        // ==========================================
-        // 緊湊排版引擎 (大幅壓縮版面寬度)
-        // ==========================================
         private void CalculateNodeLayout()
         {
             foreach (var n in _nodes.Values) n.Level = 0;
@@ -241,11 +235,11 @@ namespace Safety_System
                 safeguard++;
             } while (changed && safeguard < 100);
 
-            // 🌟 縮減節點寬度與 X軸間距，讓畫面更緊湊
-            int nodeWidth = 200;
-            int nodeHeight = 65;
-            int xSpacing = 300; // X軸寬度壓縮
-            int ySpacing = 95;  // Y軸高度壓縮
+            // 🌟 修正點 1：加寬節點，給予中文字更多的空間
+            int nodeWidth = 260; // 原 200 -> 改 260
+            int nodeHeight = 75; // 原 65 -> 改 75
+            int xSpacing = 400;  // X軸間距微調
+            int ySpacing = 110;  // Y軸間距微調
 
             var levelGroups = _nodes.Values.GroupBy(n => n.Level).OrderBy(g => g.Key);
             
@@ -267,9 +261,6 @@ namespace Safety_System
             _graphPanel.AutoScrollMinSize = new Size(maxX, maxY);
         }
 
-        // ==========================================
-        // 繪圖引擎 (直角折線)
-        // ==========================================
         private void GraphPanel_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -284,7 +275,7 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 1. 繪製連線 (🌟 改用折線 DrawLines 呈現科技感)
+            // 1. 繪製連線 (直角折線)
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2) { CustomStartCap = new AdjustableArrowCap(5, 5, true), CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
@@ -297,7 +288,6 @@ namespace Safety_System
                     PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
                     PointF ptEnd = new PointF(edge.Target.Bounds.Left, edge.Target.Bounds.Top + edge.Target.Bounds.Height / 2);
 
-                    // 繪製直角折線
                     float midX = ptStart.X + (ptEnd.X - ptStart.X) / 2;
                     PointF[] points = {
                         ptStart,
@@ -308,7 +298,6 @@ namespace Safety_System
 
                     g.DrawLines(currentPen, points);
 
-                    // 繪製短標籤 (綁定在折線的第一段水平線上)
                     SizeF tSize = g.MeasureString(edge.ShortTitle, textFont);
                     PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 18);
                     RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
@@ -324,7 +313,11 @@ namespace Safety_System
                 }
             }
 
-            // 2. 繪製節點 (全面顯示中文名稱)
+            // 2. 繪製節點
+            // 🌟 修正點 2：加入字串格式的防溢出保護機制 (EllipsisCharacter)
+            StringFormat sfTitle = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+            StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+
             foreach (var node in _nodes.Values)
             {
                 Rectangle rect = Rectangle.Round(node.Bounds);
@@ -337,22 +330,24 @@ namespace Safety_System
                     g.DrawPath(borderPen, path);
                 }
 
-                RectangleF rectTitle = new RectangleF(rect.X, rect.Y + 8, rect.Width, 20);
-                g.DrawString($"[{node.ChDbName}]", new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Brushes.SlateGray, rectTitle, new StringFormat { Alignment = StringAlignment.Center });
+                RectangleF rectTitle = new RectangleF(rect.X + 5, rect.Y + 8, rect.Width - 10, 20);
+                g.DrawString($"[{node.ChDbName}]", new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Brushes.SlateGray, rectTitle, sfTitle);
 
-                RectangleF rectBody = new RectangleF(rect.X, rect.Y + 28, rect.Width, 25);
-                g.DrawString(node.ChTableName, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Brushes.Black, rectBody, new StringFormat { Alignment = StringAlignment.Center });
+                RectangleF rectBody = new RectangleF(rect.X + 5, rect.Y + 30, rect.Width - 10, 30);
+                g.DrawString(node.ChTableName, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Brushes.Black, rectBody, sfBody);
 
                 if (node.HasBackgroundCalc)
                 {
                     string badgeText = "[背景運算]";
                     SizeF bSize = g.MeasureString(badgeText, textFont);
-                    RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width - 10, rect.Bottom - bSize.Height - 5, bSize.Width + 6, bSize.Height + 2);
                     
-                    using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 5))
+                    // 🌟 修正點 3：將運算徽章微調，稍微往上與往左移一點，確保絕對不蓋字
+                    RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width - 8, rect.Bottom - bSize.Height - 4, bSize.Width + 4, bSize.Height + 2);
+                    
+                    using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
                     {
                         g.FillPath(Brushes.SeaGreen, bPath);
-                        g.DrawString(badgeText, textFont, Brushes.White, new PointF(badgeRect.X + 3, badgeRect.Y + 1));
+                        g.DrawString(badgeText, textFont, Brushes.White, new PointF(badgeRect.X + 2, badgeRect.Y + 1));
                     }
 
                     RectangleF hitRect = new RectangleF(badgeRect.X + _graphPanel.AutoScrollPosition.X, badgeRect.Y + _graphPanel.AutoScrollPosition.Y, badgeRect.Width, badgeRect.Height);
