@@ -50,34 +50,30 @@ namespace Safety_System
         {
             _toolTip = new ToolTip { AutoPopDelay = 10000, InitialDelay = 200, ReshowDelay = 100, UseAnimation = true, UseFading = true };
 
-            TableLayoutPanel mainLayout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.WhiteSmoke,
-                RowCount = 2,
-                ColumnCount = 1
-            };
+            TableLayoutPanel mainLayout = new TableLayoutPanel();
+            mainLayout.Dock = DockStyle.Fill;
+            mainLayout.BackColor = Color.WhiteSmoke;
+            mainLayout.RowCount = 2;
+            mainLayout.ColumnCount = 1;
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 90, BackColor = Color.White };
             pnlHeader.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlHeader.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
-            Label lblTitle = new Label { 
-                Text = "系統動態流程與架構圖", 
-                Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), 
-                ForeColor = Color.DarkSlateBlue, 
-                Location = new Point(20, 15), 
-                AutoSize = true 
-            };
+            Label lblTitle = new Label();
+            lblTitle.Text = "系統動態流程與架構圖";
+            lblTitle.Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
+            lblTitle.ForeColor = Color.DarkSlateBlue;
+            lblTitle.Location = new Point(20, 15);
+            lblTitle.AutoSize = true;
             
-            Label lblLegend = new Label {
-                Text = "提示：滑鼠停留在【連線標籤】或【背景運算】上，可查看詳細轉換規則。    [藍色] 自訂單向    [橘色] 自訂雙向    [紫色] 系統強制聚合",
-                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
-                ForeColor = Color.DimGray,
-                Location = new Point(25, 55),
-                AutoSize = true
-            };
+            Label lblLegend = new Label();
+            lblLegend.Text = "提示：滑鼠停留在【連線標籤】或【背景運算】上，可查看詳細轉換規則。    [藍色] 自訂單向    [橘色] 自訂雙向    [紫色] 系統聚合";
+            lblLegend.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+            lblLegend.ForeColor = Color.DimGray;
+            lblLegend.Location = new Point(25, 55);
+            lblLegend.AutoSize = true;
 
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(lblLegend);
@@ -92,7 +88,14 @@ namespace Safety_System
             _graphPanel.Paint += GraphPanel_Paint;
             _graphPanel.MouseMove += GraphPanel_MouseMove;
             
-            Button btnRefresh = new Button { Text = "重新整理流程圖", Size = new Size(180, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnRefresh = new Button();
+            btnRefresh.Text = "重新整理流程圖";
+            btnRefresh.Size = new Size(180, 40);
+            btnRefresh.Location = new Point(20, 15);
+            btnRefresh.BackColor = Color.SteelBlue;
+            btnRefresh.ForeColor = Color.White;
+            btnRefresh.Cursor = Cursors.Hand;
+            btnRefresh.FlatStyle = FlatStyle.Flat;
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Click += (s, e) => LoadGraphData();
 
@@ -276,11 +279,18 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 🟢 圖層 1 (底層)：只負責畫線 (確保線條永遠在最底下)
-            using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
-            using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2) { CustomStartCap = new AdjustableArrowCap(5, 5, true), CustomEndCap = new AdjustableArrowCap(5, 5, true) })
-            using (Pen penSysSync = new Pen(Color.MediumPurple, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
+            // 🟢 圖層 1 (底層)：先畫出所有的實體線條 (確保線條永遠被壓在最底下)
+            using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2))
+            using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2))
+            using (Pen penSysSync = new Pen(Color.MediumPurple, 2))
             {
+                penCustomSingle.CustomEndCap = new AdjustableArrowCap(5, 5, true);
+                
+                penCustomDouble.CustomStartCap = new AdjustableArrowCap(5, 5, true);
+                penCustomDouble.CustomEndCap = new AdjustableArrowCap(5, 5, true);
+                
+                penSysSync.CustomEndCap = new AdjustableArrowCap(5, 5, true);
+
                 foreach (var edge in _syncEdges)
                 {
                     Pen currentPen = edge.Category == EdgeCat.SystemSync ? penSysSync : 
@@ -301,7 +311,7 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 圖層 2 (中層)：畫出所有的說明圖塊 (蓋在線條上方，並帶有部分透明度)
+            // 🟢 圖層 2 (中層)：畫出文字標籤背景，並填滿半透明白色，讓下方的線微透
             foreach (var edge in _syncEdges)
             {
                 PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
@@ -309,25 +319,31 @@ namespace Safety_System
                 PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 18);
                 RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
                 
-                // 🟢 使用 Alpha 220 呈現微透效果，讓底下的線隱約可見，但不會干擾閱讀
+                // 使用 Alpha 220 呈現微透效果，線條會隱約穿過，但字體仍非常清晰
                 using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
                 {
                     g.FillRectangle(bgBrush, bgRect);
                 }
-                
                 g.DrawRectangle(Pens.DarkGray, bgRect.X, bgRect.Y, bgRect.Width, bgRect.Height);
                 
                 Brush fBrush = edge.Category == EdgeCat.SystemSync ? Brushes.Purple : Brushes.DarkSlateGray;
                 g.DrawString(edge.ShortTitle, textFont, fBrush, new PointF(ptText.X + 3, ptText.Y + 2));
 
-                // 註冊 Hover 區域
                 RectangleF hitRect = new RectangleF(bgRect.X + _graphPanel.AutoScrollPosition.X, bgRect.Y + _graphPanel.AutoScrollPosition.Y, bgRect.Width, bgRect.Height);
                 _hoverAreas[hitRect] = edge.DetailText;
             }
 
-            // 🟢 圖層 3 (頂層)：畫所有的節點框塊
-            StringFormat sfTitle = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-            StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+            // 🟢 圖層 3 (頂層)：畫出所有的系統資料表節點方塊 (確保方塊覆蓋所有線條)
+            StringFormat sfTitle = new StringFormat();
+            sfTitle.Alignment = StringAlignment.Center;
+            sfTitle.LineAlignment = StringAlignment.Center;
+            sfTitle.Trimming = StringTrimming.EllipsisCharacter;
+
+            StringFormat sfBody = new StringFormat();
+            sfBody.Alignment = StringAlignment.Center;
+            sfBody.LineAlignment = StringAlignment.Center;
+            sfBody.Trimming = StringTrimming.EllipsisCharacter;
+            sfBody.FormatFlags = StringFormatFlags.NoWrap;
 
             foreach (var node in _nodes.Values)
             {
@@ -342,10 +358,16 @@ namespace Safety_System
                 }
 
                 RectangleF rectTitle = new RectangleF(rect.X + 5, rect.Y + 8, rect.Width - 10, 20);
-                g.DrawString($"[{node.ChDbName}]", new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Brushes.SlateGray, rectTitle, sfTitle);
+                using (Font boldF = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold))
+                {
+                    g.DrawString($"[{node.ChDbName}]", boldF, Brushes.SlateGray, rectTitle, sfTitle);
+                }
 
                 RectangleF rectBody = new RectangleF(rect.X + 5, rect.Y + 30, rect.Width - 10, 30);
-                g.DrawString(node.ChTableName, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Brushes.Black, rectBody, sfBody);
+                using (Font boldBig = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold))
+                {
+                    g.DrawString(node.ChTableName, boldBig, Brushes.Black, rectBody, sfBody);
+                }
 
                 if (node.HasBackgroundCalc)
                 {
@@ -412,14 +434,12 @@ namespace Safety_System
 
         private TreeView BuildMenuTreeView()
         {
-            TreeView tv = new TreeView 
-            { 
-                Dock = DockStyle.Fill, 
-                BorderStyle = BorderStyle.None, 
-                ItemHeight = 28, 
-                Margin = new Padding(10),
-                Font = new Font("Microsoft JhengHei UI", 12F)
-            };
+            TreeView tv = new TreeView();
+            tv.Dock = DockStyle.Fill;
+            tv.BorderStyle = BorderStyle.None;
+            tv.ItemHeight = 28;
+            tv.Margin = new Padding(10);
+            tv.Font = new Font("Microsoft JhengHei UI", 12F);
             
             // 🟢 綁定展開前事件，處理隱藏選單密碼驗證
             tv.BeforeExpand += TvMenu_BeforeExpand;
@@ -435,7 +455,8 @@ namespace Safety_System
                     string dbEnName = kvp.Key;
                     string dbChName = kvp.Value.ChDbName;
 
-                    TreeNode dbNode = new TreeNode($"[資料庫] {dbChName} ({dbEnName}.sqlite)") { ForeColor = Color.DarkSlateBlue };
+                    TreeNode dbNode = new TreeNode($"[資料庫] {dbChName} ({dbEnName}.sqlite)");
+                    dbNode.ForeColor = Color.DarkSlateBlue;
 
                     // 🟢 判斷並設定隱藏選單的標籤 (Tag)
                     if (dbEnName.StartsWith("Menu") && dbEnName.EndsWith("DB"))
@@ -459,7 +480,9 @@ namespace Safety_System
                     rootNode.Nodes.Add(dbNode);
                 }
 
-                TreeNode appLinkNode = new TreeNode("[外掛] 外部應用連結 (AppLinks)") { ForeColor = Color.DarkOliveGreen };
+                TreeNode appLinkNode = new TreeNode("[外掛] 外部應用連結 (AppLinks)");
+                appLinkNode.ForeColor = Color.DarkOliveGreen;
+                
                 DataTable dtLinks = DataManager.GetTableData("SystemConfig", "AppLinks", "", "", "");
                 if (dtLinks != null)
                 {
@@ -540,9 +563,30 @@ namespace Safety_System
                 p.MinimizeBox = false;
                 p.BackColor = Color.White;
 
-                Label lbl = new Label() { Left = 30, Top = 30, Text = $"查看此隱藏選單資料表，請輸入【{menuName}】的解鎖密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+                Label lbl = new Label();
+                lbl.Left = 30;
+                lbl.Top = 30;
+                lbl.Text = "查看此隱藏選單資料表，請輸入【" + menuName + "】的解鎖密碼：";
+                lbl.AutoSize = true;
+                lbl.Font = new Font("Microsoft JhengHei UI", 11F);
+
+                TextBox txt = new TextBox();
+                txt.PasswordChar = '*';
+                txt.Width = 250;
+                txt.Left = 30;
+                txt.Top = 70;
+                txt.Font = new Font("Microsoft JhengHei UI", 14F);
+
+                Button btn = new Button();
+                btn.Text = "確認驗證";
+                btn.DialogResult = DialogResult.OK;
+                btn.Left = 160;
+                btn.Top = 120;
+                btn.Width = 120;
+                btn.Height = 40;
+                btn.BackColor = Color.SteelBlue;
+                btn.ForeColor = Color.White;
+                btn.Font = new Font("Microsoft JhengHei UI", 12F);
 
                 p.Controls.Add(lbl); 
                 p.Controls.Add(txt); 
@@ -555,4 +599,10 @@ namespace Safety_System
                     string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
                     if (unlockedMenu == menuName) return true;
                     
-                    MessageBox.Sh
+                    MessageBox.Show("【" + menuName + "】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return false; 
+            }
+        }
+    }
+}
