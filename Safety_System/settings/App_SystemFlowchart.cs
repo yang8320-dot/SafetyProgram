@@ -240,10 +240,11 @@ namespace Safety_System
                 safeguard++;
             } while (changed && safeguard < 100);
 
-            int nodeWidth = 260; 
-            int nodeHeight = 75; 
-            int xSpacing = 400;  
-            int ySpacing = 110;  
+            // 🟢 優化：格子高度縮減，讓同行排版更緊湊
+            int nodeWidth = 280; 
+            int nodeHeight = 45; // 從 75 降到 45
+            int xSpacing = 420;  
+            int ySpacing = 70;   // 從 110 降到 70
 
             var levelGroups = _nodes.Values.GroupBy(n => n.Level).OrderBy(g => g.Key);
             
@@ -279,16 +280,14 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 🟢 圖層 1 (底層)：先畫出所有的實體線條 (確保線條永遠被壓在最底下)
+            // 🟢 圖層 1 (底層)：線條
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2))
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2))
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2))
             {
                 penCustomSingle.CustomEndCap = new AdjustableArrowCap(5, 5, true);
-                
                 penCustomDouble.CustomStartCap = new AdjustableArrowCap(5, 5, true);
                 penCustomDouble.CustomEndCap = new AdjustableArrowCap(5, 5, true);
-                
                 penSysSync.CustomEndCap = new AdjustableArrowCap(5, 5, true);
 
                 foreach (var edge in _syncEdges)
@@ -311,15 +310,14 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 圖層 2 (中層)：畫出文字標籤背景，並填滿半透明白色，讓下方的線微透
+            // 🟢 圖層 2 (中層)：說明標籤 (帶透明度，線放底層透過去)
             foreach (var edge in _syncEdges)
             {
                 PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
                 SizeF tSize = g.MeasureString(edge.ShortTitle, textFont);
-                PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 18);
+                PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 12);
                 RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
                 
-                // 使用 Alpha 220 呈現微透效果，線條會隱約穿過，但字體仍非常清晰
                 using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
                 {
                     g.FillRectangle(bgBrush, bgRect);
@@ -333,57 +331,54 @@ namespace Safety_System
                 _hoverAreas[hitRect] = edge.DetailText;
             }
 
-            // 🟢 圖層 3 (頂層)：畫出所有的系統資料表節點方塊 (確保方塊覆蓋所有線條)
-            StringFormat sfTitle = new StringFormat();
-            sfTitle.Alignment = StringAlignment.Center;
-            sfTitle.LineAlignment = StringAlignment.Center;
-            sfTitle.Trimming = StringTrimming.EllipsisCharacter;
-
-            StringFormat sfBody = new StringFormat();
-            sfBody.Alignment = StringAlignment.Center;
-            sfBody.LineAlignment = StringAlignment.Center;
-            sfBody.Trimming = StringTrimming.EllipsisCharacter;
-            sfBody.FormatFlags = StringFormatFlags.NoWrap;
-
-            foreach (var node in _nodes.Values)
+            // 🟢 圖層 3 (頂層)：節點格子
+            using (Font dbFont = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold))
+            using (Font tbFont = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold))
             {
-                Rectangle rect = Rectangle.Round(node.Bounds);
-                
-                using (GraphicsPath path = GetRoundedRectPath(rect, 10))
-                using (LinearGradientBrush brush = new LinearGradientBrush(rect, Color.White, Color.FromArgb(240, 245, 250), LinearGradientMode.Vertical))
-                using (Pen borderPen = new Pen(Color.FromArgb(60, 80, 100), 1))
+                foreach (var node in _nodes.Values)
                 {
-                    g.FillPath(brush, path);
-                    g.DrawPath(borderPen, path);
-                }
-
-                RectangleF rectTitle = new RectangleF(rect.X + 5, rect.Y + 8, rect.Width - 10, 20);
-                using (Font boldF = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold))
-                {
-                    g.DrawString($"[{node.ChDbName}]", boldF, Brushes.SlateGray, rectTitle, sfTitle);
-                }
-
-                RectangleF rectBody = new RectangleF(rect.X + 5, rect.Y + 30, rect.Width - 10, 30);
-                using (Font boldBig = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold))
-                {
-                    g.DrawString(node.ChTableName, boldBig, Brushes.Black, rectBody, sfBody);
-                }
-
-                if (node.HasBackgroundCalc)
-                {
-                    string badgeText = "[背景運算]";
-                    SizeF bSize = g.MeasureString(badgeText, textFont);
+                    Rectangle rect = Rectangle.Round(node.Bounds);
                     
-                    RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width - 8, rect.Bottom - bSize.Height - 4, bSize.Width + 4, bSize.Height + 2);
-                    
-                    using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
+                    using (GraphicsPath path = GetRoundedRectPath(rect, 10))
+                    using (LinearGradientBrush brush = new LinearGradientBrush(rect, Color.White, Color.FromArgb(240, 245, 250), LinearGradientMode.Vertical))
+                    using (Pen borderPen = new Pen(Color.FromArgb(60, 80, 100), 1))
                     {
-                        g.FillPath(Brushes.SeaGreen, bPath);
-                        g.DrawString(badgeText, textFont, Brushes.White, new PointF(badgeRect.X + 2, badgeRect.Y + 1));
+                        g.FillPath(brush, path);
+                        g.DrawPath(borderPen, path);
                     }
 
-                    RectangleF hitRect = new RectangleF(badgeRect.X + _graphPanel.AutoScrollPosition.X, badgeRect.Y + _graphPanel.AutoScrollPosition.Y, badgeRect.Width, badgeRect.Height);
-                    _hoverAreas[hitRect] = node.CalcDetail;
+                    // 🟢 優化：將 [資料庫] 與 資料表 合併至同一行並動態置中對齊
+                    string dbText = $"[{node.ChDbName}] ";
+                    string tbText = node.ChTableName;
+
+                    SizeF dbSize = g.MeasureString(dbText, dbFont);
+                    SizeF tbSize = g.MeasureString(tbText, tbFont);
+                    
+                    float totalWidth = dbSize.Width + tbSize.Width - 10; 
+                    float startX = rect.X + (rect.Width - totalWidth) / 2;
+                    float dbY = rect.Y + (rect.Height - dbSize.Height) / 2 + 1;
+                    float tbY = rect.Y + (rect.Height - tbSize.Height) / 2;
+
+                    g.DrawString(dbText, dbFont, Brushes.SlateGray, startX, dbY);
+                    g.DrawString(tbText, tbFont, Brushes.Black, startX + dbSize.Width - 5, tbY);
+
+                    // 🟢 背景運算徽章 (改為懸浮在格子右上角外部)
+                    if (node.HasBackgroundCalc)
+                    {
+                        string badgeText = "[背景運算]";
+                        SizeF bSize = g.MeasureString(badgeText, textFont);
+                        
+                        RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width + 5, rect.Top - 10, bSize.Width + 4, bSize.Height + 2);
+                        
+                        using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
+                        {
+                            g.FillPath(Brushes.SeaGreen, bPath);
+                            g.DrawString(badgeText, textFont, Brushes.White, new PointF(badgeRect.X + 2, badgeRect.Y + 1));
+                        }
+
+                        RectangleF hitRect = new RectangleF(badgeRect.X + _graphPanel.AutoScrollPosition.X, badgeRect.Y + _graphPanel.AutoScrollPosition.Y, badgeRect.Width, badgeRect.Height);
+                        _hoverAreas[hitRect] = node.CalcDetail;
+                    }
                 }
             }
         }
