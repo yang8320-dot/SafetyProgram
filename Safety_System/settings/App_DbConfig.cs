@@ -787,46 +787,6 @@ namespace Safety_System
             }
         }
 
-        private bool VerifyHiddenMenuPassword(string menuName)
-        {
-            using (Form p = new Form())
-            {
-                p.Width = 460; 
-                p.Height = 220;
-                p.Text = "隱藏選單安全驗證";
-                p.StartPosition = FormStartPosition.CenterParent;
-                p.FormBorderStyle = FormBorderStyle.FixedDialog;
-                p.MaximizeBox = false; 
-                p.MinimizeBox = false;
-                p.BackColor = Color.White;
-
-                Label lbl = new Label() { Left = 30, Top = 30, Text = $"同步規則包含隱藏表單，請輸入【{menuName}】的密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
-
-                p.Controls.Add(lbl); 
-                p.Controls.Add(txt); 
-                p.Controls.Add(btn);
-                p.AcceptButton = btn;
-
-                if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK)
-                {
-                    string input = txt.Text.Trim();
-                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
-                    if (unlockedMenu == menuName)
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return false;
-                    }
-                }
-                return false; 
-            }
-        }
-
         private void BtnSaveSync_Click(object sender, EventArgs e)
         {
             string authPrompt = "新增資料同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -851,7 +811,8 @@ namespace Safety_System
 
             foreach (string menu in requiredMenusToUnlock)
             {
-                if (!VerifyHiddenMenuPassword(menu))
+                // 🟢 統一呼叫 AuthManager 進行密碼驗證
+                if (!AuthManager.VerifyHiddenMenu(menu))
                 {
                     MessageBox.Show($"已取消儲存！因為您未通過【{menu}】的密碼驗證。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return; 
@@ -861,7 +822,6 @@ namespace Safety_System
             try {
                 string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
                 
-                // 🟢 防呆機制：先從資料庫讀出目前所有的同步規則
                 HashSet<string> existingRules = new HashSet<string>();
                 using (var connCheck = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
                     connCheck.Open();
@@ -890,16 +850,14 @@ namespace Safety_System
 
                             if (string.IsNullOrEmpty(srcDb) || string.IsNullOrEmpty(tgtDb)) continue;
 
-                            // 🟢 防呆比對：組合出此次的檢查鍵值
                             string currentKey = $"{srcDb}|{srcTbl}|{r.CboSrcMatchCol.Text}|{r.CboSrcSyncCol.Text}|{tgtDb}|{tgtTbl}|{r.CboTgtMatchCol.Text}|{r.CboTgtSyncCol.Text}";
                             
                             if (existingRules.Contains(currentKey)) {
                                 MessageBox.Show($"偵測到重複的同步設定！\n\n來源表：【{((ItemMap)r.CboSrcTable.SelectedItem).ChName}】\n目標表：【{((ItemMap)r.CboTgtTable.SelectedItem).ChName}】\n\n您設定的相同條件與欄位已經存在於系統中。\n為了防止資料庫產生雙重計算錯誤，請勿重複新增！", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 trans.Rollback();
-                                return; // 終止寫入
+                                return; 
                             }
                             
-                            // 將剛驗證過的加入快取，避免 UI 介面上自己打了兩行一模一樣的
                             existingRules.Add(currentKey);
 
                             string sql = "INSERT INTO SyncRules (SrcDb, SrcTable, SrcMatchCol, SrcSyncCol, TgtDb, TgtTable, TgtMatchCol, TgtSyncCol, SyncType) VALUES (@SD, @ST, @SMC, @SSC, @TD, @TT, @TMC, @TSC, @Type)";
@@ -932,13 +890,32 @@ namespace Safety_System
         {
             try {
                 if (_cboTable == null || _cboCol1 == null) return;
+
+                var selectedDb = (ItemMap)_cboDb.SelectedItem;
+
+                if (selectedDb != null && selectedDb.EnName.StartsWith("Menu") && selectedDb.EnName.EndsWith("DB"))
+                {
+                    string menuName = "";
+                    if (selectedDb.EnName == "Menu1DB") menuName = "選單1";
+                    if (selectedDb.EnName == "Menu2DB") menuName = "選單2";
+                    if (selectedDb.EnName == "Menu3DB") menuName = "選單3";
+                    if (selectedDb.EnName == "Menu4DB") menuName = "選單4";
+
+                    if (!string.IsNullOrEmpty(menuName))
+                    {
+                        // 🟢 統一呼叫 AuthManager 進行密碼驗證
+                        if (!AuthManager.VerifyHiddenMenu(menuName))
+                        {
+                            _cboDb.SelectedIndex = 0; 
+                            return;
+                        }
+                    }
+                }
+
                 _cboTable.Items.Clear(); _cboCol1.Items.Clear(); _cboCol2.Items.Clear(); _cboCol3.Items.Clear(); _cboCol4.Items.Clear();
                 _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
 
-                if (_cboDb.SelectedItem == null) return;
-                
-                var selectedDb = (ItemMap)_cboDb.SelectedItem;
-                if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
+                if (selectedDb != null && !string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
                     foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
                         _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
                     }
