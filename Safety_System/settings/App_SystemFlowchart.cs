@@ -242,9 +242,9 @@ namespace Safety_System
 
             // 🟢 優化：格子高度縮減，讓同行排版更緊湊
             int nodeWidth = 280; 
-            int nodeHeight = 45; // 從 75 降到 45
+            int nodeHeight = 45; 
             int xSpacing = 420;  
-            int ySpacing = 70;   // 從 110 降到 70
+            int ySpacing = 70;   
 
             var levelGroups = _nodes.Values.GroupBy(n => n.Level).OrderBy(g => g.Key);
             
@@ -544,13 +544,13 @@ namespace Safety_System
             }
         }
 
-        // 🟢 密碼驗證方法
+        // 🟢 密碼驗證方法 (修正文字遮蔽與排版置中)
         private bool VerifyHiddenMenuPassword(string menuName)
         {
             using (Form p = new Form())
             {
-                p.Width = 460; 
-                p.Height = 220;
+                p.Width = 480;  
+                p.Height = 250; 
                 p.Text = "個人選單安全驗證";
                 p.StartPosition = FormStartPosition.CenterParent;
                 p.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -559,26 +559,28 @@ namespace Safety_System
                 p.BackColor = Color.White;
 
                 Label lbl = new Label();
-                lbl.Left = 30;
-                lbl.Top = 30;
-                lbl.Text = "查看此隱藏選單資料表，請輸入【" + menuName + "】的解鎖密碼：";
+                lbl.Left = 40;
+                lbl.Top = 25;
+                lbl.Text = "查看此隱藏選單資料表，\n請輸入【" + menuName + "】的解鎖密碼：";
                 lbl.AutoSize = true;
-                lbl.Font = new Font("Microsoft JhengHei UI", 11F);
+                lbl.Font = new Font("Microsoft JhengHei UI", 12F);
 
                 TextBox txt = new TextBox();
                 txt.PasswordChar = '*';
-                txt.Width = 250;
-                txt.Left = 30;
-                txt.Top = 70;
+                txt.Width = 280;
+                // 動態計算讓密碼框在視窗水平置中
+                txt.Left = (p.ClientSize.Width - txt.Width) / 2; 
+                txt.Top = 85;
                 txt.Font = new Font("Microsoft JhengHei UI", 14F);
 
                 Button btn = new Button();
                 btn.Text = "確認驗證";
                 btn.DialogResult = DialogResult.OK;
-                btn.Left = 160;
-                btn.Top = 120;
                 btn.Width = 120;
                 btn.Height = 40;
+                // 動態計算讓按鈕在視窗水平置中
+                btn.Left = (p.ClientSize.Width - btn.Width) / 2; 
+                btn.Top = 140;
                 btn.BackColor = Color.SteelBlue;
                 btn.ForeColor = Color.White;
                 btn.Font = new Font("Microsoft JhengHei UI", 12F);
