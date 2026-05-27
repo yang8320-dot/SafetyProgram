@@ -144,7 +144,7 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            // 2. 備份區塊 (🟢 高度加高，Y軸推移避開重疊)
+            // 2. 備份區塊
             GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (背景自動執行)", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxBackup.Margin = new Padding(0, 30, 0, 0);
 
@@ -185,7 +185,7 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, lblB4, _numIntervalDays, lblB5, btnSaveBackup, btnManualBackup });
 
-            // 3. 操作軌跡(Audit) 區塊 (🟢 高度加高，Y軸推移避開標題)
+            // 3. 操作軌跡(Audit) 區塊
             GroupBox boxAudit = new GroupBox { Text = "🕵️ 操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 540, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
             boxAudit.Margin = new Padding(0, 30, 0, 0);
 
@@ -195,14 +195,11 @@ namespace Safety_System
             Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(350, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboAuditTable = new ComboBox { Location = new Point(460, 58), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // 🟢 與下拉選單對齊 (Y=60)
             _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(740, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
 
-            // 🟢 往下推 (Y=110)
             Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 110), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnSearchAudit.Click += BtnSearchAudit_Click;
 
-            // 🟢 DGV 往下推移 (Y=170)
             _dgvAudit = new DataGridView { 
                 Location = new Point(30, 170), 
                 Size = new Size(950, 330),
@@ -863,6 +860,20 @@ namespace Safety_System
 
             try {
                 string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
+                
+                // 🟢 防呆機制：先從資料庫讀出目前所有的同步規則
+                HashSet<string> existingRules = new HashSet<string>();
+                using (var connCheck = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
+                    connCheck.Open();
+                    using (var cmdCheck = new SQLiteCommand("SELECT * FROM SyncRules", connCheck))
+                    using (var reader = cmdCheck.ExecuteReader()) {
+                        while (reader.Read()) {
+                            string key = $"{reader["SrcDb"]}|{reader["SrcTable"]}|{reader["SrcMatchCol"]}|{reader["SrcSyncCol"]}|{reader["TgtDb"]}|{reader["TgtTable"]}|{reader["TgtMatchCol"]}|{reader["TgtSyncCol"]}";
+                            existingRules.Add(key);
+                        }
+                    }
+                }
+
                 using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
@@ -878,6 +889,18 @@ namespace Safety_System
                             string tgtTbl = ((ItemMap)r.CboTgtTable.SelectedItem).EnName;
 
                             if (string.IsNullOrEmpty(srcDb) || string.IsNullOrEmpty(tgtDb)) continue;
+
+                            // 🟢 防呆比對：組合出此次的檢查鍵值
+                            string currentKey = $"{srcDb}|{srcTbl}|{r.CboSrcMatchCol.Text}|{r.CboSrcSyncCol.Text}|{tgtDb}|{tgtTbl}|{r.CboTgtMatchCol.Text}|{r.CboTgtSyncCol.Text}";
+                            
+                            if (existingRules.Contains(currentKey)) {
+                                MessageBox.Show($"偵測到重複的同步設定！\n\n來源表：【{((ItemMap)r.CboSrcTable.SelectedItem).ChName}】\n目標表：【{((ItemMap)r.CboTgtTable.SelectedItem).ChName}】\n\n您設定的相同條件與欄位已經存在於系統中。\n為了防止資料庫產生雙重計算錯誤，請勿重複新增！", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                trans.Rollback();
+                                return; // 終止寫入
+                            }
+                            
+                            // 將剛驗證過的加入快取，避免 UI 介面上自己打了兩行一模一樣的
+                            existingRules.Add(currentKey);
 
                             string sql = "INSERT INTO SyncRules (SrcDb, SrcTable, SrcMatchCol, SrcSyncCol, TgtDb, TgtTable, TgtMatchCol, TgtSyncCol, SyncType) VALUES (@SD, @ST, @SMC, @SSC, @TD, @TT, @TMC, @TSC, @Type)";
                             using (var cmd = new SQLiteCommand(sql, conn, trans)) {
