@@ -284,6 +284,18 @@ namespace Safety_System
             var menuSettings = new ToolStripMenuItem("設定");
             menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
 
+            // 🟢 新增：系統流程圖
+            var flowChartItem = new ToolStripMenuItem("系統流程圖");
+            flowChartItem.Click += (s, e) => {
+                try {
+                    ForceEndCurrentEdit(); 
+                    LoadModule(new App_SystemFlowchart().GetView());
+                } catch (Exception ex) {
+                    MessageBox.Show($"載入流程圖失敗：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(flowChartItem);
+
             var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
                 new App_MenuManager().ShowDialog(this);
