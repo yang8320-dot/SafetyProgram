@@ -507,7 +507,7 @@ namespace Safety_System
             return tv;
         }
 
-        // 🟢 攔截展開事件，進行權限驗證
+        // 🟢 攔截展開事件，呼叫統一的 AuthManager 驗證
         private void TvMenu_BeforeExpand(object sender, TreeViewCancelEventArgs e)
         {
             if (e.Node.Tag != null && e.Node.Tag.ToString().StartsWith("HiddenMenu|"))
@@ -517,88 +517,15 @@ namespace Safety_System
                 // 檢查是否已解鎖
                 if (_unlockedMenus.Contains(menuName)) return;
 
-                // 檢查是否符合預設擁有者帳號 (免密碼放行)
-                string currentUser = Environment.UserName.Trim();
-                bool isAuthorized = false;
-
-                if (menuName == "選單1" && (string.Equals(currentUser, "黃忠揚", StringComparison.OrdinalIgnoreCase) || string.Equals(currentUser, "TJ700657", StringComparison.OrdinalIgnoreCase))) isAuthorized = true;
-                else if (menuName == "選單2" && string.Equals(currentUser, "TJ700228", StringComparison.OrdinalIgnoreCase)) isAuthorized = true;
-                else if (menuName == "選單3" && string.Equals(currentUser, "TJ700533", StringComparison.OrdinalIgnoreCase)) isAuthorized = true;
-                else if (menuName == "選單4" && string.Equals(currentUser, "TJ204159", StringComparison.OrdinalIgnoreCase)) isAuthorized = true;
-
-                if (isAuthorized)
-                {
-                    _unlockedMenus.Add(menuName);
-                    return;
-                }
-
-                // 需要密碼驗證
-                if (!VerifyHiddenMenuPassword(menuName))
+                // 統一呼叫 AuthManager，包含了免密碼帳戶辨識與密碼視窗
+                if (!AuthManager.VerifyHiddenMenu(menuName))
                 {
                     e.Cancel = true; // 阻止展開
                 }
                 else
                 {
-                    _unlockedMenus.Add(menuName);
+                    _unlockedMenus.Add(menuName); // 加入快取
                 }
-            }
-        }
-
-        // 🟢 密碼驗證方法 (修正文字遮蔽與排版置中)
-        private bool VerifyHiddenMenuPassword(string menuName)
-        {
-            using (Form p = new Form())
-            {
-                p.Width = 480;  
-                p.Height = 250; 
-                p.Text = "個人選單安全驗證";
-                p.StartPosition = FormStartPosition.CenterParent;
-                p.FormBorderStyle = FormBorderStyle.FixedDialog;
-                p.MaximizeBox = false; 
-                p.MinimizeBox = false;
-                p.BackColor = Color.White;
-
-                Label lbl = new Label();
-                lbl.Left = 40;
-                lbl.Top = 25;
-                lbl.Text = "查看此隱藏選單資料表，\n請輸入【" + menuName + "】的解鎖密碼：";
-                lbl.AutoSize = true;
-                lbl.Font = new Font("Microsoft JhengHei UI", 12F);
-
-                TextBox txt = new TextBox();
-                txt.PasswordChar = '*';
-                txt.Width = 280;
-                // 動態計算讓密碼框在視窗水平置中
-                txt.Left = (p.ClientSize.Width - txt.Width) / 2; 
-                txt.Top = 85;
-                txt.Font = new Font("Microsoft JhengHei UI", 14F);
-
-                Button btn = new Button();
-                btn.Text = "確認驗證";
-                btn.DialogResult = DialogResult.OK;
-                btn.Width = 120;
-                btn.Height = 40;
-                // 動態計算讓按鈕在視窗水平置中
-                btn.Left = (p.ClientSize.Width - btn.Width) / 2; 
-                btn.Top = 140;
-                btn.BackColor = Color.SteelBlue;
-                btn.ForeColor = Color.White;
-                btn.Font = new Font("Microsoft JhengHei UI", 12F);
-
-                p.Controls.Add(lbl); 
-                p.Controls.Add(txt); 
-                p.Controls.Add(btn);
-                p.AcceptButton = btn;
-
-                if (p.ShowDialog() == DialogResult.OK)
-                {
-                    string input = txt.Text.Trim();
-                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
-                    if (unlockedMenu == menuName) return true;
-                    
-                    MessageBox.Show("【" + menuName + "】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                return false; 
             }
         }
     }
