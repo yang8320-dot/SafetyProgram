@@ -276,6 +276,7 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
+            // 🟢 圖層 1 (底層)：只負責畫線 (確保線條永遠在最底下)
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2) { CustomStartCap = new AdjustableArrowCap(5, 5, true), CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
@@ -297,22 +298,34 @@ namespace Safety_System
                     };
 
                     g.DrawLines(currentPen, points);
-
-                    SizeF tSize = g.MeasureString(edge.ShortTitle, textFont);
-                    PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 18);
-                    RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
-                    
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(240, 255, 255, 255)), bgRect);
-                    g.DrawRectangle(Pens.DarkGray, bgRect.X, bgRect.Y, bgRect.Width, bgRect.Height);
-                    
-                    Brush fBrush = edge.Category == EdgeCat.SystemSync ? Brushes.Purple : Brushes.DarkSlateGray;
-                    g.DrawString(edge.ShortTitle, textFont, fBrush, new PointF(ptText.X + 3, ptText.Y + 2));
-
-                    RectangleF hitRect = new RectangleF(bgRect.X + _graphPanel.AutoScrollPosition.X, bgRect.Y + _graphPanel.AutoScrollPosition.Y, bgRect.Width, bgRect.Height);
-                    _hoverAreas[hitRect] = edge.DetailText;
                 }
             }
 
+            // 🟢 圖層 2 (中層)：畫出所有的說明圖塊 (蓋在線條上方，並帶有部分透明度)
+            foreach (var edge in _syncEdges)
+            {
+                PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
+                SizeF tSize = g.MeasureString(edge.ShortTitle, textFont);
+                PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 18);
+                RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
+                
+                // 🟢 使用 Alpha 220 呈現微透效果，讓底下的線隱約可見，但不會干擾閱讀
+                using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
+                {
+                    g.FillRectangle(bgBrush, bgRect);
+                }
+                
+                g.DrawRectangle(Pens.DarkGray, bgRect.X, bgRect.Y, bgRect.Width, bgRect.Height);
+                
+                Brush fBrush = edge.Category == EdgeCat.SystemSync ? Brushes.Purple : Brushes.DarkSlateGray;
+                g.DrawString(edge.ShortTitle, textFont, fBrush, new PointF(ptText.X + 3, ptText.Y + 2));
+
+                // 註冊 Hover 區域
+                RectangleF hitRect = new RectangleF(bgRect.X + _graphPanel.AutoScrollPosition.X, bgRect.Y + _graphPanel.AutoScrollPosition.Y, bgRect.Width, bgRect.Height);
+                _hoverAreas[hitRect] = edge.DetailText;
+            }
+
+            // 🟢 圖層 3 (頂層)：畫所有的節點框塊
             StringFormat sfTitle = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
             StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
 
@@ -542,10 +555,4 @@ namespace Safety_System
                     string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
                     if (unlockedMenu == menuName) return true;
                     
-                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                return false; 
-            }
-        }
-    }
-}
+                    MessageBox.Sh
