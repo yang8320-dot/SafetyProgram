@@ -19,6 +19,9 @@ namespace Safety_System
 
         private Dictionary<RectangleF, string> _hoverAreas = new Dictionary<RectangleF, string>();
         private RectangleF _currentHoverRect = RectangleF.Empty;
+        
+        // 🟢 紀錄已解鎖的隱藏選單
+        private HashSet<string> _unlockedMenus = new HashSet<string>();
 
         private enum EdgeCat { CustomSync, SystemSync }
 
@@ -89,7 +92,6 @@ namespace Safety_System
             _graphPanel.Paint += GraphPanel_Paint;
             _graphPanel.MouseMove += GraphPanel_MouseMove;
             
-            // 🌟 修正按鈕寬度，避免文字截斷
             Button btnRefresh = new Button { Text = "重新整理流程圖", Size = new Size(180, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Click += (s, e) => LoadGraphData();
@@ -235,11 +237,10 @@ namespace Safety_System
                 safeguard++;
             } while (changed && safeguard < 100);
 
-            // 🌟 修正點 1：加寬節點，給予中文字更多的空間
-            int nodeWidth = 260; // 原 200 -> 改 260
-            int nodeHeight = 75; // 原 65 -> 改 75
-            int xSpacing = 400;  // X軸間距微調
-            int ySpacing = 110;  // Y軸間距微調
+            int nodeWidth = 260; 
+            int nodeHeight = 75; 
+            int xSpacing = 400;  
+            int ySpacing = 110;  
 
             var levelGroups = _nodes.Values.GroupBy(n => n.Level).OrderBy(g => g.Key);
             
@@ -275,7 +276,6 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 1. 繪製連線 (直角折線)
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2) { CustomStartCap = new AdjustableArrowCap(5, 5, true), CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
@@ -313,8 +313,6 @@ namespace Safety_System
                 }
             }
 
-            // 2. 繪製節點
-            // 🌟 修正點 2：加入字串格式的防溢出保護機制 (EllipsisCharacter)
             StringFormat sfTitle = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
             StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
 
@@ -341,7 +339,6 @@ namespace Safety_System
                     string badgeText = "[背景運算]";
                     SizeF bSize = g.MeasureString(badgeText, textFont);
                     
-                    // 🌟 修正點 3：將運算徽章微調，稍微往上與往左移一點，確保絕對不蓋字
                     RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width - 8, rect.Bottom - bSize.Height - 4, bSize.Width + 4, bSize.Height + 2);
                     
                     using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
@@ -411,6 +408,9 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 12F)
             };
             
+            // 🟢 綁定展開前事件，處理隱藏選單密碼驗證
+            tv.BeforeExpand += TvMenu_BeforeExpand;
+
             TreeNode rootNode = new TreeNode("Safety System 實體資料庫與對應資料表總覽");
 
             try
@@ -423,6 +423,18 @@ namespace Safety_System
                     string dbChName = kvp.Value.ChDbName;
 
                     TreeNode dbNode = new TreeNode($"[資料庫] {dbChName} ({dbEnName}.sqlite)") { ForeColor = Color.DarkSlateBlue };
+
+                    // 🟢 判斷並設定隱藏選單的標籤 (Tag)
+                    if (dbEnName.StartsWith("Menu") && dbEnName.EndsWith("DB"))
+                    {
+                        string menuName = "";
+                        if (dbEnName == "Menu1DB") menuName = "選單1";
+                        if (dbEnName == "Menu2DB") menuName = "選單2";
+                        if (dbEnName == "Menu3DB") menuName = "選單3";
+                        if (dbEnName == "Menu4DB") menuName = "選單4";
+                        
+                        dbNode.Tag = "HiddenMenu|" + menuName;
+                    }
 
                     foreach (var tb in kvp.Value.Tables)
                     {
@@ -448,9 +460,92 @@ namespace Safety_System
             catch { }
 
             tv.Nodes.Add(rootNode);
+            
+            // 展開所有節點
             rootNode.ExpandAll();
 
+            // 🟢 將標記為隱藏的選單收合起來
+            foreach (TreeNode dbNode in rootNode.Nodes)
+            {
+                if (dbNode.Tag != null && dbNode.Tag.ToString().StartsWith("HiddenMenu|"))
+                {
+                    dbNode.Collapse();
+                }
+            }
+
             return tv;
+        }
+
+        // 🟢 攔截展開事件，進行權限驗證
+        private void TvMenu_BeforeExpand(object sender, TreeViewCancelEventArgs e)
+        {
+            if (e.Node.Tag != null && e.Node.Tag.ToString().StartsWith("HiddenMenu|"))
+            {
+                string menuName = e.Node.Tag.ToString().Split('|')[1];
+                
+                // 檢查是否已解鎖
+                if (_unlockedMenus.Contains(menuName)) return;
+
+                // 檢查是否符合預設擁有者帳號 (免密碼放行)
+                string currentUser = Environment.UserName.Trim();
+                bool isAuthorized = false;
+
+                if (menuName == "選單1" && (string.Equals(currentUser, "黃忠揚", StringComparison.OrdinalIgnoreCase) || string.Equals(currentUser, "TJ700657", StringComparison.OrdinalIgnoreCase))) isAuthorized = true;
+                else if (menuName == "選單2" && string.Equals(currentUser, "TJ700228", StringComparison.OrdinalIgnoreCase)) isAuthorized = true;
+                else if (menuName == "選單3" && string.Equals(currentUser, "TJ700533", StringComparison.OrdinalIgnoreCase)) isAuthorized = true;
+                else if (menuName == "選單4" && string.Equals(currentUser, "TJ204159", StringComparison.OrdinalIgnoreCase)) isAuthorized = true;
+
+                if (isAuthorized)
+                {
+                    _unlockedMenus.Add(menuName);
+                    return;
+                }
+
+                // 需要密碼驗證
+                if (!VerifyHiddenMenuPassword(menuName))
+                {
+                    e.Cancel = true; // 阻止展開
+                }
+                else
+                {
+                    _unlockedMenus.Add(menuName);
+                }
+            }
+        }
+
+        // 🟢 密碼驗證方法
+        private bool VerifyHiddenMenuPassword(string menuName)
+        {
+            using (Form p = new Form())
+            {
+                p.Width = 460; 
+                p.Height = 220;
+                p.Text = "個人選單安全驗證";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+                p.BackColor = Color.White;
+
+                Label lbl = new Label() { Left = 30, Top = 30, Text = $"查看此隱藏選單資料表，請輸入【{menuName}】的解鎖密碼：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog() == DialogResult.OK)
+                {
+                    string input = txt.Text.Trim();
+                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
+                    if (unlockedMenu == menuName) return true;
+                    
+                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return false; 
+            }
         }
     }
 }
