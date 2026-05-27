@@ -1,4 +1,4 @@
-/// FILE: Safety_System/AuthManager.cs ///
+/// FILE: Safety_System/settings/AuthManager.cs ///
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -66,7 +66,67 @@ namespace Safety_System
             return true;
         }
 
-        // 🟢 核心視窗邏輯：加入驗證失敗彈窗與重試機制
+        // ====================================================================
+        // 🟢 全新集中管理：個人隱藏選單專用驗證邏輯
+        // ====================================================================
+        public static bool VerifyHiddenMenu(string menuName)
+        {
+            // 1. 檢查是否符合預設擁有者帳號 (免密碼放行)
+            string currentUser = Environment.UserName.Trim();
+            if (menuName == "選單1" && (string.Equals(currentUser, "黃忠揚", StringComparison.OrdinalIgnoreCase) || string.Equals(currentUser, "TJ700657", StringComparison.OrdinalIgnoreCase))) return true;
+            if (menuName == "選單2" && string.Equals(currentUser, "TJ700228", StringComparison.OrdinalIgnoreCase)) return true;
+            if (menuName == "選單3" && string.Equals(currentUser, "TJ700533", StringComparison.OrdinalIgnoreCase)) return true;
+            if (menuName == "選單4" && string.Equals(currentUser, "TJ204159", StringComparison.OrdinalIgnoreCase)) return true;
+
+            // 2. 若非作者本人，則彈出專屬驗證視窗 (修正排版置中與防遮蔽)
+            using (Form p = new Form())
+            {
+                p.Width = 480;  
+                p.Height = 250; 
+                p.Text = "個人選單安全驗證";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+                p.BackColor = Color.White;
+
+                Label lbl = new Label { 
+                    Left = 40, Top = 25, AutoSize = true, 
+                    Text = "查看此隱藏選單資料表，\n請輸入【" + menuName + "】的解鎖密碼：", 
+                    Font = new Font("Microsoft JhengHei UI", 12F) 
+                };
+
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 280, Top = 85, Font = new Font("Microsoft JhengHei UI", 14F) };
+                txt.Left = (p.ClientSize.Width - txt.Width) / 2; // 水平置中
+
+                Button btn = new Button { 
+                    Text = "確認驗證", DialogResult = DialogResult.OK, 
+                    Width = 120, Height = 40, Top = 140, 
+                    BackColor = Color.SteelBlue, ForeColor = Color.White, 
+                    Font = new Font("Microsoft JhengHei UI", 12F) 
+                };
+                btn.Left = (p.ClientSize.Width - btn.Width) / 2; // 水平置中
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog(Form.ActiveForm) == DialogResult.OK)
+                {
+                    string input = txt.Text.Trim();
+                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
+                    if (unlockedMenu == menuName) return true;
+                    
+                    MessageBox.Show("【" + menuName + "】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return false; 
+            }
+        }
+
+        // ====================================================================
+        // 核心視窗邏輯：加入驗證失敗彈窗與重試機制
+        // ====================================================================
         private static bool ShowAuthDialog(string prompt, Func<string, bool> validator)
         {
             using (Form p = new Form())
@@ -91,7 +151,6 @@ namespace Safety_System
                         isAuthorized = true;
                         p.DialogResult = DialogResult.OK;
                     } else {
-                        // 🟢 密碼錯誤對話窗，不關閉驗證視窗，清空後重試
                         MessageBox.Show("密碼錯誤！授權失敗，請重新輸入！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         txt.Clear();
                         txt.Focus();
@@ -101,7 +160,7 @@ namespace Safety_System
                 p.Controls.Add(lbl); 
                 p.Controls.Add(txt); 
                 p.Controls.Add(btn);
-                p.AcceptButton = btn; // 綁定 Enter 鍵觸發按鈕
+                p.AcceptButton = btn; 
 
                 p.ShowDialog(Form.ActiveForm);
                 return isAuthorized;
