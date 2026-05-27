@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
@@ -23,8 +24,10 @@ namespace Safety_System
 
         private class Node
         {
-            public string DbName { get; set; }
-            public string TableName { get; set; }
+            public string SystemDbName { get; set; }
+            public string SystemTableName { get; set; }
+            public string ChDbName { get; set; }   // 顯示用中文庫名
+            public string ChTableName { get; set; } // 顯示用中文表名
             public RectangleF Bounds { get; set; }
             public int Level { get; set; } = 0; 
             public bool HasBackgroundCalc { get; set; } 
@@ -54,7 +57,6 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 1. 標題區 (移除所有 Emoji 避免方塊亂碼)
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 90, BackColor = Color.White };
             pnlHeader.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlHeader.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
@@ -78,7 +80,6 @@ namespace Safety_System
             pnlHeader.Controls.Add(lblLegend);
             mainLayout.Controls.Add(pnlHeader, 0, 0);
 
-            // 2. 內容區
             TabControl tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), Padding = new Point(15, 8) };
 
             TabPage tabGraph = new TabPage("資料轉換與寫入流程圖 (動態繪製)");
@@ -88,7 +89,7 @@ namespace Safety_System
             _graphPanel.Paint += GraphPanel_Paint;
             _graphPanel.MouseMove += GraphPanel_MouseMove;
             
-            Button btnRefresh = new Button { Text = "重新整理流程圖", Size = new Size(150, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnRefresh = new Button { Text = "重新整理流程", Size = new Size(130, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Click += (s, e) => LoadGraphData();
 
@@ -110,19 +111,26 @@ namespace Safety_System
             return mainLayout;
         }
 
-        // ==========================================
-        // 資料讀取與節點建構
-        // ==========================================
         private void LoadGraphData()
         {
             _nodes.Clear();
             _syncEdges.Clear();
 
-            // 1. 讀取使用者自訂同步規則 (SyncRules)
+            // 1. 讀取使用者自訂同步規則 (直連 SysConfigDbPath 解決路徑問題)
             try
             {
-                DataTable dtSync = DataManager.GetTableData("SystemConfig", "SyncRules", "", "", "");
-                if (dtSync != null && dtSync.Rows.Count > 0)
+                DataTable dtSync = new DataTable();
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;"))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM SyncRules", conn))
+                    using (var da = new SQLiteDataAdapter(cmd))
+                    {
+                        da.Fill(dtSync);
+                    }
+                }
+
+                if (dtSync.Rows.Count > 0)
                 {
                     foreach (DataRow row in dtSync.Rows)
                     {
@@ -162,8 +170,9 @@ namespace Safety_System
             string[] waterTables = { "WaterMeterReadings", "WaterUsageDaily" };
             foreach(var wTb in waterTables)
             {
-                EnsureNode("Water", wTb).HasBackgroundCalc = true;
-                EnsureNode("Water", wTb).CalcDetail = "存檔時自動尋找下一筆紀錄\n執行 (Next - Target) 差值運算\n產生(日/月統計)並回填入原資料列";
+                Node wNode = EnsureNode("Water", wTb);
+                wNode.HasBackgroundCalc = true;
+                wNode.CalcDetail = "存檔時自動尋找下一筆紀錄\n執行 (Next - Target) 差值運算\n產生(日/月統計)並回填入原資料列";
             }
 
             CalculateNodeLayout();
@@ -173,7 +182,27 @@ namespace Safety_System
         private Node EnsureNode(string db, string tb)
         {
             string key = $"{db}.{tb}";
-            if (!_nodes.ContainsKey(key)) _nodes[key] = new Node { DbName = db, TableName = tb };
+            if (!_nodes.ContainsKey(key)) 
+            {
+                string chDb = db;
+                string chTb = tb;
+
+                // 從 App_DbConfig 撈出中文對照表
+                var dbMap = App_DbConfig.GetDbMapCache();
+                if (dbMap.ContainsKey(db)) {
+                    chDb = dbMap[db].ChDbName;
+                    if (dbMap[db].Tables.ContainsKey(tb)) {
+                        chTb = dbMap[db].Tables[tb];
+                    }
+                }
+
+                _nodes[key] = new Node { 
+                    SystemDbName = db, 
+                    SystemTableName = tb,
+                    ChDbName = chDb,
+                    ChTableName = chTb
+                };
+            }
             return _nodes[key];
         }
 
@@ -193,7 +222,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 緊湊排版引擎 (解決文字重疊)
+        // 緊湊排版引擎 (大幅壓縮版面寬度)
         // ==========================================
         private void CalculateNodeLayout()
         {
@@ -212,11 +241,11 @@ namespace Safety_System
                 safeguard++;
             } while (changed && safeguard < 100);
 
-            // 🌟 極致優化：增加 Y 軸間距，讓多行文字絕對不會互相重疊
+            // 🌟 縮減節點寬度與 X軸間距，讓畫面更緊湊
             int nodeWidth = 200;
-            int nodeHeight = 70;
-            int xSpacing = 380; 
-            int ySpacing = 160; // 將高度間距拉開，文字框高度約 60px，160 能完美錯開
+            int nodeHeight = 65;
+            int xSpacing = 300; // X軸寬度壓縮
+            int ySpacing = 95;  // Y軸高度壓縮
 
             var levelGroups = _nodes.Values.GroupBy(n => n.Level).OrderBy(g => g.Key);
             
@@ -233,13 +262,13 @@ namespace Safety_System
                 }
             }
 
-            int maxX = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Right) + 200 : 800;
-            int maxY = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Bottom) + 200 : 600;
+            int maxX = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Right) + 150 : 800;
+            int maxY = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Bottom) + 150 : 600;
             _graphPanel.AutoScrollMinSize = new Size(maxX, maxY);
         }
 
         // ==========================================
-        // 繪圖引擎
+        // 繪圖引擎 (直角折線)
         // ==========================================
         private void GraphPanel_Paint(object sender, PaintEventArgs e)
         {
@@ -255,7 +284,7 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 1. 繪製連線
+            // 1. 繪製連線 (🌟 改用折線 DrawLines 呈現科技感)
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2) { CustomStartCap = new AdjustableArrowCap(5, 5, true), CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
@@ -268,30 +297,34 @@ namespace Safety_System
                     PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
                     PointF ptEnd = new PointF(edge.Target.Bounds.Left, edge.Target.Bounds.Top + edge.Target.Bounds.Height / 2);
 
-                    float offset = 100;
-                    PointF ctrl1 = new PointF(ptStart.X + offset, ptStart.Y);
-                    PointF ctrl2 = new PointF(ptEnd.X - offset, ptEnd.Y);
+                    // 繪製直角折線
+                    float midX = ptStart.X + (ptEnd.X - ptStart.X) / 2;
+                    PointF[] points = {
+                        ptStart,
+                        new PointF(midX, ptStart.Y),
+                        new PointF(midX, ptEnd.Y),
+                        ptEnd
+                    };
 
-                    g.DrawBezier(currentPen, ptStart, ctrl1, ctrl2, ptEnd);
+                    g.DrawLines(currentPen, points);
 
-                    // 繪製短標籤 (不再繪製長篇大論)
+                    // 繪製短標籤 (綁定在折線的第一段水平線上)
                     SizeF tSize = g.MeasureString(edge.ShortTitle, textFont);
-                    PointF ptText = new PointF(ptStart.X + 20, ptStart.Y - 12);
+                    PointF ptText = new PointF(ptStart.X + 10, ptStart.Y - 18);
                     RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
                     
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(245, 255, 255, 255)), bgRect);
+                    g.FillRectangle(new SolidBrush(Color.FromArgb(240, 255, 255, 255)), bgRect);
                     g.DrawRectangle(Pens.DarkGray, bgRect.X, bgRect.Y, bgRect.Width, bgRect.Height);
                     
                     Brush fBrush = edge.Category == EdgeCat.SystemSync ? Brushes.Purple : Brushes.DarkSlateGray;
                     g.DrawString(edge.ShortTitle, textFont, fBrush, new PointF(ptText.X + 3, ptText.Y + 2));
 
-                    // 將長篇文字塞入隱形熱區，等待滑鼠懸停
                     RectangleF hitRect = new RectangleF(bgRect.X + _graphPanel.AutoScrollPosition.X, bgRect.Y + _graphPanel.AutoScrollPosition.Y, bgRect.Width, bgRect.Height);
                     _hoverAreas[hitRect] = edge.DetailText;
                 }
             }
 
-            // 2. 繪製節點
+            // 2. 繪製節點 (全面顯示中文名稱)
             foreach (var node in _nodes.Values)
             {
                 Rectangle rect = Rectangle.Round(node.Bounds);
@@ -305,10 +338,10 @@ namespace Safety_System
                 }
 
                 RectangleF rectTitle = new RectangleF(rect.X, rect.Y + 8, rect.Width, 20);
-                g.DrawString($"[{node.DbName}]", new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Brushes.SlateGray, rectTitle, new StringFormat { Alignment = StringAlignment.Center });
+                g.DrawString($"[{node.ChDbName}]", new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Brushes.SlateGray, rectTitle, new StringFormat { Alignment = StringAlignment.Center });
 
-                RectangleF rectBody = new RectangleF(rect.X, rect.Y + 30, rect.Width, 25);
-                g.DrawString(node.TableName, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Brushes.Black, rectBody, new StringFormat { Alignment = StringAlignment.Center });
+                RectangleF rectBody = new RectangleF(rect.X, rect.Y + 28, rect.Width, 25);
+                g.DrawString(node.ChTableName, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Brushes.Black, rectBody, new StringFormat { Alignment = StringAlignment.Center });
 
                 if (node.HasBackgroundCalc)
                 {
@@ -372,12 +405,8 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 樹狀選單 (完整對應實體庫與資料表)
-        // ==========================================
         private TreeView BuildMenuTreeView()
         {
-            // 🌟 修正：取消 NodeFont 強制覆寫，改為在 TreeView 全域設定 Font，解決標題被切斷的 Bug
             TreeView tv = new TreeView 
             { 
                 Dock = DockStyle.Fill, 
@@ -391,7 +420,6 @@ namespace Safety_System
 
             try
             {
-                // 讀取 App_DbConfig 中的實體資料庫結構
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 foreach (var kvp in dbMap)
@@ -411,7 +439,6 @@ namespace Safety_System
                     rootNode.Nodes.Add(dbNode);
                 }
 
-                // 加入外部應用程式連結
                 TreeNode appLinkNode = new TreeNode("[外掛] 外部應用連結 (AppLinks)") { ForeColor = Color.DarkOliveGreen };
                 DataTable dtLinks = DataManager.GetTableData("SystemConfig", "AppLinks", "", "", "");
                 if (dtLinks != null)
