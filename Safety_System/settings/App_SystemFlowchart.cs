@@ -16,7 +16,6 @@ namespace Safety_System
         private List<SyncEdge> _syncEdges = new List<SyncEdge>();
         private Dictionary<string, Node> _nodes = new Dictionary<string, Node>();
 
-        // 用於滑鼠懸停偵測的熱區
         private Dictionary<RectangleF, string> _hoverAreas = new Dictionary<RectangleF, string>();
         private RectangleF _currentHoverRect = RectangleF.Empty;
 
@@ -28,17 +27,16 @@ namespace Safety_System
             public string TableName { get; set; }
             public RectangleF Bounds { get; set; }
             public int Level { get; set; } = 0; 
-            public bool HasBackgroundCalc { get; set; } // 是否有背景自動運算
+            public bool HasBackgroundCalc { get; set; } 
             public string CalcDetail { get; set; }
-            public RectangleF BadgeBounds { get; set; } // 運算徽章的點擊熱區
         }
 
         private class SyncEdge
         {
             public Node Source { get; set; }
             public Node Target { get; set; }
-            public string ShortTitle { get; set; } // 畫面上顯示的短文字
-            public string DetailText { get; set; } // 滑鼠停上去才顯示的長文字
+            public string ShortTitle { get; set; } 
+            public string DetailText { get; set; } 
             public EdgeCat Category { get; set; }
         }
 
@@ -56,23 +54,23 @@ namespace Safety_System
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 1. 標題區
-            Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 80, BackColor = Color.White };
+            // 1. 標題區 (移除所有 Emoji 避免方塊亂碼)
+            Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 90, BackColor = Color.White };
             pnlHeader.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlHeader.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
             Label lblTitle = new Label { 
                 Text = "系統動態流程與架構圖", 
-                Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), 
+                Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold), 
                 ForeColor = Color.DarkSlateBlue, 
-                Location = new Point(20, 10), 
+                Location = new Point(20, 15), 
                 AutoSize = true 
             };
             
             Label lblLegend = new Label {
-                Text = "💡 提示：滑鼠停留在【連線標籤】或【⚙️運算徽章】上，可查看詳細轉換規則。    [藍色] 自訂單向    [橘色] 自訂雙向    [紫色] 系統強制聚合",
-                Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold),
+                Text = "提示：滑鼠停留在【連線標籤】或【背景運算】上，可查看詳細轉換規則。    [藍色] 自訂單向    [橘色] 自訂雙向    [紫色] 系統強制聚合",
+                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
                 ForeColor = Color.DimGray,
-                Location = new Point(25, 45),
+                Location = new Point(25, 55),
                 AutoSize = true
             };
 
@@ -81,7 +79,7 @@ namespace Safety_System
             mainLayout.Controls.Add(pnlHeader, 0, 0);
 
             // 2. 內容區
-            TabControl tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Point(15, 8) };
+            TabControl tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), Padding = new Point(15, 8) };
 
             TabPage tabGraph = new TabPage("資料轉換與寫入流程圖 (動態繪製)");
             tabGraph.BackColor = Color.White;
@@ -90,14 +88,14 @@ namespace Safety_System
             _graphPanel.Paint += GraphPanel_Paint;
             _graphPanel.MouseMove += GraphPanel_MouseMove;
             
-            Button btnRefresh = new Button { Text = "重新整理", Size = new Size(120, 35), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnRefresh = new Button { Text = "重新整理流程圖", Size = new Size(150, 40), Location = new Point(20, 15), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Click += (s, e) => LoadGraphData();
 
             _graphPanel.Controls.Add(btnRefresh);
             tabGraph.Controls.Add(_graphPanel);
 
-            TabPage tabTree = new TabPage("系統選單與實體資料庫總覽");
+            TabPage tabTree = new TabPage("系統實體資料庫與資料表總覽");
             tabTree.BackColor = Color.White;
             TreeView tvMenu = BuildMenuTreeView();
             tabTree.Controls.Add(tvMenu);
@@ -120,7 +118,7 @@ namespace Safety_System
             _nodes.Clear();
             _syncEdges.Clear();
 
-            // 1. 自訂同步規則 (SyncRules)
+            // 1. 讀取使用者自訂同步規則 (SyncRules)
             try
             {
                 DataTable dtSync = DataManager.GetTableData("SystemConfig", "SyncRules", "", "", "");
@@ -152,7 +150,7 @@ namespace Safety_System
             }
             catch { }
 
-            // 2. 系統強制聚合流程 (LawLogic)
+            // 2. 系統強制聚合流程
             string[] lawTables = { "環保法規", "職安衛法規", "消防法規", "其它法規" };
             foreach(var lawTb in lawTables)
             {
@@ -160,7 +158,7 @@ namespace Safety_System
                         $"掃描同法規名稱進行歸類聚合\n提取最新日期與最高適用性回填", EdgeCat.SystemSync);
             }
 
-            // 3. 系統內部運算 (不再畫連線，改為設定 Node 屬性)
+            // 3. 系統內部運算
             string[] waterTables = { "WaterMeterReadings", "WaterUsageDaily" };
             foreach(var wTb in waterTables)
             {
@@ -195,7 +193,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 緊湊型排版引擎
+        // 緊湊排版引擎 (解決文字重疊)
         // ==========================================
         private void CalculateNodeLayout()
         {
@@ -214,15 +212,15 @@ namespace Safety_System
                 safeguard++;
             } while (changed && safeguard < 100);
 
-            // 🌟 極致瘦身：節點變小，間距大幅縮短
-            int nodeWidth = 180;
-            int nodeHeight = 65;
-            int xSpacing = 280; // 原 550 -> 改 280
-            int ySpacing = 100; // 原 220 -> 改 100
+            // 🌟 極致優化：增加 Y 軸間距，讓多行文字絕對不會互相重疊
+            int nodeWidth = 200;
+            int nodeHeight = 70;
+            int xSpacing = 380; 
+            int ySpacing = 160; // 將高度間距拉開，文字框高度約 60px，160 能完美錯開
 
             var levelGroups = _nodes.Values.GroupBy(n => n.Level).OrderBy(g => g.Key);
             
-            int startX = 50;
+            int startX = 40;
             int startY = 80; 
 
             foreach (var group in levelGroups)
@@ -235,13 +233,13 @@ namespace Safety_System
                 }
             }
 
-            int maxX = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Right) + 150 : 800;
-            int maxY = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Bottom) + 150 : 600;
+            int maxX = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Right) + 200 : 800;
+            int maxY = _nodes.Count > 0 ? (int)_nodes.Values.Max(n => n.Bounds.Bottom) + 200 : 600;
             _graphPanel.AutoScrollMinSize = new Size(maxX, maxY);
         }
 
         // ==========================================
-        // 繪圖引擎 (結合熱區偵測)
+        // 繪圖引擎
         // ==========================================
         private void GraphPanel_Paint(object sender, PaintEventArgs e)
         {
@@ -249,7 +247,7 @@ namespace Safety_System
             g.SmoothingMode = SmoothingMode.HighQuality;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            _hoverAreas.Clear(); // 清空熱區
+            _hoverAreas.Clear(); 
 
             if (_nodes.Count == 0) return;
 
@@ -257,7 +255,7 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 1. 繪製連線與精簡標籤
+            // 1. 繪製連線
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2) { CustomStartCap = new AdjustableArrowCap(5, 5, true), CustomEndCap = new AdjustableArrowCap(5, 5, true) })
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2) { CustomEndCap = new AdjustableArrowCap(5, 5, true) })
@@ -270,30 +268,30 @@ namespace Safety_System
                     PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
                     PointF ptEnd = new PointF(edge.Target.Bounds.Left, edge.Target.Bounds.Top + edge.Target.Bounds.Height / 2);
 
-                    float offset = 80; // 線條彎曲度改小，看起來更緊湊
+                    float offset = 100;
                     PointF ctrl1 = new PointF(ptStart.X + offset, ptStart.Y);
                     PointF ctrl2 = new PointF(ptEnd.X - offset, ptEnd.Y);
 
                     g.DrawBezier(currentPen, ptStart, ctrl1, ctrl2, ptEnd);
 
-                    // 繪製短標籤 (並註冊熱區)
+                    // 繪製短標籤 (不再繪製長篇大論)
                     SizeF tSize = g.MeasureString(edge.ShortTitle, textFont);
-                    PointF ptText = new PointF(ptStart.X + 25, ptStart.Y - 15);
+                    PointF ptText = new PointF(ptStart.X + 20, ptStart.Y - 12);
                     RectangleF bgRect = new RectangleF(ptText.X, ptText.Y, tSize.Width + 6, tSize.Height + 4);
                     
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(240, 255, 255, 255)), bgRect);
-                    g.DrawRectangle(Pens.Gray, bgRect.X, bgRect.Y, bgRect.Width, bgRect.Height);
+                    g.FillRectangle(new SolidBrush(Color.FromArgb(245, 255, 255, 255)), bgRect);
+                    g.DrawRectangle(Pens.DarkGray, bgRect.X, bgRect.Y, bgRect.Width, bgRect.Height);
                     
                     Brush fBrush = edge.Category == EdgeCat.SystemSync ? Brushes.Purple : Brushes.DarkSlateGray;
                     g.DrawString(edge.ShortTitle, textFont, fBrush, new PointF(ptText.X + 3, ptText.Y + 2));
 
-                    // 加入熱區字典 (需扣除 Scroll 偏移量以對應真實滑鼠座標)
+                    // 將長篇文字塞入隱形熱區，等待滑鼠懸停
                     RectangleF hitRect = new RectangleF(bgRect.X + _graphPanel.AutoScrollPosition.X, bgRect.Y + _graphPanel.AutoScrollPosition.Y, bgRect.Width, bgRect.Height);
                     _hoverAreas[hitRect] = edge.DetailText;
                 }
             }
 
-            // 2. 繪製精簡節點
+            // 2. 繪製節點
             foreach (var node in _nodes.Values)
             {
                 Rectangle rect = Rectangle.Round(node.Bounds);
@@ -307,15 +305,14 @@ namespace Safety_System
                 }
 
                 RectangleF rectTitle = new RectangleF(rect.X, rect.Y + 8, rect.Width, 20);
-                g.DrawString($"[{node.DbName}]", new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold), Brushes.SlateGray, rectTitle, new StringFormat { Alignment = StringAlignment.Center });
+                g.DrawString($"[{node.DbName}]", new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Brushes.SlateGray, rectTitle, new StringFormat { Alignment = StringAlignment.Center });
 
-                RectangleF rectBody = new RectangleF(rect.X, rect.Y + 28, rect.Width, 25);
-                g.DrawString(node.TableName, new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Brushes.Black, rectBody, new StringFormat { Alignment = StringAlignment.Center });
+                RectangleF rectBody = new RectangleF(rect.X, rect.Y + 30, rect.Width, 25);
+                g.DrawString(node.TableName, new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Brushes.Black, rectBody, new StringFormat { Alignment = StringAlignment.Center });
 
-                // 🌟 新增：如果節點有背景運算，繪製徽章 (Badge) 取代自我迴圈連線
                 if (node.HasBackgroundCalc)
                 {
-                    string badgeText = "⚙️ 背景運算";
+                    string badgeText = "[背景運算]";
                     SizeF bSize = g.MeasureString(badgeText, textFont);
                     RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width - 10, rect.Bottom - bSize.Height - 5, bSize.Width + 6, bSize.Height + 2);
                     
@@ -343,9 +340,6 @@ namespace Safety_System
             return path;
         }
 
-        // ==========================================
-        // 互動事件：滑鼠懸停顯示詳細說明 Tooltip
-        // ==========================================
         private void GraphPanel_MouseMove(object sender, MouseEventArgs e)
         {
             Point mousePt = e.Location;
@@ -358,7 +352,6 @@ namespace Safety_System
                     isHit = true;
                     _graphPanel.Cursor = Cursors.Help;
 
-                    // 避免重複閃爍 Tooltip
                     if (_currentHoverRect != kvp.Key)
                     {
                         _currentHoverRect = kvp.Key;
@@ -380,52 +373,61 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 樹狀選單 (保留原樣)
+        // 樹狀選單 (完整對應實體庫與資料表)
         // ==========================================
         private TreeView BuildMenuTreeView()
         {
-            TreeView tv = new TreeView { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, ItemHeight = 30, Margin = new Padding(10) };
-            TreeNode rootNode = new TreeNode("Safety System 核心選單對應資料庫結構") { NodeFont = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-
-            Dictionary<string, TreeNode> categoryNodes = new Dictionary<string, TreeNode>();
-            string[] standardCategories = { "日常作業", "工安", "化學品", "護理", "空污", "水污", "廢棄物", "消防", "檢測數據", "教育訓練", "法規", "ESG", "ISO14001" };
-
-            foreach (string cat in standardCategories)
-            {
-                TreeNode catNode = new TreeNode($"[{cat}]") { NodeFont = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-                categoryNodes[cat] = catNode;
-                rootNode.Nodes.Add(catNode);
-            }
+            // 🌟 修正：取消 NodeFont 強制覆寫，改為在 TreeView 全域設定 Font，解決標題被切斷的 Bug
+            TreeView tv = new TreeView 
+            { 
+                Dock = DockStyle.Fill, 
+                BorderStyle = BorderStyle.None, 
+                ItemHeight = 28, 
+                Margin = new Padding(10),
+                Font = new Font("Microsoft JhengHei UI", 12F)
+            };
+            
+            TreeNode rootNode = new TreeNode("Safety System 實體資料庫與對應資料表總覽");
 
             try
             {
-                DataTable dtMenus = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
-                if (dtMenus != null)
+                // 讀取 App_DbConfig 中的實體資料庫結構
+                var dbMap = App_DbConfig.GetDbMapCache();
+
+                foreach (var kvp in dbMap)
                 {
-                    foreach (DataRow row in dtMenus.Rows)
+                    string dbEnName = kvp.Key;
+                    string dbChName = kvp.Value.ChDbName;
+
+                    TreeNode dbNode = new TreeNode($"[資料庫] {dbChName} ({dbEnName}.sqlite)") { ForeColor = Color.DarkSlateBlue };
+
+                    foreach (var tb in kvp.Value.Tables)
                     {
-                        string category = row["分類"].ToString();
-                        string dbName = row["資料庫名"].ToString();
-                        string tableName = row["資料表名"].ToString();
+                        string tbEnName = tb.Key;
+                        string tbChName = tb.Value;
+                        TreeNode tbNode = new TreeNode($"- {tbChName} ({tbEnName})");
+                        dbNode.Nodes.Add(tbNode);
+                    }
+                    rootNode.Nodes.Add(dbNode);
+                }
 
-                        TreeNode menuNode = new TreeNode($"- {tableName} (庫: {dbName})");
-
-                        if (categoryNodes.ContainsKey(category)) categoryNodes[category].Nodes.Add(menuNode);
-                        else {
-                            if (!categoryNodes.ContainsKey(category)) {
-                                TreeNode newCatNode = new TreeNode($"[隱藏] {category}") { ForeColor = Color.Crimson };
-                                categoryNodes[category] = newCatNode;
-                                rootNode.Nodes.Add(newCatNode);
-                            }
-                            categoryNodes[category].Nodes.Add(menuNode);
-                        }
+                // 加入外部應用程式連結
+                TreeNode appLinkNode = new TreeNode("[外掛] 外部應用連結 (AppLinks)") { ForeColor = Color.DarkOliveGreen };
+                DataTable dtLinks = DataManager.GetTableData("SystemConfig", "AppLinks", "", "", "");
+                if (dtLinks != null)
+                {
+                    foreach (DataRow row in dtLinks.Rows)
+                    {
+                        appLinkNode.Nodes.Add(new TreeNode($"> {row["選單名稱"]} -> 路徑: {row["執行路徑"]}"));
                     }
                 }
+                rootNode.Nodes.Add(appLinkNode);
             }
             catch { }
 
             tv.Nodes.Add(rootNode);
             rootNode.ExpandAll();
+
             return tv;
         }
     }
