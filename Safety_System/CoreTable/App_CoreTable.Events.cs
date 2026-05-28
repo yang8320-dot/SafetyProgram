@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Linq; // 🟢 修正：加入 Linq 命名空間以支援 ToArray()
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -392,6 +393,7 @@ namespace Safety_System
                         });
                     }
 
+                    _dgv.Visible = false;
                     UnfreezeAllColumns();
                     _isApplyingWidths = true;
                     _dgv.SuspendLayout();
@@ -403,6 +405,7 @@ namespace Safety_System
                     ApplyFreezeState();
 
                     _dgv.ResumeLayout(true);
+                    _dgv.Visible = true;
                     _isApplyingWidths = false;
                     _isBulkUpdating = false; 
 
@@ -678,7 +681,7 @@ namespace Safety_System
                             uniqueItems.Add(currentVal.ToString());
                         }
 
-                        // 🟢 將不重複的選項轉為陣列後一次性綁定 (取代原本的 cbo.Items.AddRange，大幅提升效能)
+                        // 🟢 將不重複的選項轉為陣列後一次性綁定
                         var finalArray = uniqueItems.ToArray();
                         cbo.DataSource = finalArray;
 
