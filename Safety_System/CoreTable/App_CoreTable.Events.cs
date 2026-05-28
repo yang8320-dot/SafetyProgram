@@ -603,6 +603,7 @@ namespace Safety_System
                     });
                 }
 
+                _dgv.Visible = false;
                 UnfreezeAllColumns();
                 _isApplyingWidths = true;
                 _dgv.SuspendLayout();
@@ -614,6 +615,7 @@ namespace Safety_System
                 ApplyFreezeState();
 
                 _dgv.ResumeLayout(true);
+                _dgv.Visible = true;
                 _isApplyingWidths = false;
                 _isBulkUpdating = false; 
             }
@@ -669,8 +671,20 @@ namespace Safety_System
                     if (items != null) { 
                         object currentVal = _dgv.CurrentCell.Value; 
                         cbo.Items.Clear(); 
-                        cbo.Items.AddRange(items); 
-                        if (currentVal != null && cbo.Items.Contains(currentVal)) cbo.SelectedItem = currentVal; 
+                        
+                        // 🟢 效能關鍵優化：避免用 AddRange 塞入成千上萬的選項，改為使用 HashSet 確保不重複
+                        HashSet<string> uniqueItems = new HashSet<string>(items);
+                        if (currentVal != null && !string.IsNullOrWhiteSpace(currentVal.ToString())) {
+                            uniqueItems.Add(currentVal.ToString());
+                        }
+
+                        // 🟢 將不重複的選項轉為陣列後一次性綁定 (取代原本的 cbo.Items.AddRange，大幅提升效能)
+                        var finalArray = uniqueItems.ToArray();
+                        cbo.DataSource = finalArray;
+
+                        if (currentVal != null && uniqueItems.Contains(currentVal.ToString())) {
+                            cbo.SelectedItem = currentVal.ToString();
+                        }
                     }
                 }
             }
