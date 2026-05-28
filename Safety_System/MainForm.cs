@@ -726,12 +726,10 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(text);
             item.Click += (s, e) => {
-                // 🟢 取消 Task.Run，確保在主執行緒建立 UI
                 Application.UseWaitCursor = true;
-                
                 try {
                     ForceEndCurrentEdit();
-                    Control view = getViewFunc(); // 直接在主執行緒取得介面
+                    Control view = getViewFunc(); 
                     if (view != null) {
                         LoadModule(view);
                     }
@@ -775,7 +773,9 @@ namespace Safety_System
             if (moduleControl == null) return;
 
             try {
-                // 🟢 取消 SuspendLayout()，避免視窗在最大化時錯誤重算邊界導致縮小
+                // 🟢 優化：暫停佈局，消除畫面切換時移除控制項導致的白畫面與閃爍
+                _contentPanel.SuspendLayout();
+                
                 while (_contentPanel.Controls.Count > 0)
                 {
                     Control ctrl = _contentPanel.Controls[0];
@@ -785,6 +785,9 @@ namespace Safety_System
                 
                 moduleControl.Dock = DockStyle.Fill;
                 _contentPanel.Controls.Add(moduleControl);
+                
+                // 🟢 優化：一次性恢復排版
+                _contentPanel.ResumeLayout(true);
                 
             } catch (Exception ex) {
                 MessageBox.Show($"畫面切換時發生錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
