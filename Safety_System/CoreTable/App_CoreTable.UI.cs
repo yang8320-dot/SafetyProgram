@@ -242,12 +242,12 @@ namespace Safety_System
 
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, // 🟢 防卡頓關鍵設定 1
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, 
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
 
-            // 🟢 防卡頓關鍵設定 2：啟動雙緩衝硬體加速
+            // 啟動雙緩衝硬體加速
             EnableDoubleBuffered(_dgv);
 
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -269,7 +269,6 @@ namespace Safety_System
             return main;
         }
 
-        // 🟢 加入雙緩衝硬體加速
         private void EnableDoubleBuffered(DataGridView dgv)
         {
             typeof(DataGridView).InvokeMember("DoubleBuffered", 
@@ -337,6 +336,7 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
+        // 🟢 需求 1 修正：讀取時如果使用者已經手動調整過該欄的寬度，則套用記憶寬度。
         private void ApplyGridStyles() 
         {
             if (_dgv.Columns.Contains("Id")) {
@@ -366,21 +366,27 @@ namespace Safety_System
 
             SetupDropdownColumns();
             
-            // 🟢 防卡頓關鍵設定 3：徹底拔除 AllCellsExceptHeaders，改用 DisplayedCells 防 CPU 塞爆
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
 
+            // 🟢 優化：針對個別欄位判斷，如果有存在 _columnWidths 中，則完全依照使用者設定的寬度
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
 
                 if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0) {
+                    // 若有紀錄過使用者拉動的寬度，直接套用
                     col.Width = _columnWidths[col.Name];
-                } else if (_logic is LawLogic) {
-                    if (col.Name == "法規名稱") col.Width = 250;
-                    else if (col.Name == "內容") col.Width = 400;
-                    else if (col.Name == "重點摘要") col.Width = 200;
                 } else {
-                    if (col.Width < 80) col.Width = 80;
+                    // 若沒有紀錄，給予預設值
+                    if (_logic is LawLogic) {
+                        if (col.Name == "法規名稱") col.Width = 250;
+                        else if (col.Name == "內容") col.Width = 400;
+                        else if (col.Name == "重點摘要") col.Width = 200;
+                    } else {
+                        // 如果是其他表且未設定寬度，使用文字長度自動計算一次 (取代 AutoSizeColumnsMode 的全表耗時運算)
+                        int headerW = TextRenderer.MeasureText(col.HeaderText, _dgv.Font).Width + 40;
+                        col.Width = headerW < 80 ? 80 : headerW;
+                    }
                 }
             }
         }
