@@ -20,7 +20,7 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 🟢 升級為 v4：確保新的 10 個預設欄位直接生效
+        // 確保新的 10 個預設欄位直接生效
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Columns_v4.txt");
         
         // 用於儲存欄位順序與可見性的結構
@@ -30,7 +30,7 @@ namespace Safety_System
         }
         private List<ColConfig> _columnSettings = new List<ColConfig>();
 
-        // 🟢 更新為您指定的 10 個預設顯示欄位與排序 (對應真實欄位名稱)
+        // 您指定的 10 個預設顯示欄位與排序 (對應真實欄位名稱)
         private readonly string[] _defaultVisibleCols = { "項次", "化學物質名稱", "危害標示", "供應商", "供應商電話", "使用單位", "貯存地點", "使用最大量", "SDS版本日期", "備註" };
 
         public Control GetView()
@@ -57,7 +57,6 @@ namespace Safety_System
                 WrapContents = false
             };
             
-            // 統一高度、套用 FlatStyle 消除 3D 視差，並統一間距對齊
             Button btnPdf = new Button { 
                 Text = "📤 導出 SDS 清冊", 
                 Size = new Size(230, 45), 
@@ -71,7 +70,6 @@ namespace Safety_System
             btnPdf.FlatAppearance.BorderSize = 0;
             btnPdf.Click += (s, e) => ExportToPdf();
 
-            // 🟢 更名為 導出 危害性化學品清單
             Button btnHazardousPdf = new Button { 
                 Text = "📄 導出 危害性化學品清單", 
                 Size = new Size(280, 45), 
@@ -146,12 +144,14 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
 
+            // 🟢 強制關閉 AutoGenerateColumns，改由後方程式依照排序設定來手動生成欄位
             _dgvSDS = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = false, 
                 ReadOnly = true, 
                 RowHeadersVisible = false, 
+                AutoGenerateColumns = false, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
                 BorderStyle = BorderStyle.None 
             };
@@ -185,7 +185,6 @@ namespace Safety_System
                     {
                         DataColumn seqCol = new DataColumn("項次", typeof(int));
                         dt.Columns.Add(seqCol);
-                        seqCol.SetOrdinal(0); 
 
                         for (int i = 0; i < dt.Rows.Count; i++)
                         {
@@ -193,17 +192,16 @@ namespace Safety_System
                         }
                     }
 
+                    // 🟢 傳入 DataTable 進行結構對齊與強制手動生成欄位
+                    ApplyVisibilityAndGenerateColumns(dt); 
+                    
                     _dgvSDS.DataSource = dt;
                     
                     if (_dgvSDS.Columns.Contains("項次")) {
                         _dgvSDS.Columns["項次"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                        // 讓項次維持適當寬度，不會因為 Fill 而變得過大
                         _dgvSDS.Columns["項次"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                         _dgvSDS.Columns["項次"].Width = 60;
                     }
-
-                    // 傳入 DataTable 進行結構對齊與介面初始化
-                    ApplyVisibility(dt); 
                 }
                 else
                 {
@@ -213,8 +211,8 @@ namespace Safety_System
             catch { _dgvSDS.DataSource = null; }
         }
 
-        // 修復：確保即使資料表沒有資料列，也能根據 DataTable 欄位初始化並顯示設定選單
-        private void ApplyVisibility(DataTable dt)
+        // 🟢 核心修改：依照 _columnSettings 設定的順序，手動創建欄位加進去表格
+        private void ApplyVisibilityAndGenerateColumns(DataTable dt)
         {
             if (dt == null) return;
 
@@ -246,7 +244,7 @@ namespace Safety_System
             }
             else
             {
-                // 補齊新增加的欄位
+                // 補齊新增加的欄位，預設丟到隱藏區
                 foreach (string colName in actualCols)
                 {
                     if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
@@ -255,30 +253,31 @@ namespace Safety_System
                         _columnSettings.Add(new ColConfig { Name = colName, IsVisible = false });
                     }
                 }
-                // 移除已經不存在的舊欄位
+                // 移除資料庫中已經不存在的舊欄位
                 _columnSettings.RemoveAll(c => !actualCols.Contains(c.Name));
             }
 
-            // 若 DataGridView 尚未產生欄位，直接中止 UI 變更，但記憶設定檔已初始化完畢
-            if (_dgvSDS.Columns.Count == 0) return;
+            // 🟢 強制清空舊欄位，重新照著 _columnSettings 依序綁定
+            _dgvSDS.Columns.Clear();
+            int currentDisplayIndex = 0;
 
-            // 先強制將所有欄位隱藏
-            foreach (DataGridViewColumn col in _dgvSDS.Columns)
-            {
-                col.Visible = false;
-            }
-
-            // 依照設定檔的「順序」與「可見性」進行套用
-            int displayIdx = 0;
             foreach (var cfg in _columnSettings)
             {
-                if (_dgvSDS.Columns.Contains(cfg.Name))
+                if (actualCols.Contains(cfg.Name))
                 {
-                    var col = _dgvSDS.Columns[cfg.Name];
-                    col.Visible = cfg.IsVisible;
+                    DataGridViewTextBoxColumn col = new DataGridViewTextBoxColumn
+                    {
+                        Name = cfg.Name,
+                        HeaderText = cfg.Name,
+                        DataPropertyName = cfg.Name, // 綁定到 DataTable 對應的欄位
+                        Visible = cfg.IsVisible
+                    };
+                    
+                    _dgvSDS.Columns.Add(col);
+
                     if (cfg.IsVisible)
                     {
-                        col.DisplayIndex = displayIdx++;
+                        col.DisplayIndex = currentDisplayIndex++;
                     }
                 }
             }
@@ -386,10 +385,10 @@ namespace Safety_System
                             });
                         }
                         SaveVisibilitySettings();
-                        if (_dgvSDS.DataSource != null)
-                        {
-                            ApplyVisibility((DataTable)_dgvSDS.DataSource);
-                        }
+                        
+                        // 🟢 重新整理表格，套用新的順序
+                        LoadData();
+
                         f.DialogResult = DialogResult.OK;
                     };
 
@@ -441,7 +440,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 A4 危害性化學品清單 PDF 功能 (直式，每筆一頁，不預覽直接存檔)
+        // 導出 A4 危害性化學品清單 PDF 功能
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -450,12 +449,10 @@ namespace Safety_System
                 MessageBox.Show("目前沒有數據可供導出。"); return;
             }
 
-            // 🟢 檔名更名：危害性化學品清單
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "危害性化學品清單_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
-                    // 🟢 鎖定當下視窗實體，避免游標狀態切換錯誤
                     Form activeForm = Form.ActiveForm;
                     if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
                     
@@ -491,7 +488,6 @@ namespace Safety_System
                             return "";
                         }
 
-                        // 🟢 標題更名：危害性化學品清單
                         g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
                         y += 60;
 
@@ -558,7 +554,6 @@ namespace Safety_System
                         string dateStr = $"製單日期：{DateTime.Now.Year} 年 {DateTime.Now.Month:D2} 月 {DateTime.Now.Day:D2} 日";
                         g.DrawString(dateStr, fBody, Brushes.Black, x, y);
 
-                        // 🟢 頁尾更名：危害性化學品清單
                         g.DrawString("8-ES-B09-01 危害性化學品清單", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
 
                         currentRow++;
@@ -572,14 +567,12 @@ namespace Safety_System
 
                     try {
                         pd.Print();
-                        // 🟢 修復：在彈出視窗前先將游標還原
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("危害性化學品清單 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
-                        // 🟢 最終確保還原游標
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
                 }
@@ -587,7 +580,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 SDS 清冊 PDF 功能 (改為直接存檔，不顯示預覽視窗)
+        // 導出 SDS 清冊 PDF 功能
         // =========================================================================
         private void ExportToPdf()
         {
@@ -601,7 +594,6 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
-                    // 🟢 鎖定當下視窗實體
                     Form activeForm = Form.ActiveForm;
                     if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
 
@@ -671,14 +663,12 @@ namespace Safety_System
 
                             if (y + rowH > e.MarginBounds.Bottom)
                             {
-                                // 🟢 跨頁時寫入左下角頁尾：化學品清冊一覽表
                                 g.DrawString("8-ES-B09-01 化學品清冊一覽表", fBody, Brushes.Black, x, e.MarginBounds.Bottom + 5);
                                 e.HasMorePages = true;
                                 return;
                             }
                         }
                         
-                        // 🟢 最後一頁寫入左下角頁尾：化學品清冊一覽表
                         g.DrawString("8-ES-B09-01 化學品清冊一覽表", fBody, Brushes.Black, x, e.MarginBounds.Bottom + 5);
                         e.HasMorePages = false;
                         rowIndex = 0; 
@@ -686,14 +676,12 @@ namespace Safety_System
 
                     try {
                         pd.Print();
-                        // 🟢 修復：在彈出視窗前先將游標還原
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("SDS 清冊 PDF 匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } finally {
-                        // 🟢 最終確保還原游標
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
                 }
