@@ -19,7 +19,7 @@ namespace Safety_System
 
         private enum SearchMode { DateRange, Limit, Advanced }
         private SearchMode _currentSearchMode = SearchMode.DateRange;
-        private int _currentLimit = 100; // 🟢 修正：預設值為 100 筆
+        private int _currentLimit = 100;
 
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
@@ -156,11 +156,12 @@ namespace Safety_System
                 EnforceDateFormats(dt);
             });
 
+            // 🟢 優化：將表格先隱藏，阻擋底層引擎不斷觸發重繪
+            _dgv.Visible = false;
             UnfreezeAllColumns(); 
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
-            PreFillComboBoxItems(dt); 
             _dgv.DataSource = dt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -168,6 +169,7 @@ namespace Safety_System
             ApplyFreezeState(); 
             
             _dgv.ResumeLayout(true);
+            _dgv.Visible = true; // 🟢 資料與排版確定後才顯示
             _isApplyingWidths = false;
             
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
@@ -179,11 +181,11 @@ namespace Safety_System
             DataTable dt = null;
             await Task.Run(() => { dt = DataManager.GetLatestRecords(_dbName, _tableName, limit); EnforceDateFormats(dt); });
             
+            _dgv.Visible = false;
             UnfreezeAllColumns();
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
             
-            PreFillComboBoxItems(dt); 
             _dgv.DataSource = dt; 
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -191,6 +193,7 @@ namespace Safety_System
             ApplyFreezeState();
 
             _dgv.ResumeLayout(true);
+            _dgv.Visible = true;
             _isApplyingWidths = false;
 
             SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
@@ -224,11 +227,11 @@ namespace Safety_System
                 EnforceDateFormats(resultDt);
             });
 
+            _dgv.Visible = false;
             UnfreezeAllColumns();
             _isApplyingWidths = true;
             _dgv.SuspendLayout();
 
-            PreFillComboBoxItems(resultDt); 
             _dgv.DataSource = resultDt;
             ApplyGridStyles(); 
             UpdateCboColumns(); 
@@ -236,11 +239,13 @@ namespace Safety_System
             ApplyFreezeState();
 
             _dgv.ResumeLayout(true);
+            _dgv.Visible = true;
             _isApplyingWidths = false;
 
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
 
+        // ... 保留其餘隱藏與儲存寬度等方法 ...
         private void LoadColumnWidths() {
             _columnWidths.Clear();
             var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Width");
