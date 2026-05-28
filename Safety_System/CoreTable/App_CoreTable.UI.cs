@@ -242,12 +242,12 @@ namespace Safety_System
 
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, // 🟢 防卡頓關鍵設定
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, // 🟢 防卡頓關鍵設定 1
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
 
-            // 🟢 優化：啟動雙緩衝，解決捲動時的畫面閃爍與拖影
+            // 🟢 防卡頓關鍵設定 2：啟動雙緩衝硬體加速
             EnableDoubleBuffered(_dgv);
 
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -366,7 +366,7 @@ namespace Safety_System
 
             SetupDropdownColumns();
             
-            // 🟢 優化重點：徹底拔除 AllCellsExceptHeaders，改用 DisplayedCells 防 CPU 塞爆
+            // 🟢 防卡頓關鍵設定 3：徹底拔除 AllCellsExceptHeaders，改用 DisplayedCells 防 CPU 塞爆
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
 
