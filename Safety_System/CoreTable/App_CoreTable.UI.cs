@@ -504,3 +504,30 @@ namespace Safety_System
             foreach (DataGridViewColumn col in cols) {
                 col.Frozen = false;
             }
+        }
+
+        private void ApplyFreezeState()
+        {
+            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
+
+            try {
+                UnfreezeAllColumns(); 
+                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
+                
+                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
+                foreach (DataGridViewColumn c in _dgv.Columns) {
+                    if (c.DisplayIndex <= targetIndex) {
+                        colsToFreeze.Add(c);
+                    }
+                }
+                
+                colsToFreeze.Sort(new ColDisplayIndexComparerAsc());
+                                      
+                foreach(DataGridViewColumn col in colsToFreeze) {
+                    col.Frozen = true;
+                }
+            } 
+            catch { }
+        }
+    }
+}
