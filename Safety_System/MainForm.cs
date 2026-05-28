@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -39,7 +40,7 @@ namespace Safety_System
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
             
-            System.Threading.Tasks.Task.Run(() => {
+            Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
             });
             
@@ -722,13 +723,36 @@ namespace Safety_System
             }
         }
 
+        // 🟢 核心優化：非同步化載入流程，使用 Task.Yield 釋放 UI 執行緒
         private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
         {
             var item = new ToolStripMenuItem(text);
-            item.Click += (s, e) => {
+            item.Click += async (s, e) => {
+                // 防呆：避免連續點擊兩次引發錯誤
+                if (_contentPanel.Controls.Count > 0 && _contentPanel.Controls[0] is Label && _contentPanel.Controls[0].Text.Contains("載入中")) return;
+                
                 Application.UseWaitCursor = true;
+                
                 try {
                     ForceEndCurrentEdit();
+
+                    // 🟢 步驟 1：立即渲染「載入中」提示畫面，蓋掉白畫面
+                    _contentPanel.SuspendLayout();
+                    _contentPanel.Controls.Clear();
+                    Label lblLoading = new Label {
+                        Text = $"⏳ 正在為您準備【{text}】的資料與畫面，請稍候...",
+                        Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
+                        ForeColor = Color.DimGray,
+                        Dock = DockStyle.Fill,
+                        TextAlign = ContentAlignment.MiddleCenter
+                    };
+                    _contentPanel.Controls.Add(lblLoading);
+                    _contentPanel.ResumeLayout(true);
+
+                    // 🟢 步驟 2：非常關鍵的一行！讓出控制權給系統，確保選單能收起來、Loading 畫面能畫出來
+                    await Task.Delay(30);
+
+                    // 🟢 步驟 3：在背景進行龐大的元件建立與資料庫請求
                     Control view = getViewFunc(); 
                     if (view != null) {
                         LoadModule(view);
@@ -747,11 +771,28 @@ namespace Safety_System
         private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
         {
             var item = new ToolStripMenuItem(tableName);
-            item.Click += (s, e) => {
+            item.Click += async (s, e) => {
+                if (_contentPanel.Controls.Count > 0 && _contentPanel.Controls[0] is Label && _contentPanel.Controls[0].Text.Contains("載入中")) return;
+
                 Application.UseWaitCursor = true;
 
                 try {
                     ForceEndCurrentEdit();
+                    
+                    _contentPanel.SuspendLayout();
+                    _contentPanel.Controls.Clear();
+                    Label lblLoading = new Label {
+                        Text = $"⏳ 正在為您準備【{tableName}】的資料與畫面，請稍候...",
+                        Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
+                        ForeColor = Color.DimGray,
+                        Dock = DockStyle.Fill,
+                        TextAlign = ContentAlignment.MiddleCenter
+                    };
+                    _contentPanel.Controls.Add(lblLoading);
+                    _contentPanel.ResumeLayout(true);
+
+                    await Task.Delay(30);
+
                     Control view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView();
                     if (view != null) {
                         LoadModule(view);
