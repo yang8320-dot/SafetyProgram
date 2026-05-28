@@ -246,11 +246,6 @@ namespace Safety_System
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
-            
-            // 🟢 開啟雙緩衝 (Double Buffered) 解決表格載入瞬間的閃爍與卡頓
-            typeof(DataGridView).InvokeMember("DoubleBuffered", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
-                null, _dgv, new object[] { true });
 
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.RowsDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -476,30 +471,16 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
-        private class ColDisplayIndexComparerDesc : IComparer<DataGridViewColumn> 
-        {
-            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
-                return y.DisplayIndex.CompareTo(x.DisplayIndex);
-            }
-        }
-
-        private class ColDisplayIndexComparerAsc : IComparer<DataGridViewColumn> 
-        {
-            public int Compare(DataGridViewColumn x, DataGridViewColumn y) {
-                return x.DisplayIndex.CompareTo(y.DisplayIndex);
-            }
-        }
-
         private void UnfreezeAllColumns()
         {
             if (_dgv == null || _dgv.Columns.Count == 0) return;
 
-            List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
+            var cols = new List<DataGridViewColumn>();
             foreach (DataGridViewColumn c in _dgv.Columns) {
                 cols.Add(c);
             }
             
-            cols.Sort(new ColDisplayIndexComparerDesc());
+            cols.Sort((x, y) => y.DisplayIndex.CompareTo(x.DisplayIndex));
 
             foreach (DataGridViewColumn col in cols) {
                 col.Frozen = false;
@@ -514,14 +495,14 @@ namespace Safety_System
                 UnfreezeAllColumns(); 
                 int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
                 
-                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
+                var colsToFreeze = new List<DataGridViewColumn>();
                 foreach (DataGridViewColumn c in _dgv.Columns) {
                     if (c.DisplayIndex <= targetIndex) {
                         colsToFreeze.Add(c);
                     }
                 }
                 
-                colsToFreeze.Sort(new ColDisplayIndexComparerAsc());
+                colsToFreeze.Sort((x, y) => x.DisplayIndex.CompareTo(y.DisplayIndex));
                                       
                 foreach(DataGridViewColumn col in colsToFreeze) {
                     col.Frozen = true;
