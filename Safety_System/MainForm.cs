@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -39,7 +40,7 @@ namespace Safety_System
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
             
-            System.Threading.Tasks.Task.Run(() => {
+            Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
             });
             
@@ -351,6 +352,13 @@ namespace Safety_System
                 }
             };
             menuSettings.DropDownItems.Add(cleanupItem);
+
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
+
+            // 🟢 加入呼叫 MemoryOptimizer 的按鈕 (一行程式碼搞定)
+            var memReleaseItem = new ToolStripMenuItem("🚀 記憶體與效能最佳化");
+            memReleaseItem.Click += (s, e) => MemoryOptimizer.Execute();
+            menuSettings.DropDownItems.Add(memReleaseItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
@@ -725,13 +733,32 @@ namespace Safety_System
         private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
         {
             var item = new ToolStripMenuItem(text);
-            item.Click += (s, e) => {
-                // 🟢 取消 Task.Run，確保在主執行緒建立 UI
+            item.Click += async (s, e) => {
+                if (_contentPanel.Controls.Count > 0 && _contentPanel.Controls[0] is Label && _contentPanel.Controls[0].Text.Contains("載入中")) return;
+                
                 Application.UseWaitCursor = true;
                 
                 try {
                     ForceEndCurrentEdit();
-                    Control view = getViewFunc(); // 直接在主執行緒取得介面
+
+                    _contentPanel.SuspendLayout();
+                    _contentPanel.Controls.Clear();
+                    Label lblLoading = new Label {
+                        Text = $"⏳ 正在為您準備【{text}】的資料與畫面，請稍候...",
+                        Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
+                        ForeColor = Color.DimGray,
+                        Dock = DockStyle.Fill,
+                        TextAlign = ContentAlignment.MiddleCenter
+                    };
+                    _contentPanel.Controls.Add(lblLoading);
+                    _contentPanel.ResumeLayout(true);
+
+                    _contentPanel.Update(); 
+                    Application.DoEvents(); 
+                    
+                    await Task.Delay(30);
+
+                    Control view = getViewFunc(); 
                     if (view != null) {
                         LoadModule(view);
                     }
@@ -749,11 +776,30 @@ namespace Safety_System
         private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
         {
             var item = new ToolStripMenuItem(tableName);
-            item.Click += (s, e) => {
+            item.Click += async (s, e) => {
+                if (_contentPanel.Controls.Count > 0 && _contentPanel.Controls[0] is Label && _contentPanel.Controls[0].Text.Contains("載入中")) return;
+
                 Application.UseWaitCursor = true;
 
                 try {
                     ForceEndCurrentEdit();
+                    
+                    _contentPanel.SuspendLayout();
+                    _contentPanel.Controls.Clear();
+                    Label lblLoading = new Label {
+                        Text = $"⏳ 正在為您準備【{tableName}】的資料與畫面，請稍候...",
+                        Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
+                        ForeColor = Color.DimGray,
+                        Dock = DockStyle.Fill,
+                        TextAlign = ContentAlignment.MiddleCenter
+                    };
+                    _contentPanel.Controls.Add(lblLoading);
+                    _contentPanel.ResumeLayout(true);
+
+                    _contentPanel.Update();
+                    Application.DoEvents();
+                    await Task.Delay(30);
+
                     Control view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView();
                     if (view != null) {
                         LoadModule(view);
@@ -775,34 +821,18 @@ namespace Safety_System
             if (moduleControl == null) return;
 
             try {
-                // 🟢 進入點：暫停面板佈局，阻擋清除與加入過程中的畫面閃爍
                 _contentPanel.SuspendLayout();
-
-                // 🟢 插入載入中提示
-                Label lblLoading = new Label {
-                    Text = "⏳ 資料準備中，請稍候...",
-                    Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
-                    ForeColor = Color.DimGray,
-                    Dock = DockStyle.Fill,
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
                 
-                _contentPanel.Controls.Clear();
-                _contentPanel.Controls.Add(lblLoading);
-                
-                // 🟢 強制立即把「載入中」這幾個字畫在螢幕上
-                _contentPanel.ResumeLayout(true);
-                _contentPanel.Update();
-                Application.DoEvents(); // 消化系統的選單收合動畫
-                
-                // 🟢 再次暫停佈局，準備把真正的表格放進去
-                _contentPanel.SuspendLayout();
-                _contentPanel.Controls.Clear();
+                while (_contentPanel.Controls.Count > 0)
+                {
+                    Control ctrl = _contentPanel.Controls[0];
+                    _contentPanel.Controls.Remove(ctrl);
+                    ctrl.Dispose();
+                }
                 
                 moduleControl.Dock = DockStyle.Fill;
                 _contentPanel.Controls.Add(moduleControl);
                 
-                // 🟢 一次性恢復排版並畫出完整的表格
                 _contentPanel.ResumeLayout(true);
                 
             } catch (Exception ex) {
