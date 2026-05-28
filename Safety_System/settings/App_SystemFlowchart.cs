@@ -20,7 +20,6 @@ namespace Safety_System
         private Dictionary<RectangleF, string> _hoverAreas = new Dictionary<RectangleF, string>();
         private RectangleF _currentHoverRect = RectangleF.Empty;
         
-        // 🟢 紀錄已解鎖的隱藏選單
         private HashSet<string> _unlockedMenus = new HashSet<string>();
 
         private enum EdgeCat { CustomSync, SystemSync }
@@ -240,7 +239,6 @@ namespace Safety_System
                 safeguard++;
             } while (changed && safeguard < 100);
 
-            // 🟢 優化：格子高度縮減，讓同行排版更緊湊
             int nodeWidth = 280; 
             int nodeHeight = 45; 
             int xSpacing = 420;  
@@ -280,7 +278,6 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
-            // 🟢 圖層 1 (底層)：線條
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2))
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2))
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2))
@@ -310,7 +307,6 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 圖層 2 (中層)：說明標籤 (帶透明度，線放底層透過去)
             foreach (var edge in _syncEdges)
             {
                 PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
@@ -331,7 +327,6 @@ namespace Safety_System
                 _hoverAreas[hitRect] = edge.DetailText;
             }
 
-            // 🟢 圖層 3 (頂層)：節點格子
             using (Font dbFont = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold))
             using (Font tbFont = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold))
             {
@@ -347,7 +342,6 @@ namespace Safety_System
                         g.DrawPath(borderPen, path);
                     }
 
-                    // 🟢 優化：將 [資料庫] 與 資料表 合併至同一行並動態置中對齊
                     string dbText = $"[{node.ChDbName}] ";
                     string tbText = node.ChTableName;
 
@@ -362,7 +356,6 @@ namespace Safety_System
                     g.DrawString(dbText, dbFont, Brushes.SlateGray, startX, dbY);
                     g.DrawString(tbText, tbFont, Brushes.Black, startX + dbSize.Width - 5, tbY);
 
-                    // 🟢 背景運算徽章 (改為懸浮在格子右上角外部)
                     if (node.HasBackgroundCalc)
                     {
                         string badgeText = "[背景運算]";
@@ -436,7 +429,6 @@ namespace Safety_System
             tv.Margin = new Padding(10);
             tv.Font = new Font("Microsoft JhengHei UI", 12F);
             
-            // 🟢 綁定展開前事件，處理隱藏選單密碼驗證
             tv.BeforeExpand += TvMenu_BeforeExpand;
 
             TreeNode rootNode = new TreeNode("Safety System 實體資料庫與對應資料表總覽");
@@ -453,7 +445,6 @@ namespace Safety_System
                     TreeNode dbNode = new TreeNode($"[資料庫] {dbChName} ({dbEnName}.sqlite)");
                     dbNode.ForeColor = Color.DarkSlateBlue;
 
-                    // 🟢 判斷並設定隱藏選單的標籤 (Tag)
                     if (dbEnName.StartsWith("Menu") && dbEnName.EndsWith("DB"))
                     {
                         string menuName = "";
@@ -492,39 +483,27 @@ namespace Safety_System
 
             tv.Nodes.Add(rootNode);
             
-            // 展開所有節點
-            rootNode.ExpandAll();
-
-            // 🟢 將標記為隱藏的選單收合起來
-            foreach (TreeNode dbNode in rootNode.Nodes)
-            {
-                if (dbNode.Tag != null && dbNode.Tag.ToString().StartsWith("HiddenMenu|"))
-                {
-                    dbNode.Collapse();
-                }
-            }
+            // 🟢 需求 2 修正：僅展開第一層 (Root)，其餘資料夾皆預設收合
+            rootNode.Expand();
 
             return tv;
         }
 
-        // 🟢 攔截展開事件，呼叫統一的 AuthManager 驗證
         private void TvMenu_BeforeExpand(object sender, TreeViewCancelEventArgs e)
         {
             if (e.Node.Tag != null && e.Node.Tag.ToString().StartsWith("HiddenMenu|"))
             {
                 string menuName = e.Node.Tag.ToString().Split('|')[1];
                 
-                // 檢查是否已解鎖
                 if (_unlockedMenus.Contains(menuName)) return;
 
-                // 統一呼叫 AuthManager，包含了免密碼帳戶辨識與密碼視窗
                 if (!AuthManager.VerifyHiddenMenu(menuName))
                 {
-                    e.Cancel = true; // 阻止展開
+                    e.Cancel = true; 
                 }
                 else
                 {
-                    _unlockedMenus.Add(menuName); // 加入快取
+                    _unlockedMenus.Add(menuName); 
                 }
             }
         }
