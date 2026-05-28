@@ -383,6 +383,11 @@ namespace Safety_System
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 Font = new Font("Microsoft JhengHei UI", 11F)
             };
+            
+            // 🟢 同步開啟雙緩衝防閃爍
+            typeof(DataGridView).InvokeMember("DoubleBuffered", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
+                null, _dgvAudit, new object[] { true });
 
             boxAudit.Controls.AddRange(new Control[] { lblAuditDb, _cboAuditDb, lblAuditTable, _cboAuditTable, _chkShowDeletedLogs, btnSearchAudit, _dgvAudit });
 
@@ -399,26 +404,17 @@ namespace Safety_System
             
             mainPanel.Controls.Add(tabControl);
 
-            // 初始化選單資料
+            // 🟢 優化：改用陣列批次匯入，避免逐項 Add 觸發數百次畫面重繪
             var blankDb = new ItemMap { EnName = "", ChName = "" };
-            _cboDb.Items.Add(blankDb);
-            _cboDelDb.Items.Add(blankDb);
-            _cboAuditDb.Items.Add(blankDb);
+            var dbItems = _dbMap.Select(kvp => new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName }).ToArray();
+
+            _cboDb.Items.Add(blankDb); _cboDb.Items.AddRange(dbItems);
+            _cboDelDb.Items.Add(blankDb); _cboDelDb.Items.AddRange(dbItems);
+            _cboAuditDb.Items.Add(blankDb); _cboAuditDb.Items.AddRange(dbItems);
             
             foreach (var sr in _syncRows) {
-                sr.CboSrcDb.Items.Add(blankDb);
-                sr.CboTgtDb.Items.Add(blankDb);
-            }
-
-            foreach (var kvp in _dbMap) {
-                _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-                _cboDelDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-                _cboAuditDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-                
-                foreach (var sr in _syncRows) {
-                    sr.CboSrcDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-                    sr.CboTgtDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-                }
+                sr.CboSrcDb.Items.Add(blankDb); sr.CboSrcDb.Items.AddRange(dbItems);
+                sr.CboTgtDb.Items.Add(blankDb); sr.CboTgtDb.Items.AddRange(dbItems);
             }
             
             _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
@@ -534,9 +530,8 @@ namespace Safety_System
                 
                 var selectedDb = (ItemMap)_cboAuditDb.SelectedItem;
                 if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
-                    foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
-                        _cboAuditTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
-                    }
+                    var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                    _cboAuditTable.Items.AddRange(tbItems);
                 }
             } catch { }
         }
@@ -563,7 +558,8 @@ namespace Safety_System
                 if (r.CboSrcDb.SelectedItem != null) {
                     var map = (ItemMap)r.CboSrcDb.SelectedItem;
                     if (!string.IsNullOrEmpty(map.EnName) && _dbMap.ContainsKey(map.EnName)) {
-                        foreach (var tbl in _dbMap[map.EnName].Tables) r.CboSrcTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                        var tbItems = _dbMap[map.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                        r.CboSrcTable.Items.AddRange(tbItems);
                     }
                 }
             };
@@ -575,8 +571,8 @@ namespace Safety_System
                     var map = (ItemMap)r.CboSrcDb.SelectedItem;
                     var tmap = (ItemMap)r.CboSrcTable.SelectedItem;
                     if (!string.IsNullOrEmpty(map.EnName) && !string.IsNullOrEmpty(tmap.EnName)) {
-                        var cols = DataManager.GetColumnNames(map.EnName, tmap.EnName);
-                        foreach (var c in cols) if (c != "Id") { r.CboSrcMatchCol.Items.Add(c); r.CboSrcSyncCol.Items.Add(c); }
+                        var cols = DataManager.GetColumnNames(map.EnName, tmap.EnName).Where(c => c != "Id").ToArray();
+                        r.CboSrcMatchCol.Items.AddRange(cols); r.CboSrcSyncCol.Items.AddRange(cols);
                     }
                 }
             };
@@ -588,7 +584,8 @@ namespace Safety_System
                 if (r.CboTgtDb.SelectedItem != null) {
                     var map = (ItemMap)r.CboTgtDb.SelectedItem;
                     if (!string.IsNullOrEmpty(map.EnName) && _dbMap.ContainsKey(map.EnName)) {
-                        foreach (var tbl in _dbMap[map.EnName].Tables) r.CboTgtTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                        var tbItems = _dbMap[map.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                        r.CboTgtTable.Items.AddRange(tbItems);
                     }
                 }
             };
@@ -601,8 +598,8 @@ namespace Safety_System
                     var map = (ItemMap)r.CboTgtDb.SelectedItem;
                     var tmap = (ItemMap)r.CboTgtTable.SelectedItem;
                     if (!string.IsNullOrEmpty(map.EnName) && !string.IsNullOrEmpty(tmap.EnName)) {
-                        var cols = DataManager.GetColumnNames(map.EnName, tmap.EnName);
-                        foreach (var c in cols) if (c != "Id") { r.CboTgtMatchCol.Items.Add(c); r.CboTgtSyncCol.Items.Add(c); }
+                        var cols = DataManager.GetColumnNames(map.EnName, tmap.EnName).Where(c => c != "Id").ToArray();
+                        r.CboTgtMatchCol.Items.AddRange(cols); r.CboTgtSyncCol.Items.AddRange(cols);
                     }
                 }
             };
@@ -954,9 +951,8 @@ namespace Safety_System
                 _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
 
                 if (selectedDb != null && !string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
-                    foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
-                        _cboTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
-                    }
+                    var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                    _cboTable.Items.AddRange(tbItems);
                 }
             } catch { }
         }
@@ -972,9 +968,8 @@ namespace Safety_System
                 
                 var selectedDb = (ItemMap)_cboDelDb.SelectedItem;
                 if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
-                    foreach (var tbl in _dbMap[selectedDb.EnName].Tables) {
-                        _cboDelTable.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
-                    }
+                    var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                    _cboDelTable.Items.AddRange(tbItems);
                 }
             } catch { }
         }
@@ -992,10 +987,8 @@ namespace Safety_System
                 string tableName = ((ItemMap)_cboTable.SelectedItem).EnName;
 
                 if (!string.IsNullOrEmpty(dbName) && !string.IsNullOrEmpty(tableName)) {
-                    List<string> cols = DataManager.GetColumnNames(dbName, tableName);
-                    foreach(var c in cols) if (c != "Id") { 
-                        _cboCol1.Items.Add(c); _cboCol2.Items.Add(c); _cboCol3.Items.Add(c); _cboCol4.Items.Add(c);
-                    }
+                    var cols = DataManager.GetColumnNames(dbName, tableName).Where(c => c != "Id").ToArray();
+                    _cboCol1.Items.AddRange(cols); _cboCol2.Items.AddRange(cols); _cboCol3.Items.AddRange(cols); _cboCol4.Items.AddRange(cols);
                 }
                 
                 _cboCol1.SelectedIndex = 0;
