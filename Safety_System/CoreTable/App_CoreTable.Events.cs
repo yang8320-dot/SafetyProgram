@@ -64,7 +64,7 @@ namespace Safety_System
 
             _btnExport.Click += new EventHandler(BtnExport_Click);
             _btnImport.Click += new EventHandler(BtnImportExcel_Click);
-            _btnExportPdf.Click += new EventHandler(BtnExportPdf_Click); // 綁定匯出 PDF 彈窗事件
+            _btnExportPdf.Click += new EventHandler(BtnExportPdf_Click); 
             _btnColSettings.Click += new EventHandler(BtnColSettings_Click);
 
             Button btnDelRow = _ctxMenu.Tag as Button;
@@ -78,7 +78,7 @@ namespace Safety_System
                     string tagStr = item.Tag.ToString();
                     if (tagStr == "Save") item.Click += new EventHandler(BtnSave_Click);
                     if (tagStr == "DeleteRow") item.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
-                    if (tagStr == "OpenUrl") item.Click += new EventHandler(BtnOpenUrl_Click); // 開啟網址事件
+                    if (tagStr == "OpenUrl") item.Click += new EventHandler(BtnOpenUrl_Click); 
                     if (tagStr == "ColSettings") item.Click += new EventHandler(BtnColSettings_Click);
                     if (tagStr == "Import") item.Click += new EventHandler(BtnImportExcel_Click);
                     if (tagStr == "Export") item.Click += new EventHandler(BtnExport_Click);
@@ -91,7 +91,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 實作：開啟網址功能
         private void BtnOpenUrl_Click(object sender, EventArgs e)
         {
             if (_rightClickedColIndex >= 0 && _dgv.CurrentCell != null)
@@ -124,12 +123,10 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底移除 Sorted 時的排版重算，交給 DisplayedCells 自動完成
         private void Dgv_Sorted(object sender, EventArgs e)
         {
-            if (!_isApplyingWidths && _dgv.Rows.Count > 0)
-            {
-                try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
-            }
+            // 保持空白，不呼叫 AutoResizeRows
         }
 
         private void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
@@ -219,7 +216,7 @@ namespace Safety_System
                 if (success) { 
                     dtSource.AcceptChanges(); 
 
-                    try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
+                    // 🟢 移除了這邊的 AutoResizeRows
 
                     try {
                         if (scrollRow >= 0 && scrollRow < _dgv.Rows.Count) _dgv.FirstDisplayedScrollingRowIndex = scrollRow;
@@ -296,7 +293,7 @@ namespace Safety_System
                         
                         dt.AcceptChanges(); 
 
-                        try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
+                        // 🟢 移除了這邊的 AutoResizeRows
 
                         if (_calcHelper != null) {
                             _calcHelper.BeginBulkUpdate();
@@ -446,7 +443,7 @@ namespace Safety_System
                 Label lbl2 = new Label { Text = "請選擇紙張方向：", Location = new Point(30, 80), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
                 ComboBox cboLayout = new ComboBox { Location = new Point(220, 77), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
                 cboLayout.Items.AddRange(new string[] { "直式", "橫式" });
-                cboLayout.SelectedIndex = 1; // 預設橫式
+                cboLayout.SelectedIndex = 1; 
 
                 Button btnOk = new Button { Text = "確認導出", Location = new Point(140, 140), Size = new Size(120, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnOk.Click += delegate(object senderObj, EventArgs ev) {
@@ -462,7 +459,6 @@ namespace Safety_System
                     bool isA3 = cboSize.SelectedItem.ToString() == "A3";
                     bool isLandscape = cboLayout.SelectedItem.ToString() == "橫式";
                     
-                    // 呼叫 PdfHelper 執行匯出，傳遞參數
                     PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle, isA3, isLandscape);
                 }
             }
@@ -745,14 +741,13 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底移除 CellValueChanged 時的排版重算，交給 DisplayedCells 自動完成
         private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _isCascading) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            if (!_isApplyingWidths && !_isFirstLoad) {
-                try { _dgv.AutoResizeRow(e.RowIndex, DataGridViewAutoSizeRowMode.AllCellsExceptHeader); } catch { }
-            }
+            // 保持空白，不呼叫 AutoResizeRow
 
             _isCascading = true;
             try {
