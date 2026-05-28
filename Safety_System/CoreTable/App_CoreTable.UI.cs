@@ -247,6 +247,11 @@ namespace Safety_System
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
             
+            // 🟢 開啟雙緩衝 (Double Buffered) 解決表格載入瞬間的閃爍與卡頓
+            typeof(DataGridView).InvokeMember("DoubleBuffered", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
+                null, _dgv, new object[] { true });
+
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.RowsDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -499,30 +504,3 @@ namespace Safety_System
             foreach (DataGridViewColumn col in cols) {
                 col.Frozen = false;
             }
-        }
-
-        private void ApplyFreezeState()
-        {
-            if (string.IsNullOrEmpty(_frozenColumnName) || _dgv == null || !_dgv.Columns.Contains(_frozenColumnName)) return;
-
-            try {
-                UnfreezeAllColumns(); 
-                int targetIndex = _dgv.Columns[_frozenColumnName].DisplayIndex;
-                
-                List<DataGridViewColumn> colsToFreeze = new List<DataGridViewColumn>();
-                foreach (DataGridViewColumn c in _dgv.Columns) {
-                    if (c.DisplayIndex <= targetIndex) {
-                        colsToFreeze.Add(c);
-                    }
-                }
-                
-                colsToFreeze.Sort(new ColDisplayIndexComparerAsc());
-                                      
-                foreach(DataGridViewColumn col in colsToFreeze) {
-                    col.Frozen = true;
-                }
-            } 
-            catch { }
-        }
-    }
-}
