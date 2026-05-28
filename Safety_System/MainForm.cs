@@ -723,7 +723,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 核心優化：非同步化載入流程，使用 Task.Yield 釋放 UI 執行緒
+        // 🟢 核心優化：非同步化載入流程，使用 Task.Delay 釋放 UI 執行緒
         private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
         {
             var item = new ToolStripMenuItem(text);
@@ -749,7 +749,11 @@ namespace Safety_System
                     _contentPanel.Controls.Add(lblLoading);
                     _contentPanel.ResumeLayout(true);
 
-                    // 🟢 步驟 2：非常關鍵的一行！讓出控制權給系統，確保選單能收起來、Loading 畫面能畫出來
+                    // 🟢 步驟 2：非常關鍵！強制作業系統立刻處理剛才的繪圖指令，並消化所有的選單收合動畫
+                    _contentPanel.Update(); 
+                    Application.DoEvents(); 
+                    
+                    // 稍作喘息，確保一切視覺效果都已穩定
                     await Task.Delay(30);
 
                     // 🟢 步驟 3：在背景進行龐大的元件建立與資料庫請求
@@ -791,6 +795,9 @@ namespace Safety_System
                     _contentPanel.Controls.Add(lblLoading);
                     _contentPanel.ResumeLayout(true);
 
+                    // 🟢 強制繪製與消化訊息佇列
+                    _contentPanel.Update();
+                    Application.DoEvents();
                     await Task.Delay(30);
 
                     Control view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView();
