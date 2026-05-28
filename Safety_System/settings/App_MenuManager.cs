@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -102,7 +103,6 @@ namespace Safety_System
             bool isPersonalMenu = category.StartsWith("選單");
             if (isPersonalMenu)
             {
-                // 🟢 統一呼叫 AuthManager 進行密碼驗證
                 if (!AuthManager.VerifyHiddenMenu(category)) return;
             }
 
@@ -206,7 +206,6 @@ namespace Safety_System
                         btnToggle.Text = "+";
                     } else {
                         if (isPersonalMenu) {
-                            // 🟢 統一呼叫 AuthManager 進行密碼驗證
                             if (!AuthManager.VerifyHiddenMenu(category)) return;
                         }
                         flpItems.Visible = true;
