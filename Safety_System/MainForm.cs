@@ -7,7 +7,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using System.Threading.Tasks;
 
 namespace Safety_System
 {
@@ -40,7 +39,7 @@ namespace Safety_System
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
             
-            Task.Run(() => {
+            System.Threading.Tasks.Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
             });
             
@@ -726,17 +725,13 @@ namespace Safety_System
         private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
         {
             var item = new ToolStripMenuItem(text);
-            item.Click += async (s, e) => {
-                Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                Application.DoEvents(); 
-
-                ForceEndCurrentEdit();
-
+            item.Click += (s, e) => {
+                // 🟢 取消 Task.Run，確保在主執行緒建立 UI
+                Application.UseWaitCursor = true;
+                
                 try {
-                    // 使用 Task 讓出 UI 執行緒，確保漏斗游標能正常顯示並避免介面凍結
-                    Control view = null;
-                    await Task.Run(() => { view = getViewFunc(); });
-                    
+                    ForceEndCurrentEdit();
+                    Control view = getViewFunc(); // 直接在主執行緒取得介面
                     if (view != null) {
                         LoadModule(view);
                     }
@@ -745,7 +740,7 @@ namespace Safety_System
                     MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                 }
                 finally { 
-                    Form.ActiveForm.Cursor = Cursors.Default; 
+                    Application.UseWaitCursor = false;
                 }
             };
             return item;
@@ -754,16 +749,12 @@ namespace Safety_System
         private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
         {
             var item = new ToolStripMenuItem(tableName);
-            item.Click += async (s, e) => {
-                Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                Application.DoEvents();
+            item.Click += (s, e) => {
+                Application.UseWaitCursor = true;
 
-                ForceEndCurrentEdit();
-                
                 try {
-                    Control view = null;
-                    await Task.Run(() => { view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView(); });
-                    
+                    ForceEndCurrentEdit();
+                    Control view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView();
                     if (view != null) {
                         LoadModule(view);
                     }
@@ -772,7 +763,7 @@ namespace Safety_System
                     MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                 }
                 finally { 
-                    Form.ActiveForm.Cursor = Cursors.Default; 
+                    Application.UseWaitCursor = false;
                 }
             };
             return item;
@@ -784,8 +775,7 @@ namespace Safety_System
             if (moduleControl == null) return;
 
             try {
-                _contentPanel.SuspendLayout(); 
-                
+                // 🟢 取消 SuspendLayout()，避免視窗在最大化時錯誤重算邊界導致縮小
                 while (_contentPanel.Controls.Count > 0)
                 {
                     Control ctrl = _contentPanel.Controls[0];
@@ -796,7 +786,6 @@ namespace Safety_System
                 moduleControl.Dock = DockStyle.Fill;
                 _contentPanel.Controls.Add(moduleControl);
                 
-                _contentPanel.ResumeLayout(); 
             } catch (Exception ex) {
                 MessageBox.Show($"畫面切換時發生錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
