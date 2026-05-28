@@ -19,7 +19,7 @@ namespace Safety_System
 
         private enum SearchMode { DateRange, Limit, Advanced }
         private SearchMode _currentSearchMode = SearchMode.DateRange;
-        private int _currentLimit = 100; // 🟢 修正：預設值改為 100
+        private int _currentLimit = 100; // 🟢 修正：預設值為 100 筆
 
         private DataGridView _dgv;
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
@@ -152,7 +152,6 @@ namespace Safety_System
             string eDate = GetDateString(_cboEndYear, _cboEndMonth, _cboEndDay);
 
             await Task.Run(() => {
-                // 🟢 修正：首次載入預設為 100 筆
                 dt = _isFirstLoad ? DataManager.GetLatestRecords(_dbName, _tableName, 100) : DataManager.GetTableData(_dbName, _tableName, _dateColumnName, sDate, eDate);
                 EnforceDateFormats(dt);
             });
@@ -171,9 +170,6 @@ namespace Safety_System
             _dgv.ResumeLayout(true);
             _isApplyingWidths = false;
             
-            // 🟢 修正：在佈局恢復後強制重新計算一次列高，確保能正常換行
-            try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
-
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
         }
 
@@ -196,9 +192,6 @@ namespace Safety_System
 
             _dgv.ResumeLayout(true);
             _isApplyingWidths = false;
-
-            // 🟢 修正：在佈局恢復後強制重新計算一次列高
-            try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
 
             SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
         }
@@ -244,9 +237,6 @@ namespace Safety_System
 
             _dgv.ResumeLayout(true);
             _isApplyingWidths = false;
-
-            // 🟢 修正：在佈局恢復後強制重新計算一次列高
-            try { _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders); } catch { }
 
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
