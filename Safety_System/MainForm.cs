@@ -39,7 +39,6 @@ namespace Safety_System
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
             
-            // 🟢 極限流暢優化：將備份程序推入獨立的背景 Task 執行緒
             System.Threading.Tasks.Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
             });
@@ -156,7 +155,7 @@ namespace Safety_System
             menuChemReg.DropDownItems.Add(CreateItem("4. 關注性化學物質", () => new App_CoreTable("Chemical", "ConcernedChem", "關注性化學物質", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("5. 優先管理化學品", () => new App_CoreTable("Chemical", "PriorityMgmtChem", "優先管理化學品", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("6. 管制化學品", () => new App_CoreTable("Chemical", "ControlledChem", "管制化學品", new DefaultLogic()).GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("7.特定化學物質", () => new App_CoreTable("Chemical", "SpecificChem", "特定化學物質", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("7. 特定化學物質", () => new App_CoreTable("Chemical", "SpecificChem", "特定化學物質", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("8. 有機溶劑", () => new App_CoreTable("Chemical", "OrganicSolvents", "有機溶劑", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("9. 勞工健康保護", () => new App_CoreTable("Chemical", "WorkerHealthProtect", "勞工健康保護", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("10. 公共危險物品", () => new App_CoreTable("Chemical", "PublicHazardous", "公共危險物品", new DefaultLogic()).GetView()));
@@ -746,10 +745,14 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(text);
             item.Click += (s, e) => {
+                Form.ActiveForm.Cursor = Cursors.WaitCursor; // 🟢 加入漏斗提示，讓使用者知道正在切換
+                Application.DoEvents(); // 強制刷新讓選單先縮回去
+
                 ForceEndCurrentEdit();
                 
                 try { LoadModule(getViewFunc()); } 
                 catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                finally { Form.ActiveForm.Cursor = Cursors.Default; }
             };
             return item;
         }
@@ -758,10 +761,14 @@ namespace Safety_System
         {
             var item = new ToolStripMenuItem(tableName);
             item.Click += (s, e) => {
+                Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                Application.DoEvents();
+
                 ForceEndCurrentEdit();
                 
                 try { LoadModule(new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView()); } 
                 catch (Exception ex) { MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                finally { Form.ActiveForm.Cursor = Cursors.Default; }
             };
             return item;
         }
@@ -771,6 +778,8 @@ namespace Safety_System
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
             try {
+                _contentPanel.SuspendLayout(); // 🟢 暫停重繪，避免視覺閃爍與卡頓
+                
                 while (_contentPanel.Controls.Count > 0)
                 {
                     Control ctrl = _contentPanel.Controls[0];
@@ -778,11 +787,13 @@ namespace Safety_System
                     ctrl.Dispose();
                 }
                 
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
+                // 🔴 關鍵優化：徹底移除 GC.Collect(); 和 GC.WaitForPendingFinalizers();
+                // 這是造成整個系統在切換選單時卡死 3~5 秒的最大元凶。
 
                 moduleControl.Dock = DockStyle.Fill;
                 _contentPanel.Controls.Add(moduleControl);
+                
+                _contentPanel.ResumeLayout(); // 🟢 恢復重繪，瞬間顯示新畫面
             } catch (Exception ex) {
                 MessageBox.Show($"畫面切換時發生錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
