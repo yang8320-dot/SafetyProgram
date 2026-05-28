@@ -242,10 +242,13 @@ namespace Safety_System
 
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, // 🟢 防卡頓關鍵設定
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
+
+            // 🟢 優化：啟動雙緩衝，解決捲動時的畫面閃爍與拖影
+            EnableDoubleBuffered(_dgv);
 
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.RowsDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -264,6 +267,14 @@ namespace Safety_System
             _btnRead.Tag = bLimitRead; 
 
             return main;
+        }
+
+        // 🟢 加入雙緩衝硬體加速
+        private void EnableDoubleBuffered(DataGridView dgv)
+        {
+            typeof(DataGridView).InvokeMember("DoubleBuffered", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
+                null, dgv, new object[] { true });
         }
 
         private void InitContextMenu(Button btnDelRow)
@@ -355,9 +366,9 @@ namespace Safety_System
 
             SetupDropdownColumns();
             
+            // 🟢 優化重點：徹底拔除 AllCellsExceptHeaders，改用 DisplayedCells 防 CPU 塞爆
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            _dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders);
-            _dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
+            _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
