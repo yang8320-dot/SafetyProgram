@@ -16,7 +16,6 @@ namespace Safety_System
         private MenuStrip _mainMenu;
         private Panel _contentPanel;
 
-        // 隱藏的個人選單
         private ToolStripMenuItem _menu1;
         private ToolStripMenuItem _menu2;
         private ToolStripMenuItem _menu3;
@@ -267,6 +266,12 @@ namespace Safety_System
             var menuApp = new ToolStripMenuItem("應用");
             LoadDynamicAppLinks(menuApp);
 
+            // 🟢 需求 3：將記憶體釋放按鈕移至應用選單的尾端，並移除小圖示
+            menuApp.DropDownItems.Add(new ToolStripSeparator());
+            var memReleaseItem = new ToolStripMenuItem("記憶體釋放");
+            memReleaseItem.Click += (s, e) => MemoryOptimizer.Execute();
+            menuApp.DropDownItems.Add(memReleaseItem);
+
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
@@ -292,7 +297,8 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫還原");
+            // 🟢 需求 4 修正：將「資料庫還原」的小圖示移除
+            var restoreDbItem = new ToolStripMenuItem("資料庫還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
 
@@ -352,13 +358,6 @@ namespace Safety_System
                 }
             };
             menuSettings.DropDownItems.Add(cleanupItem);
-
-            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
-
-            // 🟢 加入呼叫 MemoryOptimizer 的按鈕 (一行程式碼搞定)
-            var memReleaseItem = new ToolStripMenuItem("🚀 記憶體與效能最佳化");
-            memReleaseItem.Click += (s, e) => MemoryOptimizer.Execute();
-            menuSettings.DropDownItems.Add(memReleaseItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
