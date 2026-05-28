@@ -7,6 +7,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using System.Threading.Tasks;
 
 namespace Safety_System
 {
@@ -39,7 +40,7 @@ namespace Safety_System
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
             
-            System.Threading.Tasks.Task.Run(() => {
+            Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
             });
             
@@ -278,12 +279,8 @@ namespace Safety_System
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
             _menu4.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu4DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
-            // ==========================================
-            // 🟢 設定選單重新定義與排序 (依要求)
-            // ==========================================
             var menuSettings = new ToolStripMenuItem("設定");
 
-            // 1. 資料庫設定 (原: 系統參數與稽核設定)
             var dbConfigItem = new ToolStripMenuItem("資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
@@ -295,19 +292,16 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 2. 資料庫還原
             var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
 
-            // 3. 選單管理(自訂擴充)
             var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
                 new App_MenuManager().ShowDialog(this);
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
-            // 4. 下拉選單與連動設定
             var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
@@ -319,10 +313,8 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dropdownItem);
 
-            // 5. 分隔線
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 6. 授權使用者 (原: 新增登入授權使用者)
             var addUserItem = new ToolStripMenuItem("授權使用者");
             addUserItem.Click += (s, e) => {
                 string prompt = "管理使用者需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
@@ -332,10 +324,8 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(addUserItem);
 
-            // 7. 分隔線
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 8. 應用連結設定
             var appLinkSettingItem = new ToolStripMenuItem("應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
                 try {
@@ -350,10 +340,8 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(appLinkSettingItem);
 
-            // 9. 分隔線
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 10. 附件檔案空間清理
             var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
             cleanupItem.Click += (s, e) => {
                 try {
@@ -365,10 +353,8 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
-            // 11. 分隔線
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 12. 系統流程圖
             var flowChartItem = new ToolStripMenuItem("系統流程圖");
             flowChartItem.Click += (s, e) => {
                 try {
@@ -380,19 +366,15 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(flowChartItem);
 
-            // 13. 操作說明
             var instructionItem = CreateItem("操作說明", () => new App_Instruction().GetView());
             menuSettings.DropDownItems.Add(instructionItem);
 
-            // 分隔線 (隔離個人隱私操作)
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
             
-            // 開啟個人隱藏選單
             var unlockMenuItem = new ToolStripMenuItem("開啟個人隱藏選單");
             unlockMenuItem.Click += UnlockMenu_Click;
             menuSettings.DropDownItems.Add(unlockMenuItem);
 
-            // 變更個人選單密碼
             var pwdMgmtItem = new ToolStripMenuItem("變更個人選單密碼");
             pwdMgmtItem.Click += (s, e) => {
                 new App_PasswordManager().ShowDialog(this);
@@ -744,15 +726,27 @@ namespace Safety_System
         private ToolStripMenuItem CreateItem(string text, Func<Control> getViewFunc)
         {
             var item = new ToolStripMenuItem(text);
-            item.Click += (s, e) => {
-                Form.ActiveForm.Cursor = Cursors.WaitCursor; // 🟢 加入漏斗提示，讓使用者知道正在切換
-                Application.DoEvents(); // 強制刷新讓選單先縮回去
+            item.Click += async (s, e) => {
+                Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                Application.DoEvents(); 
 
                 ForceEndCurrentEdit();
-                
-                try { LoadModule(getViewFunc()); } 
-                catch (Exception ex) { MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-                finally { Form.ActiveForm.Cursor = Cursors.Default; }
+
+                try {
+                    // 使用 Task 讓出 UI 執行緒，確保漏斗游標能正常顯示並避免介面凍結
+                    Control view = null;
+                    await Task.Run(() => { view = getViewFunc(); });
+                    
+                    if (view != null) {
+                        LoadModule(view);
+                    }
+                } 
+                catch (Exception ex) { 
+                    MessageBox.Show($"載入模組 {text} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                }
+                finally { 
+                    Form.ActiveForm.Cursor = Cursors.Default; 
+                }
             };
             return item;
         }
@@ -760,15 +754,26 @@ namespace Safety_System
         private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
         {
             var item = new ToolStripMenuItem(tableName);
-            item.Click += (s, e) => {
+            item.Click += async (s, e) => {
                 Form.ActiveForm.Cursor = Cursors.WaitCursor;
                 Application.DoEvents();
 
                 ForceEndCurrentEdit();
                 
-                try { LoadModule(new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView()); } 
-                catch (Exception ex) { MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-                finally { Form.ActiveForm.Cursor = Cursors.Default; }
+                try {
+                    Control view = null;
+                    await Task.Run(() => { view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView(); });
+                    
+                    if (view != null) {
+                        LoadModule(view);
+                    }
+                } 
+                catch (Exception ex) { 
+                    MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                }
+                finally { 
+                    Form.ActiveForm.Cursor = Cursors.Default; 
+                }
             };
             return item;
         }
@@ -777,8 +782,9 @@ namespace Safety_System
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
+
             try {
-                _contentPanel.SuspendLayout(); // 🟢 暫停重繪，避免視覺閃爍與卡頓
+                _contentPanel.SuspendLayout(); 
                 
                 while (_contentPanel.Controls.Count > 0)
                 {
@@ -787,13 +793,10 @@ namespace Safety_System
                     ctrl.Dispose();
                 }
                 
-                // 🔴 關鍵優化：徹底移除 GC.Collect(); 和 GC.WaitForPendingFinalizers();
-                // 這是造成整個系統在切換選單時卡死 3~5 秒的最大元凶。
-
                 moduleControl.Dock = DockStyle.Fill;
                 _contentPanel.Controls.Add(moduleControl);
                 
-                _contentPanel.ResumeLayout(); // 🟢 恢復重繪，瞬間顯示新畫面
+                _contentPanel.ResumeLayout(); 
             } catch (Exception ex) {
                 MessageBox.Show($"畫面切換時發生錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
