@@ -108,8 +108,6 @@ namespace Safety_System
                     {
                         dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
                         dgv.EndEdit();
-                        
-                        // 🟢 修正：移除 dgv.CurrentCell = null; 避免存檔時畫面焦點跳轉回最上方
                     }
                     else if (c.HasChildren)
                     {
@@ -158,7 +156,7 @@ namespace Safety_System
             menuChemReg.DropDownItems.Add(CreateItem("4. 關注性化學物質", () => new App_CoreTable("Chemical", "ConcernedChem", "關注性化學物質", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("5. 優先管理化學品", () => new App_CoreTable("Chemical", "PriorityMgmtChem", "優先管理化學品", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("6. 管制化學品", () => new App_CoreTable("Chemical", "ControlledChem", "管制化學品", new DefaultLogic()).GetView()));
-            menuChemReg.DropDownItems.Add(CreateItem("7. 特定化學物質", () => new App_CoreTable("Chemical", "SpecificChem", "特定化學物質", new DefaultLogic()).GetView()));
+            menuChemReg.DropDownItems.Add(CreateItem("7.特定化學物質", () => new App_CoreTable("Chemical", "SpecificChem", "特定化學物質", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("8. 有機溶劑", () => new App_CoreTable("Chemical", "OrganicSolvents", "有機溶劑", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("9. 勞工健康保護", () => new App_CoreTable("Chemical", "WorkerHealthProtect", "勞工健康保護", new DefaultLogic()).GetView()));
             menuChemReg.DropDownItems.Add(CreateItem("10. 公共危險物品", () => new App_CoreTable("Chemical", "PublicHazardous", "公共危險物品", new DefaultLogic()).GetView()));
@@ -281,27 +279,64 @@ namespace Safety_System
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
             _menu4.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu4DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
+            // ==========================================
+            // 🟢 設定選單重新定義與排序 (依要求)
+            // ==========================================
             var menuSettings = new ToolStripMenuItem("設定");
-            menuSettings.DropDownItems.Add(CreateItem("操作說明", () => new App_Instruction().GetView()));
 
-            // 🟢 新增：系統流程圖
-            var flowChartItem = new ToolStripMenuItem("系統流程圖");
-            flowChartItem.Click += (s, e) => {
+            // 1. 資料庫設定 (原: 系統參數與稽核設定)
+            var dbConfigItem = new ToolStripMenuItem("資料庫設定");
+            dbConfigItem.Click += (s, e) => {
                 try {
-                    ForceEndCurrentEdit(); 
-                    LoadModule(new App_SystemFlowchart().GetView());
+                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { LoadModule(new App_DbConfig().GetView()); } 
                 } catch (Exception ex) {
-                    MessageBox.Show($"載入流程圖失敗：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
-            menuSettings.DropDownItems.Add(flowChartItem);
+            menuSettings.DropDownItems.Add(dbConfigItem);
 
+            // 2. 資料庫還原
+            var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫還原");
+            restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
+            menuSettings.DropDownItems.Add(restoreDbItem);
+
+            // 3. 選單管理(自訂擴充)
             var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
                 new App_MenuManager().ShowDialog(this);
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
+            // 4. 下拉選單與連動設定
+            var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
+            dropdownItem.Click += (s, e) => {
+                try {
+                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { new App_DropdownManager().ShowDialog(this); } 
+                } catch (Exception ex) {
+                    MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(dropdownItem);
+
+            // 5. 分隔線
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
+
+            // 6. 授權使用者 (原: 新增登入授權使用者)
+            var addUserItem = new ToolStripMenuItem("授權使用者");
+            addUserItem.Click += (s, e) => {
+                string prompt = "管理使用者需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
+                if (AuthManager.VerifyLv3Only(prompt)) {
+                    new App_UserManager().ShowDialog(this);
+                }
+            };
+            menuSettings.DropDownItems.Add(addUserItem);
+
+            // 7. 分隔線
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
+
+            // 8. 應用連結設定
             var appLinkSettingItem = new ToolStripMenuItem("應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
                 try {
@@ -316,28 +351,10 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(appLinkSettingItem);
 
-            var dbConfigItem = new ToolStripMenuItem("系統參數與稽核設定");
-            dbConfigItem.Click += (s, e) => {
-                try {
-                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                    if (AuthManager.VerifyAdmin(prompt)) { LoadModule(new App_DbConfig().GetView()); } 
-                } catch (Exception ex) {
-                    MessageBox.Show($"無法載入資料庫設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            };
-            menuSettings.DropDownItems.Add(dbConfigItem);
+            // 9. 分隔線
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
-            dropdownItem.Click += (s, e) => {
-                try {
-                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                    if (AuthManager.VerifyAdmin(prompt)) { new App_DropdownManager().ShowDialog(this); } 
-                } catch (Exception ex) {
-                    MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            };
-            menuSettings.DropDownItems.Add(dropdownItem);
-
+            // 10. 附件檔案空間清理
             var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
             cleanupItem.Click += (s, e) => {
                 try {
@@ -349,25 +366,34 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(cleanupItem);
 
-            var addUserItem = new ToolStripMenuItem("新增登入授權使用者");
-            addUserItem.Click += (s, e) => {
-                string prompt = "管理使用者需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
-                if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_UserManager().ShowDialog(this);
+            // 11. 分隔線
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
+
+            // 12. 系統流程圖
+            var flowChartItem = new ToolStripMenuItem("系統流程圖");
+            flowChartItem.Click += (s, e) => {
+                try {
+                    ForceEndCurrentEdit(); 
+                    LoadModule(new App_SystemFlowchart().GetView());
+                } catch (Exception ex) {
+                    MessageBox.Show($"載入流程圖失敗：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
-            menuSettings.DropDownItems.Add(addUserItem);
+            menuSettings.DropDownItems.Add(flowChartItem);
 
-            var restoreDbItem = new ToolStripMenuItem("⏳ 資料庫還原");
-            restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
-            menuSettings.DropDownItems.Add(restoreDbItem);
+            // 13. 操作說明
+            var instructionItem = CreateItem("操作說明", () => new App_Instruction().GetView());
+            menuSettings.DropDownItems.Add(instructionItem);
 
+            // 分隔線 (隔離個人隱私操作)
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
             
+            // 開啟個人隱藏選單
             var unlockMenuItem = new ToolStripMenuItem("開啟個人隱藏選單");
             unlockMenuItem.Click += UnlockMenu_Click;
             menuSettings.DropDownItems.Add(unlockMenuItem);
 
+            // 變更個人選單密碼
             var pwdMgmtItem = new ToolStripMenuItem("變更個人選單密碼");
             pwdMgmtItem.Click += (s, e) => {
                 new App_PasswordManager().ShowDialog(this);
