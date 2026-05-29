@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_DropdownManager.cs ///
+/// FILE: Safety_System/settings/App_DropdownManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,6 +13,9 @@ namespace Safety_System
 {
     public class App_DropdownManager : Form
     {
+        private TabControl _tabControl;
+
+        // ================= Tab 1: 單選連動下拉選單控制項 =================
         private ComboBox _cboDb, _cboTable;
         private TextBox[] _txtOptions;
         private ComboBox[] _cboCols;
@@ -26,6 +29,12 @@ namespace Safety_System
         private bool _isRevertingDb = false;
         private bool _isRevertingCol = false;
 
+        // ================= Tab 2: 複選組合文字控制項 =================
+        private ComboBox _cboDbMulti, _cboTableMulti, _cboColMulti;
+        private TextBox _txtOptionsMulti;
+        private Button _btnSaveMulti, _btnDelMulti;
+        private FlowLayoutPanel _flpMultiConfigured;
+
         private class ItemMap 
         {
             public string EnName;
@@ -35,14 +44,24 @@ namespace Safety_System
 
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
+        // 🟢 全域快取
+        public static Dictionary<string, string[]> DropdownCache = new Dictionary<string, string[]>();
+        public static Dictionary<string, string[]> MultiSelectCache = new Dictionary<string, string[]>();
+
         public App_DropdownManager()
         {
             try 
             {
+                // 初始化複選文字資料表
+                string sql = "CREATE TABLE IF NOT EXISTS [MultiSelectConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));";
+                DataManager.InitTable("SystemConfig", "MultiSelectConfigs", sql);
+
                 _dbMap = App_DbConfig.GetDbMapCache();
                 RefreshConfiguredCache();
                 InitializeComponent();
                 LoadDropdownConfigs();
+                LoadMultiSelectConfigs();
+                RefreshMultiConfiguredList();
             } 
             catch (Exception ex) 
             {
@@ -108,13 +127,33 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "下拉選單與連動項目管理";
+            this.Text = "下拉選單與組合文字(複選)管理中心";
             this.Size = new Size(1650, 900);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.BackColor = Color.WhiteSmoke;
             this.Font = new Font("Microsoft JhengHei UI", 12F);
 
+            _tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), Padding = new Point(20, 10) };
+
+            TabPage tabSingle = new TabPage("一、單選下拉與多層連動設定");
+            tabSingle.BackColor = Color.WhiteSmoke;
+            BuildTabSingle(tabSingle);
+
+            TabPage tabMulti = new TabPage("二、組合文字 (複選) 設定");
+            tabMulti.BackColor = Color.White;
+            BuildTabMulti(tabMulti);
+
+            _tabControl.TabPages.Add(tabSingle);
+            _tabControl.TabPages.Add(tabMulti);
+            this.Controls.Add(_tabControl);
+        }
+
+        // =========================================================
+        // Tab 1 UI 構建與邏輯 (原下拉選單設定，完整無刪減)
+        // =========================================================
+        private void BuildTabSingle(TabPage page)
+        {
             Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20) };
             pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
@@ -139,14 +178,14 @@ namespace Safety_System
             flpBtnBottom.Controls.Add(_btnClearDb);
             
             pnlBottom.Controls.Add(flpBtnBottom);
-            this.Controls.Add(pnlBottom); 
+            page.Controls.Add(pnlBottom); 
 
             Panel pnlTop = new Panel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Padding = new Padding(20) };
             pnlTop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTop.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
             FlowLayoutPanel flpTopMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
             
-            Label lblTitle = new Label { Text = "🔧 下拉選單與連動項目設定", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
+            Label lblTitle = new Label { Text = "🔧 單選下拉與多層連動設定", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
             
             FlowLayoutPanel flpControls = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
             
@@ -166,7 +205,7 @@ namespace Safety_System
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
             
-            this.Controls.Add(pnlTop); 
+            page.Controls.Add(pnlTop); 
 
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
             for(int i = 0; i < 4; i++) tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
@@ -239,10 +278,9 @@ namespace Safety_System
                 tlpMain.Controls.Add(pColBorder, i, 0);
             }
 
-            this.Controls.Add(tlpMain); 
+            page.Controls.Add(tlpMain); 
             tlpMain.BringToFront();     
 
-            // ================= 事件綁定 =================
             _btnExport.Click += BtnExport_Click;
             _btnImport.Click += BtnImport_Click;
 
@@ -353,7 +391,6 @@ namespace Safety_System
         {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的下拉選單與連動設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
             {
-                // 🟢 加入三行式的驗證提示
                 string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -608,7 +645,6 @@ namespace Safety_System
                 MessageBox.Show("請先選擇資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            // 🟢 加入三行式的驗證提示
             string authPrompt = "儲存下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -701,7 +737,6 @@ namespace Safety_System
 
         private void BtnImport_Click(object sender, EventArgs e)
         {
-            // 🟢 加入三行式的驗證提示
             string authPrompt = "匯入下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -769,8 +804,6 @@ namespace Safety_System
             }
         }
 
-        public static Dictionary<string, string[]> DropdownCache = new Dictionary<string, string[]>();
-
         public static void LoadDropdownConfigs()
         {
             DropdownCache.Clear();
@@ -819,6 +852,197 @@ namespace Safety_System
                 }
             }
             return allOpts.ToArray();
+        }
+
+        // =========================================================
+        // Tab 2 UI 構建與邏輯 (組合文字/複選)
+        // =========================================================
+        private void BuildTabMulti(TabPage page)
+        {
+            TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+
+            // 左側編輯區
+            Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20) };
+            
+            Label lblTitle = new Label { Text = "☑️ 組合文字 (複選) 設定區", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.DarkCyan, AutoSize = true, Margin = new Padding(0, 0, 0, 20) };
+            pnlLeft.Controls.Add(lblTitle);
+
+            Label l1 = new Label { Text = "選擇資料庫：", Location = new Point(20, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _cboDbMulti = new ComboBox { Location = new Point(140, 57), Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboDbMulti.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            if (_dbMap != null) { foreach (var kvp in _dbMap) _cboDbMulti.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName }); }
+
+            Label l2 = new Label { Text = "選擇資料表：", Location = new Point(20, 110), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _cboTableMulti = new ComboBox { Location = new Point(140, 107), Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            Label l3 = new Label { Text = "指定目標欄位：", Location = new Point(20, 160), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _cboColMulti = new ComboBox { Location = new Point(140, 157), Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            Label l4 = new Label { Text = "自訂核取選項 (每一行代表一個選項)：", Location = new Point(20, 220), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _txtOptionsMulti = new TextBox { Location = new Point(20, 250), Width = 420, Height = 400, Multiline = true, ScrollBars = ScrollBars.Vertical };
+
+            _btnSaveMulti = new Button { Text = "💾 儲存組合文字設定", Location = new Point(20, 670), Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            _btnSaveMulti.Click += BtnSaveMulti_Click;
+
+            _btnDelMulti = new Button { Text = "🗑️ 刪除此欄位設定", Location = new Point(240, 670), Size = new Size(200, 45), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            _btnDelMulti.Click += BtnDelMulti_Click;
+
+            _cboDbMulti.SelectedIndexChanged += (s, e) => {
+                _cboTableMulti.Items.Clear(); _cboTableMulti.Items.Add(new ItemMap { EnName = "", ChName = "" }); _cboColMulti.Items.Clear(); _txtOptionsMulti.Clear();
+                var db = _cboDbMulti.SelectedItem as ItemMap;
+                if (db != null && !string.IsNullOrEmpty(db.EnName)) {
+                    foreach (var tbl in _dbMap[db.EnName].Tables) _cboTableMulti.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                }
+            };
+            
+            _cboTableMulti.SelectedIndexChanged += (s, e) => {
+                _cboColMulti.Items.Clear(); _txtOptionsMulti.Clear();
+                var db = _cboDbMulti.SelectedItem as ItemMap; var tb = _cboTableMulti.SelectedItem as ItemMap;
+                if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
+                    var cols = DataManager.GetColumnNames(db.EnName, tb.EnName).Where(c => c != "Id" && c != "附件檔案");
+                    foreach (var c in cols) _cboColMulti.Items.Add(c);
+                }
+            };
+
+            _cboColMulti.SelectedIndexChanged += (s, e) => {
+                _txtOptionsMulti.Clear();
+                var tb = _cboTableMulti.SelectedItem as ItemMap;
+                if (tb != null && _cboColMulti.SelectedItem != null) {
+                    string key = $"{tb.EnName}|{_cboColMulti.SelectedItem}";
+                    if (MultiSelectCache.ContainsKey(key)) {
+                        _txtOptionsMulti.Text = string.Join(Environment.NewLine, MultiSelectCache[key]);
+                    }
+                }
+            };
+
+            pnlLeft.Controls.AddRange(new Control[] { l1, _cboDbMulti, l2, _cboTableMulti, l3, _cboColMulti, l4, _txtOptionsMulti, _btnSaveMulti, _btnDelMulti });
+
+            // 右側清單區
+            GroupBox boxRight = new GroupBox { Dock = DockStyle.Fill, Text = "已設定之組合文字清單", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(20) };
+            _flpMultiConfigured = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
+            boxRight.Controls.Add(_flpMultiConfigured);
+
+            mainLayout.Controls.Add(pnlLeft, 0, 0);
+            mainLayout.Controls.Add(boxRight, 1, 0);
+
+            page.Controls.Add(mainLayout);
+        }
+
+        private void BtnSaveMulti_Click(object sender, EventArgs e)
+        {
+            var tb = _cboTableMulti.SelectedItem as ItemMap;
+            if (tb == null || _cboColMulti.SelectedItem == null || string.IsNullOrWhiteSpace(_txtOptionsMulti.Text)) {
+                MessageBox.Show("請確認資料表、欄位與選項內容皆已填寫！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            }
+
+            if (!AuthManager.VerifyAdmin("儲存需要系統權限：")) return;
+
+            string tblName = tb.EnName;
+            string colName = _cboColMulti.SelectedItem.ToString();
+            var optsArray = _txtOptionsMulti.Text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+            string optsStr = string.Join(",", optsArray);
+
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"INSERT INTO MultiSelectConfigs (TableName, ColName, Options) VALUES (@T, @C, @Opt) ON CONFLICT(TableName, ColName) DO UPDATE SET Options=@Opt";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.Parameters.AddWithValue("@T", tblName);
+                        cmd.Parameters.AddWithValue("@C", colName);
+                        cmd.Parameters.AddWithValue("@Opt", optsStr);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                MessageBox.Show("組合文字設定儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LoadMultiSelectConfigs();
+                RefreshMultiConfiguredList();
+            } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message, "錯誤"); }
+        }
+
+        private void BtnDelMulti_Click(object sender, EventArgs e)
+        {
+            var tb = _cboTableMulti.SelectedItem as ItemMap;
+            if (tb == null || _cboColMulti.SelectedItem == null) return;
+
+            if (MessageBox.Show("確定要刪除此欄位的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
+                if (!AuthManager.VerifyAdmin("刪除需要系統權限：")) return;
+                
+                try {
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        conn.Open();
+                        using (var cmd = new SQLiteCommand("DELETE FROM MultiSelectConfigs WHERE TableName=@T AND ColName=@C", conn)) {
+                            cmd.Parameters.AddWithValue("@T", tb.EnName);
+                            cmd.Parameters.AddWithValue("@C", _cboColMulti.SelectedItem.ToString());
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    _txtOptionsMulti.Clear();
+                    LoadMultiSelectConfigs();
+                    RefreshMultiConfiguredList();
+                    MessageBox.Show("刪除成功！", "成功");
+                } catch (Exception ex) { MessageBox.Show("刪除失敗：" + ex.Message, "錯誤"); }
+            }
+        }
+
+        private void RefreshMultiConfiguredList()
+        {
+            if (_flpMultiConfigured == null) return;
+            _flpMultiConfigured.Controls.Clear();
+            
+            if (MultiSelectCache.Count == 0) {
+                _flpMultiConfigured.Controls.Add(new Label { Text = "尚無任何設定。", ForeColor = Color.DimGray, AutoSize = true });
+                return;
+            }
+
+            foreach (var kvp in MultiSelectCache) {
+                string[] parts = kvp.Key.Split('|');
+                if (parts.Length != 2) continue;
+
+                string tbName = parts[0];
+                string colName = parts[1];
+                string chTbName = tbName;
+
+                foreach (var db in _dbMap.Values) {
+                    if (db.Tables.ContainsKey(tbName)) {
+                        chTbName = db.Tables[tbName]; break;
+                    }
+                }
+
+                Panel pItem = new Panel { Width = _flpMultiConfigured.ClientSize.Width - 30, Height = 40, BackColor = Color.AliceBlue, Margin = new Padding(5) };
+                Label lName = new Label { Text = $"表：{chTbName}   ➡️   欄位：[{colName}]", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+                pItem.Controls.Add(lName);
+                _flpMultiConfigured.Controls.Add(pItem);
+            }
+        }
+
+        public static void LoadMultiSelectConfigs()
+        {
+            MultiSelectCache.Clear();
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    // 確保資料表存在以防首次執行出錯
+                    using (var cmdChk = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [MultiSelectConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));", conn)) { cmdChk.ExecuteNonQuery(); }
+
+                    using (var cmd = new SQLiteCommand("SELECT TableName, ColName, Options FROM MultiSelectConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            string key = $"{reader["TableName"]}|{reader["ColName"]}";
+                            string[] opts = reader["Options"].ToString().Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                            MultiSelectCache[key] = opts;
+                        }
+                    }
+                }
+            } catch { }
+        }
+
+        public static string[] GetMultiSelectOptions(string tableName, string colName)
+        {
+            string key = $"{tableName}|{colName}";
+            if (MultiSelectCache.ContainsKey(key)) return MultiSelectCache[key];
+            return null;
         }
     }
 }
