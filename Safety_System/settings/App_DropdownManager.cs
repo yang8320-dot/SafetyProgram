@@ -203,7 +203,8 @@ namespace Safety_System
             _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearDb.Click += BtnClearDb_Click;
 
-            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            // 🟢 加入灰色粗體的說明
+            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 已於「組合文字(複選)」設定的項目，以【灰色粗體】標示，為防呆限制不可重複設定。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -240,6 +241,7 @@ namespace Safety_System
             flpTopMain.Controls.Add(lblTitle);
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
+            
             page.Controls.Add(pnlTop); 
 
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
@@ -275,7 +277,6 @@ namespace Safety_System
                 Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboParentVals[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15) };
                 
-                // 🟢 加入資料萃取按鈕，文字精簡為「導入資料」
                 FlowLayoutPanel flpOptHeader = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0,0,0,5) };
                 Label lOpt = new Label { Text = "下拉選項內容：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,5,0) };
                 Button btnExtract = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
@@ -341,7 +342,8 @@ namespace Safety_System
             Button btnClearMultiDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnClearMultiDb.Click += BtnClearMultiDb_Click;
 
-            Label lblHintMulti = new Label { Text = "※ 已設定組合文字的項目，以【紅色粗體】標示。\n※ 組合文字(複選)設定後，該欄位於資料表中將變為強制唯讀，點擊後會彈出複選視窗。\n※ 匯入 Excel 格式：資料表名稱、欄位名稱、選項內容(逗號分隔)。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            // 🟢 加入灰色粗體的說明
+            Label lblHintMulti = new Label { Text = "※ 已設定組合文字的項目，以【紅色粗體】標示。\n※ 已於「單選下拉」設定的項目，以【灰色粗體】標示，為防呆限制不可重複設定。\n※ 組合文字(複選)設定後，該欄位於資料表中將變為強制唯讀，點擊後會彈出複選視窗。\n※ 匯入 Excel 格式：資料表名稱、欄位名稱、選項內容(逗號分隔)。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
             
             pnlBottom.Controls.Add(lblHintMulti);
 
@@ -394,11 +396,9 @@ namespace Safety_System
             tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-            // 左側輸入框區塊
             Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
-            // 🟢 加入資料萃取按鈕 (精簡文字為 導入資料)
             FlowLayoutPanel flpMultiOptHeader = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 0, 0, 10) };
             Label l4 = new Label { Text = "自訂核取選項：", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 10, 0) };
             Button btnExtractMulti = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
@@ -411,9 +411,8 @@ namespace Safety_System
             _txtOptionsMulti = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Microsoft JhengHei UI", 13F) };
             
             pnlLeftBorder.Controls.Add(_txtOptionsMulti);
-            pnlLeftBorder.Controls.Add(flpMultiOptHeader); // 加在 Top
+            pnlLeftBorder.Controls.Add(flpMultiOptHeader); 
 
-            // 右側清單區塊
             Panel pnlRightBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlRightBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlRightBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
@@ -442,7 +441,6 @@ namespace Safety_System
                 _cboColMulti.Items.Clear(); _txtOptionsMulti.Clear();
                 var db = _cboDbMulti.SelectedItem as ItemMap; var tb = _cboTableMulti.SelectedItem as ItemMap;
                 if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
-                    // 智慧讀取：防呆讀不到空表的欄位
                     var cols = GetColumnsSafe(db.EnName, tb.EnName).Where(c => c != "Id" && c != "附件檔案");
                     foreach (var c in cols) _cboColMulti.Items.Add(c);
                 }
@@ -474,70 +472,6 @@ namespace Safety_System
         }
 
         // =========================================================
-        // Tab 2: 選單紅字加粗重繪邏輯 (OwnerDraw)
-        // =========================================================
-        private void CboDbMulti_DrawItem(object sender, DrawItemEventArgs e) {
-            if (e.Index < 0) return;
-            var item = _cboDbMulti.Items[e.Index] as ItemMap;
-            bool isConfig = false;
-            if (item != null && !string.IsNullOrEmpty(item.EnName)) {
-                foreach(var k in MultiSelectCache.Keys) {
-                    string tb = k.Split('|')[0];
-                    if (_dbMap.ContainsKey(item.EnName) && _dbMap[item.EnName].Tables.ContainsKey(tb)) { isConfig = true; break; }
-                }
-            }
-            DrawComboBoxItemMulti(_cboDbMulti, e, isConfig);
-        }
-
-        private void CboTableMulti_DrawItem(object sender, DrawItemEventArgs e) {
-            if (e.Index < 0) return;
-            var item = _cboTableMulti.Items[e.Index] as ItemMap;
-            bool isConfig = false;
-            if (item != null && !string.IsNullOrEmpty(item.EnName)) {
-                foreach(var k in MultiSelectCache.Keys) {
-                    if (k.StartsWith(item.EnName + "|")) { isConfig = true; break; }
-                }
-            }
-            DrawComboBoxItemMulti(_cboTableMulti, e, isConfig);
-        }
-
-        private void CboColMulti_DrawItem(object sender, DrawItemEventArgs e) {
-            if (e.Index < 0) return;
-            string col = _cboColMulti.Items[e.Index].ToString();
-            var tb = _cboTableMulti.SelectedItem as ItemMap;
-            bool isConfig = false;
-            if (tb != null && !string.IsNullOrEmpty(tb.EnName) && !string.IsNullOrEmpty(col)) {
-                string key = $"{tb.EnName}|{col}";
-                if (MultiSelectCache.ContainsKey(key)) isConfig = true;
-            }
-            DrawComboBoxItemMulti(_cboColMulti, e, isConfig);
-        }
-
-        private void DrawComboBoxItemMulti(ComboBox cbo, DrawItemEventArgs e, bool isConfigured) {
-            if (e.Index < 0) return;
-            
-            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
-                e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
-            else 
-                e.Graphics.FillRectangle(Brushes.White, e.Bounds);
-            
-            string text = cbo.Items[e.Index].ToString();
-            Brush textBrush = Brushes.Black;
-            Font currentFont = e.Font;
-            
-            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
-                textBrush = Brushes.White;
-                if (isConfigured) currentFont = new Font(e.Font, FontStyle.Bold);
-            } else if (isConfigured) {
-                textBrush = Brushes.Crimson; 
-                currentFont = new Font(e.Font, FontStyle.Bold);
-            }
-            
-            e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
-            e.DrawFocusRectangle();
-        }
-
-        // =========================================================
         // 🟢 全新功能：一鍵從現有資料表中萃取不重複文字
         // =========================================================
         private void ExtractDataFromDB(int colIndex, bool isMulti)
@@ -554,7 +488,7 @@ namespace Safety_System
             try {
                 DataTable dt = DataManager.GetTableData(db, tb, "", "", "");
                 if (dt == null || dt.Rows.Count == 0) {
-                    MessageBox.Show("此資料表目前尚無資料可供萃取。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("此資料表目前尚無資料可供導入。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
@@ -599,7 +533,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // Tab 1 事件邏輯
+        // 🟢 Tab 1 事件邏輯與下拉選單重繪 (加入灰色標示)
         // =========================================================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e) {
             if (e.Index < 0) return;
@@ -609,7 +543,7 @@ namespace Safety_System
             if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredDbs.ContainsKey(item.EnName)) {
                 isConfig = true; isLinked = _configuredDbs[item.EnName];
             }
-            DrawComboBoxItem(_cboDb, e, isConfig, isLinked);
+            DrawComboBoxItem(_cboDb, e, isConfig, isLinked, false);
         }
 
         private void CboTable_DrawItem(object sender, DrawItemEventArgs e) {
@@ -620,23 +554,30 @@ namespace Safety_System
             if (item != null && !string.IsNullOrEmpty(item.EnName) && _configuredTables.ContainsKey(item.EnName)) {
                 isConfig = true; isLinked = _configuredTables[item.EnName];
             }
-            DrawComboBoxItem(_cboTable, e, isConfig, isLinked);
+            DrawComboBoxItem(_cboTable, e, isConfig, isLinked, false);
         }
 
         private void CboCols_DrawItem(object sender, DrawItemEventArgs e, int colIndex) {
             if (e.Index < 0) return;
             string colName = _cboCols[colIndex].Items[e.Index].ToString();
             string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName ?? "";
+            
             bool isConfig = false;
             bool isLinked = false;
+            bool isOtherConfig = false; // 判斷是否在 Tab 2 設定過
+            
             string key = $"{tbName}_{colName}";
             if (!string.IsNullOrEmpty(colName) && _configuredCols.ContainsKey(key)) {
                 isConfig = true; isLinked = _configuredCols[key];
+            } else if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
+                if (MultiSelectCache.ContainsKey($"{tbName}|{colName}")) {
+                    isOtherConfig = true;
+                }
             }
-            DrawComboBoxItem(_cboCols[colIndex], e, isConfig, isLinked);
+            DrawComboBoxItem(_cboCols[colIndex], e, isConfig, isLinked, isOtherConfig);
         }
 
-        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked) {
+        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked, bool isOtherConfigured) {
             if (e.Index < 0) return;
 
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
@@ -651,14 +592,91 @@ namespace Safety_System
                 Font currentFont = e.Font;
                 if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
                     textBrush = Brushes.White;
-                    if (isConfigured) currentFont = boldFont; 
+                    if (isConfigured || isOtherConfigured) currentFont = boldFont; 
                 } 
                 else if (isConfigured) {
                     textBrush = isLinked ? Brushes.Crimson : Brushes.DodgerBlue; 
                     currentFont = boldFont;         
                 }
+                else if (isOtherConfigured) {
+                    textBrush = Brushes.Gray;
+                    currentFont = boldFont;
+                }
                 e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             }
+            e.DrawFocusRectangle();
+        }
+
+        // =========================================================
+        // 🟢 Tab 2 事件邏輯與下拉選單重繪 (加入灰色標示)
+        // =========================================================
+        private void CboDbMulti_DrawItem(object sender, DrawItemEventArgs e) {
+            if (e.Index < 0) return;
+            var item = _cboDbMulti.Items[e.Index] as ItemMap;
+            bool isConfig = false;
+            if (item != null && !string.IsNullOrEmpty(item.EnName)) {
+                foreach(var k in MultiSelectCache.Keys) {
+                    string tb = k.Split('|')[0];
+                    if (_dbMap.ContainsKey(item.EnName) && _dbMap[item.EnName].Tables.ContainsKey(tb)) { isConfig = true; break; }
+                }
+            }
+            DrawComboBoxItemMulti(_cboDbMulti, e, isConfig, false);
+        }
+
+        private void CboTableMulti_DrawItem(object sender, DrawItemEventArgs e) {
+            if (e.Index < 0) return;
+            var item = _cboTableMulti.Items[e.Index] as ItemMap;
+            bool isConfig = false;
+            if (item != null && !string.IsNullOrEmpty(item.EnName)) {
+                foreach(var k in MultiSelectCache.Keys) {
+                    if (k.StartsWith(item.EnName + "|")) { isConfig = true; break; }
+                }
+            }
+            DrawComboBoxItemMulti(_cboTableMulti, e, isConfig, false);
+        }
+
+        private void CboColMulti_DrawItem(object sender, DrawItemEventArgs e) {
+            if (e.Index < 0) return;
+            string col = _cboColMulti.Items[e.Index].ToString();
+            var tb = _cboTableMulti.SelectedItem as ItemMap;
+            bool isConfig = false;
+            bool isOtherConfig = false; // 判斷是否在 Tab 1 設定過
+
+            if (tb != null && !string.IsNullOrEmpty(tb.EnName) && !string.IsNullOrEmpty(col)) {
+                string key = $"{tb.EnName}|{col}";
+                if (MultiSelectCache.ContainsKey(key)) {
+                    isConfig = true;
+                } else if (IsColumnInDropdownCache(tb.EnName, col)) {
+                    isOtherConfig = true;
+                }
+            }
+            DrawComboBoxItemMulti(_cboColMulti, e, isConfig, isOtherConfig);
+        }
+
+        private void DrawComboBoxItemMulti(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isOtherConfigured) {
+            if (e.Index < 0) return;
+            
+            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
+                e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
+            else 
+                e.Graphics.FillRectangle(Brushes.White, e.Bounds);
+            
+            string text = cbo.Items[e.Index].ToString();
+            Brush textBrush = Brushes.Black;
+            Font currentFont = e.Font;
+            
+            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+                textBrush = Brushes.White;
+                if (isConfigured || isOtherConfigured) currentFont = new Font(e.Font, FontStyle.Bold);
+            } else if (isConfigured) {
+                textBrush = Brushes.Crimson; 
+                currentFont = new Font(e.Font, FontStyle.Bold);
+            } else if (isOtherConfigured) {
+                textBrush = Brushes.Gray;
+                currentFont = new Font(e.Font, FontStyle.Bold);
+            }
+            
+            e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             e.DrawFocusRectangle();
         }
 
@@ -759,7 +777,6 @@ namespace Safety_System
         private void CboTable_SelectedIndexChanged(object sender, EventArgs e) {
             ClearAllEditors();
             if (_cboDb.SelectedItem is ItemMap dbMap && _cboTable.SelectedItem is ItemMap tbMap && !string.IsNullOrEmpty(dbMap.EnName) && !string.IsNullOrEmpty(tbMap.EnName)) {
-                // 🟢 智慧讀取欄位
                 var cols = GetColumnsSafe(dbMap.EnName, tbMap.EnName);
                 foreach (var cbo in _cboCols) {
                     cbo.Items.Clear();
@@ -1341,6 +1358,7 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
+                    // 確保資料表存在以防首次執行出錯
                     using (var cmdChk = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [MultiSelectConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));", conn)) { cmdChk.ExecuteNonQuery(); }
 
                     using (var cmd = new SQLiteCommand("SELECT TableName, ColName, Options FROM MultiSelectConfigs", conn))
