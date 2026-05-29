@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -231,6 +232,7 @@ namespace Safety_System
                 _isFirstLoad = false;
                 
                 App_DropdownManager.LoadDropdownConfigs();
+                App_DropdownManager.LoadMultiSelectConfigs(); // 🟢 加入載入複選文字的 Cache
                 LoadVisibilitySettings();
                 LoadColumnWidths();
                 
@@ -247,7 +249,6 @@ namespace Safety_System
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
 
-            // 啟動雙緩衝硬體加速
             EnableDoubleBuffered(_dgv);
 
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -336,7 +337,6 @@ namespace Safety_System
             _lblStatus.ForeColor = statusColor;
         }
 
-        // 🟢 需求 1 修正：讀取時如果使用者已經手動調整過該欄的寬度，則套用記憶寬度。
         private void ApplyGridStyles() 
         {
             if (_dgv.Columns.Contains("Id")) {
@@ -362,6 +362,13 @@ namespace Safety_System
                     col.DefaultCellStyle.Font = new Font(_dgv.Font, FontStyle.Underline);
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 }
+
+                // 🟢 替有設定為「組合文字」的欄位加上提示色
+                string multiKey = $"{_tableName}|{col.Name}";
+                if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
+                    col.ReadOnly = true; // 強制設為唯讀，讓使用者只能透過點擊彈窗來修改
+                    col.DefaultCellStyle.BackColor = Color.LightYellow;
+                }
             }
 
             SetupDropdownColumns();
@@ -369,21 +376,17 @@ namespace Safety_System
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
 
-            // 🟢 優化：針對個別欄位判斷，如果有存在 _columnWidths 中，則完全依照使用者設定的寬度
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
 
                 if (_columnWidths.ContainsKey(col.Name) && _columnWidths[col.Name] > 0) {
-                    // 若有紀錄過使用者拉動的寬度，直接套用
                     col.Width = _columnWidths[col.Name];
                 } else {
-                    // 若沒有紀錄，給予預設值
                     if (_logic is LawLogic) {
                         if (col.Name == "法規名稱") col.Width = 250;
                         else if (col.Name == "內容") col.Width = 400;
                         else if (col.Name == "重點摘要") col.Width = 200;
                     } else {
-                        // 如果是其他表且未設定寬度，使用文字長度自動計算一次 (取代 AutoSizeColumnsMode 的全表耗時運算)
                         int headerW = TextRenderer.MeasureText(col.HeaderText, _dgv.Font).Width + 40;
                         col.Width = headerW < 80 ? 80 : headerW;
                     }
@@ -397,6 +400,13 @@ namespace Safety_System
             foreach (DataGridViewColumn col in _dgv.Columns) cols.Add(col);
 
             foreach (DataGridViewColumn col in cols) {
+                
+                // 🟢 檢查：如果這個欄位已經被設定為「組合文字 (複選)」，就不要把它轉成下拉選單
+                string multiKey = $"{_tableName}|{col.Name}";
+                if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
+                    continue; // 跳過此欄，保持 TextColumn 狀態
+                }
+
                 string[] items = _logic.GetDropdownList(_tableName, col.Name);
                 string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
                 
