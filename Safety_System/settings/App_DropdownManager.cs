@@ -1094,7 +1094,7 @@ namespace Safety_System
             _flpMultiConfigured.Controls.Clear();
             
             if (MultiSelectCache.Count == 0) {
-                _flpMultiConfigured.Controls.Add(new Label { Text = "尚無任何設定。", ForeColor = Color.DimGray, AutoSize = true });
+                _flpMultiConfigured.Controls.Add(new Label { Text = "尚無任何設定。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
                 return;
             }
 
@@ -1112,10 +1112,35 @@ namespace Safety_System
                     }
                 }
 
-                Panel pItem = new Panel { Width = _flpMultiConfigured.ClientSize.Width - 30, Height = 40, BackColor = Color.AliceBlue, Margin = new Padding(5) };
-                Label lName = new Label { Text = $"表：{chTbName}   ➡️   欄位：[{colName}]", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+                // 🟢 修正：給予固定的初始寬度(650)，避免視窗剛載入時寬度為 0 導致被擠壓成一點
+                Panel pItem = new Panel { Width = 650, Height = 45, BackColor = Color.AliceBlue, Margin = new Padding(5) };
+                
+                Label lName = new Label { 
+                    Text = $"表：{chTbName}   ➡️   欄位：[{colName}]", 
+                    Location = new Point(15, 12), 
+                    AutoSize = true, 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    ForeColor = Color.DarkSlateBlue 
+                };
+                
                 pItem.Controls.Add(lName);
                 _flpMultiConfigured.Controls.Add(pItem);
+            }
+            
+            // 🟢 加入自適應調整：當外框大小改變時，自動將內部的項目撐滿
+            _flpMultiConfigured.Resize -= FlpMultiConfigured_Resize; 
+            _flpMultiConfigured.Resize += FlpMultiConfigured_Resize;
+        }
+
+        private void FlpMultiConfigured_Resize(object sender, EventArgs e)
+        {
+            // 動態調整所有項目的寬度，使其填滿右側清單區
+            foreach (Control ctrl in _flpMultiConfigured.Controls)
+            {
+                if (ctrl is Panel pnl)
+                {
+                    pnl.Width = _flpMultiConfigured.ClientSize.Width - 20;
+                }
             }
         }
 
