@@ -124,7 +124,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底移除 Sorted 時的排版重算，交給 DisplayedCells 自動完成
         private void Dgv_Sorted(object sender, EventArgs e)
         {
             // 保持空白，不呼叫 AutoResizeRows
@@ -217,8 +216,6 @@ namespace Safety_System
                 if (success) { 
                     dtSource.AcceptChanges(); 
 
-                    // 🟢 移除了這邊的 AutoResizeRows
-
                     try {
                         if (scrollRow >= 0 && scrollRow < _dgv.Rows.Count) _dgv.FirstDisplayedScrollingRowIndex = scrollRow;
                         if (scrollCol >= 0 && scrollCol < _dgv.Columns.Count) _dgv.FirstDisplayedScrollingColumnIndex = scrollCol;
@@ -293,8 +290,6 @@ namespace Safety_System
                         }
                         
                         dt.AcceptChanges(); 
-
-                        // 🟢 移除了這邊的 AutoResizeRows
 
                         if (_calcHelper != null) {
                             _calcHelper.BeginBulkUpdate();
@@ -675,13 +670,11 @@ namespace Safety_System
                         object currentVal = _dgv.CurrentCell.Value; 
                         cbo.Items.Clear(); 
                         
-                        // 🟢 效能關鍵優化：避免用 AddRange 塞入成千上萬的選項，改為使用 HashSet 確保不重複
                         HashSet<string> uniqueItems = new HashSet<string>(items);
                         if (currentVal != null && !string.IsNullOrWhiteSpace(currentVal.ToString())) {
                             uniqueItems.Add(currentVal.ToString());
                         }
 
-                        // 🟢 將不重複的選項轉為陣列後一次性綁定 (取代原本的 cbo.Items.AddRange，大幅提升效能)
                         var finalArray = uniqueItems.ToArray();
                         cbo.DataSource = finalArray;
 
@@ -715,10 +708,14 @@ namespace Safety_System
             }
         }
 
+        // 🟢 加入複選文字的彈跳邏輯
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e) 
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow) {
-                if (_dgv.Columns[e.ColumnIndex].Name.Contains("附件檔案")) {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow) 
+            {
+                string colName = _dgv.Columns[e.ColumnIndex].Name;
+
+                if (colName.Contains("附件檔案")) {
                     string currentVal = "";
                     object rawVal = _dgv[e.ColumnIndex, e.RowIndex].Value;
                     if (rawVal != null) currentVal = rawVal.ToString();
@@ -735,7 +732,69 @@ namespace Safety_System
                             _dgv.EndEdit(); 
                         }
                     }
-                } else { 
+                } 
+                // 🟢 判斷是否為「組合文字」欄位，並開啟複選對話框
+                else if (App_DropdownManager.MultiSelectCache.ContainsKey($"{_tableName}|{colName}")) 
+                {
+                    string multiKey = $"{_tableName}|{colName}";
+                    string[] options = App_DropdownManager.MultiSelectCache[multiKey];
+                    string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString() ?? "";
+
+                    using (Form fMulti = new Form())
+                    {
+                        fMulti.Text = $"複選組合文字：{colName}";
+                        fMulti.Size = new Size(350, 450);
+                        fMulti.StartPosition = FormStartPosition.CenterParent;
+                        fMulti.FormBorderStyle = FormBorderStyle.FixedDialog;
+                        fMulti.MaximizeBox = false;
+                        fMulti.MinimizeBox = false;
+                        fMulti.BackColor = Color.White;
+
+                        CheckedListBox clb = new CheckedListBox {
+                            Dock = DockStyle.Fill,
+                            Font = new Font("Microsoft JhengHei UI", 12F),
+                            CheckOnClick = true,
+                            BorderStyle = BorderStyle.None,
+                            Padding = new Padding(10)
+                        };
+
+                        // 勾選已經選取的項目
+                        string[] currentSelected = currentVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                        foreach (string opt in options)
+                        {
+                            bool isChecked = currentSelected.Contains(opt);
+                            clb.Items.Add(opt, isChecked);
+                        }
+
+                        Button btnOk = new Button {
+                            Text = "✔️ 確認並填入",
+                            Dock = DockStyle.Bottom,
+                            Height = 45,
+                            BackColor = Color.SteelBlue,
+                            ForeColor = Color.White,
+                            Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
+                            Cursor = Cursors.Hand
+                        };
+                        
+                        btnOk.Click += (s2, ev2) => {
+                            List<string> selectedItems = new List<string>();
+                            foreach (var checkedItem in clb.CheckedItems) {
+                                selectedItems.Add(checkedItem.ToString());
+                            }
+                            
+                            // 用換行符號組合文字寫入儲存格
+                            _dgv[e.ColumnIndex, e.RowIndex].Value = string.Join(Environment.NewLine, selectedItems);
+                            _dgv.EndEdit();
+                            fMulti.DialogResult = DialogResult.OK;
+                        };
+
+                        fMulti.Controls.Add(clb);
+                        fMulti.Controls.Add(btnOk);
+                        fMulti.ShowDialog(Form.ActiveForm);
+                    }
+                } 
+                else 
+                { 
                     _logic.OnCellClick(_dgv, e); 
                 }
             }
@@ -758,13 +817,10 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底移除 CellValueChanged 時的排版重算，交給 DisplayedCells 自動完成
         private void Dgv_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _isCascading) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
-
-            // 保持空白，不呼叫 AutoResizeRow
 
             _isCascading = true;
             try {
