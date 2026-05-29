@@ -203,8 +203,8 @@ namespace Safety_System
             _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearDb.Click += BtnClearDb_Click;
 
-            // 🟢 加入灰色粗體的說明
-            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 已於「組合文字(複選)」設定的項目，以【灰色粗體】標示，為防呆限制不可重複設定。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            // 🟢 修改說明文字，明確指出是【灰底粗體】
+            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 已於「組合文字(複選)」設定的項目，以【灰底粗體】標示，為防呆限制不可重複設定。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -241,7 +241,6 @@ namespace Safety_System
             flpTopMain.Controls.Add(lblTitle);
             flpTopMain.Controls.Add(flpControls);
             pnlTop.Controls.Add(flpTopMain);
-            
             page.Controls.Add(pnlTop); 
 
             TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
@@ -342,8 +341,8 @@ namespace Safety_System
             Button btnClearMultiDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnClearMultiDb.Click += BtnClearMultiDb_Click;
 
-            // 🟢 加入灰色粗體的說明
-            Label lblHintMulti = new Label { Text = "※ 已設定組合文字的項目，以【紅色粗體】標示。\n※ 已於「單選下拉」設定的項目，以【灰色粗體】標示，為防呆限制不可重複設定。\n※ 組合文字(複選)設定後，該欄位於資料表中將變為強制唯讀，點擊後會彈出複選視窗。\n※ 匯入 Excel 格式：資料表名稱、欄位名稱、選項內容(逗號分隔)。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            // 🟢 修改說明文字，明確指出是【灰底粗體】
+            Label lblHintMulti = new Label { Text = "※ 已設定組合文字的項目，以【紅色粗體】標示。\n※ 已於「單選下拉」設定的項目，以【灰底粗體】標示，為防呆限制不可重複設定。\n※ 組合文字(複選)設定後，該欄位於資料表中將變為強制唯讀，點擊後會彈出複選視窗。\n※ 匯入 Excel 格式：資料表名稱、欄位名稱、選項內容(逗號分隔)。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
             
             pnlBottom.Controls.Add(lblHintMulti);
 
@@ -396,6 +395,7 @@ namespace Safety_System
             tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
+            // 左側輸入框區塊
             Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
@@ -413,6 +413,7 @@ namespace Safety_System
             pnlLeftBorder.Controls.Add(_txtOptionsMulti);
             pnlLeftBorder.Controls.Add(flpMultiOptHeader); 
 
+            // 右側清單區塊
             Panel pnlRightBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlRightBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlRightBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
@@ -498,7 +499,6 @@ namespace Safety_System
                         string v = r[col]?.ToString().Trim();
                         if (!string.IsNullOrEmpty(v)) {
                             if (isMulti) {
-                                // 複選文字會以換行符或逗號儲存，自動拆解
                                 var parts = v.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
                                 foreach(var p in parts) {
                                     string cleanP = p.Trim();
@@ -533,7 +533,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 Tab 1 事件邏輯與下拉選單重繪 (加入灰色標示)
+        // 🟢 Tab 1 事件邏輯與下拉選單重繪 (加入灰色背景標示)
         // =========================================================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e) {
             if (e.Index < 0) return;
@@ -564,7 +564,7 @@ namespace Safety_System
             
             bool isConfig = false;
             bool isLinked = false;
-            bool isOtherConfig = false; // 判斷是否在 Tab 2 設定過
+            bool isOtherConfig = false; 
             
             string key = $"{tbName}_{colName}";
             if (!string.IsNullOrEmpty(colName) && _configuredCols.ContainsKey(key)) {
@@ -580,35 +580,32 @@ namespace Safety_System
         private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked, bool isOtherConfigured) {
             if (e.Index < 0) return;
 
-            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
-                e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
-            else 
-                e.Graphics.FillRectangle(Brushes.White, e.Bounds);
-            
-            string text = cbo.Items[e.Index].ToString();
+            Brush bgBrush = Brushes.White;
             Brush textBrush = Brushes.Black;
-            
-            using (Font boldFont = new Font(e.Font, FontStyle.Bold)) {
-                Font currentFont = e.Font;
-                if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
-                    textBrush = Brushes.White;
-                    if (isConfigured || isOtherConfigured) currentFont = boldFont; 
-                } 
-                else if (isConfigured) {
+            Font currentFont = e.Font;
+
+            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+                bgBrush = SystemBrushes.Highlight;
+                textBrush = Brushes.White;
+                if (isConfigured || isOtherConfigured) currentFont = new Font(e.Font, FontStyle.Bold);
+            } else {
+                if (isOtherConfigured) {
+                    bgBrush = Brushes.LightGray; // 🟢 被另一邊設定了，顯示灰底
+                    textBrush = Brushes.DimGray;
+                    currentFont = new Font(e.Font, FontStyle.Bold);
+                } else if (isConfigured) {
                     textBrush = isLinked ? Brushes.Crimson : Brushes.DodgerBlue; 
-                    currentFont = boldFont;         
+                    currentFont = new Font(e.Font, FontStyle.Bold);         
                 }
-                else if (isOtherConfigured) {
-                    textBrush = Brushes.Gray;
-                    currentFont = boldFont;
-                }
-                e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             }
+            
+            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+            e.Graphics.DrawString(cbo.Items[e.Index].ToString(), currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             e.DrawFocusRectangle();
         }
 
         // =========================================================
-        // 🟢 Tab 2 事件邏輯與下拉選單重繪 (加入灰色標示)
+        // 🟢 Tab 2 事件邏輯與下拉選單重繪 (加入灰色背景標示)
         // =========================================================
         private void CboDbMulti_DrawItem(object sender, DrawItemEventArgs e) {
             if (e.Index < 0) return;
@@ -640,7 +637,7 @@ namespace Safety_System
             string col = _cboColMulti.Items[e.Index].ToString();
             var tb = _cboTableMulti.SelectedItem as ItemMap;
             bool isConfig = false;
-            bool isOtherConfig = false; // 判斷是否在 Tab 1 設定過
+            bool isOtherConfig = false; 
 
             if (tb != null && !string.IsNullOrEmpty(tb.EnName) && !string.IsNullOrEmpty(col)) {
                 string key = $"{tb.EnName}|{col}";
@@ -656,27 +653,27 @@ namespace Safety_System
         private void DrawComboBoxItemMulti(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isOtherConfigured) {
             if (e.Index < 0) return;
             
-            if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) 
-                e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
-            else 
-                e.Graphics.FillRectangle(Brushes.White, e.Bounds);
-            
-            string text = cbo.Items[e.Index].ToString();
+            Brush bgBrush = Brushes.White;
             Brush textBrush = Brushes.Black;
             Font currentFont = e.Font;
-            
+
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
+                bgBrush = SystemBrushes.Highlight;
                 textBrush = Brushes.White;
                 if (isConfigured || isOtherConfigured) currentFont = new Font(e.Font, FontStyle.Bold);
-            } else if (isConfigured) {
-                textBrush = Brushes.Crimson; 
-                currentFont = new Font(e.Font, FontStyle.Bold);
-            } else if (isOtherConfigured) {
-                textBrush = Brushes.Gray;
-                currentFont = new Font(e.Font, FontStyle.Bold);
+            } else {
+                if (isOtherConfigured) {
+                    bgBrush = Brushes.LightGray; // 🟢 被另一邊設定了，顯示灰底
+                    textBrush = Brushes.DimGray;
+                    currentFont = new Font(e.Font, FontStyle.Bold);
+                } else if (isConfigured) {
+                    textBrush = Brushes.Crimson; 
+                    currentFont = new Font(e.Font, FontStyle.Bold);
+                }
             }
             
-            e.Graphics.DrawString(text, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
+            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+            e.Graphics.DrawString(cbo.Items[e.Index].ToString(), currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             e.DrawFocusRectangle();
         }
 
