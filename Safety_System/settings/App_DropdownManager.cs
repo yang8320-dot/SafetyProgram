@@ -28,6 +28,7 @@ namespace Safety_System
 
         private bool _isRevertingDb = false;
         private bool _isRevertingCol = false;
+        private bool _isRevertingMultiCol = false; // 🟢 用於控制 Tab 2 複選框的防呆還原狀態
 
         // ================= Tab 2: 複選組合文字控制項 =================
         private ComboBox _cboDbMulti, _cboTableMulti, _cboColMulti;
@@ -69,7 +70,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 智慧讀取：若實體表尚未建立，強制從 SchemaMap 讀取預設欄位結構，徹底解決讀不到欄位的問題
+        // 🟢 智慧讀取：若實體表尚未建立，強制從 SchemaMap 讀取預設欄位結構
         private List<string> GetColumnsSafe(string dbName, string tbName)
         {
             var cols = DataManager.GetColumnNames(dbName, tbName);
@@ -93,6 +94,16 @@ namespace Safety_System
                 }
             }
             return cols;
+        }
+
+        // 🟢 輔助方法：檢查該欄位是否已存在於「單選下拉」設定中
+        private bool IsColumnInDropdownCache(string tbName, string colName)
+        {
+            string prefix = $"{tbName}|{colName}|";
+            foreach (var key in DropdownCache.Keys) {
+                if (key.StartsWith(prefix)) return true;
+            }
+            return false;
         }
 
         private void RefreshConfiguredCache()
@@ -223,7 +234,7 @@ namespace Safety_System
             _cboTable.DrawItem += CboTable_DrawItem;
 
             _btnExport = new Button { Text = "📤 匯出 Excel", Size = new Size(150, 40), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 15, 0) };
-            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(150, 40), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            _btnImport = new Button { Text = "📥 匯入 Excel", Size = new Size(150, 40), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 0) };
 
             flpControls.Controls.AddRange(new Control[] { lblDb, _cboDb, lblTable, _cboTable, _btnExport, _btnImport });
             flpTopMain.Controls.Add(lblTitle);
@@ -258,17 +269,16 @@ namespace Safety_System
                 
                 Label lCol = new Label { Text = "綁定資料表欄位：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboCols[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15), DrawMode = DrawMode.OwnerDrawFixed };
-                
                 int currentIndex = i; 
                 _cboCols[i].DrawItem += (s, e) => CboCols_DrawItem(s, e, currentIndex);
 
                 Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboParentVals[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15) };
                 
-                // 🟢 加入資料萃取按鈕
+                // 🟢 加入資料萃取按鈕，文字精簡為「導入資料」
                 FlowLayoutPanel flpOptHeader = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0,0,0,5) };
                 Label lOpt = new Label { Text = "下拉選項內容：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,5,0) };
-                Button btnExtract = new Button { Text = "📥 萃取現有資料", Size = new Size(130, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Button btnExtract = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnExtract.FlatAppearance.BorderSize = 0;
                 btnExtract.Click += (s, e) => ExtractDataFromDB(currentIndex, false);
 
@@ -354,7 +364,6 @@ namespace Safety_System
             FlowLayoutPanel flpControls = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
 
             Label l1 = new Label { Text = "選擇資料庫：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 8, 5, 0) };
-            // 🟢 加入 OwnerDrawFixed 實作紅字標示
             _cboDbMulti = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 4, 20, 0), DrawMode = DrawMode.OwnerDrawFixed };
             _cboDbMulti.DrawItem += CboDbMulti_DrawItem;
             
@@ -389,12 +398,13 @@ namespace Safety_System
             Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
-            // 🟢 加入資料萃取按鈕
+            // 🟢 加入資料萃取按鈕 (精簡文字為 導入資料)
             FlowLayoutPanel flpMultiOptHeader = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 0, 0, 10) };
             Label l4 = new Label { Text = "自訂核取選項：", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 10, 0) };
-            Button btnExtractMulti = new Button { Text = "📥 萃取現有資料並自動拆解", Size = new Size(200, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnExtractMulti = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnExtractMulti.FlatAppearance.BorderSize = 0;
             btnExtractMulti.Click += (s, e) => ExtractDataFromDB(0, true);
+            
             flpMultiOptHeader.Controls.Add(l4);
             flpMultiOptHeader.Controls.Add(btnExtractMulti);
 
@@ -432,17 +442,30 @@ namespace Safety_System
                 _cboColMulti.Items.Clear(); _txtOptionsMulti.Clear();
                 var db = _cboDbMulti.SelectedItem as ItemMap; var tb = _cboTableMulti.SelectedItem as ItemMap;
                 if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
-                    // 🟢 智慧讀取：防呆讀不到空表的欄位
+                    // 智慧讀取：防呆讀不到空表的欄位
                     var cols = GetColumnsSafe(db.EnName, tb.EnName).Where(c => c != "Id" && c != "附件檔案");
                     foreach (var c in cols) _cboColMulti.Items.Add(c);
                 }
             };
 
+            // 🟢 防呆攔截：若選擇了已在單選下拉設定過的欄位，則阻擋
             _cboColMulti.SelectedIndexChanged += (s, e) => {
+                if (_isRevertingMultiCol) return;
+
                 _txtOptionsMulti.Clear();
                 var tb = _cboTableMulti.SelectedItem as ItemMap;
                 if (tb != null && _cboColMulti.SelectedItem != null) {
-                    string key = $"{tb.EnName}|{_cboColMulti.SelectedItem}";
+                    string colName = _cboColMulti.SelectedItem.ToString();
+                    
+                    if (IsColumnInDropdownCache(tb.EnName, colName)) {
+                        MessageBox.Show($"此欄位【{colName}】已在「一、單選下拉與多層連動」中設定過！\n為避免系統判斷異常，同一欄位不可同時設定單選與複選。\n\n若要設定為組合文字，請先至第一分頁刪除該欄位的設定。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        _isRevertingMultiCol = true;
+                        _cboColMulti.SelectedIndex = -1; // 取消選取
+                        _isRevertingMultiCol = false;
+                        return;
+                    }
+
+                    string key = $"{tb.EnName}|{colName}";
                     if (MultiSelectCache.ContainsKey(key)) {
                         _txtOptionsMulti.Text = string.Join(Environment.NewLine, MultiSelectCache[key]);
                     }
@@ -566,12 +589,12 @@ namespace Safety_System
                         }
                     }
                     targetTxt.Text = string.Join(Environment.NewLine, currentLines);
-                    MessageBox.Show($"萃取完成！共新增 {addedCount} 筆不重複資料至文字框中。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"導入完成！共新增 {addedCount} 筆不重複資料至文字框中。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 } else {
-                    MessageBox.Show("萃取完成，但在該欄位沒有發現有效資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("導入完成，但在該欄位沒有發現有效資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             } catch (Exception ex) {
-                MessageBox.Show("萃取失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("導入失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -756,11 +779,22 @@ namespace Safety_System
             _isRevertingCol = false;
         }
 
+        // 🟢 防呆攔截：若選擇了已在組合文字(複選)設定過的欄位，則阻擋
         private void HandleColSelectionChanged(int colIndex) {
             if (_isRevertingCol) return;
             string selectedCol = _cboCols[colIndex].Text;
+            string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
             
-            if (!string.IsNullOrEmpty(selectedCol)) {
+            if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
+                string multiKey = $"{tbName}|{selectedCol}";
+                if (MultiSelectCache.ContainsKey(multiKey)) {
+                    MessageBox.Show($"此欄位【{selectedCol}】已在「二、組合文字 (複選)」中設定過！\n為避免系統判斷異常，同一欄位不可同時設定單選與複選。\n\n若要設定為單選連動，請先至第二分頁刪除該欄位的設定。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _isRevertingCol = true;
+                    _cboCols[colIndex].SelectedIndex = 0; // 回復空白
+                    _isRevertingCol = false;
+                    return;
+                }
+
                 for (int i = 0; i < 4; i++) {
                     if (i != colIndex && _cboCols[i].Text == selectedCol) {
                         MessageBox.Show("此欄位已在其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -774,7 +808,6 @@ namespace Safety_System
 
             try {
                 if (colIndex == 0) {
-                    string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
                     if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
                         LoadOptionsToTextBox(tbName, selectedCol, "", "", _txtOptions[0]);
                         UpdateChildParentVals(1, _txtOptions[0].Text);
@@ -850,10 +883,19 @@ namespace Safety_System
                 MessageBox.Show("請先選擇資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
+            string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
+
+            // 🟢 強制儲存前雙重檢驗防呆
+            for (int i = 0; i < 4; i++) {
+                string colName = _cboCols[i].Text;
+                if (!string.IsNullOrEmpty(colName) && MultiSelectCache.ContainsKey($"{tbName}|{colName}")) {
+                    MessageBox.Show($"欄位【{colName}】已設定為「組合文字(複選)」，為避免系統錯亂，無法將其儲存為單選連動！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                    return;
+                }
+            }
+
             string authPrompt = "儲存下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
-            string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
 
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -996,12 +1038,18 @@ namespace Safety_System
                 MessageBox.Show("請確認資料表、欄位與選項內容皆已填寫！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            // 🟢 加入密碼層級明確提示字串
+            string tblName = tb.EnName;
+            string colName = _cboColMulti.SelectedItem.ToString();
+            
+            // 🟢 強制儲存前雙重檢驗防呆
+            if (IsColumnInDropdownCache(tblName, colName)) {
+                MessageBox.Show($"欄位【{colName}】已在「單選下拉與多層連動」設定中！\n為避免系統錯亂，不可同時設定單選與複選，無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                return;
+            }
+
             string authPrompt = "儲存組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
-            string tblName = tb.EnName;
-            string colName = _cboColMulti.SelectedItem.ToString();
             var optsArray = _txtOptionsMulti.Text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
             string optsStr = string.Join(",", optsArray);
 
@@ -1152,7 +1200,6 @@ namespace Safety_System
             if (tb == null || _cboColMulti.SelectedItem == null) return;
 
             if (MessageBox.Show("確定要刪除此欄位的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                // 🟢 加入密碼層級明確提示字串
                 string authPrompt = "刪除組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return;
                 
@@ -1173,7 +1220,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 重構：加入選取變色與 X 按鈕刪除功能
         private void RefreshMultiConfiguredList()
         {
             if (_flpMultiConfigured == null) return;
@@ -1204,7 +1250,6 @@ namespace Safety_System
 
                 Panel pItem = new Panel { Width = 650, Height = 45, BackColor = Color.AliceBlue, Margin = new Padding(5), Cursor = Cursors.Hand };
                 
-                // 🟢 刪除按鈕 (X)
                 Button btnDel = new Button { 
                     Text = "❌", 
                     Location = new Point(10, 7), 
@@ -1218,7 +1263,6 @@ namespace Safety_System
                 btnDel.FlatAppearance.BorderSize = 0;
                 btnDel.FlatAppearance.MouseOverBackColor = Color.MistyRose;
                 
-                // 點擊 X 刪除
                 btnDel.Click += (s, e) => {
                     if (MessageBox.Show($"確定要刪除【{chTbName} - {colName}】的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                         string authPrompt = "刪除組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -1250,15 +1294,13 @@ namespace Safety_System
                     Cursor = Cursors.Hand
                 };
 
-                // 🟢 點擊事件邏輯 (反白 + 連動左側選單)
                 Action selectAction = () => {
                     if (_selectedMultiItemPanel != null && _selectedMultiItemPanel != pItem) {
-                        _selectedMultiItemPanel.BackColor = Color.AliceBlue; // 還原前一個選取項目顏色
+                        _selectedMultiItemPanel.BackColor = Color.AliceBlue; 
                     }
-                    pItem.BackColor = Color.LightSkyBlue; // 標記目前選取為亮藍色
+                    pItem.BackColor = Color.LightSkyBlue; 
                     _selectedMultiItemPanel = pItem;
 
-                    // 連動左側 ComboBox
                     foreach (ItemMap item in _cboDbMulti.Items) {
                         if (item.EnName == dbName) { _cboDbMulti.SelectedItem = item; break; }
                     }
