@@ -643,10 +643,11 @@ namespace Safety_System
                 ComboBox cbo = (ComboBox)e.Control;
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
                 
-                // 🟢 關鍵修正 3：強制彈出清單時使用系統標準繪製與白底黑字
-                cbo.BackColor = Color.White;
-                cbo.ForeColor = Color.Black;
-                cbo.FlatStyle = FlatStyle.Standard; 
+                // 🟢 徹底解決黑色背景 Bug 的關鍵：強制設定為 Normal，並套用系統底色
+                cbo.DrawMode = DrawMode.Normal; 
+                cbo.BackColor = SystemColors.Window;
+                cbo.ForeColor = SystemColors.ControlText;
+                cbo.FlatStyle = FlatStyle.Flat; 
 
                 if (_dgv.CurrentCell != null) {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
@@ -714,7 +715,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 加入複選文字的彈跳邏輯
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e) 
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count && !_dgv.Rows[e.RowIndex].IsNewRow) 
@@ -739,7 +739,6 @@ namespace Safety_System
                         }
                     }
                 } 
-                // 🟢 判斷是否為「組合文字」欄位，並開啟複選對話框
                 else if (App_DropdownManager.MultiSelectCache.ContainsKey($"{_tableName}|{colName}")) 
                 {
                     string multiKey = $"{_tableName}|{colName}";
