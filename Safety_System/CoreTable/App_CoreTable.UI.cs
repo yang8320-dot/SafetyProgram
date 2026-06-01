@@ -232,7 +232,7 @@ namespace Safety_System
                 _isFirstLoad = false;
                 
                 App_DropdownManager.LoadDropdownConfigs();
-                App_DropdownManager.LoadMultiSelectConfigs(); // 🟢 加入載入複選文字的 Cache
+                App_DropdownManager.LoadMultiSelectConfigs(); 
                 LoadVisibilitySettings();
                 LoadColumnWidths();
                 
@@ -268,13 +268,6 @@ namespace Safety_System
             _btnRead.Tag = bLimitRead; 
 
             return main;
-        }
-
-        private void EnableDoubleBuffered(DataGridView dgv)
-        {
-            typeof(DataGridView).InvokeMember("DoubleBuffered", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
-                null, dgv, new object[] { true });
         }
 
         private void InitContextMenu(Button btnDelRow)
@@ -363,10 +356,9 @@ namespace Safety_System
                     col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 }
 
-                // 🟢 替有設定為「組合文字」的欄位加上提示色
                 string multiKey = $"{_tableName}|{col.Name}";
                 if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                    col.ReadOnly = true; // 強制設為唯讀，讓使用者只能透過點擊彈窗來修改
+                    col.ReadOnly = true; 
                     col.DefaultCellStyle.BackColor = Color.LightYellow;
                 }
             }
@@ -401,10 +393,9 @@ namespace Safety_System
 
             foreach (DataGridViewColumn col in cols) {
                 
-                // 🟢 檢查：如果這個欄位已經被設定為「組合文字 (複選)」，就不要把它轉成下拉選單
                 string multiKey = $"{_tableName}|{col.Name}";
                 if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                    continue; // 跳過此欄，保持 TextColumn 狀態
+                    continue; 
                 }
 
                 string[] items = _logic.GetDropdownList(_tableName, col.Name);
@@ -421,6 +412,10 @@ namespace Safety_System
                         DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, FlatStyle = FlatStyle.Flat, 
                         SortMode = DataGridViewColumnSortMode.Automatic 
                     };
+
+                    // 🟢 修正2：防呆設定，強制一般狀態下下拉儲存格依然保持白底黑字
+                    cboCol.DefaultCellStyle.BackColor = Color.White;
+                    cboCol.DefaultCellStyle.ForeColor = Color.Black;
                     
                     if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
                     cboCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
