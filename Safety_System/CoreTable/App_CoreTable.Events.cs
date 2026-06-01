@@ -642,6 +642,12 @@ namespace Safety_System
             if (e.Control is ComboBox) {
                 ComboBox cbo = (ComboBox)e.Control;
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
+                
+                // 🟢 修正2：強制重設下拉選單編輯控制項的背景與字體顏色，防止 WinForms 預設繼承黑色
+                cbo.BackColor = Color.White;
+                cbo.ForeColor = Color.Black;
+                cbo.FlatStyle = FlatStyle.Flat;
+
                 if (_dgv.CurrentCell != null) {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
                     string parentColName = "";
