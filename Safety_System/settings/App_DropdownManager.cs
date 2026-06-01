@@ -116,11 +116,16 @@ namespace Safety_System
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
                 {
                     conn.Open();
-                    using(var cmd = new SQLiteCommand("SELECT TableName, ColName, ParentColName FROM DropdownConfigs", conn))
+                    // 🟢 修正1：加入 Options 欄位讀取，以便判斷是否為空設定
+                    using(var cmd = new SQLiteCommand("SELECT TableName, ColName, ParentColName, Options FROM DropdownConfigs", conn))
                     using(var reader = cmd.ExecuteReader()) 
                     {
                         while(reader.Read()) 
                         {
+                            string opts = reader["Options"].ToString();
+                            // 🟢 修正1：如果選項內容是空的，直接跳過，不當作已設定，讓選單不會顯示變色
+                            if (string.IsNullOrWhiteSpace(opts)) continue; 
+
                             string tb = reader["TableName"].ToString();
                             string col = reader["ColName"].ToString();
                             string pCol = reader["ParentColName"].ToString();
@@ -925,14 +930,28 @@ namespace Safety_System
                             var optsArray = _txtOptions[i].Text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
                             string optsStr = string.Join(",", optsArray);
 
-                            string sql = @"INSERT INTO DropdownConfigs (TableName, ColName, ParentColName, ParentValue, Options) 
-                                           VALUES (@T, @C, @PC, @PV, @Opt) 
-                                           ON CONFLICT(TableName, ColName, ParentColName, ParentValue) DO UPDATE SET Options=@Opt";
-                            
-                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
-                                cmd.Parameters.AddWithValue("@T", tbName); cmd.Parameters.AddWithValue("@C", colName);
-                                cmd.Parameters.AddWithValue("@PC", parentCol); cmd.Parameters.AddWithValue("@PV", parentVal);
-                                cmd.Parameters.AddWithValue("@Opt", optsStr); cmd.ExecuteNonQuery();
+                            // 🟢 修正1：如果文字框被清空，執行刪除而不是寫入空字串
+                            if (string.IsNullOrEmpty(optsStr))
+                            {
+                                string sqlDel = @"DELETE FROM DropdownConfigs 
+                                                  WHERE TableName=@T AND ColName=@C AND IFNULL(ParentColName,'')=@PC AND IFNULL(ParentValue,'')=@PV";
+                                using (var cmd = new SQLiteCommand(sqlDel, conn, trans)) {
+                                    cmd.Parameters.AddWithValue("@T", tbName); cmd.Parameters.AddWithValue("@C", colName);
+                                    cmd.Parameters.AddWithValue("@PC", parentCol); cmd.Parameters.AddWithValue("@PV", parentVal);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                            else
+                            {
+                                string sql = @"INSERT INTO DropdownConfigs (TableName, ColName, ParentColName, ParentValue, Options) 
+                                               VALUES (@T, @C, @PC, @PV, @Opt) 
+                                               ON CONFLICT(TableName, ColName, ParentColName, ParentValue) DO UPDATE SET Options=@Opt";
+                                
+                                using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                    cmd.Parameters.AddWithValue("@T", tbName); cmd.Parameters.AddWithValue("@C", colName);
+                                    cmd.Parameters.AddWithValue("@PC", parentCol); cmd.Parameters.AddWithValue("@PV", parentVal);
+                                    cmd.Parameters.AddWithValue("@Opt", optsStr); cmd.ExecuteNonQuery();
+                                }
                             }
                         }
                         trans.Commit();
