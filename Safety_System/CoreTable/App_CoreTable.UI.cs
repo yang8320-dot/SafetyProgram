@@ -411,15 +411,15 @@ namespace Safety_System
                         Name = col.Name, HeaderText = col.HeaderText, DataPropertyName = col.DataPropertyName, 
                         DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, 
                         
-                        // 🟢 關鍵修正 1：將 FlatStyle 改回 Standard，解決純黑色渲染 Bug
-                        FlatStyle = FlatStyle.Standard, 
+                        // 🟢 修正 1：改用 FlatStyle.Flat 讓現代 Windows 系統渲染較為穩定且美觀
+                        FlatStyle = FlatStyle.Flat, 
                         
                         SortMode = DataGridViewColumnSortMode.Automatic 
                     };
 
-                    // 🟢 關鍵修正 2：明確定義儲存格平常與被選取時的顏色
-                    cboCol.DefaultCellStyle.BackColor = Color.White;
-                    cboCol.DefaultCellStyle.ForeColor = Color.Black;
+                    // 🟢 修正 2：明確定義儲存格平常與被選取時的顏色，改用 SystemColors 避免與系統佈景衝突
+                    cboCol.DefaultCellStyle.BackColor = SystemColors.Window;
+                    cboCol.DefaultCellStyle.ForeColor = SystemColors.ControlText;
                     cboCol.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue;
                     cboCol.DefaultCellStyle.SelectionForeColor = Color.Black;
                     
@@ -539,7 +539,6 @@ namespace Safety_System
             catch { }
         }
 
-        // 🟢 補回：防閃爍雙緩衝啟用方法
         private void EnableDoubleBuffered(DataGridView dgv)
         {
             typeof(DataGridView).InvokeMember("DoubleBuffered", 
