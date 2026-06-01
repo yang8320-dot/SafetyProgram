@@ -38,6 +38,8 @@ namespace Safety_System
             
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
+            // 🟢 修復：確保系統啟動時，也把組合文字(複選)的規則預先載入記憶體
+            App_DropdownManager.LoadMultiSelectConfigs();
             
             Task.Run(() => {
                 try { BackupManager.RunAutoBackup(); } catch { }
@@ -266,7 +268,6 @@ namespace Safety_System
             var menuApp = new ToolStripMenuItem("應用");
             LoadDynamicAppLinks(menuApp);
 
-            // 🟢 需求 3：將記憶體釋放按鈕移至應用選單的尾端，並移除小圖示
             menuApp.DropDownItems.Add(new ToolStripSeparator());
             var memReleaseItem = new ToolStripMenuItem("記憶體釋放");
             memReleaseItem.Click += (s, e) => MemoryOptimizer.Execute();
@@ -297,7 +298,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            // 🟢 需求 4 修正：將「資料庫還原」的小圖示移除
             var restoreDbItem = new ToolStripMenuItem("資料庫還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
