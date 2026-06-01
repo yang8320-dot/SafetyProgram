@@ -634,7 +634,9 @@ namespace Safety_System
             }
         }
 
-        // 🟢 徹底解決黑色背景的終極防禦代碼
+        // ====================================================================
+        // 🟢 終極解法：攔截下拉選單控制項並強制程式自行繪製 (OwnerDrawFixed)
+        // ====================================================================
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
             e.Control.PreviewKeyDown -= new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
@@ -645,11 +647,13 @@ namespace Safety_System
                 
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
                 
-                // 🟢 這是讓它不要被系統佈景深色模式干擾的唯一解法：強制指定模式為 Normal
-                cbo.DrawMode = DrawMode.Normal; 
-                cbo.BackColor = Color.White;
-                cbo.ForeColor = Color.Black;
+                // 🟢 將繪製模式交還給程式自行處理，徹底排除作業系統的黑色背景污染
+                cbo.DrawMode = DrawMode.OwnerDrawFixed; 
                 cbo.FlatStyle = FlatStyle.Flat; 
+
+                // 綁定手繪事件 (避免重複綁定)
+                cbo.DrawItem -= Cbo_DrawItem;
+                cbo.DrawItem += Cbo_DrawItem;
 
                 if (_dgv.CurrentCell != null) {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
@@ -699,6 +703,38 @@ namespace Safety_System
                 txt.KeyDown -= new KeyEventHandler(TextBox_KeyDown); 
                 txt.KeyDown += new KeyEventHandler(TextBox_KeyDown); 
             }
+        }
+
+        // ====================================================================
+        // 🟢 終極防護：程式強制塗上白底黑字，無視任何系統佈景主題
+        // ====================================================================
+        private void Cbo_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            ComboBox cbo = sender as ComboBox;
+            if (cbo == null) return;
+
+            e.DrawBackground();
+
+            // 判斷是否為滑鼠選取狀態
+            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            
+            // 絕對強制：未選取時一定是白底，選取時是系統高亮色(藍底)
+            Brush bgBrush = isSelected ? SystemBrushes.Highlight : Brushes.White;
+            // 絕對強制：未選取時一定是黑字，選取時是白字
+            Brush textBrush = isSelected ? SystemBrushes.HighlightText : Brushes.Black;
+
+            // 把這塊區域整個塗滿
+            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+            
+            // 將文字寫上去
+            string text = cbo.Items[e.Index].ToString();
+            
+            // 計算文字置中的 Y 座標
+            float y = e.Bounds.Y + ((e.Bounds.Height - e.Font.Height) / 2);
+            e.Graphics.DrawString(text, e.Font, textBrush, new PointF(e.Bounds.X + 2, y));
+
+            e.DrawFocusRectangle();
         }
 
         private void EditingControl_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e) {
