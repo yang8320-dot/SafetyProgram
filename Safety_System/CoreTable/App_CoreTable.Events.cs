@@ -18,7 +18,11 @@ namespace Safety_System
         {
             // Grid 視覺與互動事件
             _dgv.CellFormatting += new DataGridViewCellFormattingEventHandler(Dgv_CellFormatting);
+            
+            // 🟢 加入雙擊與單擊的雙重防護，確保組合文字可以被觸發
             _dgv.CellClick += new DataGridViewCellEventHandler(Dgv_CellClick);
+            _dgv.CellDoubleClick += new DataGridViewCellEventHandler(Dgv_CellDoubleClick);
+            
             _dgv.CellMouseClick += new DataGridViewCellMouseEventHandler(Dgv_CellMouseClick); 
             _dgv.KeyDown += new KeyEventHandler(Dgv_KeyDown);
             _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
@@ -50,7 +54,7 @@ namespace Safety_System
                     _isFirstLoad = false;
                     _currentSearchMode = SearchMode.Limit;
                     
-                    int limit = 100; // 預設改為 100
+                    int limit = 100; 
                     if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
                     
                     await ReloadCurrentDataAsync();
@@ -126,7 +130,7 @@ namespace Safety_System
 
         private void Dgv_Sorted(object sender, EventArgs e)
         {
-            // 保持空白，不呼叫 AutoResizeRows
+            // 保持空白
         }
 
         private void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
@@ -634,9 +638,6 @@ namespace Safety_System
             }
         }
 
-        // ====================================================================
-        // 🟢 終極解法：攔截下拉選單控制項並強制程式自行繪製 (OwnerDrawFixed)
-        // ====================================================================
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
             e.Control.PreviewKeyDown -= new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
@@ -646,12 +647,9 @@ namespace Safety_System
                 ComboBox cbo = (ComboBox)e.Control;
                 
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
-                
-                // 🟢 將繪製模式交還給程式自行處理，徹底排除作業系統的黑色背景污染
                 cbo.DrawMode = DrawMode.OwnerDrawFixed; 
                 cbo.FlatStyle = FlatStyle.Flat; 
 
-                // 綁定手繪事件 (避免重複綁定)
                 cbo.DrawItem -= Cbo_DrawItem;
                 cbo.DrawItem += Cbo_DrawItem;
 
@@ -705,9 +703,6 @@ namespace Safety_System
             }
         }
 
-        // ====================================================================
-        // 🟢 終極防護：程式強制塗上白底黑字，無視任何系統佈景主題
-        // ====================================================================
         private void Cbo_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -716,21 +711,13 @@ namespace Safety_System
 
             e.DrawBackground();
 
-            // 判斷是否為滑鼠選取狀態
             bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-            
-            // 絕對強制：未選取時一定是白底，選取時是系統高亮色(藍底)
             Brush bgBrush = isSelected ? SystemBrushes.Highlight : Brushes.White;
-            // 絕對強制：未選取時一定是黑字，選取時是白字
             Brush textBrush = isSelected ? SystemBrushes.HighlightText : Brushes.Black;
 
-            // 把這塊區域整個塗滿
             e.Graphics.FillRectangle(bgBrush, e.Bounds);
             
-            // 將文字寫上去
             string text = cbo.Items[e.Index].ToString();
-            
-            // 計算文字置中的 Y 座標
             float y = e.Bounds.Y + ((e.Bounds.Height - e.Font.Height) / 2);
             e.Graphics.DrawString(text, e.Font, textBrush, new PointF(e.Bounds.X + 2, y));
 
@@ -750,6 +737,72 @@ namespace Safety_System
                     txt.SelectionStart = selectionStart + Environment.NewLine.Length; 
                     e.Handled = true; 
                 } 
+            }
+        }
+
+        // 🟢 核心修復區：加入 Dgv_CellDoubleClick 補強，並確保判斷邏輯不會被 RowIndex == -1 擋住
+        private void TriggerMultiSelectDialog(int rowIndex, int colIndex)
+        {
+            if (rowIndex < 0 || colIndex < 0 || rowIndex >= _dgv.Rows.Count) return;
+            
+            string colName = _dgv.Columns[colIndex].Name;
+            string multiKey = $"{_tableName}|{colName}";
+
+            if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey))
+            {
+                string[] options = App_DropdownManager.MultiSelectCache[multiKey];
+                string currentVal = _dgv[colIndex, rowIndex].Value?.ToString() ?? "";
+
+                using (Form fMulti = new Form())
+                {
+                    fMulti.Text = $"複選組合文字：{colName}";
+                    fMulti.Size = new Size(350, 450);
+                    fMulti.StartPosition = FormStartPosition.CenterParent;
+                    fMulti.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    fMulti.MaximizeBox = false;
+                    fMulti.MinimizeBox = false;
+                    fMulti.BackColor = Color.White;
+
+                    CheckedListBox clb = new CheckedListBox {
+                        Dock = DockStyle.Fill,
+                        Font = new Font("Microsoft JhengHei UI", 12F),
+                        CheckOnClick = true,
+                        BorderStyle = BorderStyle.None,
+                        Padding = new Padding(10)
+                    };
+
+                    string[] currentSelected = currentVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                    foreach (string opt in options)
+                    {
+                        bool isChecked = currentSelected.Contains(opt);
+                        clb.Items.Add(opt, isChecked);
+                    }
+
+                    Button btnOk = new Button {
+                        Text = "✔️ 確認並填入",
+                        Dock = DockStyle.Bottom,
+                        Height = 45,
+                        BackColor = Color.SteelBlue,
+                        ForeColor = Color.White,
+                        Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
+                        Cursor = Cursors.Hand
+                    };
+                    
+                    btnOk.Click += (s2, ev2) => {
+                        List<string> selectedItems = new List<string>();
+                        foreach (var checkedItem in clb.CheckedItems) {
+                            selectedItems.Add(checkedItem.ToString());
+                        }
+                        
+                        _dgv[colIndex, rowIndex].Value = string.Join(Environment.NewLine, selectedItems);
+                        _dgv.EndEdit();
+                        fMulti.DialogResult = DialogResult.OK;
+                    };
+
+                    fMulti.Controls.Add(clb);
+                    fMulti.Controls.Add(btnOk);
+                    fMulti.ShowDialog(Form.ActiveForm);
+                }
             }
         }
 
@@ -779,66 +832,25 @@ namespace Safety_System
                 } 
                 else if (App_DropdownManager.MultiSelectCache.ContainsKey($"{_tableName}|{colName}")) 
                 {
-                    string multiKey = $"{_tableName}|{colName}";
-                    string[] options = App_DropdownManager.MultiSelectCache[multiKey];
-                    string currentVal = _dgv[e.ColumnIndex, e.RowIndex].Value?.ToString() ?? "";
-
-                    using (Form fMulti = new Form())
-                    {
-                        fMulti.Text = $"複選組合文字：{colName}";
-                        fMulti.Size = new Size(350, 450);
-                        fMulti.StartPosition = FormStartPosition.CenterParent;
-                        fMulti.FormBorderStyle = FormBorderStyle.FixedDialog;
-                        fMulti.MaximizeBox = false;
-                        fMulti.MinimizeBox = false;
-                        fMulti.BackColor = Color.White;
-
-                        CheckedListBox clb = new CheckedListBox {
-                            Dock = DockStyle.Fill,
-                            Font = new Font("Microsoft JhengHei UI", 12F),
-                            CheckOnClick = true,
-                            BorderStyle = BorderStyle.None,
-                            Padding = new Padding(10)
-                        };
-
-                        // 勾選已經選取的項目
-                        string[] currentSelected = currentVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
-                        foreach (string opt in options)
-                        {
-                            bool isChecked = currentSelected.Contains(opt);
-                            clb.Items.Add(opt, isChecked);
-                        }
-
-                        Button btnOk = new Button {
-                            Text = "✔️ 確認並填入",
-                            Dock = DockStyle.Bottom,
-                            Height = 45,
-                            BackColor = Color.SteelBlue,
-                            ForeColor = Color.White,
-                            Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold),
-                            Cursor = Cursors.Hand
-                        };
-                        
-                        btnOk.Click += (s2, ev2) => {
-                            List<string> selectedItems = new List<string>();
-                            foreach (var checkedItem in clb.CheckedItems) {
-                                selectedItems.Add(checkedItem.ToString());
-                            }
-                            
-                            // 用換行符號組合文字寫入儲存格
-                            _dgv[e.ColumnIndex, e.RowIndex].Value = string.Join(Environment.NewLine, selectedItems);
-                            _dgv.EndEdit();
-                            fMulti.DialogResult = DialogResult.OK;
-                        };
-
-                        fMulti.Controls.Add(clb);
-                        fMulti.Controls.Add(btnOk);
-                        fMulti.ShowDialog(Form.ActiveForm);
-                    }
+                    // 單擊觸發
+                    TriggerMultiSelectDialog(e.RowIndex, e.ColumnIndex);
                 } 
                 else 
                 { 
                     _logic.OnCellClick(_dgv, e); 
+                }
+            }
+        }
+
+        // 🟢 雙擊補強：有時候因為唯讀狀態或是焦點問題，單擊事件會被吸收
+        private void Dgv_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count) 
+            {
+                string colName = _dgv.Columns[e.ColumnIndex].Name;
+                if (App_DropdownManager.MultiSelectCache.ContainsKey($"{_tableName}|{colName}")) 
+                {
+                    TriggerMultiSelectDialog(e.RowIndex, e.ColumnIndex);
                 }
             }
         }
