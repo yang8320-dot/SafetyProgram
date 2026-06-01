@@ -409,13 +409,19 @@ namespace Safety_System
                     
                     DataGridViewComboBoxColumn cboCol = new DataGridViewComboBoxColumn { 
                         Name = col.Name, HeaderText = col.HeaderText, DataPropertyName = col.DataPropertyName, 
-                        DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, FlatStyle = FlatStyle.Flat, 
+                        DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, 
+                        
+                        // 🟢 關鍵修正 1：將 FlatStyle 改回 Standard，解決純黑色渲染 Bug
+                        FlatStyle = FlatStyle.Standard, 
+                        
                         SortMode = DataGridViewColumnSortMode.Automatic 
                     };
 
-                    // 🟢 修正2：防呆設定，強制一般狀態下下拉儲存格依然保持白底黑字
+                    // 🟢 關鍵修正 2：明確定義儲存格平常與被選取時的顏色
                     cboCol.DefaultCellStyle.BackColor = Color.White;
                     cboCol.DefaultCellStyle.ForeColor = Color.Black;
+                    cboCol.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue;
+                    cboCol.DefaultCellStyle.SelectionForeColor = Color.Black;
                     
                     if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
                     cboCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
