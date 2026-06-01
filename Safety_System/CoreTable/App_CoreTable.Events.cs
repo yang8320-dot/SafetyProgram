@@ -634,6 +634,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 徹底解決黑色背景的終極防禦代碼
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
             e.Control.PreviewKeyDown -= new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
@@ -641,12 +642,13 @@ namespace Safety_System
 
             if (e.Control is ComboBox) {
                 ComboBox cbo = (ComboBox)e.Control;
+                
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
                 
-                // 🟢 徹底解決黑色背景 Bug 的關鍵：強制設定為 Normal，並套用系統底色
+                // 🟢 這是讓它不要被系統佈景深色模式干擾的唯一解法：強制指定模式為 Normal
                 cbo.DrawMode = DrawMode.Normal; 
-                cbo.BackColor = SystemColors.Window;
-                cbo.ForeColor = SystemColors.ControlText;
+                cbo.BackColor = Color.White;
+                cbo.ForeColor = Color.Black;
                 cbo.FlatStyle = FlatStyle.Flat; 
 
                 if (_dgv.CurrentCell != null) {
