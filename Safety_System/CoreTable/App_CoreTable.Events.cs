@@ -643,10 +643,10 @@ namespace Safety_System
                 ComboBox cbo = (ComboBox)e.Control;
                 cbo.DropDownStyle = ComboBoxStyle.DropDownList;
                 
-                // 🟢 修正2：強制重設下拉選單編輯控制項的背景與字體顏色，防止 WinForms 預設繼承黑色
+                // 🟢 關鍵修正 3：強制彈出清單時使用系統標準繪製與白底黑字
                 cbo.BackColor = Color.White;
                 cbo.ForeColor = Color.Black;
-                cbo.FlatStyle = FlatStyle.Flat;
+                cbo.FlatStyle = FlatStyle.Standard; 
 
                 if (_dgv.CurrentCell != null) {
                     string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
