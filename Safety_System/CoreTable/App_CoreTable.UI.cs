@@ -532,5 +532,13 @@ namespace Safety_System
             } 
             catch { }
         }
+
+        // 🟢 補回：防閃爍雙緩衝啟用方法
+        private void EnableDoubleBuffered(DataGridView dgv)
+        {
+            typeof(DataGridView).InvokeMember("DoubleBuffered", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
+                null, dgv, new object[] { true });
+        }
     }
 }
