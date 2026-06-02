@@ -45,7 +45,7 @@ namespace Safety_System
             public string DbName { get; set; }
             public string TableName { get; set; }
             public string ColName { get; set; }
-            public string FilterValue { get; set; } // 🟢 新增：條件過濾 (空值、特定下拉選項)
+            public string FilterValue { get; set; } 
             public string AggType { get; set; } 
         }
 
@@ -55,13 +55,30 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
-            // 🟢 第一行：大標題
-            Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 60 };
+            // 🟢 使用嚴格的 TableLayoutPanel 確保由上到下絕對不會亂掉
+            TableLayoutPanel masterLayout = new TableLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                ColumnCount = 1, 
+                RowCount = 4,
+                Margin = new Padding(0)
+            };
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 標題
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 條件按鈕
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 四大區塊
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 逐月矩陣表
+
+            // ==========================================
+            // 第一行：大標題
+            // ==========================================
+            Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 60, Margin = new Padding(0) };
             Label lblTitle = new Label { Text = "🛡️ 工安事件與指標綜合數據看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.SteelBlue, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
             pnlHeader.Controls.Add(lblTitle);
 
-            // 🟢 第二行：查詢及功能鍵
-            FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 0, 0, 20) };
+            // ==========================================
+            // 第二行：查詢及功能鍵
+            // ==========================================
+            FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 10, 0, 20), Margin = new Padding(0) };
             
             _cboStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 80 };
             _cboStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60 };
@@ -75,7 +92,7 @@ namespace Safety_System
             Button btnSearch = new Button { Text = "🔍 查詢統計", Size = new Size(130, 32), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
 
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(150, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
             Button btnSetting = new Button { Text = "⚙️ 統計項目設定", Size = new Size(160, 32), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
@@ -93,16 +110,13 @@ namespace Safety_System
                 btnSearch, btnPdf, btnSetting
             });
 
-            mainScrollPanel.Controls.Add(flpControls);
-            mainScrollPanel.Controls.Add(pnlHeader);
-
             // ==========================================
-            // 大框 1：區間統計與四大區塊
+            // 第三行：四大區塊 (區間統計等)
             // ==========================================
-            _pnlTopBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+            _pnlTopBox = new Panel { Dock = DockStyle.Fill, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             _pnlTopBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlTopBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-            TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
+            TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
             for (int i = 0; i < 4; i++) gridFour.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             gridFour.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
             gridFour.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -123,19 +137,19 @@ namespace Safety_System
             gridFour.Controls.Add(_pnlData3, 2, 1); gridFour.Controls.Add(_pnlData4, 3, 1);
 
             _pnlTopBox.Controls.Add(gridFour);
-            
-            // 加入佔位與排版設定
-            mainScrollPanel.Controls.Add(_pnlTopBox);
-            _pnlTopBox.BringToFront();
-            flpControls.BringToFront();
-            pnlHeader.BringToFront();
 
             // ==========================================
-            // 大框 2：年度逐月統計 (多項獨立表格)
+            // 第四行：近三年逐月統計 (各自獨立表)
             // ==========================================
-            _flpBottomBox = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0) };
-            mainScrollPanel.Controls.Add(_flpBottomBox);
-            _flpBottomBox.BringToFront();
+            _flpBottomBox = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0) };
+
+            // 依序加入排版容器，徹底解決 Z-Order 錯亂問題
+            masterLayout.Controls.Add(pnlHeader, 0, 0);
+            masterLayout.Controls.Add(flpControls, 0, 1);
+            masterLayout.Controls.Add(_pnlTopBox, 0, 2);
+            masterLayout.Controls.Add(_flpBottomBox, 0, 3);
+
+            mainScrollPanel.Controls.Add(masterLayout);
 
             _ = LoadDashboardDataAsync();
 
@@ -236,7 +250,7 @@ namespace Safety_System
                     dictLy = CalculatePeriodStats(dtS.AddYears(-1), dtE.AddYears(-1));
                     dictL2y = CalculatePeriodStats(dtS.AddYears(-2), dtE.AddYears(-2));
 
-                    // 2. 計算底部矩陣表 (每項一個 DataTable)
+                    // 2. 計算底部矩陣表 (每項一個獨立的 DataTable)
                     int baseYear = dtE.Year;
                     int[] years = { baseYear, baseYear - 1, baseYear - 2 };
 
@@ -291,7 +305,7 @@ namespace Safety_System
                     _pnlData4.Controls.Add(new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) });
                 }
 
-                // 更新 UI - 底部 Grid (每個指標產生一個 Table)
+                // 更新 UI - 底部 Grid (每個指標產生一個獨立 Panel)
                 _flpBottomBox.Controls.Clear();
                 _monthlyPanels.Clear();
 
@@ -381,7 +395,7 @@ namespace Safety_System
                             bool match = false;
                             string valStr = "";
 
-                            if (!string.IsNullOrEmpty(src.ColName) && src.ColName != "Id (計數專用)" && dt.Columns.Contains(src.ColName))
+                            if (!string.IsNullOrEmpty(src.ColName) && src.ColName != "Id (無條件計數)" && dt.Columns.Contains(src.ColName))
                             {
                                 valStr = r[src.ColName]?.ToString()?.Trim() ?? "";
                                 if (string.IsNullOrEmpty(src.FilterValue) || src.FilterValue == "非空值 (有輸入即算)") {
@@ -394,7 +408,7 @@ namespace Safety_System
                             }
                             else
                             {
-                                // 若指定 "Id (計數專用)" 則強制算入
+                                // 若指定 "Id (無條件計數)" 則強制算入
                                 match = true; 
                             }
 
@@ -419,7 +433,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗
+        // 設定檔管理與動態設定視窗 (無上限資料來源)
         // =========================================================
         private void LoadSettings()
         {
@@ -513,7 +527,7 @@ namespace Safety_System
 
                 var dbMap = App_DbConfig.GetDbMapCache();
 
-                // 🟢 動態產生來源列的方法
+                // 🟢 無上限動態產生來源列的方法
                 Action<DataSourceDef> addSourceRow = (def) => {
                     Panel pRow = new Panel { Width = 900, Height = 80, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -548,7 +562,7 @@ namespace Safety_System
                     };
 
                     cbTb.SelectedIndexChanged += (s, ev) => {
-                        cbCol.Items.Clear(); cbCol.Items.Add("Id (計數專用)");
+                        cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
                         if (dbMap.ContainsKey(cbDb.Text) && !string.IsNullOrEmpty(cbTb.Text)) {
                             var cols = DataManager.GetColumnNames(cbDb.Text, cbTb.Text).Where(c => c != "Id");
                             foreach (var c in cols) cbCol.Items.Add(c);
@@ -559,7 +573,7 @@ namespace Safety_System
                     cbCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); cbFilter.Items.Add("非空值 (有輸入即算)");
                         string tb = cbTb.Text; string col = cbCol.Text;
-                        if (!string.IsNullOrEmpty(tb) && col != "Id (計數專用)") {
+                        if (!string.IsNullOrEmpty(tb) && col != "Id (無條件計數)") {
                             string multiKey = $"{tb}|{col}";
                             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
                                 foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) cbFilter.Items.Add(opt);
@@ -672,7 +686,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 PDF 導出 (加入多區塊選擇與防呆修復)
+        // PDF 導出 (加入多區塊選擇與防呆修復)
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
