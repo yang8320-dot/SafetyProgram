@@ -475,12 +475,17 @@ namespace Safety_System
             }
         }
 
+        // 🟢 核心修復：在重整欄位清單時，同步記憶並恢復使用者的搜尋選項
         private void UpdateCboColumns() 
         {
-            string currentSearchSel = "";
-            if (_cboSearchColumn.SelectedItem != null) {
-                currentSearchSel = _cboSearchColumn.SelectedItem.ToString();
-            }
+            // 記住目前的狀態
+            string currentSearchSel = _cboSearchColumn.SelectedItem?.ToString() ?? "";
+            
+            // 記住目前的關鍵字 (無論是文字框還是選單)
+            string currentKeyword = _isSearchDropdownMode ? (_cboSearchKeyword.SelectedItem?.ToString() ?? "") : _txtSearchKeyword.Text;
+
+            _isCascading = true; // 暫停觸發事件防呆
+            
             _cboColumns.Items.Clear(); 
             _cboSearchColumn.Items.Clear(); 
             _cboSearchColumn.Items.Add(""); 
@@ -490,10 +495,21 @@ namespace Safety_System
                 if (c.Name != "Id") { _cboSearchColumn.Items.Add(c.Name); } 
             }
             
+            _isCascading = false; // 恢復觸發
+            
             if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn.Items.Contains(currentSearchSel)) { 
                 _cboSearchColumn.SelectedItem = currentSearchSel; 
             } else if (_cboSearchColumn.Items.Count > 0) { 
                 _cboSearchColumn.SelectedIndex = 0; 
+            }
+
+            // 🟢 查詢完成後，恢復使用者選定的搜尋字詞，避免畫面變回空白
+            if (_isSearchDropdownMode) {
+                if (_cboSearchKeyword.Items.Contains(currentKeyword)) {
+                    _cboSearchKeyword.SelectedItem = currentKeyword;
+                }
+            } else {
+                _txtSearchKeyword.Text = currentKeyword;
             }
         }
 
