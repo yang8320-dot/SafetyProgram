@@ -86,7 +86,7 @@ namespace Safety_System
                     { "MailReceive", "郵件收文管制表" }, 
                     { "VisitorRecord", "來賓拜訪紀錄表" }
                 })},
-                { "Purchase", ("請購", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
+                { "Purchase", ("日常作業", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
                 { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
                 { "Menu2DB", ("選單2", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
                 { "Menu3DB", ("選單3", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
