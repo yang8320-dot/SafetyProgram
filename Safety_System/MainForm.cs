@@ -38,7 +38,6 @@ namespace Safety_System
             
             DataManager.LoadConfig();
             App_DropdownManager.LoadDropdownConfigs();
-            // 🟢 修復：確保系統啟動時，也把組合文字(複選)的規則預先載入記憶體
             App_DropdownManager.LoadMultiSelectConfigs();
             
             Task.Run(() => {
@@ -387,6 +386,17 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(pwdMgmtItem);
 
+            // 🟢 新增：選單閱覽權限設定 (Lv3專屬)
+            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
+            var viewPermissionItem = new ToolStripMenuItem("選單閱覽權限設定");
+            viewPermissionItem.Click += (s, e) => {
+                string prompt = "設定選單閱覽權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
+                if (AuthManager.VerifyLv3Only(prompt)) {
+                    new App_ViewPermissionManager(_mainMenu).ShowDialog(this);
+                }
+            };
+            menuSettings.DropDownItems.Add(viewPermissionItem);
+
             AttachCustomMenus(menuReports, menuSafety, menuChemical, menuChemReg, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, _menu1, _menu2, _menu3, _menu4);
 
             string currentUser = Environment.UserName.Trim();
@@ -414,6 +424,72 @@ namespace Safety_System
                 menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, 
                 menuApp, _menu1, _menu2, _menu3, _menu4, menuSettings 
             });
+
+            // 🟢 新增：在選單建置完成後，依據當前登入者身分隱藏不具權限的選單
+            ApplyViewPermissions();
+        }
+
+        // =========================================================================
+        // 🟢 動態閱覽權限管理引擎核心邏輯
+        // =========================================================================
+        private void ApplyViewPermissions()
+        {
+            try
+            {
+                string currentUser = Environment.UserName.Trim();
+                HashSet<string> hiddenMenus = new HashSet<string>();
+
+                // 從資料庫撈取此使用者的黑名單
+                string dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
+                if (!File.Exists(dbPath)) return;
+
+                using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    // 確保資料表存在以防首次啟動時出錯
+                    using (var cmdChk = new System.Data.SQLite.SQLiteCommand("CREATE TABLE IF NOT EXISTS [HiddenUserMenus] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [UserName] TEXT, [MenuText] TEXT, UNIQUE(UserName, MenuText));", conn)) {
+                        cmdChk.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT MenuText FROM HiddenUserMenus WHERE UserName=@U", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@U", currentUser);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                hiddenMenus.Add(reader["MenuText"].ToString());
+                            }
+                        }
+                    }
+                }
+
+                if (hiddenMenus.Count == 0) return; // 沒有被限制的選單，直接結束
+
+                // 遞迴隱藏選單
+                HideMenuItems(_mainMenu.Items, hiddenMenus);
+            }
+            catch { }
+        }
+
+        private void HideMenuItems(ToolStripItemCollection items, HashSet<string> hiddenMenus)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                if (item is ToolStripMenuItem menuItem)
+                {
+                    // 如果這個選單的名稱存在於隱藏名單中，就把它藏起來
+                    if (hiddenMenus.Contains(menuItem.Text))
+                    {
+                        menuItem.Visible = false;
+                    }
+                    else
+                    {
+                        // 否則繼續往下層檢查
+                        HideMenuItems(menuItem.DropDownItems, hiddenMenus);
+                    }
+                }
+            }
         }
 
         private class BackupItem 
