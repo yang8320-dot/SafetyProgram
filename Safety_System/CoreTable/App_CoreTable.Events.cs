@@ -14,9 +14,6 @@ namespace Safety_System
     {
         private bool _isBulkUpdating = false;
 
-        // 🟢 新增事件專用變數：在 UI 裡面宣告的 ComboBox 用來存放選項
-        private ComboBox _cboSearchKeyword;
-
         private void BindEvents()
         {
             // Grid 視覺與互動事件
@@ -102,9 +99,12 @@ namespace Safety_System
         // 🟢 動態切換進階查詢輸入框模式的核心邏輯
         private void CboSearchColumn_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (_isCascading) return; // 避免在重繪欄位時觸發不必要的變更
+
             if (_cboSearchColumn.SelectedItem == null || string.IsNullOrWhiteSpace(_cboSearchColumn.SelectedItem.ToString()))
             {
                 // 空白欄位，恢復為 TextBox
+                _isSearchDropdownMode = false;
                 _cboSearchKeyword.Visible = false;
                 _txtSearchKeyword.Visible = true;
                 _txtSearchKeyword.Clear();
@@ -134,6 +134,7 @@ namespace Safety_System
             // 若該欄位有設定選項，則隱藏 TextBox，顯示 ComboBox
             if (items != null && items.Length > 0)
             {
+                _isSearchDropdownMode = true;
                 _txtSearchKeyword.Visible = false;
                 _cboSearchKeyword.Visible = true;
                 
@@ -153,6 +154,7 @@ namespace Safety_System
             else
             {
                 // 沒有選項設定的欄位，恢復為 TextBox 供使用者自己打字
+                _isSearchDropdownMode = false;
                 _cboSearchKeyword.Visible = false;
                 _txtSearchKeyword.Visible = true;
                 _txtSearchKeyword.Clear();
@@ -1016,8 +1018,5 @@ namespace Safety_System
             if (_isFirstLoad || _isApplyingWidths) return;
             SaveColumnOrder();
         }
-        
-        // 🟢 確保執行進階搜尋時，若處於下拉選單模式，能把值傳遞過去
-        // 需配合 App_CoreTable.cs 中的 ExecuteAdvancedSearchAsync()
     }
 }
