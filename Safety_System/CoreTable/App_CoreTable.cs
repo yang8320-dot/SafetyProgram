@@ -35,6 +35,11 @@ namespace Safety_System
 
         private ComboBox _cboSearchColumn;
         private TextBox _txtSearchKeyword;
+        
+        // 🟢 新增：明確宣告下拉式查詢元件與狀態旗標
+        private ComboBox _cboSearchKeyword;
+        private bool _isSearchDropdownMode = false;
+        
         private TextBox _txtLatestCount; 
         private Button _btnAdvancedSearch;
 
@@ -156,7 +161,6 @@ namespace Safety_System
                 EnforceDateFormats(dt);
             });
 
-            // 🟢 優化：將表格先隱藏，阻擋底層引擎不斷觸發重繪
             _dgv.Visible = false;
             UnfreezeAllColumns(); 
             _isApplyingWidths = true;
@@ -169,7 +173,7 @@ namespace Safety_System
             ApplyFreezeState(); 
             
             _dgv.ResumeLayout(true);
-            _dgv.Visible = true; // 🟢 資料與排版確定後才顯示
+            _dgv.Visible = true; 
             _isApplyingWidths = false;
             
             SetUIState(true, $"讀取成功，共載入 {dt.Rows.Count} 筆資料", Color.Green);
@@ -203,7 +207,10 @@ namespace Safety_System
         {
             SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
             string searchCol = _cboSearchColumn.SelectedItem?.ToString();
-            string keyword = _txtSearchKeyword.Text;
+            
+            // 🟢 嚴格使用狀態旗標判斷，精確捕捉下拉選單或輸入框的值
+            string keyword = _isSearchDropdownMode ? (_cboSearchKeyword.SelectedItem?.ToString() ?? "") : _txtSearchKeyword.Text;
+
             DataTable resultDt = null;
 
             await Task.Run(() => {
@@ -245,7 +252,6 @@ namespace Safety_System
             SetUIState(true, $"搜尋完成，共找到 {resultDt.Rows.Count} 筆資料", Color.Green);
         }
 
-        // ... 保留其餘隱藏與儲存寬度等方法 ...
         private void LoadColumnWidths() {
             _columnWidths.Clear();
             var dict = DataManager.LoadGridConfig(_dbName, _tableName, "Width");
