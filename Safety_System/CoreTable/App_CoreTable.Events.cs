@@ -18,11 +18,8 @@ namespace Safety_System
         {
             // Grid 視覺與互動事件
             _dgv.CellFormatting += new DataGridViewCellFormattingEventHandler(Dgv_CellFormatting);
-            
-            // 🟢 加入雙擊與單擊的雙重防護，確保組合文字可以被觸發
             _dgv.CellClick += new DataGridViewCellEventHandler(Dgv_CellClick);
             _dgv.CellDoubleClick += new DataGridViewCellEventHandler(Dgv_CellDoubleClick);
-            
             _dgv.CellMouseClick += new DataGridViewCellMouseEventHandler(Dgv_CellMouseClick); 
             _dgv.KeyDown += new KeyEventHandler(Dgv_KeyDown);
             _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
@@ -54,7 +51,7 @@ namespace Safety_System
                     _isFirstLoad = false;
                     _currentSearchMode = SearchMode.Limit;
                     
-                    int limit = 100; 
+                    int limit = 100; // 預設改為 100
                     if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
                     
                     await ReloadCurrentDataAsync();
@@ -353,7 +350,29 @@ namespace Safety_System
                 exportWidths[kvp.Key] = (float)kvp.Value;
             }
 
-            ExcelHelper.ExportToExcelOrCsv(dt, _chineseTitle, exportWidths, dropdownData);
+            // 🟢 建立乾淨的匯出 DataTable
+            DataTable exportDt = new DataTable();
+            List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
+
+            foreach (DataGridViewColumn col in _dgv.Columns) {
+                // 🟢 條件：只匯出目前有在畫面上顯示，且不是 Id 欄位的資料
+                if (col.Visible && col.Name != "Id") {
+                    visCols.Add(col);
+                    exportDt.Columns.Add(col.HeaderText.Replace("\n", ""));
+                }
+            }
+
+            foreach (DataGridViewRow row in _dgv.Rows) {
+                if (row.IsNewRow) continue;
+                DataRow dRow = exportDt.NewRow();
+                for (int i = 0; i < visCols.Count; i++) {
+                    var cellVal = row.Cells[visCols[i].Index].Value;
+                    dRow[i] = cellVal != null ? cellVal.ToString() : "";
+                }
+                exportDt.Rows.Add(dRow);
+            }
+
+            ExcelHelper.ExportToExcelOrCsv(exportDt, _chineseTitle, exportWidths, dropdownData);
         }
 
         private async void BtnImportExcel_Click(object sender, EventArgs e) 
@@ -378,7 +397,19 @@ namespace Safety_System
                                 progStr.Report("正在將資料合併至系統...");
                                 progInt.Report(0);
                                 
-                                foreach (DataRow row in importedDt.Rows) workingDt.ImportRow(row);
+                                // 🟢 智慧合併核心：只塞 Excel 裡有提供的欄位，其餘保留空白(或被資料庫忽略)
+                                foreach (DataRow importedRow in importedDt.Rows) 
+                                {
+                                    DataRow newRow = workingDt.NewRow();
+                                    foreach (DataColumn col in importedDt.Columns) 
+                                    {
+                                        if (workingDt.Columns.Contains(col.ColumnName)) 
+                                        {
+                                            newRow[col.ColumnName] = importedRow[col.ColumnName];
+                                        }
+                                    }
+                                    workingDt.Rows.Add(newRow);
+                                }
 
                                 if (_calcHelper != null) {
                                     _calcHelper.BeginBulkUpdate(); 
@@ -740,7 +771,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 核心修復區：加入 Dgv_CellDoubleClick 補強，並確保判斷邏輯不會被 RowIndex == -1 擋住
         private void TriggerMultiSelectDialog(int rowIndex, int colIndex)
         {
             if (rowIndex < 0 || colIndex < 0 || rowIndex >= _dgv.Rows.Count) return;
@@ -832,7 +862,6 @@ namespace Safety_System
                 } 
                 else if (App_DropdownManager.MultiSelectCache.ContainsKey($"{_tableName}|{colName}")) 
                 {
-                    // 單擊觸發
                     TriggerMultiSelectDialog(e.RowIndex, e.ColumnIndex);
                 } 
                 else 
@@ -842,7 +871,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 雙擊補強：有時候因為唯讀狀態或是焦點問題，單擊事件會被吸收
         private void Dgv_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && e.RowIndex < _dgv.Rows.Count) 
