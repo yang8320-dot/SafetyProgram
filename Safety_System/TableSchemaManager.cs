@@ -37,9 +37,9 @@ namespace Safety_System
 			// 輕傷事件
 			{ "MinorInjury", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [項目] TEXT, [事故類別] TEXT, [類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [屬同事件] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             // 巡檢
-			{ "SafetyInspection", "[日期] TEXT, [單位] TEXT, [表單單號] TEXT, [表單主題] TEXT, [申請者] TEXT, [缺失責任人] TEXT, [危害類型主項] TEXT, [危害類型細分類] TEXT, [違規樣態類型] TEXT, [列入安全觀查事項] TEXT, [不安全行為] TEXT, [廠內曾發生工傷事件項目] TEXT, [違規分類] TEXT, [違反規定名稱] TEXT, [違反規定條款] TEXT, [建議改善事項] TEXT, [追蹤改善狀況] TEXT, [改善進度] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
+			{ "SafetyInspection", "[日期] TEXT, [單位] TEXT, [表單單號] TEXT, [表單主題] TEXT, [申請者] TEXT, [缺失責任人] TEXT, [危害類型主項] TEXT, [危害類型細分類] TEXT, [違規樣態類型] TEXT, [列入安全觀查事項] TEXT, [不安全行為] TEXT, [廠內曾發生工傷事件項目] TEXT, [違規分類] TEXT, [違反規定名稱] TEXT, [違反規定條款] TEXT, [建議改善事項] TEXT, [追蹤改善狀況] TEXT, [改善完成日] TEXT, [改善進度] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
 			//安全觀查
-            { "SafetyObservation", "[項目編號] TEXT, [日期] TEXT, [單位] TEXT, [區域] TEXT, [觀查事項說明] TEXT, [建議改善說明] TEXT, [追蹤說明] TEXT, [本案進度] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "SafetyObservation", "[項目編號] TEXT, [日期] TEXT, [單位] TEXT, [區域] TEXT, [觀查事項說明] TEXT, [建議改善說明] TEXT, [追蹤說明] TEXT, [結案日] TEXT, [本案進度] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             //工傷事件
             { "WorkInjury", "[日期] TEXT, [單位] TEXT, [姓名] TEXT, [職務] TEXT, [出生年月日] TEXT, [此工作連續服務] TEXT, [事故發生經過情形] TEXT, [事故發生原因分析] TEXT, [作業標準及訓練] TEXT, [就診醫院] TEXT, [是否住院] TEXT, [受傷程度] TEXT, [防止對策及改善措施] TEXT, [本事件負責人] TEXT, [原因類別] TEXT, [傷害類別] TEXT, [嚴重度] TEXT, [是否修訂標準書] TEXT, [工安意見] TEXT, [廠主管意見] TEXT, [失能天數] TEXT, [後追蹤說明] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             //交通意外
