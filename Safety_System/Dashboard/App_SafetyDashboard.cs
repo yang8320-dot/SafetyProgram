@@ -316,7 +316,12 @@ namespace Safety_System
                     string statName = kvp.Key;
                     DataTable dt = kvp.Value;
 
-                    Panel pnlWrapper = new Panel { Width = _flpBottomBox.Parent.ClientSize.Width - 40, Height = 200, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+                    // 🟢 徹底防呆：保護寬度運算，防止 NullReferenceException
+                    int targetWidth = 1000; 
+                    if (_flpBottomBox.Width > 40) targetWidth = _flpBottomBox.Width - 20;
+                    else if (_flpBottomBox.Parent != null && _flpBottomBox.Parent.Width > 40) targetWidth = _flpBottomBox.Parent.Width - 40;
+
+                    Panel pnlWrapper = new Panel { Width = targetWidth, Height = 220, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
                     pnlWrapper.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlWrapper.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
                     Label lblTitle = new Label { Text = $"📊 近三年逐月統計：{statName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Padding = new Padding(15, 10, 0, 10), Dock = DockStyle.Top };
@@ -350,7 +355,11 @@ namespace Safety_System
                     _flpBottomBox.Controls.Add(pnlWrapper);
                     _monthlyPanels[statName] = pnlWrapper;
 
-                    _flpBottomBox.Resize += (s, e) => { pnlWrapper.Width = _flpBottomBox.ClientSize.Width - 10; };
+                    // 🟢 安全的 Resize 寫法
+                    _flpBottomBox.Resize += (s, e) => { 
+                        int newW = _flpBottomBox.ClientSize.Width - 20;
+                        if (newW > 0) pnlWrapper.Width = newW; 
+                    };
                 }
             }
             finally
@@ -374,6 +383,8 @@ namespace Safety_System
             foreach (var cfg in configsToRun)
             {
                 double totalVal = 0;
+                if (cfg.Sources == null) continue; // 🟢 防護
+
                 foreach (var src in cfg.Sources)
                 {
                     if (string.IsNullOrEmpty(src.DbName) || string.IsNullOrEmpty(src.TableName)) continue;
@@ -381,6 +392,8 @@ namespace Safety_System
                     try
                     {
                         var cols = DataManager.GetColumnNames(src.DbName, src.TableName);
+                        if (cols == null || cols.Count == 0) continue; // 🟢 防護
+
                         string dateCol = cols.Contains("日期") ? "日期" : (cols.Contains("年月") ? "年月" : (cols.Contains("年度") ? "年度" : ""));
                         if (string.IsNullOrEmpty(dateCol)) continue;
 
@@ -486,7 +499,6 @@ namespace Safety_System
             string authPrompt = "修改看板統計設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
-            // 🟢 視窗加寬，並將字體調為 12F 讓中文介面更清楚
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1400, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -507,7 +519,6 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 修正：名稱與文字框間距拉開
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 300, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -525,7 +536,6 @@ namespace Safety_System
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    // 🟢 修正：加大列高與寬度，確保所有 Combobox 都能清楚看見
                     Panel pRow = new Panel { Width = 1020, Height = 80, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
@@ -548,7 +558,6 @@ namespace Safety_System
 
                     btnRemove.Click += (s, ev) => flpSourcesContainer.Controls.Remove(pRow);
 
-                    // 🟢 將系統自定義的 DB 英文轉為中文選項顯示
                     cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                     foreach (var kvp in dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
@@ -570,7 +579,6 @@ namespace Safety_System
                         }
                     };
 
-                    // 🟢 徹底修復：強制讀取實際資料表內存在過的值，作為過濾條件選單
                     cbCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); cbFilter.Items.Add("非空值 (有輸入即算)");
                         var selDb = cbDb.SelectedItem as ItemMap;
@@ -598,7 +606,6 @@ namespace Safety_System
 
                     cbAgg.Items.AddRange(new string[] { "COUNT", "SUM" });
 
-                    // 🟢 填入預設值：反向尋找中文選項
                     if (def != null) {
                         foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
                         foreach(ItemMap im in cbTb.Items) if(im.EnName == def.TableName) { cbTb.SelectedItem = im; break; }
@@ -632,7 +639,6 @@ namespace Safety_System
                 tlp.Controls.Add(pnlRight, 1, 0);
                 f.Controls.Add(tlp);
 
-                // 資料載入與綁定邏輯
                 Action refreshList = () => {
                     lbItems.Items.Clear();
                     foreach (var cfg in _configs) lbItems.Items.Add(cfg.DisplayName);
@@ -694,7 +700,7 @@ namespace Safety_System
                 };
 
                 f.ShowDialog();
-                _ = LoadDashboardDataAsync(); // 關閉視窗後自動重算更新畫面
+                _ = LoadDashboardDataAsync(); 
             }
         }
 
