@@ -320,14 +320,15 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var addUserItem = new ToolStripMenuItem("授權使用者");
-            addUserItem.Click += (s, e) => {
-                string prompt = "管理使用者需要系統權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
+            // 🟢 整合為單一「權限設定」選項 (包含授權帳號與選單閱覽權限)
+            var permissionItem = new ToolStripMenuItem("權限設定");
+            permissionItem.Click += (s, e) => {
+                string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_UserManager().ShowDialog(this);
+                    new App_PermissionManager(_mainMenu).ShowDialog(this);
                 }
             };
-            menuSettings.DropDownItems.Add(addUserItem);
+            menuSettings.DropDownItems.Add(permissionItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
@@ -385,17 +386,6 @@ namespace Safety_System
                 new App_PasswordManager().ShowDialog(this);
             };
             menuSettings.DropDownItems.Add(pwdMgmtItem);
-
-            // 🟢 新增：選單閱覽權限設定 (Lv3專屬)
-            menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
-            var viewPermissionItem = new ToolStripMenuItem("選單閱覽權限設定");
-            viewPermissionItem.Click += (s, e) => {
-                string prompt = "設定選單閱覽權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
-                if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_ViewPermissionManager(_mainMenu).ShowDialog(this);
-                }
-            };
-            menuSettings.DropDownItems.Add(viewPermissionItem);
 
             AttachCustomMenus(menuReports, menuSafety, menuChemical, menuChemReg, menuNursing, menuAir, menuWater, menuWaste, menuFire, menuTest, menuEdu, menuLaw, menuESG, menuISO, _menu1, _menu2, _menu3, _menu4);
 
