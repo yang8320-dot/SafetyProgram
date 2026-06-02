@@ -8,12 +8,12 @@ on:
       days_to_keep:
         description: '保留天數 (輸入 0 為全清)'
         required: true
-        default: '7'
+        default: '0'
         type: string
       minimum_runs:
         description: '強制保留的最少次數 (輸入 0 為不留)'
         required: true
-        default: '3'
+        default: '0'
         type: string
 
 jobs:
