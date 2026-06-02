@@ -34,7 +34,7 @@ namespace Safety_System
             }
             
             this.Text = "多檔附件管理中心"; 
-            this.Size = new Size(750, 680); // 🟢 視窗加寬 50 (原700 -> 750)
+            this.Size = new Size(750, 680);
             this.StartPosition = FormStartPosition.CenterParent; 
             this.FormBorderStyle = FormBorderStyle.FixedDialog; 
             this.MaximizeBox = false; 
@@ -127,7 +127,6 @@ namespace Safety_System
 
                 Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
-                // 🟢 調整：按鈕寬度縮小到 70 搭配加寬的介面放入新按鈕
                 Button bOpen = new Button { Text = "開啟", Width = 70, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                 bOpen.Click += (s, e) => 
                 { 
@@ -156,7 +155,6 @@ namespace Safety_System
                     } 
                 };
                 
-                // 🟢 更名：將「單檔下載」改為「下載」
                 Button bDownload = new Button { Text = "下載", Width = 70, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bDownload.Click += (s, e) => 
                 {
@@ -189,20 +187,25 @@ namespace Safety_System
                     }
                 };
 
-                // 🟢 新增：獨立更名按鈕
                 Button bRename = new Button { Text = "更名", Width = 70, Dock = DockStyle.Right, BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bRename.Click += (s, e) => 
                 {
-                    string oldFileName = Path.GetFileName(path);
-                    string newFileName = ShowInputBox("請輸入新的檔案名稱 (包含副檔名)：", "附件更名", oldFileName);
+                    // 🟢 取得不含副檔名的舊檔名，以及原有的副檔名
+                    string oldNameWithoutExt = Path.GetFileNameWithoutExtension(path);
+                    string ext = Path.GetExtension(path);
+                    
+                    string newNameWithoutExt = ShowInputBox("請輸入新的檔案名稱 (不需輸入副檔名)：", "附件更名", oldNameWithoutExt);
 
-                    if (string.IsNullOrWhiteSpace(newFileName) || newFileName == oldFileName) return;
+                    if (string.IsNullOrWhiteSpace(newNameWithoutExt) || newNameWithoutExt == oldNameWithoutExt) return;
 
                     // 檢查是否含有不合法字元
-                    if (newFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) {
+                    if (newNameWithoutExt.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) {
                         MessageBox.Show("檔名包含無效字元！請勿輸入 \\ / : * ? \" < > |", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
+
+                    // 🟢 組合出包含副檔名的新檔名
+                    string newFileName = newNameWithoutExt + ext;
 
                     try {
                         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -251,14 +254,13 @@ namespace Safety_System
                 pItem.Controls.Add(lName);
                 pItem.Controls.Add(cb); 
                 pItem.Controls.Add(bDel); 
-                pItem.Controls.Add(bRename); // 🟢 加入更名按鈕
+                pItem.Controls.Add(bRename); 
                 pItem.Controls.Add(bDownload); 
                 pItem.Controls.Add(bOpen); 
                 _flpList.Controls.Add(pItem);
             }
         }
 
-        // 🟢 輔助方法：彈出輸入框供使用者修改檔名
         private string ShowInputBox(string prompt, string title, string defaultValue)
         {
             using (Form form = new Form())
@@ -288,7 +290,6 @@ namespace Safety_System
             }
         }
 
-        // 實作批量轉存邏輯
         private void BtnBatchExport_Click(object sender, EventArgs e)
         {
             var selectedPaths = _checkBoxMap.Where(kvp => kvp.Value.Checked).Select(kvp => kvp.Key).ToList();
@@ -317,7 +318,6 @@ namespace Safety_System
                                 string fileName = Path.GetFileName(relPath);
                                 string destPath = Path.Combine(targetDir, fileName);
 
-                                // 若遇到同名檔案，自動加上數字後綴避免覆蓋
                                 int count = 1;
                                 string baseName = Path.GetFileNameWithoutExtension(fileName);
                                 string ext = Path.GetExtension(fileName);
