@@ -14,6 +14,9 @@ namespace Safety_System
     {
         private bool _isBulkUpdating = false;
 
+        // 🟢 新增事件專用變數：在 UI 裡面宣告的 ComboBox 用來存放選項
+        private ComboBox _cboSearchKeyword;
+
         private void BindEvents()
         {
             // Grid 視覺與互動事件
@@ -74,6 +77,9 @@ namespace Safety_System
                 btnDelRow.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
             }
 
+            // 🟢 新增：監聽進階查詢「選擇欄位」時的事件，自動切換輸入框模式
+            _cboSearchColumn.SelectedIndexChanged += CboSearchColumn_SelectedIndexChanged;
+
             foreach (ToolStripItem item in _ctxMenu.Items)
             {
                 if (item.Tag != null) {
@@ -90,6 +96,66 @@ namespace Safety_System
 
             if (_btnRtfToExcel != null) {
                 _btnRtfToExcel.Click += new EventHandler(BtnRtfToExcel_Click);
+            }
+        }
+
+        // 🟢 動態切換進階查詢輸入框模式的核心邏輯
+        private void CboSearchColumn_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_cboSearchColumn.SelectedItem == null || string.IsNullOrWhiteSpace(_cboSearchColumn.SelectedItem.ToString()))
+            {
+                // 空白欄位，恢復為 TextBox
+                _cboSearchKeyword.Visible = false;
+                _txtSearchKeyword.Visible = true;
+                _txtSearchKeyword.Clear();
+                return;
+            }
+
+            string selectedCol = _cboSearchColumn.SelectedItem.ToString();
+            string multiKey = $"{_tableName}|{selectedCol}";
+            string[] items = null;
+
+            // 1. 檢查是否為組合文字(複選)
+            if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
+                items = App_DropdownManager.MultiSelectCache[multiKey];
+            } 
+            // 2. 檢查是否為單選下拉選單
+            else {
+                string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, selectedCol);
+                if (dbItems != null && dbItems.Length > 1) {
+                    items = dbItems;
+                } else {
+                    // 若資料庫沒有設定，嘗試從邏輯類別讀取寫死的預設清單
+                    string[] logicItems = _logic.GetDropdownList(_tableName, selectedCol);
+                    if (logicItems != null && logicItems.Length > 0) items = logicItems;
+                }
+            }
+
+            // 若該欄位有設定選項，則隱藏 TextBox，顯示 ComboBox
+            if (items != null && items.Length > 0)
+            {
+                _txtSearchKeyword.Visible = false;
+                _cboSearchKeyword.Visible = true;
+                
+                _cboSearchKeyword.Items.Clear();
+                _cboSearchKeyword.Items.Add(""); // 第一個選項留空，讓使用者可以清除查詢
+                
+                // 去除重複與空白後加入
+                foreach (string item in items) {
+                    string cleanItem = item.Trim();
+                    if (!string.IsNullOrEmpty(cleanItem) && !_cboSearchKeyword.Items.Contains(cleanItem)) {
+                        _cboSearchKeyword.Items.Add(cleanItem);
+                    }
+                }
+                
+                _cboSearchKeyword.SelectedIndex = 0;
+            }
+            else
+            {
+                // 沒有選項設定的欄位，恢復為 TextBox 供使用者自己打字
+                _cboSearchKeyword.Visible = false;
+                _txtSearchKeyword.Visible = true;
+                _txtSearchKeyword.Clear();
             }
         }
 
@@ -350,12 +416,12 @@ namespace Safety_System
                 exportWidths[kvp.Key] = (float)kvp.Value;
             }
 
-            // 🟢 建立乾淨的匯出 DataTable
+            // 建立乾淨的匯出 DataTable
             DataTable exportDt = new DataTable();
             List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
-                // 🟢 條件：只匯出目前有在畫面上顯示，且不是 Id 欄位的資料
+                // 條件：只匯出目前有在畫面上顯示，且不是 Id 欄位的資料
                 if (col.Visible && col.Name != "Id") {
                     visCols.Add(col);
                     exportDt.Columns.Add(col.HeaderText.Replace("\n", ""));
@@ -397,7 +463,7 @@ namespace Safety_System
                                 progStr.Report("正在將資料合併至系統...");
                                 progInt.Report(0);
                                 
-                                // 🟢 智慧合併核心：只塞 Excel 裡有提供的欄位，其餘保留空白(或被資料庫忽略)
+                                // 智慧合併核心：只塞 Excel 裡有提供的欄位，其餘保留空白(或被資料庫忽略)
                                 foreach (DataRow importedRow in importedDt.Rows) 
                                 {
                                     DataRow newRow = workingDt.NewRow();
@@ -950,5 +1016,8 @@ namespace Safety_System
             if (_isFirstLoad || _isApplyingWidths) return;
             SaveColumnOrder();
         }
+        
+        // 🟢 確保執行進階搜尋時，若處於下拉選單模式，能把值傳遞過去
+        // 需配合 App_CoreTable.cs 中的 ExecuteAdvancedSearchAsync()
     }
 }
