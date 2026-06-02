@@ -182,7 +182,16 @@ namespace Safety_System
             flpAdvRow1.Controls.Add(_btnColSettings);
 
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
-            _txtSearchKeyword = new TextBox { Width = 180, Margin = ctrlPad };
+            
+            // 🟢 新增：將原本單純的 TextBox 換成包含 TextBox 與 ComboBox 的容器
+            Panel pnlSearchInput = new Panel { Width = 180, Height = btnHeight, Margin = ctrlPad };
+            
+            _txtSearchKeyword = new TextBox { Dock = DockStyle.Fill };
+            _cboSearchKeyword = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Visible = false };
+            
+            pnlSearchInput.Controls.Add(_txtSearchKeyword);
+            pnlSearchInput.Controls.Add(_cboSearchKeyword);
+
             _btnAdvancedSearch = new Button { Text = "🔍 查詢", Size = new Size(90, btnHeight), Margin = new Padding(0,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             _btnAdvancedSearch.FlatAppearance.BorderSize = 0;
 
@@ -195,7 +204,7 @@ namespace Safety_System
             _btnExportPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(52, 199, 89), ForeColor = Color.White };
             _btnExportPdf.FlatAppearance.BorderSize = 0;
 
-            flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, _txtSearchKeyword, _btnAdvancedSearch });
+            flpAdvRow2.Controls.AddRange(new Control[] { new Label { Text = "查詢資料:", AutoSize = true, Margin = lblPad }, _cboSearchColumn, new Label { Text = "關鍵字(含):", AutoSize = true, Margin = lblPad }, pnlSearchInput, _btnAdvancedSearch });
             flpAdvRow2.Controls.Add(new Panel { Width = 30, Height = 1 }); 
             flpAdvRow2.Controls.AddRange(new Control[] { _btnImport, _btnExport, _btnExportPdf });
 
@@ -414,7 +423,6 @@ namespace Safety_System
                         SortMode = DataGridViewColumnSortMode.Automatic 
                     };
 
-                    // 🟢 確保儲存格未進入編輯狀態時，也是白底黑字防黑幕
                     cboCol.DefaultCellStyle.BackColor = Color.White;
                     cboCol.DefaultCellStyle.ForeColor = Color.Black;
                     cboCol.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue;
