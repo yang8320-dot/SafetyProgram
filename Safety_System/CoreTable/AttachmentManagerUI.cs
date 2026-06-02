@@ -34,7 +34,7 @@ namespace Safety_System
             }
             
             this.Text = "多檔附件管理中心"; 
-            this.Size = new Size(700, 680); // 🟢 視窗加高以容納新按鈕
+            this.Size = new Size(750, 680); // 🟢 視窗加寬 50 (原700 -> 750)
             this.StartPosition = FormStartPosition.CenterParent; 
             this.FormBorderStyle = FormBorderStyle.FixedDialog; 
             this.MaximizeBox = false; 
@@ -43,7 +43,7 @@ namespace Safety_System
 
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5 };
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); 
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 🟢 批量操作按鈕區
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); 
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
@@ -53,7 +53,7 @@ namespace Safety_System
             boxList.Controls.Add(_flpList); 
             tlp.Controls.Add(boxList, 0, 0);
 
-            // 🟢 新增：批量操作列
+            // 🟢 批量操作列
             Panel pnlBatch = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
             Button btnSelectAll = new Button { Text = "☑️ 全選", Width = 100, Dock = DockStyle.Left, BackColor = Color.LightGray, Cursor = Cursors.Hand };
             btnSelectAll.Click += (s, e) => { foreach (var cb in _checkBoxMap.Values) cb.Checked = true; };
@@ -110,7 +110,7 @@ namespace Safety_System
         private void RefreshListUI() 
         {
             _flpList.Controls.Clear();
-            _checkBoxMap.Clear(); // 🟢 清空勾選紀錄
+            _checkBoxMap.Clear();
 
             if (_paths.Count == 0) 
             { 
@@ -122,13 +122,13 @@ namespace Safety_System
             {
                 Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
                 
-                // 🟢 加入 CheckBox
                 CheckBox cb = new CheckBox { Dock = DockStyle.Left, Width = 30, Padding = new Padding(5,0,0,0) };
-                _checkBoxMap[path] = cb; // 記錄這個 CheckBox 對應哪個路徑
+                _checkBoxMap[path] = cb; 
 
                 Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
-                Button bOpen = new Button { Text = "開啟", Width = 90, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+                // 🟢 調整：按鈕寬度縮小到 70 搭配加寬的介面放入新按鈕
+                Button bOpen = new Button { Text = "開啟", Width = 70, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                 bOpen.Click += (s, e) => 
                 { 
                     try 
@@ -156,7 +156,8 @@ namespace Safety_System
                     } 
                 };
                 
-                Button bDownload = new Button { Text = "單檔下載", Width = 90, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                // 🟢 更名：將「單檔下載」改為「下載」
+                Button bDownload = new Button { Text = "下載", Width = 70, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bDownload.Click += (s, e) => 
                 {
                     try 
@@ -187,6 +188,54 @@ namespace Safety_System
                         MessageBox.Show("下載失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
                     }
                 };
+
+                // 🟢 新增：獨立更名按鈕
+                Button bRename = new Button { Text = "更名", Width = 70, Dock = DockStyle.Right, BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
+                bRename.Click += (s, e) => 
+                {
+                    string oldFileName = Path.GetFileName(path);
+                    string newFileName = ShowInputBox("請輸入新的檔案名稱 (包含副檔名)：", "附件更名", oldFileName);
+
+                    if (string.IsNullOrWhiteSpace(newFileName) || newFileName == oldFileName) return;
+
+                    // 檢查是否含有不合法字元
+                    if (newFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) {
+                        MessageBox.Show("檔名包含無效字元！請勿輸入 \\ / : * ? \" < > |", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    try {
+                        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                        string oldAbsPath = Path.Combine(baseDir, path);
+                        
+                        // 取得原本所在的相對目錄路徑 (結尾加上斜線)
+                        string directoryRelPath = path.Substring(0, path.LastIndexOf('/') + 1);
+                        string newRelPath = directoryRelPath + newFileName;
+                        string newAbsPath = Path.Combine(baseDir, newRelPath);
+
+                        if (File.Exists(newAbsPath) && oldAbsPath.ToLower() != newAbsPath.ToLower()) {
+                            MessageBox.Show("該資料夾下已存在同名檔案，請更換名稱！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+
+                        // 變更實體檔案名稱
+                        if (File.Exists(oldAbsPath)) {
+                            File.Move(oldAbsPath, newAbsPath);
+                        } else {
+                            MessageBox.Show("找不到實體檔案，可能已被刪除！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
+
+                        // 更新記憶體中的路徑清單
+                        int idx = _paths.IndexOf(path);
+                        if (idx >= 0) _paths[idx] = newRelPath;
+
+                        // 重新繪製 UI
+                        RefreshListUI();
+                    } catch (Exception ex) {
+                        MessageBox.Show("更名失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
                 
                 Button bDel = new Button { Text = "刪除", Width = 70, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bDel.Click += (s, e) => 
@@ -200,15 +249,46 @@ namespace Safety_System
                 };
                 
                 pItem.Controls.Add(lName);
-                pItem.Controls.Add(cb); // 🟢 加入畫面
+                pItem.Controls.Add(cb); 
                 pItem.Controls.Add(bDel); 
+                pItem.Controls.Add(bRename); // 🟢 加入更名按鈕
                 pItem.Controls.Add(bDownload); 
                 pItem.Controls.Add(bOpen); 
                 _flpList.Controls.Add(pItem);
             }
         }
 
-        // 🟢 實作批量轉存邏輯
+        // 🟢 輔助方法：彈出輸入框供使用者修改檔名
+        private string ShowInputBox(string prompt, string title, string defaultValue)
+        {
+            using (Form form = new Form())
+            {
+                form.Width = 450;
+                form.Height = 200;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.Text = title;
+                form.StartPosition = FormStartPosition.CenterParent;
+                form.MaximizeBox = false;
+                form.MinimizeBox = false;
+                form.BackColor = Color.White;
+
+                Label label = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox textBox = new TextBox() { Left = 20, Top = 55, Width = 390, Text = defaultValue, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                Button confirmation = new Button() { Text = "確認", Left = 200, Width = 100, Height = 40, Top = 100, DialogResult = DialogResult.OK, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button cancel = new Button() { Text = "取消", Left = 310, Width = 100, Height = 40, Top = 100, DialogResult = DialogResult.Cancel, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+                form.Controls.Add(label);
+                form.Controls.Add(textBox);
+                form.Controls.Add(confirmation);
+                form.Controls.Add(cancel);
+                form.AcceptButton = confirmation;
+
+                return form.ShowDialog(this) == DialogResult.OK ? textBox.Text : "";
+            }
+        }
+
+        // 實作批量轉存邏輯
         private void BtnBatchExport_Click(object sender, EventArgs e)
         {
             var selectedPaths = _checkBoxMap.Where(kvp => kvp.Value.Checked).Select(kvp => kvp.Key).ToList();
