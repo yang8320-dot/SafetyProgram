@@ -99,14 +99,12 @@ namespace Safety_System
 
             InitDateComboBoxes();
 
-            // 🟢 文字修正：查詢統計 -> 查詢
             _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(100, 32), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
 
             Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 32), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
-            // 🟢 文字修正：統計項目設定 -> 統計設定
             Button btnSetting = new Button { Text = "⚙️ 統計設定", Size = new Size(130, 32), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnSetting.Click += BtnSetting_Click;
 
@@ -558,12 +556,13 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 文字與間距修正：加大間隔 10px，並修改按鈕文字
+                // 🟢 間距修正：加大間隔 10px 
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 300, Location = new Point(110, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox txtName = new TextBox { Width = 300, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
                 
+                // 🟢 按鈕文字修正
                 Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(430, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
@@ -619,32 +618,42 @@ namespace Safety_System
                         }
                     };
 
+                    // 🟢 條件選項改為直接抓取下拉選單與組合文字的快取
                     cbCol.SelectedIndexChanged += (s, ev) => {
-                        cbFilter.Items.Clear(); cbFilter.Items.Add("非空值 (有輸入即算)");
+                        cbFilter.Items.Clear(); 
+                        cbFilter.Items.Add("非空值 (有輸入即算)");
                         var selDb = cbDb.SelectedItem as ItemMap;
                         var selTb = cbTb.SelectedItem as ItemMap;
                         string col = cbCol.Text;
                         
                         if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && col != "Id (無條件計數)") {
-                            try {
-                                DataTable dtReal = DataManager.GetTableData(selDb.EnName, selTb.EnName, "", "", "");
-                                if (dtReal != null && dtReal.Columns.Contains(col)) {
-                                    HashSet<string> uniqueVals = new HashSet<string>();
-                                    foreach (DataRow r in dtReal.Rows) {
-                                        string v = r[col]?.ToString()?.Trim();
-                                        if (!string.IsNullOrEmpty(v)) {
-                                            var parts = v.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
-                                            foreach (var p in parts) uniqueVals.Add(p.Trim());
-                                        }
+                            string tbName = selTb.EnName;
+                            
+                            // 1. 取得複選項目
+                            string multiKey = $"{tbName}|{col}";
+                            if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
+                                foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
+                                    if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
+                                        cbFilter.Items.Add(opt.Trim());
                                     }
-                                    foreach (var uv in uniqueVals) cbFilter.Items.Add(uv);
                                 }
-                            } catch { }
+                            }
+                            
+                            // 2. 取得單選項目
+                            string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, col);
+                            if (dropOpts != null && dropOpts.Length > 0) {
+                                foreach (var opt in dropOpts) {
+                                    if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
+                                        cbFilter.Items.Add(opt.Trim());
+                                    }
+                                }
+                            }
                         }
                         cbFilter.SelectedIndex = 0;
                     };
 
-                    cbAgg.Items.AddRange(new string[] { "COUNT", "SUM" });
+                    // 🟢 運算方式中文顯示
+                    cbAgg.Items.AddRange(new string[] { "計數", "加總" });
 
                     if (def != null) {
                         foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
@@ -657,9 +666,12 @@ namespace Safety_System
                             if (!string.IsNullOrEmpty(def.FilterValue)) cbFilter.Items.Add(def.FilterValue);
                             cbFilter.Text = string.IsNullOrEmpty(def.FilterValue) ? "非空值 (有輸入即算)" : def.FilterValue;
                         }
-                        cbAgg.Text = def.AggType;
+                        
+                        if (def.AggType == "COUNT") cbAgg.Text = "計數";
+                        else if (def.AggType == "SUM") cbAgg.Text = "加總";
+                        else cbAgg.Text = "計數";
                     } else {
-                        cbAgg.Text = "COUNT";
+                        cbAgg.Text = "計數";
                         cbFilter.Text = "非空值 (有輸入即算)";
                     }
 
@@ -728,7 +740,10 @@ namespace Safety_System
 
                             if (selDb != null && selTb != null && !string.IsNullOrWhiteSpace(cbCol.Text) && !string.IsNullOrWhiteSpace(cbAgg.Text)) {
                                 string filterVal = (cbFilter.Text == "非空值 (有輸入即算)") ? "" : cbFilter.Text;
-                                newCfg.Sources.Add(new DataSourceDef { DbName = selDb.EnName, TableName = selTb.EnName, ColName = cbCol.Text, FilterValue = filterVal, AggType = cbAgg.Text });
+                                // 🟢 儲存時將中文轉回原系統英文
+                                string aggTypeDb = (cbAgg.Text == "加總") ? "SUM" : "COUNT";
+                                
+                                newCfg.Sources.Add(new DataSourceDef { DbName = selDb.EnName, TableName = selTb.EnName, ColName = cbCol.Text, FilterValue = filterVal, AggType = aggTypeDb });
                             }
                         }
                     }
