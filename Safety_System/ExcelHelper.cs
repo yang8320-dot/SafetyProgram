@@ -1,3 +1,4 @@
+/// FILE: Safety_System/ExcelHelper.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -38,7 +39,7 @@ namespace Safety_System
                                 ws.DefaultRowHeight = 25;
                                 ws.Cells["A1"].LoadFromDataTable(dt, true);
 
-                                // 🟢 1. 處理表頭樣式
+                                // 1. 處理表頭樣式
                                 using (var range = ws.Cells[1, 1, 1, dt.Columns.Count])
                                 {
                                     range.Style.Font.Bold = true;
@@ -47,7 +48,7 @@ namespace Safety_System
                                     range.Style.WrapText = true; // 允許表頭自動換行
                                 }
 
-                                // 🟢 2. 依照傳入的 UI 寬度調整 Excel 欄寬
+                                // 2. 依照傳入的 UI 寬度調整 Excel 欄寬
                                 if (columnWidths != null)
                                 {
                                     for (int i = 0; i < dt.Columns.Count; i++)
@@ -67,7 +68,7 @@ namespace Safety_System
                                     ws.Cells.AutoFitColumns();
                                 }
 
-                                // 🟢 3. 處理下拉選單寫入 (解決超過 255 字元崩潰的問題)
+                                // 3. 處理下拉選單寫入 (解決超過 255 字元崩潰的問題)
                                 if (dropdownData != null && dropdownData.Count > 0)
                                 {
                                     ExcelWorksheet hiddenWs = null;
@@ -102,20 +103,17 @@ namespace Safety_System
                                                     hiddenWs.Hidden = eWorkSheetHidden.Hidden; // 隱藏此工作表
                                                 }
 
-                                                // 將選項寫入隱藏工作表的某一行
                                                 for (int r = 0; r < validItems.Length; r++)
                                                 {
                                                     hiddenWs.Cells[r + 1, hiddenColIndex].Value = validItems[r];
                                                 }
 
-                                                // 將公式參照設定為隱藏工作表的該欄範圍 (例如: HiddenDropdownData!$A$1:$A$10)
                                                 string addressRange = $"HiddenDropdownData!${GetExcelColumnName(hiddenColIndex)}$1:${GetExcelColumnName(hiddenColIndex)}${validItems.Length}";
                                                 val.Formula.ExcelFormula = addressRange;
                                                 hiddenColIndex++;
                                             }
                                             else
                                             {
-                                                // 小於 255 字元，直接寫入 Formula.Values
                                                 foreach (var item in validItems)
                                                 {
                                                     val.Formula.Values.Add(item);
@@ -148,7 +146,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 輔助工具：將數字索引轉為 Excel 的欄位字母 (1->A, 2->B, 27->AA)
+        // 輔助工具：將數字索引轉為 Excel 的欄位字母
         private static string GetExcelColumnName(int columnNumber)
         {
             string columnName = "";
@@ -161,6 +159,7 @@ namespace Safety_System
             return columnName;
         }
 
+        // 🟢 匯入引擎升級：動態重塑結構，確保不抹除原本隱藏的欄位
         public static async Task<DataTable> ImportToDataTableAsync(string filePath, DataTable templateDt, IProgress<int> progressInt, IProgress<string> progressStr)
         {
             DataTable importedDt = templateDt.Clone();
@@ -174,12 +173,24 @@ namespace Safety_System
 
                     int rowCount = ws.Dimension.Rows;
                     int colCount = ws.Dimension.Columns;
-                    string[] headers = new string[colCount];
+                    List<string> excelHeaders = new List<string>();
 
                     progressStr?.Report("正在解析 Excel 標題欄位...");
                     for (int c = 1; c <= colCount; c++)
                     {
-                        headers[c - 1] = ws.Cells[1, c].Text.Trim();
+                        string headerText = ws.Cells[1, c].Text.Trim();
+                        excelHeaders.Add(headerText);
+                    }
+
+                    // 🟢 關鍵修正：將 importedDt 裡「不存在於 Excel 中」的欄位移除 (Id 除外，因為它是系統識別碼)
+                    // 這樣主程式才知道哪些欄位使用者沒有匯入，從而避開對現存資料庫裡的隱藏欄位進行覆寫
+                    for (int i = importedDt.Columns.Count - 1; i >= 0; i--)
+                    {
+                        string colName = importedDt.Columns[i].ColumnName;
+                        if (colName != "Id" && !excelHeaders.Contains(colName))
+                        {
+                            importedDt.Columns.RemoveAt(i);
+                        }
                     }
 
                     for (int r = 2; r <= rowCount; r++)
@@ -196,8 +207,9 @@ namespace Safety_System
 
                         for (int c = 1; c <= colCount; c++)
                         {
-                            string cn = headers[c - 1];
+                            string cn = excelHeaders[c - 1];
                             string val = ws.Cells[r, c].Text.Trim();
+                            
                             if (importedDt.Columns.Contains(cn) && cn != "Id" && !string.IsNullOrEmpty(val))
                             {
                                 nr[cn] = val;
