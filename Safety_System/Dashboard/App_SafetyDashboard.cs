@@ -55,7 +55,7 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
-            // 🟢 使用嚴格的 TableLayoutPanel 確保由上到下絕對不會亂掉
+            // 使用嚴格的 TableLayoutPanel 確保由上到下絕對不會亂掉
             TableLayoutPanel masterLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
@@ -305,7 +305,7 @@ namespace Safety_System
                     _pnlData4.Controls.Add(new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) });
                 }
 
-                // 更新 UI - 底部 Grid (每個指標產生一個獨立 Panel)
+                // 🟢 更新 UI - 底部 Grid (每個指標產生一個獨立 Panel)
                 _flpBottomBox.Controls.Clear();
                 _monthlyPanels.Clear();
 
@@ -314,7 +314,7 @@ namespace Safety_System
                     string statName = kvp.Key;
                     DataTable dt = kvp.Value;
 
-                    Panel pnlWrapper = new Panel { Width = _flpBottomBox.Parent.ClientSize.Width - 40, Height = 195, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+                    Panel pnlWrapper = new Panel { Width = _flpBottomBox.Parent.ClientSize.Width - 40, Height = 200, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
                     pnlWrapper.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlWrapper.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
                     Label lblTitle = new Label { Text = $"📊 近三年逐月統計：{statName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Padding = new Padding(15, 10, 0, 10), Dock = DockStyle.Top };
@@ -334,7 +334,7 @@ namespace Safety_System
                     dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
                     
                     dgv.DataSource = dt;
-                    dgv.Columns["年度"].Width = 80;
+                    dgv.Columns["年度"].Width = 100;
                     dgv.Columns["年度總計"].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
                     dgv.Columns["年度總計"].DefaultCellStyle.BackColor = Color.LightYellow;
                     
@@ -391,7 +391,6 @@ namespace Safety_System
                         {
                             if (r.RowState == DataRowState.Deleted) continue;
                             
-                            // 🟢 過濾邏輯
                             bool match = false;
                             string valStr = "";
 
@@ -433,7 +432,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗 (無上限資料來源)
+        // 設定檔管理與動態設定視窗 (修復遮蔽問題)
         // =========================================================
         private void LoadSettings()
         {
@@ -489,6 +488,7 @@ namespace Safety_System
             string authPrompt = "修改看板統計設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
+            // 🟢 加寬整個設定視窗
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -511,7 +511,7 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                Panel pName = new Panel { Width = 900, Height = 45 };
+                Panel pName = new Panel { Width = 950, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 300, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
@@ -527,25 +527,25 @@ namespace Safety_System
 
                 var dbMap = App_DbConfig.GetDbMapCache();
 
-                // 🟢 無上限動態產生來源列的方法
+                // 🟢 動態產生來源列的方法 (調整元件寬度與間距，避免互相遮蔽)
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    Panel pRow = new Panel { Width = 900, Height = 80, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                    Panel pRow = new Panel { Width = 950, Height = 80, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
-                    ComboBox cbDb = new ComboBox { Width = 140, Location = new Point(10, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbTb = new ComboBox { Width = 180, Location = new Point(160, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbCol = new ComboBox { Width = 160, Location = new Point(350, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbFilter = new ComboBox { Width = 150, Location = new Point(520, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbAgg = new ComboBox { Width = 90, Location = new Point(680, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    Button btnRemove = new Button { Text = "❌", Width = 40, Height = 30, Location = new Point(780, 34), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                    ComboBox cbDb = new ComboBox { Width = 130, Location = new Point(10, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbTb = new ComboBox { Width = 180, Location = new Point(150, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbCol = new ComboBox { Width = 150, Location = new Point(340, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbFilter = new ComboBox { Width = 180, Location = new Point(500, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbAgg = new ComboBox { Width = 90, Location = new Point(690, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    Button btnRemove = new Button { Text = "❌", Width = 40, Height = 30, Location = new Point(790, 34), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     btnRemove.FlatAppearance.BorderSize = 0;
 
                     pRow.Controls.AddRange(new Control[] {
                         new Label { Text = "資料庫", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbDb,
-                        new Label { Text = "資料表", Location = new Point(160, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbTb,
-                        new Label { Text = "計算欄位", Location = new Point(350, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbCol,
-                        new Label { Text = "選項過濾條件", Location = new Point(520, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbFilter,
-                        new Label { Text = "運算方式", Location = new Point(680, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbAgg,
+                        new Label { Text = "資料表", Location = new Point(150, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbTb,
+                        new Label { Text = "計算欄位", Location = new Point(340, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbCol,
+                        new Label { Text = "選項過濾條件", Location = new Point(500, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbFilter,
+                        new Label { Text = "運算方式", Location = new Point(690, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 9F) }, cbAgg,
                         btnRemove
                     });
 
@@ -569,20 +569,28 @@ namespace Safety_System
                         }
                     };
 
-                    // 🟢 動態抓取下拉選單選項
+                    // 🟢 徹底修復：強制讀取實際資料表內存在過的值，作為過濾條件選單
                     cbCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); cbFilter.Items.Add("非空值 (有輸入即算)");
-                        string tb = cbTb.Text; string col = cbCol.Text;
-                        if (!string.IsNullOrEmpty(tb) && col != "Id (無條件計數)") {
-                            string multiKey = $"{tb}|{col}";
-                            if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                                foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) cbFilter.Items.Add(opt);
-                            } else {
-                                var opts = App_DropdownManager.GetAllOptionsForColumn(tb, col);
-                                if (opts != null) {
-                                    foreach (var opt in opts) if (!string.IsNullOrEmpty(opt.Trim())) cbFilter.Items.Add(opt);
+                        string db = cbDb.Text; string tb = cbTb.Text; string col = cbCol.Text;
+                        
+                        if (!string.IsNullOrEmpty(db) && !string.IsNullOrEmpty(tb) && col != "Id (無條件計數)") {
+                            try {
+                                // 直接掃描真實資料庫的所有不重複內容
+                                DataTable dtReal = DataManager.GetTableData(db, tb, "", "", "");
+                                if (dtReal != null && dtReal.Columns.Contains(col)) {
+                                    HashSet<string> uniqueVals = new HashSet<string>();
+                                    foreach (DataRow r in dtReal.Rows) {
+                                        string v = r[col]?.ToString()?.Trim();
+                                        if (!string.IsNullOrEmpty(v)) {
+                                            // 支援解析多選字串
+                                            var parts = v.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                                            foreach (var p in parts) uniqueVals.Add(p.Trim());
+                                        }
+                                    }
+                                    foreach (var uv in uniqueVals) cbFilter.Items.Add(uv);
                                 }
-                            }
+                            } catch { }
                         }
                         cbFilter.SelectedIndex = 0;
                     };
@@ -686,7 +694,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出 (加入多區塊選擇與防呆修復)
+        // PDF 導出 
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -798,7 +806,6 @@ namespace Safety_System
 
                         pd.Print();
                         
-                        // 釋放記憶體
                         foreach (var bmp in bitmaps) bmp.Dispose();
 
                         MessageBox.Show("PDF 匯出成功！已根據項目自動分頁並全版面 A4 對齊。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -809,7 +816,6 @@ namespace Safety_System
                     } 
                     finally 
                     { 
-                        // 🟢 徹底確保滑鼠游標一定會恢復原狀
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
                     }
                 }
