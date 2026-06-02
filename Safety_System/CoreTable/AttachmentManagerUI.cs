@@ -18,7 +18,7 @@ namespace Safety_System
         private Action<string> _deleteAction;
         private FlowLayoutPanel _flpList;
         
-        // 🟢 儲存每個項目的 CheckBox，用來判斷哪些被勾選
+        // 儲存每個項目的 CheckBox，用來判斷哪些被勾選
         private Dictionary<string, CheckBox> _checkBoxMap = new Dictionary<string, CheckBox>();
 
         public AttachmentManagerUI(string currentRelPathStr, string dbName, string tableName, string targetFolder, Action<string> deleteAction) 
@@ -53,7 +53,7 @@ namespace Safety_System
             boxList.Controls.Add(_flpList); 
             tlp.Controls.Add(boxList, 0, 0);
 
-            // 🟢 批量操作列
+            // 批量操作列
             Panel pnlBatch = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
             Button btnSelectAll = new Button { Text = "☑️ 全選", Width = 100, Dock = DockStyle.Left, BackColor = Color.LightGray, Cursor = Cursors.Hand };
             btnSelectAll.Click += (s, e) => { foreach (var cb in _checkBoxMap.Values) cb.Checked = true; };
@@ -187,14 +187,16 @@ namespace Safety_System
                     }
                 };
 
+                // 🟢 更名功能：隱藏副檔名與防呆處理
                 Button bRename = new Button { Text = "更名", Width = 70, Dock = DockStyle.Right, BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bRename.Click += (s, e) => 
                 {
-                    // 🟢 取得不含副檔名的舊檔名，以及原有的副檔名
-                    string oldNameWithoutExt = Path.GetFileNameWithoutExtension(path);
-                    string ext = Path.GetExtension(path);
+                    string fileName = Path.GetFileName(path);
+                    string ext = Path.GetExtension(fileName);
+                    string oldNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
                     
-                    string newNameWithoutExt = ShowInputBox("請輸入新的檔案名稱 (不需輸入副檔名)：", "附件更名", oldNameWithoutExt);
+                    string promptMsg = $"原檔名為：{fileName}\n\n請輸入新的檔案名稱：\n(副檔名 {ext} 由系統自動保留，請勿輸入)";
+                    string newNameWithoutExt = ShowInputBox(promptMsg, "附件更名", oldNameWithoutExt);
 
                     if (string.IsNullOrWhiteSpace(newNameWithoutExt) || newNameWithoutExt == oldNameWithoutExt) return;
 
@@ -204,7 +206,12 @@ namespace Safety_System
                         return;
                     }
 
-                    // 🟢 組合出包含副檔名的新檔名
+                    // 🟢 防呆：如果使用者自己還是打了副檔名，幫他濾掉
+                    if (newNameWithoutExt.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) {
+                        newNameWithoutExt = newNameWithoutExt.Substring(0, newNameWithoutExt.Length - ext.Length);
+                    }
+
+                    // 組合出包含副檔名的新檔名
                     string newFileName = newNameWithoutExt + ext;
 
                     try {
@@ -266,7 +273,7 @@ namespace Safety_System
             using (Form form = new Form())
             {
                 form.Width = 450;
-                form.Height = 200;
+                form.Height = 220; // 稍微加高以容納更詳細的提示文字
                 form.FormBorderStyle = FormBorderStyle.FixedDialog;
                 form.Text = title;
                 form.StartPosition = FormStartPosition.CenterParent;
@@ -275,10 +282,10 @@ namespace Safety_System
                 form.BackColor = Color.White;
 
                 Label label = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                TextBox textBox = new TextBox() { Left = 20, Top = 55, Width = 390, Text = defaultValue, Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox textBox = new TextBox() { Left = 20, Top = 85, Width = 390, Text = defaultValue, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-                Button confirmation = new Button() { Text = "確認", Left = 200, Width = 100, Height = 40, Top = 100, DialogResult = DialogResult.OK, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-                Button cancel = new Button() { Text = "取消", Left = 310, Width = 100, Height = 40, Top = 100, DialogResult = DialogResult.Cancel, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button confirmation = new Button() { Text = "確認", Left = 200, Width = 100, Height = 40, Top = 130, DialogResult = DialogResult.OK, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button cancel = new Button() { Text = "取消", Left = 310, Width = 100, Height = 40, Top = 130, DialogResult = DialogResult.Cancel, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                 form.Controls.Add(label);
                 form.Controls.Add(textBox);
@@ -290,6 +297,7 @@ namespace Safety_System
             }
         }
 
+        // 實作批量轉存邏輯
         private void BtnBatchExport_Click(object sender, EventArgs e)
         {
             var selectedPaths = _checkBoxMap.Where(kvp => kvp.Value.Checked).Select(kvp => kvp.Key).ToList();
