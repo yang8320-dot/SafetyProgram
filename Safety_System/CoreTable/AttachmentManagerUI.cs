@@ -1,3 +1,4 @@
+/// FILE: Safety_System/CoreTable/AttachmentManagerUI.cs ///
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -16,6 +17,9 @@ namespace Safety_System
         private string _dbName, _tableName, _targetFolder;
         private Action<string> _deleteAction;
         private FlowLayoutPanel _flpList;
+        
+        // 🟢 儲存每個項目的 CheckBox，用來判斷哪些被勾選
+        private Dictionary<string, CheckBox> _checkBoxMap = new Dictionary<string, CheckBox>();
 
         public AttachmentManagerUI(string currentRelPathStr, string dbName, string tableName, string targetFolder, Action<string> deleteAction) 
         {
@@ -30,15 +34,16 @@ namespace Safety_System
             }
             
             this.Text = "多檔附件管理中心"; 
-            this.Size = new Size(700, 600); 
+            this.Size = new Size(700, 680); // 🟢 視窗加高以容納新按鈕
             this.StartPosition = FormStartPosition.CenterParent; 
             this.FormBorderStyle = FormBorderStyle.FixedDialog; 
             this.MaximizeBox = false; 
             this.MinimizeBox = false; 
             this.BackColor = Color.White;
 
-            TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
+            TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5 };
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); 
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // 🟢 批量操作按鈕區
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 50F)); 
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); 
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
@@ -47,6 +52,22 @@ namespace Safety_System
             _flpList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
             boxList.Controls.Add(_flpList); 
             tlp.Controls.Add(boxList, 0, 0);
+
+            // 🟢 新增：批量操作列
+            Panel pnlBatch = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
+            Button btnSelectAll = new Button { Text = "☑️ 全選", Width = 100, Dock = DockStyle.Left, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+            btnSelectAll.Click += (s, e) => { foreach (var cb in _checkBoxMap.Values) cb.Checked = true; };
+            
+            Button btnUnselectAll = new Button { Text = "☐ 取消全選", Width = 110, Dock = DockStyle.Left, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+            btnUnselectAll.Click += (s, e) => { foreach (var cb in _checkBoxMap.Values) cb.Checked = false; };
+            
+            Button btnBatchExport = new Button { Text = "💾 批量轉存勾選檔案", Width = 200, Dock = DockStyle.Right, BackColor = Color.DarkCyan, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnBatchExport.Click += BtnBatchExport_Click;
+
+            pnlBatch.Controls.Add(btnUnselectAll);
+            pnlBatch.Controls.Add(btnSelectAll);
+            pnlBatch.Controls.Add(btnBatchExport);
+            tlp.Controls.Add(pnlBatch, 0, 1);
 
             GroupBox boxUpload = new GroupBox { Text = "2. 新增附件檔案", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(10) };
             Panel pnlDrop = new Panel { Dock = DockStyle.Fill, AllowDrop = true, BackColor = Color.AliceBlue, Cursor = Cursors.Hand };
@@ -59,7 +80,7 @@ namespace Safety_System
             pnlDrop.DragEnter += (s, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; };
             pnlDrop.DragDrop += (s, e) => { ProcessUpload((string[])e.Data.GetData(DataFormats.FileDrop)); };
             boxUpload.Controls.Add(pnlDrop); 
-            tlp.Controls.Add(boxUpload, 0, 1);
+            tlp.Controls.Add(boxUpload, 0, 2);
 
             Button btnClearAll = new Button { Text = "🗑️ 清除此筆紀錄的所有附件", Dock = DockStyle.Fill, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(3, 5, 3, 5) };
             btnClearAll.Click += (s, e) => 
@@ -72,15 +93,15 @@ namespace Safety_System
                     RefreshListUI(); 
                 }
             };
-            tlp.Controls.Add(btnClearAll, 0, 2);
+            tlp.Controls.Add(btnClearAll, 0, 3);
 
-            Button btnSaveClose = new Button { Text = "💾 確認變更並返回", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Margin = new Padding(3, 5, 3, 5) };
+            Button btnSaveClose = new Button { Text = "✔️ 確認變更並返回", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Margin = new Padding(3, 5, 3, 5) };
             btnSaveClose.Click += (s, e) => 
             { 
                 FinalPathsString = string.Join("|", _paths); 
                 this.DialogResult = DialogResult.OK; 
             };
-            tlp.Controls.Add(btnSaveClose, 0, 3);
+            tlp.Controls.Add(btnSaveClose, 0, 4);
 
             this.Controls.Add(tlp); 
             RefreshListUI();
@@ -89,6 +110,8 @@ namespace Safety_System
         private void RefreshListUI() 
         {
             _flpList.Controls.Clear();
+            _checkBoxMap.Clear(); // 🟢 清空勾選紀錄
+
             if (_paths.Count == 0) 
             { 
                 _flpList.Controls.Add(new Label { Text = "(尚無任何附件)", ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10) }); 
@@ -98,23 +121,24 @@ namespace Safety_System
             foreach (string path in _paths) 
             {
                 Panel pItem = new Panel { Width = _flpList.Width - 30, Height = 40, BackColor = Color.WhiteSmoke, Margin = new Padding(2) };
+                
+                // 🟢 加入 CheckBox
+                CheckBox cb = new CheckBox { Dock = DockStyle.Left, Width = 30, Padding = new Padding(5,0,0,0) };
+                _checkBoxMap[path] = cb; // 記錄這個 CheckBox 對應哪個路徑
+
                 Label lName = new Label { Text = Path.GetFileName(path), Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
-                Button bOpen = new Button { Text = "開啟", Width = 100, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+                Button bOpen = new Button { Text = "開啟", Width = 90, Dock = DockStyle.Right, BackColor = Color.LightGray, Cursor = Cursors.Hand };
                 bOpen.Click += (s, e) => 
                 { 
                     try 
                     { 
-                        // 🟢 系統性優化 4：附件檔案共用衝突防護
-                        // 不直接開啟網路硬碟上的實體檔案，而是複製到使用者的本機暫存區再開啟
-                        // 避免 A 打開檔案時鎖定，導致 B 無法刪除或覆寫該檔案
                         string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
                         if (File.Exists(sourcePath))
                         {
                             string tempFolder = Path.Combine(Path.GetTempPath(), "SafetySystem_Viewer");
                             if (!Directory.Exists(tempFolder)) Directory.CreateDirectory(tempFolder);
                             
-                            // 加入時間戳記避免同名檔案衝突
                             string tempFileName = $"{DateTime.Now.ToString("HHmmss")}_{Path.GetFileName(path)}";
                             string tempFilePath = Path.Combine(tempFolder, tempFileName);
                             
@@ -132,7 +156,7 @@ namespace Safety_System
                     } 
                 };
                 
-                Button bDownload = new Button { Text = "下載", Width = 100, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                Button bDownload = new Button { Text = "單檔下載", Width = 90, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bDownload.Click += (s, e) => 
                 {
                     try 
@@ -164,7 +188,7 @@ namespace Safety_System
                     }
                 };
                 
-                Button bDel = new Button { Text = "刪除", Width = 100, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
+                Button bDel = new Button { Text = "刪除", Width = 70, Dock = DockStyle.Right, BackColor = Color.LightCoral, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bDel.Click += (s, e) => 
                 { 
                     if (MessageBox.Show($"確定刪除 {Path.GetFileName(path)}?\n(這將從硬碟永久移除檔案)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) 
@@ -175,11 +199,77 @@ namespace Safety_System
                     } 
                 };
                 
-                pItem.Controls.Add(lName); 
+                pItem.Controls.Add(lName);
+                pItem.Controls.Add(cb); // 🟢 加入畫面
                 pItem.Controls.Add(bDel); 
                 pItem.Controls.Add(bDownload); 
                 pItem.Controls.Add(bOpen); 
                 _flpList.Controls.Add(pItem);
+            }
+        }
+
+        // 🟢 實作批量轉存邏輯
+        private void BtnBatchExport_Click(object sender, EventArgs e)
+        {
+            var selectedPaths = _checkBoxMap.Where(kvp => kvp.Value.Checked).Select(kvp => kvp.Key).ToList();
+
+            if (selectedPaths.Count == 0)
+            {
+                MessageBox.Show("請先勾選您想要轉存的檔案！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇要把這些附件存放到哪一個資料夾：" })
+            {
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    string targetDir = fbd.SelectedPath;
+                    int successCount = 0;
+                    int failCount = 0;
+
+                    foreach (string relPath in selectedPaths)
+                    {
+                        try
+                        {
+                            string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relPath);
+                            if (File.Exists(sourcePath))
+                            {
+                                string fileName = Path.GetFileName(relPath);
+                                string destPath = Path.Combine(targetDir, fileName);
+
+                                // 若遇到同名檔案，自動加上數字後綴避免覆蓋
+                                int count = 1;
+                                string baseName = Path.GetFileNameWithoutExtension(fileName);
+                                string ext = Path.GetExtension(fileName);
+
+                                while (File.Exists(destPath))
+                                {
+                                    destPath = Path.Combine(targetDir, $"{baseName}_{count++}{ext}");
+                                }
+
+                                File.Copy(sourcePath, destPath, false);
+                                successCount++;
+                            }
+                            else
+                            {
+                                failCount++;
+                            }
+                        }
+                        catch
+                        {
+                            failCount++;
+                        }
+                    }
+
+                    if (failCount == 0)
+                    {
+                        MessageBox.Show($"成功將 {successCount} 個檔案轉存至目標資料夾！", "批量轉存完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show($"完成！成功 {successCount} 個，失敗 {failCount} 個。\n(失敗原因可能為原檔案遺失或沒有權限寫入該資料夾)", "批量轉存報告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
             }
         }
 
