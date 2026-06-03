@@ -1,3 +1,4 @@
+/// FILE: Safety_System/Dashboard/App_LawDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -104,7 +105,8 @@ namespace Safety_System
             // ==========================================
             // 大框 2：統計摘要 (法令鑑別統計表)
             // ==========================================
-            GroupBox box2 = CreateDataBox("📊 統計摘要", 400);
+            // 🟢 需求 1：高度 +50 (原本 400 -> 450)
+            GroupBox box2 = CreateDataBox("📊 統計摘要", 450);
             Label lblTitle2 = new Label 
             { 
                 Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令鑑別統計表", 
@@ -152,7 +154,7 @@ namespace Safety_System
             _cboCategory.SelectedIndexChanged += (s, e) => { FilterCategoryLaws(); };
             pnlAction3.Controls.Add(_cboCategory);
 
-            Button btnSaveDir = new Button { Text = "💾 儲存確認日期", Size = new Size(200, 32), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(20, 2, 0, 0) };
+            Button btnSaveDir = new Button { Text = "💾 儲存確認日期", Size = new Size(200, 32), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(20, 2, 0, 0), Visible = false };
             btnSaveDir.Click += BtnSaveDir_Click;
             pnlAction3.Controls.Add(btnSaveDir);
 
@@ -195,7 +197,6 @@ namespace Safety_System
                     _errorLogs.Clear();
                     LoadAndMergeData();
                     
-                    // 🟢 智慧捕捉：讀取目錄表時，若表不存在則記錄路徑並自動建立
                     try
                     {
                         _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
@@ -207,13 +208,12 @@ namespace Safety_System
                             string dbPath = Path.Combine(DataManager.BasePath, DbName + ".sqlite");
                             _errorLogs.Add($"⚠️ 找不到資料表：[法規目錄一覽]\n📂 目標路徑：{dbPath}\n💡 已由系統在背景自動為您建立，後續可正常使用。");
                             
-                            // 自動修復：主動建立空表以防崩潰
                             DataManager.InitTable(DbName, "法規目錄一覽", "CREATE TABLE IF NOT EXISTS [法規目錄一覽] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選項類別] TEXT, [流水號] TEXT, [法規名稱] TEXT, [日期] TEXT, [適用性] TEXT, [鑑別日期] TEXT, [再次確認日期] TEXT);");
                             _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
                         }
                         else
                         {
-                            throw; // 其他嚴重 SQL 錯誤拋出
+                            throw; 
                         }
                     }
 
@@ -241,7 +241,6 @@ namespace Safety_System
 
             if (_cboCategory.Items.Count > 0) _cboCategory.SelectedIndex = 0;
 
-            // 🟢 優化提示訊息：清楚列出缺少的表與路徑
             if (_errorLogs.Count > 0) 
             {
                 MessageBox.Show("部分資料表尚未建立或讀取異常，詳細資訊如下：\n\n" + string.Join("\n\n", _errorLogs), 
@@ -373,7 +372,6 @@ namespace Safety_System
                 } 
                 catch (Exception ex) 
                 {
-                    // 🟢 智慧捕捉：如果尚未點過個別模組，資料表還不存在，則記錄下來告知使用者
                     if (ex.Message.Contains("no such table"))
                     {
                         string dbPath = Path.Combine(DataManager.BasePath, DbName + ".sqlite");
@@ -551,12 +549,13 @@ namespace Safety_System
             if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
 
+            // 🟢 需求 2：不顯示再次確認日期與最後修改人
+            if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) _dgvCategoryLaws.Columns["再次確認日期"].Visible = false;
+            if (_dgvCategoryLaws.Columns.Contains("最後修改人")) _dgvCategoryLaws.Columns["最後修改人"].Visible = false;
+
             foreach (DataGridViewColumn col in _dgvCategoryLaws.Columns) 
             {
-                col.ReadOnly = (col.Name != "再次確認日期");
-                if (col.Name == "再次確認日期") {
-                    col.DefaultCellStyle.BackColor = Color.LightYellow; 
-                }
+                col.ReadOnly = true; // 因為不顯示再次確認日期，全表設為唯讀
             }
 
             if (_dgvCategoryLaws.Columns.Contains("流水號")) {
@@ -578,45 +577,18 @@ namespace Safety_System
                 _dgvCategoryLaws.Columns["鑑別日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 _dgvCategoryLaws.Columns["鑑別日期"].Width = 140;
             }
-            if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) {
-                _dgvCategoryLaws.Columns["再次確認日期"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                _dgvCategoryLaws.Columns["再次確認日期"].Width = 170;
-            }
             
             _dgvCategoryLaws.ClearSelection();
         }
 
         private void DgvCategoryLaws_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0) 
-            {
-                if (_dgvCategoryLaws.Columns[e.ColumnIndex].Name == "再次確認日期") 
-                {
-                    var cell = _dgvCategoryLaws.Rows[e.RowIndex].Cells[e.ColumnIndex];
-                    if (cell.Value == DBNull.Value || string.IsNullOrWhiteSpace(cell.Value?.ToString())) 
-                    {
-                        cell.Value = DateTime.Today.ToString("yyyy-MM-dd");
-                    }
-                }
-            }
+            // 已隱藏再次確認日期，故此事件可保留空白防呆
         }
 
         private void BtnSaveDir_Click(object sender, EventArgs e)
         {
-            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-            try {
-                _dgvCategoryLaws.EndEdit();
-                DataTable dt = (DataTable)_dgvCategoryLaws.DataSource;
-                
-                if (dt != null && DataManager.BulkSaveTable(DbName, "法規目錄一覽", dt)) {
-                    MessageBox.Show("確認日期儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    
-                    _dtDirectoryLaws = DataManager.GetTableData(DbName, "法規目錄一覽", "", "", "");
-                    FilterCategoryLaws(); 
-                }
-            } finally {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-            }
+            // 按鈕已隱藏
         }
 
         private void ExportToExcel(DataGridView dgv, string title)
@@ -663,11 +635,12 @@ namespace Safety_System
             ExcelHelper.ExportToExcelOrCsv(dt, title, colWidths);
         }
 
+        // 🟢 需求 3：全面重構的專業級 PDF 導出排版，含精確頁碼計算
         private void ExportToPdf(DataGridView dgv, string fileName, string reportTitle)
         {
             if (dgv.Rows.Count == 0) 
             { 
-                MessageBox.Show("沒有資料可列印！"); 
+                MessageBox.Show("目前沒有資料可供導出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); 
                 return; 
             }
             
@@ -675,6 +648,9 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
+                    Form activeForm = Form.ActiveForm;
+                    if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
+
                     PrintDocument pd = new PrintDocument();
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
@@ -683,56 +659,98 @@ namespace Safety_System
                     pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
 
                     int rowIndex = 0;
+                    int pageNumber = 1;
+
+                    // 取得可見欄位並計算總寬度
+                    List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
+                    float totalWidth = 0;
+                    foreach (DataGridViewColumn col in dgv.Columns) {
+                        if (col.Visible) {
+                            visCols.Add(col);
+                            totalWidth += col.Width;
+                        }
+                    }
+
+                    // ====== 預先模擬計算總頁數 ======
+                    int totalPages = 1;
+                    float simW = 1169f - 80f; // A4 橫向寬度扣掉左右 Margin
+                    float simH = 827f - 80f;  // A4 橫向高度扣掉上下 Margin
+                    
+                    float scale = simW / totalWidth;
+                    if (scale > 1f) scale = 1f;
+                    
+                    float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
+                    float simStartY = 40f + 40f + 35f + 30f + headerH; // 包含 4行標題 + 1列表頭的高度 (不縮放)
+                    float simCurrentY = simStartY;
+                    float simBottomLimit = simH - 30f; // 留給底部頁碼的空間
+
+                    for (int i = 0; i < dgv.Rows.Count; i++) {
+                        float rowH = dgv.Rows[i].Height < 30 ? 30 : dgv.Rows[i].Height;
+                        // 注意：內容列的高度會被 scale 縮放
+                        float scaledRowH = rowH * scale; 
+                        
+                        if (simCurrentY + scaledRowH > simBottomLimit) {
+                            totalPages++;
+                            simCurrentY = simStartY + scaledRowH;
+                        } else {
+                            simCurrentY += scaledRowH;
+                        }
+                    }
+
+                    // ====== 正式繪製邏輯 ======
                     pd.PrintPage += (s, e) => 
                     {
                         Graphics g = e.Graphics;
-                        Font font = new Font("Microsoft JhengHei UI", 9F);
-                        Font headerFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
-                        Font titleFont = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
-                        Font dateFont = new Font("Microsoft JhengHei UI", 11F);
-                        
-                        StringFormat fmtCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-                        StringFormat fmtLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-
                         float y = e.MarginBounds.Top;
-                        float totalWidth = 0;
-                        
-                        List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
-                        foreach (DataGridViewColumn col in dgv.Columns) 
-                        {
-                            if (col.Visible) 
-                            {
-                                visCols.Add(col);
-                                totalWidth += col.Width;
-                            }
+                        float x = e.MarginBounds.Left;
+                        float w = e.MarginBounds.Width;
+
+                        Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
+                        Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
+                        Font fSign = new Font("Microsoft JhengHei UI", 12F);
+                        Font fDate = new Font("Microsoft JhengHei UI", 11F);
+                        Font font = new Font("Microsoft JhengHei UI", 10F);
+                        Font headerFont = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
+
+                        StringFormat fmtCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        StringFormat fmtLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                        // 1. 第一行：大標題
+                        g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), fmtCenter); 
+                        y += 40;
+
+                        // 2. 第二行：副標題
+                        g.DrawString(reportTitle, fSub, Brushes.Black, new RectangleF(x, y, w, 30), fmtCenter); 
+                        y += 40;
+
+                        // 3. 第三行：簽核
+                        string sign = "廠主管：______________    經/副理：______________    課/股長：______________   主辦：______________    制表：______________";
+                        g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), fmtCenter); 
+                        y += 35;
+
+                        // 4. 第四行：日期與查詢條件
+                        string dateStr = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}";
+                        if (reportTitle == "年度法令總鑑別表") {
+                            dateStr += $"        查詢條件：{_cboYearlyCategory.Text} / {_cboYearlyYear.Text}年度 / 適用性:{_cboYearlyApplicability.Text}";
+                        } else if (reportTitle == "法令目錄一覽表") {
+                            dateStr += $"        查詢條件：{_cboCategory.Text}";
                         }
+                        g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), fmtLeft); 
+                        y += 30;
 
-                        float scale = e.MarginBounds.Width / totalWidth;
-                        if (scale > 1f) scale = 1f; 
-
-                        g.ScaleTransform(scale, scale);
-                        float scaledHeight = e.MarginBounds.Height / scale;
-                        float scaledWidth = e.MarginBounds.Width / scale;
-                        float x = e.MarginBounds.Left / scale;
-
-                        string companyTitle = "台灣玻璃工業股份有限公司-彰濱廠\n" + reportTitle;
-                        string exportDate = "導出日期: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-
-                        SizeF titleSize = g.MeasureString(companyTitle, titleFont, (int)scaledWidth, fmtCenter);
-                        RectangleF titleRect = new RectangleF(x, y / scale, scaledWidth, titleSize.Height + 10);
-                        g.DrawString(companyTitle, titleFont, Brushes.DarkSlateBlue, titleRect, fmtCenter);
-                        y += (titleSize.Height + 10) * scale;
-
-                        SizeF dateSize = g.MeasureString(exportDate, dateFont, (int)scaledWidth, fmtLeft);
-                        RectangleF dateRect = new RectangleF(x, y / scale, scaledWidth, dateSize.Height + 10);
-                        g.DrawString(exportDate, dateFont, Brushes.Black, dateRect, fmtLeft);
-                        y += (dateSize.Height + 15) * scale;
-
-                        float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
+                        // 儲存目前未縮放的座標點
+                        float savedY = y;
                         
+                        // 套用縮放以適應紙張寬度
+                        g.ScaleTransform(scale, scale);
+                        x = e.MarginBounds.Left / scale;
+                        y = savedY / scale;
+                        float bottomLimit = (e.MarginBounds.Bottom - 30) / scale; // 給內容列的底部限制
+                        
+                        // 畫表頭
                         for (int i = 0; i < visCols.Count; i++) 
                         {
-                            RectangleF rectF = new RectangleF(x, y / scale, visCols[i].Width, headerH);
+                            RectangleF rectF = new RectangleF(x, y, visCols[i].Width, headerH);
                             Rectangle rect = Rectangle.Round(rectF); 
                             g.FillRectangle(Brushes.LightGray, rect);
                             g.DrawRectangle(Pens.Black, rect);
@@ -741,23 +759,23 @@ namespace Safety_System
                             g.DrawString(headerText, headerFont, Brushes.Black, rect, fmtCenter);
                             x += visCols[i].Width;
                         }
-                        y += headerH * scale;
+                        y += headerH;
 
+                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count) 
                         {
                             DataGridViewRow row = dgv.Rows[rowIndex];
                             float rowH = row.Height < 30 ? 30 : row.Height;
                             
-                            if ((y / scale) + rowH > scaledHeight + (e.MarginBounds.Top / scale)) 
+                            if (y + rowH > bottomLimit) 
                             {
-                                e.HasMorePages = true; 
-                                return;
+                                break;
                             }
 
                             x = e.MarginBounds.Left / scale;
                             for (int i = 0; i < visCols.Count; i++) 
                             {
-                                RectangleF rectF = new RectangleF(x, y / scale, visCols[i].Width, rowH);
+                                RectangleF rectF = new RectangleF(x, y, visCols[i].Width, rowH);
                                 Rectangle rect = Rectangle.Round(rectF);
                                 g.DrawRectangle(Pens.Black, rect);
                                 
@@ -765,21 +783,34 @@ namespace Safety_System
                                 g.DrawString(val, font, Brushes.Black, rect, fmtCenter);
                                 x += visCols[i].Width;
                             }
-                            y += rowH * scale;
+                            y += rowH;
                             rowIndex++;
                         }
-                        e.HasMorePages = false;
-                        rowIndex = 0; 
+
+                        // 恢復縮放比例畫底部的頁碼
+                        g.ResetTransform();
+                        g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(e.MarginBounds.Left, e.MarginBounds.Bottom - 15, w, 20), fmtCenter);
+
+                        if (rowIndex < dgv.Rows.Count) {
+                            pageNumber++;
+                            e.HasMorePages = true;
+                        } else {
+                            e.HasMorePages = false;
+                            rowIndex = 0;
+                            pageNumber = 1;
+                        }
                     };
 
                     try 
                     { 
                         pd.Print(); 
-                        MessageBox.Show("PDF 匯出成功！"); 
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
+                        MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex) 
                     { 
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message); 
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }
