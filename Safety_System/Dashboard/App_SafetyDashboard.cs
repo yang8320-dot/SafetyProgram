@@ -925,7 +925,7 @@ namespace Safety_System
                             g.DrawString("工安數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
                             y += 40;
 
-                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________   主辦：______________    制表：______________";
+                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
