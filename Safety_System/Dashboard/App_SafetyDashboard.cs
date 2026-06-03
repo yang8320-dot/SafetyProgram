@@ -570,7 +570,6 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 徹底防呆：改用自動流式排版 (FlowLayoutPanel) 取代絕對座標，保證不同解析度與 DPI 下永不重疊！
                 FlowLayoutPanel pName = new FlowLayoutPanel { Width = 1000, Height = 45, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 
@@ -801,7 +800,7 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
+                clb.Items.Add("【首頁】四大區塊統計總計", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
@@ -834,7 +833,7 @@ namespace Safety_System
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("區間統計總計")) {
+                        if (text.Contains("【首頁】四大區塊統計總計")) {
                             selectedPanels.Add(_pnlTopBox);
                         } else {
                             string key = text.Replace("近三年逐月：", "");
@@ -924,7 +923,7 @@ namespace Safety_System
                             g.DrawString("工安數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
                             y += 40;
 
-                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    填表人：______________";
+                            string sign = "簽核 (廠主管：______________    經/副理：______________    課/股長：______________   主辦：______________    制表：______________)";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
