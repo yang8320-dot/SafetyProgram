@@ -105,7 +105,6 @@ namespace Safety_System
             // ==========================================
             // 大框 2：統計摘要 (法令鑑別統計表)
             // ==========================================
-            // 🟢 需求 1：高度 +50 (原本 400 -> 450)
             GroupBox box2 = CreateDataBox("📊 統計摘要", 450);
             Label lblTitle2 = new Label 
             { 
@@ -549,13 +548,15 @@ namespace Safety_System
             if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
 
-            // 🟢 需求 2：不顯示再次確認日期與最後修改人
+            // 🟢 需求 2：不顯示再次確認日期、最後修改人、修改時間
             if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) _dgvCategoryLaws.Columns["再次確認日期"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("最後修改人")) _dgvCategoryLaws.Columns["最後修改人"].Visible = false;
+            if (_dgvCategoryLaws.Columns.Contains("修改時間")) _dgvCategoryLaws.Columns["修改時間"].Visible = false;
+            if (_dgvCategoryLaws.Columns.Contains("最後修改時間")) _dgvCategoryLaws.Columns["最後修改時間"].Visible = false; // 預防名稱差異
 
             foreach (DataGridViewColumn col in _dgvCategoryLaws.Columns) 
             {
-                col.ReadOnly = true; // 因為不顯示再次確認日期，全表設為唯讀
+                col.ReadOnly = true; 
             }
 
             if (_dgvCategoryLaws.Columns.Contains("流水號")) {
@@ -635,7 +636,6 @@ namespace Safety_System
             ExcelHelper.ExportToExcelOrCsv(dt, title, colWidths);
         }
 
-        // 🟢 需求 3：全面重構的專業級 PDF 導出排版，含精確頁碼計算
         private void ExportToPdf(DataGridView dgv, string fileName, string reportTitle)
         {
             if (dgv.Rows.Count == 0) 
@@ -686,7 +686,6 @@ namespace Safety_System
 
                     for (int i = 0; i < dgv.Rows.Count; i++) {
                         float rowH = dgv.Rows[i].Height < 30 ? 30 : dgv.Rows[i].Height;
-                        // 注意：內容列的高度會被 scale 縮放
                         float scaledRowH = rowH * scale; 
                         
                         if (simCurrentY + scaledRowH > simBottomLimit) {
