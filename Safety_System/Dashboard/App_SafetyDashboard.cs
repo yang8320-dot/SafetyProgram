@@ -229,6 +229,7 @@ namespace Safety_System
 
         private async Task LoadDashboardDataAsync()
         {
+            // 防重複點擊，導致進程交錯崩潰
             if (_btnSearch != null) _btnSearch.Enabled = false;
 
             try
@@ -569,17 +570,19 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 徹底拉大間距：名稱、單位、按鈕防重疊
-                Panel pName = new Panel { Width = 1000, Height = 45 };
-                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 250, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 徹底防呆：改用自動流式排版 (FlowLayoutPanel) 取代絕對座標，保證不同解析度與 DPI 下永不重疊！
+                FlowLayoutPanel pName = new FlowLayoutPanel { Width = 1000, Height = 45, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                
+                TextBox txtName = new TextBox { Width = 230, Margin = new Padding(0, 7, 30, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(360, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(430, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                
+                TextBox txtUnit = new TextBox { Width = 100, Margin = new Padding(0, 7, 30, 0), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(560, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Size = new Size(130, 32), Margin = new Padding(0, 5, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -781,7 +784,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出
+        // PDF 導出 
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -798,7 +801,7 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                clb.Items.Add("【首頁】四大區塊統計總計", true); 
+                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
@@ -808,9 +811,7 @@ namespace Safety_System
                 Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
                 
                 Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(15, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
-                
                 Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(125, 5), Size = new Size(130, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
-                
                 Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
                 
                 btnSelectAll.Click += (s, e) => {
@@ -833,7 +834,7 @@ namespace Safety_System
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("【首頁】四大區塊統計總計")) {
+                        if (text.Contains("區間統計總計")) {
                             selectedPanels.Add(_pnlTopBox);
                         } else {
                             string key = text.Replace("近三年逐月：", "");
