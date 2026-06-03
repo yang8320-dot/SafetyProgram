@@ -6,7 +6,6 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -68,7 +67,6 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
-            // 使用嚴格的 TableLayoutPanel 確保由上到下絕對不會亂掉
             TableLayoutPanel masterLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
@@ -76,10 +74,10 @@ namespace Safety_System
                 RowCount = 4,
                 Margin = new Padding(0)
             };
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 標題
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 條件按鈕
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 四大區塊
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 逐月矩陣表
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
 
             // ==========================================
             // 第一行：大標題
@@ -126,7 +124,7 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 第三行：四大區塊 (區間統計等)
+            // 第三行：四大區塊
             // ==========================================
             _pnlTopBox = new Panel { Dock = DockStyle.Fill, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             _pnlTopBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlTopBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -154,7 +152,7 @@ namespace Safety_System
             _pnlTopBox.Controls.Add(gridFour);
 
             // ==========================================
-            // 第四行：近三年逐月統計 (各自獨立表)
+            // 第四行：近三年逐月統計
             // ==========================================
             _flpBottomBox = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0) };
 
@@ -176,16 +174,14 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 萬能日期解析器：自動應付民國年、西元年、各種格式差異
+        // 萬能日期解析器：自動應付民國年、西元年、各種格式差異
         // =========================================================
         private DateTime? ParseUniversalDate(string dateStr)
         {
             if (string.IsNullOrWhiteSpace(dateStr)) return null;
             
-            // 統一將斜線換成橫線
             dateStr = dateStr.Trim().Replace("/", "-");
 
-            // 判斷是否為民國年 (如：116-06-02, 98-5-1)
             Regex twRegex = new Regex(@"^(?<year>\d{2,3})-(?<month>\d{1,2})-(?<day>\d{1,2})(?:\s+.*)?$");
             Match matchTw = twRegex.Match(dateStr);
 
@@ -193,7 +189,6 @@ namespace Safety_System
             {
                 if (int.TryParse(matchTw.Groups["year"].Value, out int twYear))
                 {
-                    // 若年份小於 200，判定為民國年，將其加上 1911
                     if (twYear < 200)
                     {
                         int westernYear = twYear + 1911;
@@ -204,7 +199,6 @@ namespace Safety_System
                 }
             }
 
-            // 利用 C# 強大的底層解析，處理轉換後的標準西元年
             if (DateTime.TryParse(dateStr, out DateTime result))
             {
                 return result;
@@ -638,53 +632,65 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 顯示名稱與單位加寬
-                Panel pName = new Panel { Width = 1100, Height = 45 };
-                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 250, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 徹底捨棄會重疊的 FlowLayoutPanel，改回精確的 Panel 絕對定位
+                Panel pName = new Panel { Width = 1000, Height = 45 };
+                pName.Controls.Add(new Label { Text = "顯示名稱：", Location = new Point(0, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtName = new TextBox { Width = 230, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(440, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
+                pName.Controls.Add(new Label { Text = "單位：", Location = new Point(350, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(410, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(570, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(530, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
                 flpEditor.Controls.Add(pName);
 
-                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 1150, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 1060, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                    // 🟢 同樣改用絕對定位的 Panel 確保不重疊
+                    Panel pRow = new Panel { Width = 1040, Height = 80, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
-                    ComboBox cbDb = new ComboBox { Width = 130, Location = new Point(10, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbTb = new ComboBox { Width = 140, Location = new Point(150, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbAgg = new ComboBox { Width = 160, Location = new Point(300, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
-                    Label lblCol = new Label { Text = "主欄位(迄日/數值)", Location = new Point(470, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
-                    ComboBox cbCol = new ComboBox { Width = 130, Location = new Point(470, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
-                    Label lblCol2 = new Label { Text = "次欄位(起日)", Location = new Point(610, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
-                    ComboBox cbCol2 = new ComboBox { Width = 130, Location = new Point(610, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
+                    int ly = 10;
+                    int cy = 35;
 
-                    ComboBox cbFilter = new ComboBox { Width = 200, Location = new Point(750, 35), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    int x1 = 10, w1 = 130;  
+                    int x2 = 150, w2 = 140; 
+                    int x3 = 300, w3 = 160; 
+                    int x4 = 470, w4 = 130; 
+                    int x5 = 610, w5 = 130; 
+                    int x6 = 750, w6 = 180; 
+                    int x7 = 940, w7 = 40;  
+
+                    ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbAgg = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    Button btnRemove = new Button { Text = "❌", Width = 40, Height = 30, Location = new Point(1040, 34), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                    Label lblCol = new Label { Text = "主欄位(迄日/數值)", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
+                    ComboBox cbCol = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    
+                    Label lblCol2 = new Label { Text = "次欄位(起日)", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
+                    ComboBox cbCol2 = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
+
+                    ComboBox cbFilter = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    
+                    Button btnRemove = new Button { Text = "❌", Location = new Point(x7, 34), Width = w7, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     btnRemove.FlatAppearance.BorderSize = 0;
 
                     pRow.Controls.AddRange(new Control[] {
-                        new Label { Text = "資料庫", Location = new Point(10, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
-                        new Label { Text = "資料表", Location = new Point(150, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
-                        new Label { Text = "運算方式", Location = new Point(300, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
+                        new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
+                        new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
+                        new Label { Text = "運算方式", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
                         lblCol, cbCol,
                         lblCol2, cbCol2,
-                        new Label { Text = "選項過濾條件", Location = new Point(750, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
+                        new Label { Text = "選項過濾條件", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
                         btnRemove
                     });
 
@@ -887,7 +893,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出
+        // PDF 導出 
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -904,7 +910,7 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
+                clb.Items.Add("【首頁】四大區塊統計總計", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
@@ -937,7 +943,7 @@ namespace Safety_System
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("【總計】區間統計總計")) {
+                        if (text.Contains("【首頁】四大區塊統計總計")) {
                             selectedPanels.Add(_pnlTopBox);
                         } else {
                             string key = text.Replace("近三年逐月：", "");
