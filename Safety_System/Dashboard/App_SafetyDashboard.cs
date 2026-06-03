@@ -1082,4 +1082,32 @@ namespace Safety_System
 
                             g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
-                            if (currentBmpIndex < bitmaps.C
+                            if (currentBmpIndex < bitmaps.Count) {
+                                pageNumber++;
+                                ev.HasMorePages = true;
+                            } else {
+                                ev.HasMorePages = false;
+                            }
+                        };
+
+                        pd.Print();
+                        foreach (var bmp in bitmaps) bmp.Dispose();
+
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+
+                        MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    } 
+                }
+            }
+        }
+    }
+}
