@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -67,6 +68,7 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
+            // 使用嚴格的 TableLayoutPanel 確保由上到下絕對不會亂掉
             TableLayoutPanel masterLayout = new TableLayoutPanel { 
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
@@ -74,10 +76,10 @@ namespace Safety_System
                 RowCount = 4,
                 Margin = new Padding(0)
             };
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 標題
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 條件按鈕
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 四大區塊
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 逐月矩陣表
 
             // ==========================================
             // 第一行：大標題
@@ -124,7 +126,7 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 第三行：四大區塊
+            // 第三行：四大區塊 (區間統計等)
             // ==========================================
             _pnlTopBox = new Panel { Dock = DockStyle.Fill, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
             _pnlTopBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlTopBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -152,7 +154,7 @@ namespace Safety_System
             _pnlTopBox.Controls.Add(gridFour);
 
             // ==========================================
-            // 第四行：近三年逐月統計
+            // 第四行：近三年逐月統計 (各自獨立表)
             // ==========================================
             _flpBottomBox = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0) };
 
@@ -202,7 +204,7 @@ namespace Safety_System
                 }
             }
 
-            // 利用 C# 強大的底層解析，處理轉換後的標準西元年 (包含補零與不補零的情況)
+            // 利用 C# 強大的底層解析，處理轉換後的標準西元年
             if (DateTime.TryParse(dateStr, out DateTime result))
             {
                 return result;
@@ -331,13 +333,7 @@ namespace Safety_System
                                 row[$"{m}月"] = mVal;
                                 yearlyTotal += mVal;
                             }
-                            
-                            // 🟢 年度總計重新全年度運算，支援平均
-                            DateTime yStart = new DateTime(y, 1, 1);
-                            DateTime yEnd = new DateTime(y, 12, 31);
-                            var yResult = CalculatePeriodStats(yStart, yEnd, new List<SafetyConfigItem> { cfg });
-                            row["年度總計"] = yResult.ContainsKey(cfg.DisplayName) ? yResult[cfg.DisplayName] : 0;
-
+                            row["年度總計"] = yearlyTotal;
                             dtMonthly.Rows.Add(row);
                         }
                         monthlyTables[cfg.DisplayName] = dtMonthly;
@@ -461,9 +457,6 @@ namespace Safety_System
             return new Label { Text = $"{title}: {value.ToString(format)} {unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         }
 
-        // =========================================================
-        // 計算引擎：包含萬能日期解析與相減邏輯
-        // =========================================================
         private Dictionary<string, double> CalculatePeriodStats(DateTime sDate, DateTime eDate, List<SafetyConfigItem> targetConfigs = null)
         {
             var result = new Dictionary<string, double>();
@@ -502,7 +495,6 @@ namespace Safety_System
                             
                             bool match = false;
                             
-                            // 判斷過濾條件
                             if (!string.IsNullOrEmpty(src.ColName) && src.ColName != "Id (無條件計數)" && dt.Columns.Contains(src.ColName))
                             {
                                 string filterValStr = r[src.ColName]?.ToString()?.Trim() ?? "";
@@ -531,7 +523,6 @@ namespace Safety_System
                                 }
                                 else if (src.AggType.StartsWith("DIFF"))
                                 {
-                                    // 🟢 萬能日期相減邏輯
                                     string endStr = r[src.ColName]?.ToString()?.Trim() ?? "";
                                     string startStr = r[src.ColName2]?.ToString()?.Trim() ?? "";
                                     
@@ -541,7 +532,7 @@ namespace Safety_System
                                     if (endD.HasValue && startD.HasValue)
                                     {
                                         double days = (endD.Value.Date - startD.Value.Date).TotalDays;
-                                        if (days >= 0) gatheredValues.Add(days); // 忽略提早完成或負數倒流的異常資料
+                                        if (days >= 0) gatheredValues.Add(days);
                                     }
                                 }
                             }
@@ -550,7 +541,6 @@ namespace Safety_System
                     catch { } 
                 }
 
-                // 統整最後數值
                 double finalVal = 0;
                 if (primaryAgg == "COUNT") finalVal = countVal;
                 else if (primaryAgg == "SUM" || primaryAgg == "DIFF_SUM") finalVal = gatheredValues.Sum();
@@ -648,19 +638,17 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 調整為更安全的流式排版，避免重疊
-                FlowLayoutPanel pName = new FlowLayoutPanel { Width = 1100, Height = 45, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
-                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                
-                TextBox txtName = new TextBox { Width = 250, Margin = new Padding(0, 7, 40, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 顯示名稱與單位加寬
+                Panel pName = new Panel { Width = 1100, Height = 45 };
+                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtName = new TextBox { Width = 250, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                
-                TextBox txtUnit = new TextBox { Width = 120, Margin = new Padding(0, 7, 40, 0), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(440, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Size = new Size(130, 32), Margin = new Padding(0, 5, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(570, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -672,7 +660,6 @@ namespace Safety_System
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    // 🟢 為了放進兩個日期選擇框，加寬高度改為雙層佈局
                     Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
@@ -900,7 +887,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出 
+        // PDF 導出
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
