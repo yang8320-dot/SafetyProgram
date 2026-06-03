@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -174,7 +175,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 萬能日期解析器
+        // 萬能日期解析器：自動應付民國年、西元年、各種格式差異
         // =========================================================
         private DateTime? ParseUniversalDate(string dateStr)
         {
@@ -373,6 +374,10 @@ namespace Safety_System
                         DataTable dt = kvp.Value;
                         if (dt == null) continue;
 
+                        var matchCfg = _configs.FirstOrDefault(c => c.DisplayName == statName);
+                        string primaryAgg = matchCfg?.Sources.FirstOrDefault()?.AggType ?? "COUNT";
+                        string format = (primaryAgg.Contains("AVG") || (matchCfg?.Unit ?? "").Contains("天") || (matchCfg?.Unit ?? "").Contains("日")) ? "N1" : "N0";
+
                         int targetWidth = 1000; 
                         if (_flpBottomBox.Width > 40) targetWidth = _flpBottomBox.Width - 20;
                         else if (_flpBottomBox.Parent != null && _flpBottomBox.Parent.Width > 40) targetWidth = _flpBottomBox.Parent.Width - 40;
@@ -406,19 +411,12 @@ namespace Safety_System
                         if (dgv.Columns.Contains("年度總計")) {
                             dgv.Columns["年度總計"].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
                             dgv.Columns["年度總計"].DefaultCellStyle.BackColor = Color.LightYellow;
-                            
-                            var matchCfg = _configs.FirstOrDefault(c => c.DisplayName == statName);
-                            string primaryAgg = matchCfg?.Sources.FirstOrDefault()?.AggType ?? "COUNT";
-                            string format = (primaryAgg.Contains("AVG") || (matchCfg?.Unit ?? "").Contains("天") || (matchCfg?.Unit ?? "").Contains("日")) ? "N1" : "N0";
                             dgv.Columns["年度總計"].DefaultCellStyle.Format = format;
                         }
                         
                         for (int i = 1; i <= 12; i++) {
                             string monthCol = $"{i}月";
                             if (dgv.Columns.Contains(monthCol)) {
-                                var matchCfg = _configs.FirstOrDefault(c => c.DisplayName == statName);
-                                string primaryAgg = matchCfg?.Sources.FirstOrDefault()?.AggType ?? "COUNT";
-                                string format = (primaryAgg.Contains("AVG") || (matchCfg?.Unit ?? "").Contains("天") || (matchCfg?.Unit ?? "").Contains("日")) ? "N1" : "N0";
                                 dgv.Columns[monthCol].DefaultCellStyle.Format = format;
                             }
                         }
@@ -615,7 +613,7 @@ namespace Safety_System
 
         private void BtnSetting_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1400, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1450, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
@@ -635,28 +633,29 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                Panel pName = new Panel { Width = 1000, Height = 45 };
-                pName.Controls.Add(new Label { Text = "顯示名稱：", Location = new Point(0, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 230, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 徹底拉開間距：名稱、單位、按鈕防重疊 (加寬間隔)
+                Panel pName = new Panel { Width = 1100, Height = 45 };
+                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtName = new TextBox { Width = 250, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", Location = new Point(360, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(420, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(440, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(550, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(570, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
                 flpEditor.Controls.Add(pName);
 
-                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 1060, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 1150, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    Panel pRow = new Panel { Width = 1040, Height = 80, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                    Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
                     int ly = 10;
@@ -676,7 +675,7 @@ namespace Safety_System
                     ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     ComboBox cbCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    // 🟢 過濾條件移到這裡
+                    // 過濾條件移到這裡
                     ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
                     ComboBox cbAgg = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -694,7 +693,7 @@ namespace Safety_System
                         new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
                         new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
                         new Label { Text = "計算欄位", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
-                        new Label { Text = "過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
+                        new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
                         new Label { Text = "運算方式", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
                         lblColEnd, cbColEnd,
                         lblColStart, cbColStart,
@@ -731,7 +730,6 @@ namespace Safety_System
                         }
                     };
 
-                    // 🟢 連動顯示判斷 (只有日期相減才需要兩個選擇框)
                     cbAgg.SelectedIndexChanged += (s, ev) => {
                         bool isDiff = cbAgg.Text.Contains("相減");
                         lblColEnd.Visible = isDiff;
@@ -779,7 +777,6 @@ namespace Safety_System
                         
                         cbCol.Text = def.ColName;
                         if (!string.IsNullOrEmpty(def.ColName2)) {
-                            // 若有設定起日，代表這是相減，主欄位要填到 ColEnd
                             cbColEnd.Text = def.ColName;
                             cbColStart.Text = def.ColName2;
                         }
@@ -928,6 +925,7 @@ namespace Safety_System
             List<Panel> selectedPanels = new List<Panel>();
             using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
+                // 🟢 徹底解決選單被蓋住的問題：使用 TableLayoutPanel 進行完美絕對分割
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -938,6 +936,7 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
+                // 🟢 保證加入
                 clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
@@ -948,7 +947,10 @@ namespace Safety_System
                 Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
                 
                 Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(15, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                
+                // 🟢 修正：取消全選按鍵加寬至 130px
                 Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(125, 5), Size = new Size(130, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                
                 Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
                 
                 btnSelectAll.Click += (s, e) => {
