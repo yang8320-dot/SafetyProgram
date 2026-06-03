@@ -100,7 +100,6 @@ namespace Safety_System
 
             InitDateComboBoxes();
 
-            // 🟢 優化 1：按鍵高度加大至 42px，按鈕字體稍微加粗，增加點擊區
             int btnHeight = 42;
 
             _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(110, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
@@ -230,7 +229,6 @@ namespace Safety_System
 
         private async Task LoadDashboardDataAsync()
         {
-            // 防重複點擊，導致進程交錯崩潰
             if (_btnSearch != null) _btnSearch.Enabled = false;
 
             try
@@ -309,7 +307,7 @@ namespace Safety_System
                     if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
 
                     string key = cfg.DisplayName;
-                    string unit = string.IsNullOrEmpty(cfg.Unit) ? "件" : cfg.Unit; // 套用自訂單位
+                    string unit = string.IsNullOrEmpty(cfg.Unit) ? "件" : cfg.Unit;
 
                     double vCurr = dictCurr.ContainsKey(key) ? dictCurr[key] : 0;
                     double vLy = dictLy.ContainsKey(key) ? dictLy[key] : 0;
@@ -407,7 +405,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 帶入自訂單位
         private Label CreateStatLabel(string title, double value, string unit)
         {
             return new Label { Text = $"{title}: {value:N0} {unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
@@ -500,16 +497,16 @@ namespace Safety_System
                         if (parts.Length > 1)
                         {
                             string dispName = parts[0];
-                            string unit = "件"; // 防呆預設
-                            int srcStartIdx = 1;
+                            string unit = "件"; 
 
-                            // 🟢 智慧相容：判斷是否為新版帶有單位的儲存格式
                             if (parts.Length > 1 && !parts[1].Contains(";")) {
                                 unit = parts[1];
-                                srcStartIdx = 2;
                             }
 
                             SafetyConfigItem cfg = new SafetyConfigItem { DisplayName = dispName, Unit = unit };
+                            
+                            int srcStartIdx = (!parts[1].Contains(";")) ? 2 : 1;
+
                             for (int i = srcStartIdx; i < parts.Length; i++)
                             {
                                 var srcParts = parts[i].Split(';');
@@ -536,7 +533,6 @@ namespace Safety_System
                 {
                     if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
 
-                    // 🟢 儲存時將單位一併寫入
                     string line = $"{cfg.DisplayName}|{cfg.Unit}";
                     foreach (var src in cfg.Sources)
                     {
@@ -574,17 +570,18 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 加入單位輸入框，並拉開間距
+                // 🟢 顯示名稱與文字框間距再加大 15px
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 230, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox txtName = new TextBox { Width = 230, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(350, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(410, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; // 預設單位
+                // 單位也跟著往後移，避免被蓋住
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(360, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(425, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增來源", Location = new Point(530, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(545, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -649,7 +646,6 @@ namespace Safety_System
                         if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && col != "Id (無條件計數)") {
                             string tbName = selTb.EnName;
                             
-                            // 1. 取得複選項目
                             string multiKey = $"{tbName}|{col}";
                             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
                                 foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
@@ -659,7 +655,6 @@ namespace Safety_System
                                 }
                             }
                             
-                            // 2. 取得單選項目
                             string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, col);
                             if (dropOpts != null && dropOpts.Length > 0) {
                                 foreach (var opt in dropOpts) {
@@ -726,7 +721,7 @@ namespace Safety_System
                     flpSourcesContainer.Controls.Clear();
                     var cfg = _configs[lbItems.SelectedIndex];
                     txtName.Text = cfg.DisplayName;
-                    txtUnit.Text = string.IsNullOrEmpty(cfg.Unit) ? "件" : cfg.Unit; // 🟢 載入單位
+                    txtUnit.Text = string.IsNullOrEmpty(cfg.Unit) ? "件" : cfg.Unit; 
                     
                     foreach (var src in cfg.Sources) {
                         addSourceRow(src);
@@ -746,7 +741,6 @@ namespace Safety_System
                 btnSaveRow.Click += (ss, ee) => {
                     if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入顯示名稱！"); return; }
                     
-                    // 🟢 儲存單位
                     var newCfg = new SafetyConfigItem { 
                         DisplayName = txtName.Text.Trim(),
                         Unit = string.IsNullOrWhiteSpace(txtUnit.Text) ? "件" : txtUnit.Text.Trim()
@@ -789,7 +783,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出 (🟢 優化：排版與標頭)
+        // PDF 導出 (🟢 優化：確保第一個選項「區間統計總計」存在)
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -801,7 +795,9 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 
-                clb.Items.Add("區間統計總計 (四大區塊)", true); 
+                // 🟢 確保第一個選項被正確寫入與顯示
+                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
+                
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
                 }
@@ -812,15 +808,13 @@ namespace Safety_System
 
                 if (f.ShowDialog() == DialogResult.OK) 
                 {
-                    // 第一個永遠是總計區塊
-                    if (clb.GetItemChecked(0)) {
-                        selectedPanels.Add(_pnlTopBox);
-                    }
-                    
-                    // 剩下的比對清單
-                    for (int i = 1; i < clb.Items.Count; i++) {
-                        if (clb.GetItemChecked(i)) {
-                            string key = clb.Items[i].ToString().Replace("近三年逐月：", "");
+                    // 🟢 檢查所有勾選的項目 (使用文字比對更安全)
+                    foreach (var item in clb.CheckedItems) {
+                        string text = item.ToString();
+                        if (text.Contains("【總計】區間統計總計")) {
+                            selectedPanels.Add(_pnlTopBox);
+                        } else {
+                            string key = text.Replace("近三年逐月：", "");
                             if (_monthlyPanels.ContainsKey(key)) selectedPanels.Add(_monthlyPanels[key]);
                         }
                     }
@@ -842,7 +836,9 @@ namespace Safety_System
                 {
                     try 
                     {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+                        // 🟢 使用 Application 層級游標控制
+                        Application.UseWaitCursor = true;
+                        Cursor.Current = Cursors.WaitCursor;
 
                         List<Bitmap> bitmaps = new List<Bitmap>();
                         foreach (var pnl in panelsToExport) 
@@ -862,10 +858,10 @@ namespace Safety_System
                         int currentBmpIndex = 0;
                         int pageNumber = 1;
 
-                        // 🟢 預先計算總頁數 (避免 GDI+ 浮點數誤差，用簡單的模擬累加法)
+                        // 預先計算總頁數
                         int totalPages = 1;
-                        float simY = pd.DefaultPageSettings.Margins.Top + 145f; // Header 佔用的預估高度
-                        float simMaxH = pd.DefaultPageSettings.Bounds.Height - 80f; // Landscape的寬才是高，且扣除上下Margin
+                        float simY = pd.DefaultPageSettings.Margins.Top + 145f; 
+                        float simMaxH = pd.DefaultPageSettings.Bounds.Height - 80f; 
                         if (pd.DefaultPageSettings.Landscape) simMaxH = pd.DefaultPageSettings.Bounds.Width - 80f;
 
                         foreach (var bmp in bitmaps) {
@@ -875,7 +871,7 @@ namespace Safety_System
                             float simScaledHeight = bmp.Height * simScale;
                             if (simY + simScaledHeight > simMaxH - 30f) {
                                 if (simY == pd.DefaultPageSettings.Margins.Top + 145f) {
-                                    simY += simScaledHeight + 20; // 超大圖，硬塞一頁
+                                    simY += simScaledHeight + 20; 
                                 } else {
                                     totalPages++;
                                     simY = pd.DefaultPageSettings.Margins.Top + 145f + simScaledHeight + 20;
@@ -900,26 +896,26 @@ namespace Safety_System
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
                             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near };
 
-                            // 🟢 1. 第一行：大標題
+                            // 1. 第一行：大標題
                             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
                             y += 40;
 
-                            // 🟢 2. 第二行：副標題
+                            // 2. 第二行：副標題
                             g.DrawString("工安數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
                             y += 40;
 
-                            // 🟢 3. 第三行：簽核欄
+                            // 3. 第三行：簽核欄
                             string sign = "廠主管：______________    經/副理：______________    課/股長：______________    填表人：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
-                            // 🟢 4. 第四行：日期與查詢區間
+                            // 4. 第四行：日期與查詢區間
                             string dateStr = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}        查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
                             g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
                             y += 30;
 
                             float headerHeightReserved = y; 
-                            float bottomLimit = ev.MarginBounds.Bottom - 30; // 預留 30px 給頁碼
+                            float bottomLimit = ev.MarginBounds.Bottom - 30; 
 
                             // 畫圖表
                             while (currentBmpIndex < bitmaps.Count) 
@@ -932,7 +928,6 @@ namespace Safety_System
                                 {
                                     if (y == headerHeightReserved) 
                                     {
-                                        // 剛換頁第一張圖就爆表，只好縮小塞進去或硬畫
                                         scale = Math.Min(scale, (float)(bottomLimit - y) / bmp.Height);
                                         scaledHeight = bmp.Height * scale;
                                         g.DrawImage(bmp, x, y, bmp.Width * scale, scaledHeight);
@@ -941,7 +936,7 @@ namespace Safety_System
                                     } 
                                     else 
                                     {
-                                        break; // 換下一頁
+                                        break; 
                                     }
                                 } 
                                 else 
@@ -952,7 +947,7 @@ namespace Safety_System
                                 }
                             }
 
-                            // 🟢 5. 底部置中：頁碼
+                            // 5. 底部置中：頁碼
                             g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
                             if (currentBmpIndex < bitmaps.Count) {
@@ -964,17 +959,25 @@ namespace Safety_System
                         };
 
                         pd.Print();
-                        
                         foreach (var bmp in bitmaps) bmp.Dispose();
+
+                        // 🟢 強制在跳出訊息框前恢復游標
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
 
                         MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) 
                     { 
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } 
                     finally 
                     { 
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
                     }
                 }
