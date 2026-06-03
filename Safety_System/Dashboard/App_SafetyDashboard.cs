@@ -102,7 +102,7 @@ namespace Safety_System
 
             int btnHeight = 42;
 
-            _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(110, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(100, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
 
             Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
@@ -229,6 +229,7 @@ namespace Safety_System
 
         private async Task LoadDashboardDataAsync()
         {
+            // 防重複點擊，導致進程交錯崩潰
             if (_btnSearch != null) _btnSearch.Enabled = false;
 
             try
@@ -439,6 +440,8 @@ namespace Safety_System
                         DataTable dt = DataManager.GetTableData(src.DbName, src.TableName, dateCol, sStr, eStr);
                         if (dt == null) continue;
 
+                        string filterTarget = string.IsNullOrEmpty(src.FilterValue) || src.FilterValue == "非空值 (有輸入即算)" ? "" : src.FilterValue.Trim();
+
                         foreach (DataRow r in dt.Rows)
                         {
                             if (r.RowState == DataRowState.Deleted) continue;
@@ -449,11 +452,12 @@ namespace Safety_System
                             if (!string.IsNullOrEmpty(src.ColName) && src.ColName != "Id (無條件計數)" && dt.Columns.Contains(src.ColName))
                             {
                                 valStr = r[src.ColName]?.ToString()?.Trim() ?? "";
-                                if (string.IsNullOrEmpty(src.FilterValue) || src.FilterValue == "非空值 (有輸入即算)") {
+                                if (string.IsNullOrEmpty(filterTarget)) {
                                     match = !string.IsNullOrEmpty(valStr);
                                 } else {
+                                    // 🟢 強化精準度：去頭尾空白，並且忽略大小寫比對，防止資料庫內有些微打字差異
                                     match = valStr.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)
-                                                  .Select(x => x.Trim()).Contains(src.FilterValue);
+                                                  .Any(x => x.Trim().Equals(filterTarget, StringComparison.OrdinalIgnoreCase));
                                 }
                             }
                             else
@@ -547,8 +551,7 @@ namespace Safety_System
 
         private void BtnSetting_Click(object sender, EventArgs e)
         {
-            string authPrompt = "修改看板統計設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+            // 🟢 取消密碼授權 (移除 AuthManager 驗證)
 
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1400, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
@@ -570,18 +573,18 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 顯示名稱與文字框間距再加大 15px
+                // 🟢 間距修正：再加大 10px 
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 230, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                // 單位也跟著往後移，避免被蓋住
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(360, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(425, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
+                // 單位也跟著往後移，避免被蓋住 (增加間距)
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(435, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(545, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(555, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -783,7 +786,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出 (🟢 優化：確保第一個選項「區間統計總計」存在)
+        // PDF 導出 (🟢 優化：精準的總頁數計算，專業排版)
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -795,7 +798,6 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 
-                // 🟢 確保第一個選項被正確寫入與顯示
                 clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
@@ -808,7 +810,6 @@ namespace Safety_System
 
                 if (f.ShowDialog() == DialogResult.OK) 
                 {
-                    // 🟢 檢查所有勾選的項目 (使用文字比對更安全)
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
                         if (text.Contains("【總計】區間統計總計")) {
@@ -836,7 +837,6 @@ namespace Safety_System
                 {
                     try 
                     {
-                        // 🟢 使用 Application 層級游標控制
                         Application.UseWaitCursor = true;
                         Cursor.Current = Cursors.WaitCursor;
 
@@ -858,26 +858,27 @@ namespace Safety_System
                         int currentBmpIndex = 0;
                         int pageNumber = 1;
 
-                        // 預先計算總頁數
+                        // 🟢 完美精準的總頁數模擬計算
                         int totalPages = 1;
-                        float simY = pd.DefaultPageSettings.Margins.Top + 145f; 
-                        float simMaxH = pd.DefaultPageSettings.Bounds.Height - 80f; 
-                        if (pd.DefaultPageSettings.Landscape) simMaxH = pd.DefaultPageSettings.Bounds.Width - 80f;
+                        float simW = 1169f - 80f; // A4 橫式寬度扣掉左右 Margin
+                        float simH = 827f - 80f;  // A4 橫式高度扣掉上下 Margin
+                        float simStartY = 40f + 145f; // Top Margin + 標頭預留高度
+                        float simCurrentY = simStartY;
+                        float simBottomLimit = 40f + simH - 30f; // 扣除底部頁碼空間
 
                         foreach (var bmp in bitmaps) {
-                            float simScale = (float)(pd.DefaultPageSettings.Bounds.Height - 80f) / bmp.Width;
-                            if (pd.DefaultPageSettings.Landscape) simScale = (float)(pd.DefaultPageSettings.Bounds.Height - 80f) / bmp.Width;
-
+                            float simScale = simW / bmp.Width;
                             float simScaledHeight = bmp.Height * simScale;
-                            if (simY + simScaledHeight > simMaxH - 30f) {
-                                if (simY == pd.DefaultPageSettings.Margins.Top + 145f) {
-                                    simY += simScaledHeight + 20; 
+
+                            if (simCurrentY + simScaledHeight > simBottomLimit) {
+                                if (simCurrentY == simStartY) {
+                                    simCurrentY += simScaledHeight + 20f;
                                 } else {
                                     totalPages++;
-                                    simY = pd.DefaultPageSettings.Margins.Top + 145f + simScaledHeight + 20;
+                                    simCurrentY = simStartY + simScaledHeight + 20f;
                                 }
                             } else {
-                                simY += simScaledHeight + 20;
+                                simCurrentY += simScaledHeight + 20f;
                             }
                         }
 
@@ -896,20 +897,16 @@ namespace Safety_System
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
                             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near };
 
-                            // 1. 第一行：大標題
                             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
                             y += 40;
 
-                            // 2. 第二行：副標題
                             g.DrawString("工安數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
                             y += 40;
 
-                            // 3. 第三行：簽核欄
                             string sign = "廠主管：______________    經/副理：______________    課/股長：______________    填表人：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
-                            // 4. 第四行：日期與查詢區間
                             string dateStr = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}        查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
                             g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
                             y += 30;
@@ -917,11 +914,10 @@ namespace Safety_System
                             float headerHeightReserved = y; 
                             float bottomLimit = ev.MarginBounds.Bottom - 30; 
 
-                            // 畫圖表
                             while (currentBmpIndex < bitmaps.Count) 
                             {
                                 Bitmap bmp = bitmaps[currentBmpIndex];
-                                float scale = (float)w / bmp.Width;
+                                float scale = w / bmp.Width;
                                 float scaledHeight = bmp.Height * scale;
 
                                 if (y + scaledHeight > bottomLimit) 
@@ -947,7 +943,6 @@ namespace Safety_System
                                 }
                             }
 
-                            // 5. 底部置中：頁碼
                             g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
                             if (currentBmpIndex < bitmaps.Count) {
@@ -961,7 +956,7 @@ namespace Safety_System
                         pd.Print();
                         foreach (var bmp in bitmaps) bmp.Dispose();
 
-                        // 🟢 強制在跳出訊息框前恢復游標
+                        // 🟢 強制在跳出訊息框前恢復游標，防止一直轉圈
                         Application.UseWaitCursor = false;
                         Cursor.Current = Cursors.Default;
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
@@ -972,14 +967,9 @@ namespace Safety_System
                     { 
                         Application.UseWaitCursor = false;
                         Cursor.Current = Cursors.Default;
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     } 
-                    finally 
-                    { 
-                        Application.UseWaitCursor = false;
-                        Cursor.Current = Cursors.Default;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default; 
-                    }
                 }
             }
         }
