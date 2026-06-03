@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -910,7 +911,7 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                clb.Items.Add("【首頁】四大區塊統計總計", true); 
+                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
@@ -943,7 +944,7 @@ namespace Safety_System
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("【首頁】四大區塊統計總計")) {
+                        if (text.Contains("【總計】區間統計總計")) {
                             selectedPanels.Add(_pnlTopBox);
                         } else {
                             string key = text.Replace("近三年逐月：", "");
