@@ -633,17 +633,17 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 徹底拉開間距：名稱、單位、按鈕防重疊 (加寬間隔)
+                // 🟢 依需求拉開間距：名稱(+15)、單位(+10)、按鈕往後推
                 Panel pName = new Panel { Width = 1100, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 250, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
+                TextBox txtName = new TextBox { Width = 250, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; // 原100改為115 (+15)
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(440, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(385, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); // 原370改為385 (+15)
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(465, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; // 原440改為465 (+15加上額外+10間距)
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(570, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(595, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; // 原570改為595
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -661,43 +661,42 @@ namespace Safety_System
                     int ly = 10;
                     int cy = 35;
 
-                    // 🟢 重構：將「選項過濾條件」移到「運算方式」的前面
-                    int x1 = 10, w1 = 110;  // 資料庫
-                    int x2 = 130, w2 = 140; // 資料表
-                    int x3 = 280, w3 = 140; // 計算欄位 (主欄位先選，過濾條件才有依據)
-                    int x4 = 430, w4 = 150; // 選項過濾條件 (往前移)
-                    int x5 = 590, w5 = 140; // 運算方式 (往後移)
-                    int x6 = 740, w6 = 130; // 迄日
-                    int x7 = 880, w7 = 110; // 起日
-                    int x8 = 1000, w8 = 30; // 刪除按鈕
+                    // 🟢 依需求重構座標與寬度設定
+                    int x0 = 10, w0 = 35;   // 刪除按鈕 (移至最前端)
+                    int x1 = 55, w1 = 110;  // 資料庫
+                    int x2 = 175, w2 = 140; // 資料表
+                    int x3 = 325, w3 = 145; // 計算欄位 (原140改為145) [+5px]
+                    int x4 = 480, w4 = 155; // 選項過濾條件 (原150改為155) [+5px]
+                    int x5 = 645, w5 = 145; // 運算方式 (原140改為145) [+5px]
+                    int x6 = 800, w6 = 140; // 迄日 (原130改為140) [+10px]
+                    int x7 = 950, w7 = 120; // 起日 (原110改為120) [+10px]
+
+                    // 刪除按鈕宣告
+                    Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                    btnRemove.FlatAppearance.BorderSize = 0;
 
                     ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     ComboBox cbCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
-                    // 過濾條件移到這裡
                     ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
                     ComboBox cbAgg = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    Label lblColEnd = new Label { Text = "主欄位(迄日/數值)", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
+                    // 依需求修改文字
+                    Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
                     ComboBox cbColEnd = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
                     
-                    Label lblColStart = new Label { Text = "次欄位(起日)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
+                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
                     ComboBox cbColStart = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
 
-                    Button btnRemove = new Button { Text = "❌", Location = new Point(x8, 34), Width = w8, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-                    btnRemove.FlatAppearance.BorderSize = 0;
-
                     pRow.Controls.AddRange(new Control[] {
+                        btnRemove, // 確保最前端加入
                         new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
                         new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
                         new Label { Text = "計算欄位", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
                         new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
                         new Label { Text = "運算方式", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
                         lblColEnd, cbColEnd,
-                        lblColStart, cbColStart,
-                        btnRemove
+                        lblColStart, cbColStart
                     });
 
                     btnRemove.Click += (s, ev) => flpSourcesContainer.Controls.Remove(pRow);
@@ -769,7 +768,8 @@ namespace Safety_System
                         cbFilter.SelectedIndex = 0;
                     };
 
-                    cbAgg.Items.AddRange(new string[] { "計數", "加總", "日期相減(平均天數)", "日期相減(總天數)" });
+                    // 🟢 依需求移除「日期相減(平均天數)」
+                    cbAgg.Items.AddRange(new string[] { "計數", "加總", "日期相減(總天數)" });
 
                     if (def != null) {
                         foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
@@ -790,9 +790,8 @@ namespace Safety_System
                         
                         if (def.AggType == "COUNT") cbAgg.Text = "計數";
                         else if (def.AggType == "SUM") cbAgg.Text = "加總";
-                        else if (def.AggType == "DIFF_AVG") cbAgg.Text = "日期相減(平均天數)";
                         else if (def.AggType == "DIFF_SUM") cbAgg.Text = "日期相減(總天數)";
-                        else cbAgg.Text = "計數";
+                        else cbAgg.Text = "計數"; // 如果遇到被移除的 DIFF_AVG 等遺留資料，安全回退到計數
                     } else {
                         cbAgg.Text = "計數";
                         cbFilter.Text = "非空值 (有輸入即算)";
@@ -857,13 +856,14 @@ namespace Safety_System
                     
                     foreach (Control ctrl in flpSourcesContainer.Controls) {
                         if (ctrl is Panel pRow) {
-                            var cbDb = pRow.Controls[1] as ComboBox;
-                            var cbTb = pRow.Controls[3] as ComboBox;
-                            var cbCol = pRow.Controls[5] as ComboBox;
-                            var cbFilter = pRow.Controls[7] as ComboBox;
-                            var cbAgg = pRow.Controls[9] as ComboBox;
-                            var cbColEnd = pRow.Controls[11] as ComboBox;
-                            var cbColStart = pRow.Controls[13] as ComboBox;
+                            // 🟢 由於按鈕移到 index 0，其餘控制項位置順延一位
+                            var cbDb = pRow.Controls[2] as ComboBox;
+                            var cbTb = pRow.Controls[4] as ComboBox;
+                            var cbCol = pRow.Controls[6] as ComboBox;
+                            var cbFilter = pRow.Controls[8] as ComboBox;
+                            var cbAgg = pRow.Controls[10] as ComboBox;
+                            var cbColEnd = pRow.Controls[12] as ComboBox;
+                            var cbColStart = pRow.Controls[14] as ComboBox;
 
                             var selDb = cbDb.SelectedItem as ItemMap;
                             var selTb = cbTb.SelectedItem as ItemMap;
@@ -877,11 +877,6 @@ namespace Safety_System
 
                                 if (cbAgg.Text == "加總") {
                                     aggTypeDb = "SUM";
-                                }
-                                else if (cbAgg.Text == "日期相減(平均天數)") {
-                                    aggTypeDb = "DIFF_AVG";
-                                    dbColToSave = cbColEnd.Text;
-                                    dbCol2ToSave = cbColStart.Text;
                                 }
                                 else if (cbAgg.Text == "日期相減(總天數)") {
                                     aggTypeDb = "DIFF_SUM";
