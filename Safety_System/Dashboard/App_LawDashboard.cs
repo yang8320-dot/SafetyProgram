@@ -723,7 +723,7 @@ namespace Safety_System
                         y += 40;
 
                         // 3. 第三行：簽核
-                        string sign = "廠主管：______________    經/副理：______________    課/股長：______________   主辦：______________    制表：______________";
+                        string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
                         g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), fmtCenter); 
                         y += 35;
 
