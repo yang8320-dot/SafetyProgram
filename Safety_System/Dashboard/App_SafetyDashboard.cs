@@ -43,7 +43,7 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        // 定義自訂統計項目的資料結構 (動態無限來源，並加入「單位」)
+        // 定義自訂統計項目的資料結構
         private class SafetyConfigItem
         {
             public string DisplayName { get; set; }
@@ -229,7 +229,6 @@ namespace Safety_System
 
         private async Task LoadDashboardDataAsync()
         {
-            // 防重複點擊，導致進程交錯崩潰
             if (_btnSearch != null) _btnSearch.Enabled = false;
 
             try
@@ -455,7 +454,7 @@ namespace Safety_System
                                 if (string.IsNullOrEmpty(filterTarget)) {
                                     match = !string.IsNullOrEmpty(valStr);
                                 } else {
-                                    // 🟢 強化精準度：去頭尾空白，並且忽略大小寫比對，防止資料庫內有些微打字差異
+                                    // 🟢 強化精準度：去頭尾空白，並且忽略大小寫比對
                                     match = valStr.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)
                                                   .Any(x => x.Trim().Equals(filterTarget, StringComparison.OrdinalIgnoreCase));
                                 }
@@ -551,7 +550,8 @@ namespace Safety_System
 
         private void BtnSetting_Click(object sender, EventArgs e)
         {
-            // 🟢 取消密碼授權 (移除 AuthManager 驗證)
+            // 🟢 需求 3 修正：不再需要輸入密碼驗證
+            // string authPrompt = "修改看板統計設定需要系統權限..."; // 移除
 
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1400, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
@@ -573,13 +573,12 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 間距修正：再加大 10px 
+                // 🟢 需求 2 修正：顯示名稱、單位間的間距再加大 10px
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 230, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pName.Controls.Add(txtName);
 
-                // 單位也跟著往後移，避免被蓋住 (增加間距)
                 pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtUnit = new TextBox { Width = 100, Location = new Point(435, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "件" }; 
                 pName.Controls.Add(txtUnit);
@@ -786,33 +785,51 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出 (🟢 優化：精準的總頁數計算，專業排版)
+        // PDF 導出 (🟢 修正：排版、按鈕邏輯)
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
-            using (Form f = new Form() { Width = 450, Height = 450, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
                 f.Controls.Add(lbl);
 
+                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 90, Padding = new Padding(10) };
+                
+                Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(10, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(120, 5), Size = new Size(110, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                
+                pnlBottom.Controls.Add(btnSelectAll);
+                pnlBottom.Controls.Add(btnUnselectAll);
+                pnlBottom.Controls.Add(btnOk);
+
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 
-                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
+                // 🟢 第一個選項保證加入
+                clb.Items.Add("【首頁】四大區塊統計總計", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
                 }
-                f.Controls.Add(clb);
 
-                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 50, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
-                f.Controls.Add(btnOk);
+                btnSelectAll.Click += (s, e) => {
+                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true);
+                };
+
+                btnUnselectAll.Click += (s, e) => {
+                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false);
+                };
+
+                f.Controls.Add(clb);
+                f.Controls.Add(pnlBottom);
 
                 if (f.ShowDialog() == DialogResult.OK) 
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("【總計】區間統計總計")) {
+                        if (text.Contains("【首頁】四大區塊統計總計")) {
                             selectedPanels.Add(_pnlTopBox);
                         } else {
                             string key = text.Replace("近三年逐月：", "");
@@ -860,11 +877,11 @@ namespace Safety_System
 
                         // 🟢 完美精準的總頁數模擬計算
                         int totalPages = 1;
-                        float simW = 1169f - 80f; // A4 橫式寬度扣掉左右 Margin
-                        float simH = 827f - 80f;  // A4 橫式高度扣掉上下 Margin
-                        float simStartY = 40f + 145f; // Top Margin + 標頭預留高度
+                        float simW = 1169f - 80f; 
+                        float simH = 827f - 80f;  
+                        float simStartY = 40f + 145f; 
                         float simCurrentY = simStartY;
-                        float simBottomLimit = 40f + simH - 30f; // 扣除底部頁碼空間
+                        float simBottomLimit = 40f + simH - 30f; 
 
                         foreach (var bmp in bitmaps) {
                             float simScale = simW / bmp.Width;
@@ -956,7 +973,7 @@ namespace Safety_System
                         pd.Print();
                         foreach (var bmp in bitmaps) bmp.Dispose();
 
-                        // 🟢 強制在跳出訊息框前恢復游標，防止一直轉圈
+                        // 🟢 強制全域游標恢復，避免一直轉圈
                         Application.UseWaitCursor = false;
                         Cursor.Current = Cursors.Default;
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
