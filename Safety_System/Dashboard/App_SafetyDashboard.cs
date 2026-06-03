@@ -229,6 +229,7 @@ namespace Safety_System
 
         private async Task LoadDashboardDataAsync()
         {
+            // 防重複點擊，導致進程交錯崩潰
             if (_btnSearch != null) _btnSearch.Enabled = false;
 
             try
@@ -454,7 +455,6 @@ namespace Safety_System
                                 if (string.IsNullOrEmpty(filterTarget)) {
                                     match = !string.IsNullOrEmpty(valStr);
                                 } else {
-                                    // 🟢 強化精準度：去頭尾空白，並且忽略大小寫比對
                                     match = valStr.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)
                                                   .Any(x => x.Trim().Equals(filterTarget, StringComparison.OrdinalIgnoreCase));
                                 }
@@ -550,9 +550,6 @@ namespace Safety_System
 
         private void BtnSetting_Click(object sender, EventArgs e)
         {
-            // 🟢 需求 3 修正：不再需要輸入密碼驗證
-            // string authPrompt = "修改看板統計設定需要系統權限..."; // 移除
-
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1400, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -573,7 +570,6 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                // 🟢 需求 2 修正：顯示名稱、單位間的間距再加大 10px
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 230, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -785,35 +781,40 @@ namespace Safety_System
         }
 
         // =========================================================
-        // PDF 導出 (🟢 修正：排版、按鈕邏輯)
+        // PDF 導出 
         // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
             using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
-                Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
-                f.Controls.Add(lbl);
+                // 🟢 徹底解決選單被蓋住的問題：使用 TableLayoutPanel 進行完美絕對分割
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 90F));
 
-                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 90, Padding = new Padding(10) };
-                
-                Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(10, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
-                Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(120, 5), Size = new Size(110, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
-                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
-                
-                pnlBottom.Controls.Add(btnSelectAll);
-                pnlBottom.Controls.Add(btnUnselectAll);
-                pnlBottom.Controls.Add(btnOk);
+                Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Fill, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), AutoSize = true };
+                tlp.Controls.Add(lbl, 0, 0);
 
-                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                // 🟢 第一個選項保證加入
-                clb.Items.Add("【首頁】四大區塊統計總計", true); 
+                clb.Items.Add("區間統計總計 (四大區塊)", true); 
                 
                 foreach (var kvp in _monthlyPanels) {
                     clb.Items.Add($"近三年逐月：{kvp.Key}", true);
                 }
+                tlp.Controls.Add(clb, 0, 1);
 
+                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
+                
+                Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(15, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                
+                // 🟢 修正：取消全選按鍵加寬至 130px
+                Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(125, 5), Size = new Size(130, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                
+                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                
                 btnSelectAll.Click += (s, e) => {
                     for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true);
                 };
@@ -822,14 +823,19 @@ namespace Safety_System
                     for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false);
                 };
 
-                f.Controls.Add(clb);
-                f.Controls.Add(pnlBottom);
+                pnlBottom.Controls.Add(btnSelectAll);
+                pnlBottom.Controls.Add(btnUnselectAll);
+                pnlBottom.Controls.Add(btnOk);
+                
+                tlp.Controls.Add(pnlBottom, 0, 2);
+
+                f.Controls.Add(tlp);
 
                 if (f.ShowDialog() == DialogResult.OK) 
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("【首頁】四大區塊統計總計")) {
+                        if (text.Contains("區間統計總計")) {
                             selectedPanels.Add(_pnlTopBox);
                         } else {
                             string key = text.Replace("近三年逐月：", "");
@@ -875,7 +881,6 @@ namespace Safety_System
                         int currentBmpIndex = 0;
                         int pageNumber = 1;
 
-                        // 🟢 完美精準的總頁數模擬計算
                         int totalPages = 1;
                         float simW = 1169f - 80f; 
                         float simH = 827f - 80f;  
@@ -973,7 +978,6 @@ namespace Safety_System
                         pd.Print();
                         foreach (var bmp in bitmaps) bmp.Dispose();
 
-                        // 🟢 強制全域游標恢復，避免一直轉圈
                         Application.UseWaitCursor = false;
                         Cursor.Current = Cursors.Default;
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
