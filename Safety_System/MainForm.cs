@@ -28,7 +28,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "工安系統看板 (v9.6 - 企業級協作防護版)";
+            this.Text = "工安系統看板";
             
             this.WindowState = FormWindowState.Maximized;
             this.Size = new Size(1440, 810);
