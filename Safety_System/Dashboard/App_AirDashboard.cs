@@ -640,7 +640,7 @@ namespace Safety_System
                             g.DrawString("空污費申報【排放量】統計報表", fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
                             y += 45; 
                             
-                            string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
+                            string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
 
