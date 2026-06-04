@@ -7,6 +7,7 @@ using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -314,6 +315,9 @@ namespace Safety_System
                         {
                             DataRow row = dtMonthly.NewRow();
                             row["年度"] = y.ToString() + "年";
+                            double yearlyTotal = 0;
+                            List<double> yearlyAvgList = new List<double>();
+                            string primaryAgg = cfg.Sources.FirstOrDefault()?.AggType ?? "COUNT";
 
                             for (int m = 1; m <= 12; m++)
                             {
@@ -324,13 +328,23 @@ namespace Safety_System
                                 double mVal = mResult.ContainsKey(cfg.DisplayName) ? mResult[cfg.DisplayName] : 0;
                                 
                                 row[$"{m}月"] = mVal;
+                                
+                                if (primaryAgg == "SUM" || primaryAgg == "COUNT" || primaryAgg == "DIFF_SUM") {
+                                    yearlyTotal += mVal;
+                                } else {
+                                    if (mVal != 0) yearlyAvgList.Add(mVal); // 紀錄有效月份以做平均
+                                }
                             }
-
-                            // 🟢 年度總計改成抓取一整年的區間算真正的 平均/最大/最小，而非相加
-                            DateTime yStart = new DateTime(y, 1, 1);
-                            DateTime yEnd = new DateTime(y, 12, 31);
-                            var yResult = CalculatePeriodStats(yStart, yEnd, new List<TestConfigItem> { cfg });
-                            row["年度總計"] = yResult.ContainsKey(cfg.DisplayName) ? yResult[cfg.DisplayName] : 0;
+                            
+                            if (primaryAgg == "SUM" || primaryAgg == "COUNT" || primaryAgg == "DIFF_SUM") {
+                                row["年度總計"] = yearlyTotal;
+                            } else if (primaryAgg == "AVG" || primaryAgg == "DIFF_AVG") {
+                                row["年度總計"] = yearlyAvgList.Any() ? yearlyAvgList.Average() : 0;
+                            } else if (primaryAgg == "MAX") {
+                                row["年度總計"] = yearlyAvgList.Any() ? yearlyAvgList.Max() : 0;
+                            } else if (primaryAgg == "MIN") {
+                                row["年度總計"] = yearlyAvgList.Any() ? yearlyAvgList.Min() : 0;
+                            }
 
                             dtMonthly.Rows.Add(row);
                         }
@@ -345,7 +359,8 @@ namespace Safety_System
                     if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
 
                     string key = cfg.DisplayName;
-                    string unit = string.IsNullOrEmpty(cfg.Unit) ? "" : cfg.Unit;
+                    string unit = string.IsNullOrEmpty(cfg.Unit) ? "mg/L" : cfg.Unit;
+
                     string primaryAgg = cfg.Sources.FirstOrDefault()?.AggType ?? "COUNT";
                     string format = (primaryAgg == "COUNT") ? "N0" : "N2"; 
 
@@ -667,11 +682,11 @@ namespace Safety_System
                     int x0 = 10, w0 = 35;   // 刪除按鈕
                     int x1 = 55, w1 = 110;  // 資料庫
                     int x2 = 175, w2 = 140; // 資料表
-                    int x3 = 325, w3 = 145; // 計算欄位 
-                    int x4 = 480, w4 = 155; // 選項過濾條件 
-                    int x5 = 645, w5 = 145; // 運算方式 
-                    int x6 = 800, w6 = 140; // 迄日 
-                    int x7 = 950, w7 = 120; // 起日 
+                    int x3 = 325, w3 = 145; // 計算欄位
+                    int x4 = 480, w4 = 155; // 選項過濾條件
+                    int x5 = 645, w5 = 145; // 運算方式
+                    int x6 = 800, w6 = 140; // 迄日
+                    int x7 = 950, w7 = 120; // 起日
 
                     Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     btnRemove.FlatAppearance.BorderSize = 0;
