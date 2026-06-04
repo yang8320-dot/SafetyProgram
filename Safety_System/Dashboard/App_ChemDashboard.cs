@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_ChemDashboard.cs ///
+/// FILE: Safety_System/Dashboard/App_ChemDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -550,9 +550,10 @@ namespace Safety_System
                             y += 35;
                         }
 
+                        // 🟢 移除導出日期 (製單日期) 保留空間
                         g.DrawString(separator, fBody, Brushes.Black, x, y); y += 40;
-                        string dateStr = $"製單日期：{DateTime.Now.Year} 年 {DateTime.Now.Month:D2} 月 {DateTime.Now.Day:D2} 日";
-                        g.DrawString(dateStr, fBody, Brushes.Black, x, y);
+                        // string dateStr = $"製單日期：{DateTime.Now.Year} 年 {DateTime.Now.Month:D2} 月 {DateTime.Now.Day:D2} 日";
+                        // g.DrawString(dateStr, fBody, Brushes.Black, x, y);
 
                         g.DrawString("8-ES-B09-01 危害性化學品清單", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
 
@@ -622,7 +623,8 @@ namespace Safety_System
 
                         string mainTitle = "台灣玻璃工業股份有限公司 - 彰濱廠";
                         string subTitle = "化學品清單一覽表";
-                        string pageInfo = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}   |   頁碼：{rowIndex / 20 + 1}";
+                        // 🟢 移除導出日期
+                        string pageInfo = $"頁碼：{rowIndex / 20 + 1}";
 
                         g.DrawString(mainTitle, fTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 40), sfCenter); y += 40;
                         g.DrawString(subTitle, fSubTitle, Brushes.Black, new RectangleF(x, y, pageWidth, 35), sfCenter); y += 35;
