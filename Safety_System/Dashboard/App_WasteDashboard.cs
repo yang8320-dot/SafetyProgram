@@ -786,7 +786,7 @@ namespace Safety_System
                         if (def.AggType == "COUNT") cbAgg.Text = "計數";
                         else if (def.AggType == "SUM") cbAgg.Text = "加總";
                         else if (def.AggType == "DIFF_SUM") cbAgg.Text = "日期相減(總天數)";
-                        else cbAgg.Text = "計數"; 
+                        else cbAgg.Text = "加總"; // 廢棄物多為加總
                     } else {
                         cbAgg.Text = "加總"; // 廢棄物多為加總
                         cbFilter.Text = "非空值 (有輸入即算)";
@@ -1051,7 +1051,7 @@ namespace Safety_System
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
-                            string dateStr = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}        查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+                            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
                             g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
                             y += 30;
 
