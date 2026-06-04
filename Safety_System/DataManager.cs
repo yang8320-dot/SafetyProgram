@@ -375,9 +375,12 @@ namespace Safety_System
             }
         }
 
-        public static void UpsertRecord(string dbName, string tableName, DataRow row)
+        // 🟢 核心修復：修改回傳型別為 long，並實作 SQLite last_insert_rowid() 回傳新建立的資料庫 ID
+        public static long UpsertRecord(string dbName, string tableName, DataRow row)
         {
-            if (row.RowState == DataRowState.Deleted || row.RowState == DataRowState.Unchanged) return;
+            if (row.RowState == DataRowState.Deleted || row.RowState == DataRowState.Unchanged) return -1;
+
+            long insertedId = -1;
 
             ExecuteWithRetry(dbName, conn => {
                 EnsureAuditColumns(conn, tableName);
@@ -401,6 +404,9 @@ namespace Safety_System
                     cmd.Parameters.AddWithValue("@SysTime", currentTime);
 
                     cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sets)} WHERE Id=" + row["Id"];
+                    cmd.ExecuteNonQuery();
+                    
+                    insertedId = Convert.ToInt64(row["Id"]);
                 } else {
                     List<string> c = new List<string>();
                     List<string> v = new List<string>();
@@ -417,11 +423,20 @@ namespace Safety_System
                     cmd.Parameters.AddWithValue("@SysTime", currentTime);
 
                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
+                    cmd.ExecuteNonQuery();
+
+                    // 🟢 取得剛剛 INSERT 產生的最新 Id
+                    cmd.CommandText = "SELECT last_insert_rowid()";
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value)
+                    {
+                        insertedId = Convert.ToInt64(res);
+                    }
                 }
-                cmd.ExecuteNonQuery();
             });
             
             ThreadPool.QueueUserWorkItem(_ => RunSyncEngine(dbName, tableName));
+            return insertedId;
         }
 
         public static void DeleteRecord(string dbName, string tableName, int id) 
