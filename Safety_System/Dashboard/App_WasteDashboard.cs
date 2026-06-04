@@ -19,18 +19,11 @@ namespace Safety_System
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
-        // 四大區塊的標題與內容容器
-        private Label _lblSub1, _lblSub2, _lblSub3, _lblSub4;
-        private FlowLayoutPanel _pnlData1, _pnlData2, _pnlData3, _pnlData4;
+        // 兩大區塊容器
+        private DashboardSection _wasteSection;
+        private DashboardSection _materialSection;
 
-        // 截圖與匯出用的外框
-        private Panel _pnlTopBox;
-        private FlowLayoutPanel _flpBottomBox; 
-
-        // 存放動態生成的 Grid 以供 PDF 導出時對應
-        private Dictionary<string, Panel> _monthlyPanels = new Dictionary<string, Panel>();
-
-        // 設定檔路徑與快取 (廢棄物專屬)
+        // 設定檔路徑與快取
         private readonly string SettingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WasteDashboardSettings.txt");
         private List<WasteConfigItem> _configs = new List<WasteConfigItem>();
 
@@ -44,11 +37,12 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        // 定義自訂統計項目的資料結構
+        // 定義自訂統計項目的資料結構 (加入 Category 區分廢棄物或原物料)
         private class WasteConfigItem
         {
             public string DisplayName { get; set; }
-            public string Unit { get; set; } = "噸"; // 廢棄物預設單位為 噸
+            public string Unit { get; set; } = "噸"; 
+            public string Category { get; set; } = "廢棄物產出"; 
             public List<DataSourceDef> Sources { get; set; } = new List<DataSourceDef>();
         }
 
@@ -59,7 +53,25 @@ namespace Safety_System
             public string ColName { get; set; }
             public string FilterValue { get; set; } 
             public string AggType { get; set; } 
-            public string ColName2 { get; set; } = ""; // 支援日期相減的起日欄位
+            public string ColName2 { get; set; } = "";
+        }
+
+        // 封裝區塊 UI 參照
+        private class DashboardSection
+        {
+            public string Category { get; set; }
+            public Panel MainPanel { get; set; }
+            public Label LblSub1 { get; set; }
+            public Label LblSub2 { get; set; }
+            public Label LblSub3 { get; set; }
+            public Label LblSub4 { get; set; }
+            public FlowLayoutPanel PnlData1 { get; set; }
+            public FlowLayoutPanel PnlData2 { get; set; }
+            public FlowLayoutPanel PnlData3 { get; set; }
+            public FlowLayoutPanel PnlData4 { get; set; }
+            public Panel TopBox { get; set; }
+            public FlowLayoutPanel FlpBottomBox { get; set; }
+            public Dictionary<string, Panel> MonthlyPanels { get; set; } = new Dictionary<string, Panel>();
         }
 
         public Control GetView()
@@ -84,7 +96,7 @@ namespace Safety_System
             // 第一行：大標題
             // ==========================================
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 60, Margin = new Padding(0) };
-            Label lblTitle = new Label { Text = "♻️ 廢棄物清運與減量綜合數據看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.SeaGreen, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+            Label lblTitle = new Label { Text = "♻️ 廢棄物統計及數據分析看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.SeaGreen, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
             pnlHeader.Controls.Add(lblTitle);
 
             // ==========================================
@@ -106,7 +118,7 @@ namespace Safety_System
             _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(110, btnHeight), BackColor = Color.DarkOliveGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
 
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 選擇並導出 PDF", Size = new Size(180, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
             Button btnSetting = new Button { Text = "⚙️ 統計設定", Size = new Size(130, btnHeight), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
@@ -125,42 +137,15 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 第三行：四大區塊
+            // 建置兩大區塊：廢棄物產出 與 原物料產出
             // ==========================================
-            _pnlTopBox = new Panel { Dock = DockStyle.Fill, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
-            _pnlTopBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlTopBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-
-            TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
-            for (int i = 0; i < 4; i++) gridFour.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            gridFour.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
-            gridFour.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-            Color headColor = Color.SeaGreen;
-            _lblSub1 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
-            _lblSub2 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
-            _lblSub3 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
-            _lblSub4 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = headColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
-
-            gridFour.Controls.Add(_lblSub1, 0, 0); gridFour.Controls.Add(_lblSub2, 1, 0);
-            gridFour.Controls.Add(_lblSub3, 2, 0); gridFour.Controls.Add(_lblSub4, 3, 0);
-
-            _pnlData1 = CreateDataPanel(); _pnlData2 = CreateDataPanel();
-            _pnlData3 = CreateDataPanel(); _pnlData4 = CreateDataPanel();
-
-            gridFour.Controls.Add(_pnlData1, 0, 1); gridFour.Controls.Add(_pnlData2, 1, 1);
-            gridFour.Controls.Add(_pnlData3, 2, 1); gridFour.Controls.Add(_pnlData4, 3, 1);
-
-            _pnlTopBox.Controls.Add(gridFour);
-
-            // ==========================================
-            // 第四行：近三年逐月統計
-            // ==========================================
-            _flpBottomBox = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0) };
+            _wasteSection = BuildSection("廢棄物產出數據統計", "廢棄物產出", Color.SeaGreen);
+            _materialSection = BuildSection("原物料產出數據統計", "原物料產出", Color.Sienna);
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
-            masterLayout.Controls.Add(_pnlTopBox, 0, 2);
-            masterLayout.Controls.Add(_flpBottomBox, 0, 3);
+            masterLayout.Controls.Add(_wasteSection.MainPanel, 0, 2);
+            masterLayout.Controls.Add(_materialSection.MainPanel, 0, 3);
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -169,18 +154,69 @@ namespace Safety_System
             return mainScrollPanel;
         }
 
+        private DashboardSection BuildSection(string titleText, string category, Color themeColor)
+        {
+            var sec = new DashboardSection { Category = category };
+
+            sec.MainPanel = new Panel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0, 0, 0, 30) };
+
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 3 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            // 標題
+            Label lblTitle = new Label { 
+                Text = $"■ {titleText}", 
+                Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), 
+                ForeColor = themeColor, 
+                Dock = DockStyle.Fill, 
+                TextAlign = ContentAlignment.BottomLeft 
+            };
+            layout.Controls.Add(lblTitle, 0, 0);
+
+            // 第一部份：四大區塊
+            sec.TopBox = new Panel { Dock = DockStyle.Fill, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 10, 0, 20) };
+            sec.TopBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, sec.TopBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+
+            TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
+            for (int i = 0; i < 4; i++) gridFour.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            gridFour.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
+            gridFour.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            sec.LblSub1 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            sec.LblSub2 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            sec.LblSub3 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            sec.LblSub4 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+
+            gridFour.Controls.Add(sec.LblSub1, 0, 0); gridFour.Controls.Add(sec.LblSub2, 1, 0);
+            gridFour.Controls.Add(sec.LblSub3, 2, 0); gridFour.Controls.Add(sec.LblSub4, 3, 0);
+
+            sec.PnlData1 = CreateDataPanel(); sec.PnlData2 = CreateDataPanel();
+            sec.PnlData3 = CreateDataPanel(); sec.PnlData4 = CreateDataPanel();
+
+            gridFour.Controls.Add(sec.PnlData1, 0, 1); gridFour.Controls.Add(sec.PnlData2, 1, 1);
+            gridFour.Controls.Add(sec.PnlData3, 2, 1); gridFour.Controls.Add(sec.PnlData4, 3, 1);
+
+            sec.TopBox.Controls.Add(gridFour);
+            layout.Controls.Add(sec.TopBox, 0, 1);
+
+            // 第二部份：近三年逐月統計容器
+            sec.FlpBottomBox = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0) };
+            layout.Controls.Add(sec.FlpBottomBox, 0, 2);
+
+            sec.MainPanel.Controls.Add(layout);
+            return sec;
+        }
+
         private FlowLayoutPanel CreateDataPanel()
         {
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 150), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
-        // =========================================================
-        // 萬能日期解析器：自動應付民國年、西元年、各種格式差異
-        // =========================================================
         private DateTime? ParseUniversalDate(string dateStr)
         {
             if (string.IsNullOrWhiteSpace(dateStr)) return null;
-            
             dateStr = dateStr.Trim().Replace("/", "-");
 
             Regex twRegex = new Regex(@"^(?<year>\d{2,3})-(?<month>\d{1,2})-(?<day>\d{1,2})(?:\s+.*)?$");
@@ -200,29 +236,18 @@ namespace Safety_System
                 }
             }
 
-            if (DateTime.TryParse(dateStr, out DateTime result))
-            {
-                return result;
-            }
-
+            if (DateTime.TryParse(dateStr, out DateTime result)) return result;
             return null;
         }
 
-        // =========================================================
-        // 日期控制與資料運算
-        // =========================================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
-            for (int i = currY - 10; i <= currY + 1; i++) 
-            { 
-                _cboStartYear.Items.Add(i); 
-                _cboEndYear.Items.Add(i); 
+            for (int i = currY - 10; i <= currY + 1; i++) { 
+                _cboStartYear.Items.Add(i); _cboEndYear.Items.Add(i); 
             }
-            for (int i = 1; i <= 12; i++) 
-            { 
-                _cboStartMonth.Items.Add(i.ToString("D2")); 
-                _cboEndMonth.Items.Add(i.ToString("D2")); 
+            for (int i = 1; i <= 12; i++) { 
+                _cboStartMonth.Items.Add(i.ToString("D2")); _cboEndMonth.Items.Add(i.ToString("D2")); 
             }
             
             _cboStartYear.SelectedIndexChanged += (s, e) => UpdateDaysCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
@@ -268,177 +293,13 @@ namespace Safety_System
 
             try
             {
-                if (_configs.Count == 0)
-                {
-                    _pnlData1.Controls.Clear(); _pnlData2.Controls.Clear(); _pnlData3.Controls.Clear(); _pnlData4.Controls.Clear();
-                    _pnlData1.Controls.Add(new Label { Text = "請先點擊上方 [統計設定]\n新增欲追蹤的指標！", AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) });
-                    _flpBottomBox.Controls.Clear();
-                    _monthlyPanels.Clear();
-                    return;
-                }
-
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
                 DateTime dtS = GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
                 DateTime dtE = GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
 
-                _lblSub1.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n區間統計總計";
-                _lblSub2.Text = $"【{dtS.AddYears(-1):yyyy/MM/dd} ~ {dtE.AddYears(-1):yyyy/MM/dd}】\n去年同期統計總計";
-                _lblSub3.Text = $"【{dtS.AddYears(-2):yyyy/MM/dd} ~ {dtE.AddYears(-2):yyyy/MM/dd}】\n前年同期統計總計";
-                _lblSub4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析";
-
-                Dictionary<string, double> dictCurr = new Dictionary<string, double>();
-                Dictionary<string, double> dictLy = new Dictionary<string, double>();
-                Dictionary<string, double> dictL2y = new Dictionary<string, double>();
-
-                Dictionary<string, DataTable> monthlyTables = new Dictionary<string, DataTable>();
-
-                await Task.Run(() =>
-                {
-                    dictCurr = CalculatePeriodStats(dtS, dtE);
-                    dictLy = CalculatePeriodStats(dtS.AddYears(-1), dtE.AddYears(-1));
-                    dictL2y = CalculatePeriodStats(dtS.AddYears(-2), dtE.AddYears(-2));
-
-                    int baseYear = dtE.Year;
-                    int[] years = { baseYear, baseYear - 1, baseYear - 2 };
-
-                    foreach (var cfg in _configs)
-                    {
-                        if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
-
-                        DataTable dtMonthly = new DataTable();
-                        dtMonthly.Columns.Add("年度", typeof(string));
-                        for (int i = 1; i <= 12; i++) dtMonthly.Columns.Add($"{i}月", typeof(double));
-                        dtMonthly.Columns.Add("年度總計", typeof(double));
-
-                        foreach (int y in years)
-                        {
-                            DataRow row = dtMonthly.NewRow();
-                            row["年度"] = y.ToString() + "年";
-                            double yearlyTotal = 0;
-
-                            for (int m = 1; m <= 12; m++)
-                            {
-                                DateTime mStart = new DateTime(y, m, 1);
-                                DateTime mEnd = new DateTime(y, m, DateTime.DaysInMonth(y, m));
-                                
-                                var mResult = CalculatePeriodStats(mStart, mEnd, new List<WasteConfigItem> { cfg });
-                                double mVal = mResult.ContainsKey(cfg.DisplayName) ? mResult[cfg.DisplayName] : 0;
-                                
-                                row[$"{m}月"] = mVal;
-                                yearlyTotal += mVal;
-                            }
-                            row["年度總計"] = yearlyTotal;
-                            dtMonthly.Rows.Add(row);
-                        }
-                        monthlyTables[cfg.DisplayName] = dtMonthly;
-                    }
-                });
-
-                // ================= UI 更新 (上半部區塊) =================
-                _pnlData1.Controls.Clear(); _pnlData2.Controls.Clear(); _pnlData3.Controls.Clear(); _pnlData4.Controls.Clear();
-                foreach (var cfg in _configs)
-                {
-                    if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
-
-                    string key = cfg.DisplayName;
-                    string unit = string.IsNullOrEmpty(cfg.Unit) ? "噸" : cfg.Unit;
-
-                    string primaryAgg = cfg.Sources.FirstOrDefault()?.AggType ?? "COUNT";
-                    string format = (primaryAgg == "COUNT") ? "N0" : "N2"; // 廢棄物多為實數噸數，預設 N2
-
-                    double vCurr = dictCurr.ContainsKey(key) ? dictCurr[key] : 0;
-                    double vLy = dictLy.ContainsKey(key) ? dictLy[key] : 0;
-                    double vL2y = dictL2y.ContainsKey(key) ? dictL2y[key] : 0;
-
-                    _pnlData1.Controls.Add(CreateStatLabel(key, vCurr, unit, format));
-                    _pnlData2.Controls.Add(CreateStatLabel(key, vLy, unit, format));
-                    _pnlData3.Controls.Add(CreateStatLabel(key, vL2y, unit, format));
-
-                    double diff = vCurr - vLy;
-                    string diffText = (diff > 0 ? "+" : "") + diff.ToString(format) + " " + unit;
-                    Color diffColor = diff > 0 ? Color.IndianRed : (diff < 0 ? Color.ForestGreen : Color.DimGray);
-
-                    _pnlData4.Controls.Add(new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) });
-                }
-
-                // ================= UI 更新 (下半部逐月表) =================
-                _flpBottomBox.Controls.Clear();
-                _monthlyPanels.Clear();
-
-                foreach (var kvp in monthlyTables)
-                {
-                    try 
-                    {
-                        string statName = kvp.Key;
-                        DataTable dt = kvp.Value;
-                        if (dt == null) continue;
-
-                        var matchCfg = _configs.FirstOrDefault(c => c.DisplayName == statName);
-                        string primaryAgg = matchCfg?.Sources.FirstOrDefault()?.AggType ?? "COUNT";
-                        string format = (primaryAgg == "COUNT") ? "N0" : "N2";
-
-                        int targetWidth = 1000; 
-                        if (_flpBottomBox.Width > 40) targetWidth = _flpBottomBox.Width - 20;
-                        else if (_flpBottomBox.Parent != null && _flpBottomBox.Parent.Width > 40) targetWidth = _flpBottomBox.Parent.Width - 40;
-
-                        Panel pnlWrapper = new Panel { Width = targetWidth, Height = 220, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
-                        pnlWrapper.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlWrapper.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-                        
-                        Label lblTitle = new Label { Text = $"📊 近三年逐月統計：{statName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.SeaGreen, AutoSize = true, Padding = new Padding(15, 10, 0, 10), Dock = DockStyle.Top };
-                        
-                        DataGridView dgv = new DataGridView { 
-                            Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = false, ReadOnly = true,
-                            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
-                            BorderStyle = BorderStyle.None, Margin = new Padding(10)
-                        };
-                        
-                        dgv.EnableHeadersVisualStyles = false;
-                        dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.SeaGreen;
-                        dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-                        dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                        dgv.ColumnHeadersHeight = 35;
-                        dgv.RowTemplate.Height = 33;
-                        dgv.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                        dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 250, 245);
-                        
-                        dgv.DataSource = dt;
-
-                        if (dgv.Columns.Contains("年度")) {
-                            dgv.Columns["年度"].Width = 100;
-                        }
-                        
-                        if (dgv.Columns.Contains("年度總計")) {
-                            dgv.Columns["年度總計"].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
-                            dgv.Columns["年度總計"].DefaultCellStyle.BackColor = Color.LightYellow;
-                            dgv.Columns["年度總計"].DefaultCellStyle.Format = format;
-                        }
-                        
-                        for (int i = 1; i <= 12; i++) {
-                            string monthCol = $"{i}月";
-                            if (dgv.Columns.Contains(monthCol)) {
-                                dgv.Columns[monthCol].DefaultCellStyle.Format = format;
-                            }
-                        }
-                        
-                        dgv.ClearSelection();
-
-                        pnlWrapper.Controls.Add(dgv);
-                        pnlWrapper.Controls.Add(lblTitle);
-                        
-                        _flpBottomBox.Controls.Add(pnlWrapper);
-                        _monthlyPanels[statName] = pnlWrapper;
-
-                        _flpBottomBox.Resize += (s, e) => { 
-                            int newW = _flpBottomBox.ClientSize.Width - 20;
-                            if (newW > 0) pnlWrapper.Width = newW; 
-                        };
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"繪製表格 {kvp.Key} 時發生錯誤: {ex.Message}");
-                    }
-                }
+                await ProcessSectionAsync(_wasteSection, dtS, dtE);
+                await ProcessSectionAsync(_materialSection, dtS, dtE);
             }
             finally
             {
@@ -447,19 +308,182 @@ namespace Safety_System
             }
         }
 
+        private async Task ProcessSectionAsync(DashboardSection section, DateTime dtS, DateTime dtE)
+        {
+            var sectionConfigs = _configs.Where(c => c.Category == section.Category).ToList();
+
+            if (sectionConfigs.Count == 0)
+            {
+                section.PnlData1.Controls.Clear(); section.PnlData2.Controls.Clear(); 
+                section.PnlData3.Controls.Clear(); section.PnlData4.Controls.Clear();
+                section.PnlData1.Controls.Add(new Label { Text = "此區塊目前無統計項目設定", AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F) });
+                section.FlpBottomBox.Controls.Clear();
+                section.MonthlyPanels.Clear();
+                return;
+            }
+
+            section.LblSub1.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n區間統計總計";
+            section.LblSub2.Text = $"【{dtS.AddYears(-1):yyyy/MM/dd} ~ {dtE.AddYears(-1):yyyy/MM/dd}】\n去年同期統計總計";
+            section.LblSub3.Text = $"【{dtS.AddYears(-2):yyyy/MM/dd} ~ {dtE.AddYears(-2):yyyy/MM/dd}】\n前年同期統計總計";
+            section.LblSub4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析";
+
+            Dictionary<string, double> dictCurr = new Dictionary<string, double>();
+            Dictionary<string, double> dictLy = new Dictionary<string, double>();
+            Dictionary<string, double> dictL2y = new Dictionary<string, double>();
+            Dictionary<string, DataTable> monthlyTables = new Dictionary<string, DataTable>();
+
+            await Task.Run(() =>
+            {
+                dictCurr = CalculatePeriodStats(dtS, dtE, sectionConfigs);
+                dictLy = CalculatePeriodStats(dtS.AddYears(-1), dtE.AddYears(-1), sectionConfigs);
+                dictL2y = CalculatePeriodStats(dtS.AddYears(-2), dtE.AddYears(-2), sectionConfigs);
+
+                int baseYear = dtE.Year;
+                int[] years = { baseYear, baseYear - 1, baseYear - 2 };
+
+                foreach (var cfg in sectionConfigs)
+                {
+                    if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
+
+                    DataTable dtMonthly = new DataTable();
+                    dtMonthly.Columns.Add("年度", typeof(string));
+                    for (int i = 1; i <= 12; i++) dtMonthly.Columns.Add($"{i}月", typeof(double));
+                    dtMonthly.Columns.Add("年度總計", typeof(double));
+
+                    foreach (int y in years)
+                    {
+                        DataRow row = dtMonthly.NewRow();
+                        row["年度"] = y.ToString() + "年";
+                        double yearlyTotal = 0;
+
+                        for (int m = 1; m <= 12; m++)
+                        {
+                            DateTime mStart = new DateTime(y, m, 1);
+                            DateTime mEnd = new DateTime(y, m, DateTime.DaysInMonth(y, m));
+                            
+                            var mResult = CalculatePeriodStats(mStart, mEnd, new List<WasteConfigItem> { cfg });
+                            double mVal = mResult.ContainsKey(cfg.DisplayName) ? mResult[cfg.DisplayName] : 0;
+                            
+                            row[$"{m}月"] = mVal;
+                            yearlyTotal += mVal;
+                        }
+                        row["年度總計"] = yearlyTotal;
+                        dtMonthly.Rows.Add(row);
+                    }
+                    monthlyTables[cfg.DisplayName] = dtMonthly;
+                }
+            });
+
+            // UI 更新 (上半部區塊)
+            section.PnlData1.Controls.Clear(); section.PnlData2.Controls.Clear(); 
+            section.PnlData3.Controls.Clear(); section.PnlData4.Controls.Clear();
+
+            foreach (var cfg in sectionConfigs)
+            {
+                if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
+
+                string key = cfg.DisplayName;
+                string unit = string.IsNullOrEmpty(cfg.Unit) ? "噸" : cfg.Unit;
+                string primaryAgg = cfg.Sources.FirstOrDefault()?.AggType ?? "COUNT";
+                string format = (primaryAgg == "COUNT") ? "N0" : "N2"; 
+
+                double vCurr = dictCurr.ContainsKey(key) ? dictCurr[key] : 0;
+                double vLy = dictLy.ContainsKey(key) ? dictLy[key] : 0;
+                double vL2y = dictL2y.ContainsKey(key) ? dictL2y[key] : 0;
+
+                section.PnlData1.Controls.Add(CreateStatLabel(key, vCurr, unit, format));
+                section.PnlData2.Controls.Add(CreateStatLabel(key, vLy, unit, format));
+                section.PnlData3.Controls.Add(CreateStatLabel(key, vL2y, unit, format));
+
+                double diff = vCurr - vLy;
+                string diffText = (diff > 0 ? "+" : "") + diff.ToString(format) + " " + unit;
+                Color diffColor = diff > 0 ? Color.IndianRed : (diff < 0 ? Color.ForestGreen : Color.DimGray);
+
+                section.PnlData4.Controls.Add(new Label { Text = $"{key}: {diffText}", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = diffColor, AutoSize = true, Margin = new Padding(0, 0, 0, 8) });
+            }
+
+            // UI 更新 (下半部逐月表)
+            section.FlpBottomBox.Controls.Clear();
+            section.MonthlyPanels.Clear();
+
+            Color headerColor = section.Category == "廢棄物產出" ? Color.SeaGreen : Color.Sienna;
+
+            foreach (var kvp in monthlyTables)
+            {
+                string statName = kvp.Key;
+                DataTable dt = kvp.Value;
+                if (dt == null) continue;
+
+                var matchCfg = sectionConfigs.FirstOrDefault(c => c.DisplayName == statName);
+                string primaryAgg = matchCfg?.Sources.FirstOrDefault()?.AggType ?? "COUNT";
+                string format = (primaryAgg == "COUNT") ? "N0" : "N2";
+
+                int targetWidth = 1000; 
+                if (section.FlpBottomBox.Width > 40) targetWidth = section.FlpBottomBox.Width - 20;
+                else if (section.FlpBottomBox.Parent != null && section.FlpBottomBox.Parent.Width > 40) targetWidth = section.FlpBottomBox.Parent.Width - 40;
+
+                Panel pnlWrapper = new Panel { Width = targetWidth, Height = 220, BackColor = Color.White, Margin = new Padding(0, 0, 0, 20) };
+                pnlWrapper.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlWrapper.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+                
+                Label lblTitle = new Label { Text = $"📊 近三年逐月統計：{statName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = headerColor, AutoSize = true, Padding = new Padding(15, 10, 0, 10), Dock = DockStyle.Top };
+                
+                DataGridView dgv = new DataGridView { 
+                    Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = false, ReadOnly = true,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
+                    BorderStyle = BorderStyle.None, Margin = new Padding(10)
+                };
+                
+                dgv.EnableHeadersVisualStyles = false;
+                dgv.ColumnHeadersDefaultCellStyle.BackColor = headerColor;
+                dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dgv.ColumnHeadersHeight = 35;
+                dgv.RowTemplate.Height = 33;
+                dgv.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 250, 245);
+                
+                dgv.DataSource = dt;
+
+                if (dgv.Columns.Contains("年度")) dgv.Columns["年度"].Width = 100;
+                
+                if (dgv.Columns.Contains("年度總計")) {
+                    dgv.Columns["年度總計"].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+                    dgv.Columns["年度總計"].DefaultCellStyle.BackColor = Color.LightYellow;
+                    dgv.Columns["年度總計"].DefaultCellStyle.Format = format;
+                }
+                
+                for (int i = 1; i <= 12; i++) {
+                    string monthCol = $"{i}月";
+                    if (dgv.Columns.Contains(monthCol)) dgv.Columns[monthCol].DefaultCellStyle.Format = format;
+                }
+                
+                dgv.ClearSelection();
+
+                pnlWrapper.Controls.Add(dgv);
+                pnlWrapper.Controls.Add(lblTitle);
+                
+                section.FlpBottomBox.Controls.Add(pnlWrapper);
+                section.MonthlyPanels[statName] = pnlWrapper;
+
+                section.FlpBottomBox.Resize += (s, e) => { 
+                    int newW = section.FlpBottomBox.ClientSize.Width - 20;
+                    if (newW > 0) pnlWrapper.Width = newW; 
+                };
+            }
+        }
+
         private Label CreateStatLabel(string title, double value, string unit, string format)
         {
             return new Label { Text = $"{title}: {value.ToString(format)} {unit}", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.FromArgb(45,45,45), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         }
 
-        private Dictionary<string, double> CalculatePeriodStats(DateTime sDate, DateTime eDate, List<WasteConfigItem> targetConfigs = null)
+        private Dictionary<string, double> CalculatePeriodStats(DateTime sDate, DateTime eDate, List<WasteConfigItem> targetConfigs)
         {
             var result = new Dictionary<string, double>();
-            var configsToRun = targetConfigs ?? _configs;
             string sStr = sDate.ToString("yyyy-MM-dd");
             string eStr = eDate.ToString("yyyy-MM-dd");
 
-            foreach (var cfg in configsToRun)
+            foreach (var cfg in targetConfigs)
             {
                 if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
                 
@@ -547,7 +571,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗
+        // 設定檔管理與動態設定視窗 (加入向後相容機制)
         // =========================================================
         private void LoadSettings()
         {
@@ -562,16 +586,21 @@ namespace Safety_System
                         if (parts.Length > 1)
                         {
                             string dispName = parts[0];
-                            string unit = "噸"; // 廢棄物預設
+                            string unit = "噸"; 
+                            string category = "廢棄物產出"; 
+                            int srcStartIdx = 1;
 
                             if (parts.Length > 1 && !parts[1].Contains(";")) {
                                 unit = parts[1];
+                                srcStartIdx = 2;
+                            }
+                            if (parts.Length > 2 && !parts[2].Contains(";")) {
+                                category = parts[2];
+                                srcStartIdx = 3;
                             }
 
-                            WasteConfigItem cfg = new WasteConfigItem { DisplayName = dispName, Unit = unit };
+                            WasteConfigItem cfg = new WasteConfigItem { DisplayName = dispName, Unit = unit, Category = category };
                             
-                            int srcStartIdx = (!parts[1].Contains(";")) ? 2 : 1;
-
                             for (int i = srcStartIdx; i < parts.Length; i++)
                             {
                                 var srcParts = parts[i].Split(';');
@@ -599,7 +628,7 @@ namespace Safety_System
                 {
                     if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
 
-                    string line = $"{cfg.DisplayName}|{cfg.Unit}";
+                    string line = $"{cfg.DisplayName}|{cfg.Unit}|{cfg.Category}";
                     foreach (var src in cfg.Sources)
                     {
                         line += $"|{src.DbName};{src.TableName};{src.ColName};{src.AggType};{src.FilterValue};{src.ColName2}";
@@ -634,15 +663,22 @@ namespace Safety_System
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
                 Panel pName = new Panel { Width = 1100, Height = 45 };
-                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 250, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                
+                pName.Controls.Add(new Label { Text = "看板分類：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                ComboBox cboCategory = new ComboBox { Width = 130, Location = new Point(100, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                cboCategory.Items.AddRange(new string[] { "廢棄物產出", "原物料產出" });
+                cboCategory.SelectedIndex = 0;
+                pName.Controls.Add(cboCategory);
+
+                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(240, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtName = new TextBox { Width = 230, Location = new Point(340, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(385, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(465, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "噸" }; // 預設噸
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(580, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                TextBox txtUnit = new TextBox { Width = 80, Location = new Point(640, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "噸" };
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(595, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(740, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -657,17 +693,15 @@ namespace Safety_System
                     Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
-                    int ly = 10;
-                    int cy = 35;
-
-                    int x0 = 10, w0 = 35;   // 刪除按鈕
-                    int x1 = 55, w1 = 110;  // 資料庫
-                    int x2 = 175, w2 = 140; // 資料表
-                    int x3 = 325, w3 = 145; // 計算欄位 
-                    int x4 = 480, w4 = 155; // 選項過濾條件 
-                    int x5 = 645, w5 = 145; // 運算方式 
-                    int x6 = 800, w6 = 140; // 迄日 
-                    int x7 = 950, w7 = 120; // 起日 
+                    int ly = 10, cy = 35;
+                    int x0 = 10, w0 = 35;   
+                    int x1 = 55, w1 = 110;  
+                    int x2 = 175, w2 = 140; 
+                    int x3 = 325, w3 = 145; 
+                    int x4 = 480, w4 = 155; 
+                    int x5 = 645, w5 = 145; 
+                    int x6 = 800, w6 = 140; 
+                    int x7 = 950, w7 = 120; 
 
                     Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     btnRemove.FlatAppearance.BorderSize = 0;
@@ -786,9 +820,9 @@ namespace Safety_System
                         if (def.AggType == "COUNT") cbAgg.Text = "計數";
                         else if (def.AggType == "SUM") cbAgg.Text = "加總";
                         else if (def.AggType == "DIFF_SUM") cbAgg.Text = "日期相減(總天數)";
-                        else cbAgg.Text = "加總"; // 廢棄物多為加總
+                        else cbAgg.Text = "加總"; 
                     } else {
-                        cbAgg.Text = "加總"; // 廢棄物多為加總
+                        cbAgg.Text = "加總";
                         cbFilter.Text = "非空值 (有輸入即算)";
                     }
 
@@ -813,7 +847,7 @@ namespace Safety_System
                     lbItems.Items.Clear();
                     foreach (var cfg in _configs) {
                         if (cfg != null && !string.IsNullOrEmpty(cfg.DisplayName)) {
-                            lbItems.Items.Add(cfg.DisplayName);
+                            lbItems.Items.Add($"[{cfg.Category}] {cfg.DisplayName}");
                         }
                     }
                 };
@@ -823,6 +857,8 @@ namespace Safety_System
                     if (lbItems.SelectedIndex < 0) return;
                     flpSourcesContainer.Controls.Clear();
                     var cfg = _configs[lbItems.SelectedIndex];
+                    
+                    cboCategory.SelectedItem = cfg.Category;
                     txtName.Text = cfg.DisplayName;
                     txtUnit.Text = string.IsNullOrEmpty(cfg.Unit) ? "噸" : cfg.Unit; 
                     
@@ -846,7 +882,8 @@ namespace Safety_System
                     
                     var newCfg = new WasteConfigItem { 
                         DisplayName = txtName.Text.Trim(),
-                        Unit = string.IsNullOrWhiteSpace(txtUnit.Text) ? "噸" : txtUnit.Text.Trim()
+                        Unit = string.IsNullOrWhiteSpace(txtUnit.Text) ? "噸" : txtUnit.Text.Trim(),
+                        Category = cboCategory.SelectedItem.ToString()
                     };
                     
                     foreach (Control ctrl in flpSourcesContainer.Controls) {
@@ -912,7 +949,7 @@ namespace Safety_System
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
-            using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            using (Form f = new Form() { Width = 550, Height = 600, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -924,11 +961,16 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
-                
-                foreach (var kvp in _monthlyPanels) {
-                    clb.Items.Add($"近三年逐月：{kvp.Key}", true);
+                clb.Items.Add("[廢棄物產出] 區間統計總計 (四大區塊)", true); 
+                foreach (var kvp in _wasteSection.MonthlyPanels) {
+                    clb.Items.Add($"[廢棄物產出] 近三年逐月：{kvp.Key}", true);
                 }
+
+                clb.Items.Add("[原物料產出] 區間統計總計 (四大區塊)", true); 
+                foreach (var kvp in _materialSection.MonthlyPanels) {
+                    clb.Items.Add($"[原物料產出] 近三年逐月：{kvp.Key}", true);
+                }
+                
                 tlp.Controls.Add(clb, 0, 1);
 
                 Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
@@ -957,11 +999,17 @@ namespace Safety_System
                 {
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
-                        if (text.Contains("【總計】區間統計總計")) {
-                            selectedPanels.Add(_pnlTopBox);
-                        } else {
-                            string key = text.Replace("近三年逐月：", "");
-                            if (_monthlyPanels.ContainsKey(key)) selectedPanels.Add(_monthlyPanels[key]);
+                        
+                        if (text == "[廢棄物產出] 區間統計總計 (四大區塊)") {
+                            selectedPanels.Add(_wasteSection.TopBox);
+                        } else if (text == "[原物料產出] 區間統計總計 (四大區塊)") {
+                            selectedPanels.Add(_materialSection.TopBox);
+                        } else if (text.StartsWith("[廢棄物產出] 近三年逐月：")) {
+                            string key = text.Replace("[廢棄物產出] 近三年逐月：", "");
+                            if (_wasteSection.MonthlyPanels.ContainsKey(key)) selectedPanels.Add(_wasteSection.MonthlyPanels[key]);
+                        } else if (text.StartsWith("[原物料產出] 近三年逐月：")) {
+                            string key = text.Replace("[原物料產出] 近三年逐月：", "");
+                            if (_materialSection.MonthlyPanels.ContainsKey(key)) selectedPanels.Add(_materialSection.MonthlyPanels[key]);
                         }
                     }
                 }
@@ -976,7 +1024,7 @@ namespace Safety_System
             var panelsToExport = GetSelectedExportPanels();
             if (panelsToExport.Count == 0) return;
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "廢棄物數據統計表_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "廢棄物統計及數據分析表_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
                 {
@@ -1044,10 +1092,10 @@ namespace Safety_System
                             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
                             y += 40;
 
-                            g.DrawString("廢棄物數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
+                            g.DrawString("廢棄物統計及數據分析表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
                             y += 40;
 
-                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________   主辦：______________    制表：______________";
+                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
@@ -1100,19 +1148,18 @@ namespace Safety_System
                         pd.Print();
                         foreach (var bmp in bitmaps) bmp.Dispose();
 
-                        Application.UseWaitCursor = false;
-                        Cursor.Current = Cursors.Default;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-
                         MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) 
                     { 
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
                         Application.UseWaitCursor = false;
                         Cursor.Current = Cursors.Default;
                         if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    } 
+                    }
                 }
             }
         }
