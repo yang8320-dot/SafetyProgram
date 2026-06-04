@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing;
 using System.IO;
 using System.Linq; 
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -13,6 +14,9 @@ namespace Safety_System
     public partial class App_CoreTable
     {
         private bool _isBulkUpdating = false;
+
+        // 🟢 智慧防呆緩衝器：紀錄每一列資料的延遲儲存任務
+        private Dictionary<DataRow, CancellationTokenSource> _rowSaveTimers = new Dictionary<DataRow, CancellationTokenSource>();
 
         private void BindEvents()
         {
@@ -35,6 +39,7 @@ namespace Safety_System
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
             _dgv.ColumnDisplayIndexChanged += new DataGridViewColumnEventHandler(Dgv_ColumnDisplayIndexChanged);
 
+            // 🟢 綁定資料列驗證事件 (當離開編輯儲存格/列時觸發)
             _dgv.RowValidated += new DataGridViewCellEventHandler(Dgv_RowValidated);
 
             _btnSave.Click += new EventHandler(BtnSave_Click);
@@ -74,7 +79,6 @@ namespace Safety_System
                 btnDelRow.Click += delegate(object s, EventArgs e) { ExecuteDeleteRow(); };
             }
 
-            // 🟢 新增：監聽進階查詢「選擇欄位」時的事件，自動切換輸入框模式
             _cboSearchColumn.SelectedIndexChanged += CboSearchColumn_SelectedIndexChanged;
 
             foreach (ToolStripItem item in _ctxMenu.Items)
@@ -96,14 +100,12 @@ namespace Safety_System
             }
         }
 
-        // 🟢 動態切換進階查詢輸入框模式的核心邏輯
         private void CboSearchColumn_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_isCascading) return; // 避免在重繪欄位時觸發不必要的變更
+            if (_isCascading) return; 
 
             if (_cboSearchColumn.SelectedItem == null || string.IsNullOrWhiteSpace(_cboSearchColumn.SelectedItem.ToString()))
             {
-                // 空白欄位，恢復為 TextBox
                 _isSearchDropdownMode = false;
                 _cboSearchKeyword.Visible = false;
                 _txtSearchKeyword.Visible = true;
@@ -115,23 +117,19 @@ namespace Safety_System
             string multiKey = $"{_tableName}|{selectedCol}";
             string[] items = null;
 
-            // 1. 檢查是否為組合文字(複選)
             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
                 items = App_DropdownManager.MultiSelectCache[multiKey];
             } 
-            // 2. 檢查是否為單選下拉選單
             else {
                 string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, selectedCol);
                 if (dbItems != null && dbItems.Length > 1) {
                     items = dbItems;
                 } else {
-                    // 若資料庫沒有設定，嘗試從邏輯類別讀取寫死的預設清單
                     string[] logicItems = _logic.GetDropdownList(_tableName, selectedCol);
                     if (logicItems != null && logicItems.Length > 0) items = logicItems;
                 }
             }
 
-            // 若該欄位有設定選項，則隱藏 TextBox，顯示 ComboBox
             if (items != null && items.Length > 0)
             {
                 _isSearchDropdownMode = true;
@@ -139,9 +137,8 @@ namespace Safety_System
                 _cboSearchKeyword.Visible = true;
                 
                 _cboSearchKeyword.Items.Clear();
-                _cboSearchKeyword.Items.Add(""); // 第一個選項留空，讓使用者可以清除查詢
+                _cboSearchKeyword.Items.Add(""); 
                 
-                // 去除重複與空白後加入
                 foreach (string item in items) {
                     string cleanItem = item.Trim();
                     if (!string.IsNullOrEmpty(cleanItem) && !_cboSearchKeyword.Items.Contains(cleanItem)) {
@@ -153,7 +150,6 @@ namespace Safety_System
             }
             else
             {
-                // 沒有選項設定的欄位，恢復為 TextBox 供使用者自己打字
                 _isSearchDropdownMode = false;
                 _cboSearchKeyword.Visible = false;
                 _txtSearchKeyword.Visible = true;
@@ -193,12 +189,12 @@ namespace Safety_System
             }
         }
 
-        private void Dgv_Sorted(object sender, EventArgs e)
-        {
-            // 保持空白
-        }
+        private void Dgv_Sorted(object sender, EventArgs e) { }
 
-        private void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
+        // =========================================================================
+        // 🟢 核心修復：智慧型打字緩衝防呆存檔機制 (Debounce Auto-Save)
+        // =========================================================================
+        private async void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
         {
             if (_isBulkUpdating || _dgv.DataSource == null) return;
             
@@ -210,19 +206,74 @@ namespace Safety_System
                     if (drv != null) 
                     {
                         DataRow row = drv.Row;
+
+                        // 只有當資料列狀態是「新增」或「被修改」時才進行存檔
                         if (row.RowState == DataRowState.Added || row.RowState == DataRowState.Modified) 
                         {
-                            Task.Run(() => 
+                            // 判斷是否為剛產生的全新資料 (包含未配發 Id 的狀態)
+                            bool isNewData = (row.RowState == DataRowState.Added) || 
+                                             (row.Table.Columns.Contains("Id") && (row["Id"] == DBNull.Value || Convert.ToInt32(row["Id"]) <= 0));
+
+                            // 🟢 緩衝時間設定：新資料給 10 秒輸入緩衝；既有資料修改給 0.5 秒短暫緩衝
+                            int delayMs = isNewData ? 10000 : 500;
+
+                            // 如果這個列之前有倒數計時，取消它 (使用者持續在編輯，重置計時器)
+                            if (_rowSaveTimers.ContainsKey(row)) 
+                            {
+                                _rowSaveTimers[row].Cancel();
+                                _rowSaveTimers[row].Dispose();
+                            }
+
+                            // 建立新的倒數計時器
+                            CancellationTokenSource cts = new CancellationTokenSource();
+                            _rowSaveTimers[row] = cts;
+
+                            try 
+                            {
+                                // 等待指定的秒數 (若期間被 Cancel 則會拋出例外)
+                                await Task.Delay(delayMs, cts.Token);
+                            } 
+                            catch (TaskCanceledException) 
+                            {
+                                // 被新的編輯動作打斷，直接結束本次任務
+                                return; 
+                            }
+
+                            // 如果安全度過了緩衝時間，從計時清單中移除並執行背景寫入
+                            _rowSaveTimers.Remove(row);
+
+                            await Task.Run(() => 
                             {
                                 try 
                                 {
-                                    DataManager.UpsertRecord(_dbName, _tableName, row);
-                                    if (_dgv.InvokeRequired) {
-                                        _dgv.Invoke(new Action(() => row.AcceptChanges()));
-                                    } else {
+                                    // 將資料寫入底層，並取回新產生的 Id
+                                    long newId = DataManager.UpsertRecord(_dbName, _tableName, row);
+                                    
+                                    if (_dgv.InvokeRequired) 
+                                    {
+                                        _dgv.Invoke(new Action(() => {
+                                            // 🟢 將新產生的 Id 回填至畫面，避免下次編輯被誤認為新資料而產生重複
+                                            if (newId > 0 && row.Table.Columns.Contains("Id")) {
+                                                bool originalReadOnly = row.Table.Columns["Id"].ReadOnly;
+                                                row.Table.Columns["Id"].ReadOnly = false;
+                                                row["Id"] = newId;
+                                                row.Table.Columns["Id"].ReadOnly = originalReadOnly;
+                                            }
+                                            row.AcceptChanges();
+                                        }));
+                                    } 
+                                    else 
+                                    {
+                                        if (newId > 0 && row.Table.Columns.Contains("Id")) {
+                                            bool originalReadOnly = row.Table.Columns["Id"].ReadOnly;
+                                            row.Table.Columns["Id"].ReadOnly = false;
+                                            row["Id"] = newId;
+                                            row.Table.Columns["Id"].ReadOnly = originalReadOnly;
+                                        }
                                         row.AcceptChanges();
                                     }
-                                } catch { }
+                                } 
+                                catch { }
                             });
                         }
                     }
@@ -241,6 +292,12 @@ namespace Safety_System
                 _dgv.EndEdit(); 
                 
                 if (_dgv.BindingContext != null && _dgv.DataSource != null) _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
+
+                // 手動按儲存時，強制取消所有正在等待的緩衝任務，直接全域儲存
+                foreach (var cts in _rowSaveTimers.Values) {
+                    try { cts.Cancel(); cts.Dispose(); } catch { }
+                }
+                _rowSaveTimers.Clear();
 
                 int scrollRow = _dgv.FirstDisplayedScrollingRowIndex;
                 int scrollCol = _dgv.FirstDisplayedScrollingColumnIndex;
@@ -418,12 +475,10 @@ namespace Safety_System
                 exportWidths[kvp.Key] = (float)kvp.Value;
             }
 
-            // 建立乾淨的匯出 DataTable
             DataTable exportDt = new DataTable();
             List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
-                // 條件：只匯出目前有在畫面上顯示，且不是 Id 欄位的資料
                 if (col.Visible && col.Name != "Id") {
                     visCols.Add(col);
                     exportDt.Columns.Add(col.HeaderText.Replace("\n", ""));
@@ -465,7 +520,6 @@ namespace Safety_System
                                 progStr.Report("正在將資料合併至系統...");
                                 progInt.Report(0);
                                 
-                                // 智慧合併核心：只塞 Excel 裡有提供的欄位，其餘保留空白(或被資料庫忽略)
                                 foreach (DataRow importedRow in importedDt.Rows) 
                                 {
                                     DataRow newRow = workingDt.NewRow();
