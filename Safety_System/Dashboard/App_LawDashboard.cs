@@ -552,7 +552,7 @@ namespace Safety_System
             if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) _dgvCategoryLaws.Columns["再次確認日期"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("最後修改人")) _dgvCategoryLaws.Columns["最後修改人"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("修改時間")) _dgvCategoryLaws.Columns["修改時間"].Visible = false;
-            if (_dgvCategoryLaws.Columns.Contains("最後修改時間")) _dgvCategoryLaws.Columns["最後修改時間"].Visible = false; // 預防名稱差異
+            if (_dgvCategoryLaws.Columns.Contains("最後修改時間")) _dgvCategoryLaws.Columns["最後修改時間"].Visible = false; 
 
             foreach (DataGridViewColumn col in _dgvCategoryLaws.Columns) 
             {
@@ -727,13 +727,14 @@ namespace Safety_System
                         g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), fmtCenter); 
                         y += 35;
 
-                        // 4. 第四行：日期與查詢條件
-                        string dateStr = $"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}";
+                        // 4. 第四行：查詢條件 (🟢 移除導出日期)
+                        string dateStr = "";
                         if (reportTitle == "年度法令總鑑別表") {
-                            dateStr += $"        查詢條件：{_cboYearlyCategory.Text} / {_cboYearlyYear.Text}年度 / 適用性:{_cboYearlyApplicability.Text}";
+                            dateStr = $"查詢條件：{_cboYearlyCategory.Text} / {_cboYearlyYear.Text}年度 / 適用性:{_cboYearlyApplicability.Text}";
                         } else if (reportTitle == "法令目錄一覽表") {
-                            dateStr += $"        查詢條件：{_cboCategory.Text}";
+                            dateStr = $"查詢條件：{_cboCategory.Text}";
                         }
+                        
                         g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), fmtLeft); 
                         y += 30;
 
