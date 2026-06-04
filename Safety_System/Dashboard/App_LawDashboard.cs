@@ -56,12 +56,12 @@ namespace Safety_System
             
             Label lblTitle1 = new Label 
             { 
-                Text = "台灣玻璃工業股份有限公司-彰濱廠\n年度法令總鑑別表", 
+                Text = "年度法令總鑑別表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.DarkSlateBlue,
                 Dock = DockStyle.Top,
-                Height = 70
+                Height = 45
             };
 
             FlowLayoutPanel pnlAction1 = CreateActionFlowPanel("匯出 Excel", "匯出 PDF", 
@@ -108,12 +108,12 @@ namespace Safety_System
             GroupBox box2 = CreateDataBox("📊 統計摘要", 450);
             Label lblTitle2 = new Label 
             { 
-                Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令鑑別統計表", 
+                Text = "法令鑑別統計表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter, 
                 ForeColor = Color.DarkSlateBlue,
                 Dock = DockStyle.Top, 
-                Height = 70 
+                Height = 45 
             };
 
             FlowLayoutPanel pnlAction2 = CreateActionFlowPanel("匯出 Excel", "匯出 PDF", 
@@ -135,12 +135,12 @@ namespace Safety_System
 
             Label lblTitle3 = new Label 
             { 
-                Text = "台灣玻璃工業股份有限公司-彰濱廠\n法令目錄一覽表", 
+                Text = "法令目錄一覽表", 
                 Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), 
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.DarkSlateBlue,
                 Dock = DockStyle.Top,
-                Height = 70
+                Height = 45
             };
 
             FlowLayoutPanel pnlAction3 = CreateActionFlowPanel("匯出 Excel", "匯出 PDF", 
@@ -548,7 +548,6 @@ namespace Safety_System
             if (_dgvCategoryLaws.Columns.Contains("Id")) _dgvCategoryLaws.Columns["Id"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("選項類別")) _dgvCategoryLaws.Columns["選項類別"].Visible = false;
 
-            // 🟢 需求 2：不顯示再次確認日期、最後修改人、修改時間
             if (_dgvCategoryLaws.Columns.Contains("再次確認日期")) _dgvCategoryLaws.Columns["再次確認日期"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("最後修改人")) _dgvCategoryLaws.Columns["最後修改人"].Visible = false;
             if (_dgvCategoryLaws.Columns.Contains("修改時間")) _dgvCategoryLaws.Columns["修改時間"].Visible = false;
@@ -584,12 +583,10 @@ namespace Safety_System
 
         private void DgvCategoryLaws_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            // 已隱藏再次確認日期，故此事件可保留空白防呆
         }
 
         private void BtnSaveDir_Click(object sender, EventArgs e)
         {
-            // 按鈕已隱藏
         }
 
         private void ExportToExcel(DataGridView dgv, string title)
@@ -651,166 +648,167 @@ namespace Safety_System
                     Form activeForm = Form.ActiveForm;
                     if (activeForm != null) activeForm.Cursor = Cursors.WaitCursor;
 
-                    PrintDocument pd = new PrintDocument();
-                    pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
-                    pd.PrinterSettings.PrintToFile = true;
-                    pd.PrinterSettings.PrintFileName = sfd.FileName;
-                    pd.DefaultPageSettings.Landscape = true; 
-                    pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
-
-                    int rowIndex = 0;
-                    int pageNumber = 1;
-
-                    // 取得可見欄位並計算總寬度
-                    List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
-                    float totalWidth = 0;
-                    foreach (DataGridViewColumn col in dgv.Columns) {
-                        if (col.Visible) {
-                            visCols.Add(col);
-                            totalWidth += col.Width;
-                        }
-                    }
-
-                    // ====== 預先模擬計算總頁數 ======
-                    int totalPages = 1;
-                    float simW = 1169f - 80f; // A4 橫向寬度扣掉左右 Margin
-                    float simH = 827f - 80f;  // A4 橫向高度扣掉上下 Margin
-                    
-                    float scale = simW / totalWidth;
-                    if (scale > 1f) scale = 1f;
-                    
-                    float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
-                    float simStartY = 40f + 40f + 35f + 30f + headerH; // 包含 4行標題 + 1列表頭的高度 (不縮放)
-                    float simCurrentY = simStartY;
-                    float simBottomLimit = simH - 30f; // 留給底部頁碼的空間
-
-                    for (int i = 0; i < dgv.Rows.Count; i++) {
-                        float rowH = dgv.Rows[i].Height < 30 ? 30 : dgv.Rows[i].Height;
-                        float scaledRowH = rowH * scale; 
-                        
-                        if (simCurrentY + scaledRowH > simBottomLimit) {
-                            totalPages++;
-                            simCurrentY = simStartY + scaledRowH;
-                        } else {
-                            simCurrentY += scaledRowH;
-                        }
-                    }
-
-                    // ====== 正式繪製邏輯 ======
-                    pd.PrintPage += (s, e) => 
+                    try
                     {
-                        Graphics g = e.Graphics;
-                        float y = e.MarginBounds.Top;
-                        float x = e.MarginBounds.Left;
-                        float w = e.MarginBounds.Width;
+                        PrintDocument pd = new PrintDocument();
+                        pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                        pd.PrinterSettings.PrintToFile = true;
+                        pd.PrinterSettings.PrintFileName = sfd.FileName;
+                        pd.DefaultPageSettings.Landscape = true; 
+                        pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
 
-                        Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
-                        Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
-                        Font fSign = new Font("Microsoft JhengHei UI", 12F);
-                        Font fDate = new Font("Microsoft JhengHei UI", 11F);
-                        Font font = new Font("Microsoft JhengHei UI", 10F);
-                        Font headerFont = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
+                        int rowIndex = 0;
+                        int pageNumber = 1;
 
-                        StringFormat fmtCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        StringFormat fmtLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-
-                        // 1. 第一行：大標題
-                        g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), fmtCenter); 
-                        y += 40;
-
-                        // 2. 第二行：副標題
-                        g.DrawString(reportTitle, fSub, Brushes.Black, new RectangleF(x, y, w, 30), fmtCenter); 
-                        y += 40;
-
-                        // 3. 第三行：簽核
-                        string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
-                        g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), fmtCenter); 
-                        y += 35;
-
-                        // 4. 第四行：查詢條件 (🟢 移除導出日期)
-                        string dateStr = "";
-                        if (reportTitle == "年度法令總鑑別表") {
-                            dateStr = $"查詢條件：{_cboYearlyCategory.Text} / {_cboYearlyYear.Text}年度 / 適用性:{_cboYearlyApplicability.Text}";
-                        } else if (reportTitle == "法令目錄一覽表") {
-                            dateStr = $"查詢條件：{_cboCategory.Text}";
-                        }
-                        
-                        g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), fmtLeft); 
-                        y += 30;
-
-                        // 儲存目前未縮放的座標點
-                        float savedY = y;
-                        
-                        // 套用縮放以適應紙張寬度
-                        g.ScaleTransform(scale, scale);
-                        x = e.MarginBounds.Left / scale;
-                        y = savedY / scale;
-                        float bottomLimit = (e.MarginBounds.Bottom - 30) / scale; // 給內容列的底部限制
-                        
-                        // 畫表頭
-                        for (int i = 0; i < visCols.Count; i++) 
-                        {
-                            RectangleF rectF = new RectangleF(x, y, visCols[i].Width, headerH);
-                            Rectangle rect = Rectangle.Round(rectF); 
-                            g.FillRectangle(Brushes.LightGray, rect);
-                            g.DrawRectangle(Pens.Black, rect);
-                            
-                            string headerText = visCols[i].HeaderText.Replace("\n", "");
-                            g.DrawString(headerText, headerFont, Brushes.Black, rect, fmtCenter);
-                            x += visCols[i].Width;
-                        }
-                        y += headerH;
-
-                        // 畫資料列
-                        while (rowIndex < dgv.Rows.Count) 
-                        {
-                            DataGridViewRow row = dgv.Rows[rowIndex];
-                            float rowH = row.Height < 30 ? 30 : row.Height;
-                            
-                            if (y + rowH > bottomLimit) 
-                            {
-                                break;
+                        List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
+                        float totalWidth = 0;
+                        foreach (DataGridViewColumn col in dgv.Columns) {
+                            if (col.Visible) {
+                                visCols.Add(col);
+                                totalWidth += col.Width;
                             }
+                        }
 
+                        // ====== 先計算總頁數 ======
+                        int totalPages = 1;
+                        float simW = 1169f - 80f; 
+                        float simH = 827f - 80f;  
+                        
+                        float scale = simW / totalWidth;
+                        if (scale > 1f) scale = 1f;
+                        
+                        float headerH = dgv.ColumnHeadersHeight < 40 ? 40 : dgv.ColumnHeadersHeight;
+                        // 標題與簽核預留高度：35(主標) + 40(間距) + 30(副標) + 40(間距) + 25(簽核) + 35(間距) + 20(日期) + 30(間距) = 255f
+                        float simStartY = 255f + headerH; 
+                        float simCurrentY = simStartY;
+                        float simBottomLimit = simH - 30f; 
+
+                        for (int i = 0; i < dgv.Rows.Count; i++) {
+                            float rowH = dgv.Rows[i].Height < 30 ? 30 : dgv.Rows[i].Height;
+                            float scaledRowH = rowH * scale; 
+                            
+                            if (simCurrentY + scaledRowH > simBottomLimit) {
+                                totalPages++;
+                                simCurrentY = simStartY + scaledRowH;
+                            } else {
+                                simCurrentY += scaledRowH;
+                            }
+                        }
+
+                        // ====== 正式繪製 ======
+                        pd.PrintPage += (s, e) => 
+                        {
+                            Graphics g = e.Graphics;
+                            float y = e.MarginBounds.Top;
+                            float x = e.MarginBounds.Left;
+                            float w = e.MarginBounds.Width;
+
+                            Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
+                            Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
+                            Font fSign = new Font("Microsoft JhengHei UI", 12F);
+                            Font fDate = new Font("Microsoft JhengHei UI", 11F);
+                            Font font = new Font("Microsoft JhengHei UI", 10F);
+                            Font headerFont = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
+
+                            StringFormat fmtCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                            StringFormat fmtLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                            // 第一行：大標題置中
+                            g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), fmtCenter); 
+                            y += 40;
+
+                            // 第二行：副標題置中
+                            g.DrawString(reportTitle, fSub, Brushes.Black, new RectangleF(x, y, w, 30), fmtCenter); 
+                            y += 40;
+
+                            // 第三行：簽核置中
+                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
+                            g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), fmtCenter); 
+                            y += 35;
+
+                            // 第四行：查詢條件靠左
+                            string dateStr = "";
+                            if (reportTitle == "年度法令總鑑別表") {
+                                dateStr = $"查詢條件：{_cboYearlyCategory.Text} / {_cboYearlyYear.Text}年度 / 適用性:{_cboYearlyApplicability.Text}";
+                            } else if (reportTitle == "法令目錄一覽表") {
+                                dateStr = $"查詢條件：{_cboCategory.Text}";
+                            }
+                            
+                            g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), fmtLeft); 
+                            y += 30;
+
+                            float savedY = y;
+                            
+                            g.ScaleTransform(scale, scale);
                             x = e.MarginBounds.Left / scale;
+                            y = savedY / scale;
+                            float bottomLimit = (e.MarginBounds.Bottom - 30) / scale; 
+                            
+                            // 表頭
                             for (int i = 0; i < visCols.Count; i++) 
                             {
-                                RectangleF rectF = new RectangleF(x, y, visCols[i].Width, rowH);
-                                Rectangle rect = Rectangle.Round(rectF);
+                                RectangleF rectF = new RectangleF(x, y, visCols[i].Width, headerH);
+                                Rectangle rect = Rectangle.Round(rectF); 
+                                g.FillRectangle(Brushes.LightGray, rect);
                                 g.DrawRectangle(Pens.Black, rect);
                                 
-                                string val = row.Cells[visCols[i].Index].Value?.ToString() ?? "";
-                                g.DrawString(val, font, Brushes.Black, rect, fmtCenter);
+                                string headerText = visCols[i].HeaderText.Replace("\n", "");
+                                g.DrawString(headerText, headerFont, Brushes.Black, rect, fmtCenter);
                                 x += visCols[i].Width;
                             }
-                            y += rowH;
-                            rowIndex++;
-                        }
+                            y += headerH;
 
-                        // 恢復縮放比例畫底部的頁碼
-                        g.ResetTransform();
-                        g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(e.MarginBounds.Left, e.MarginBounds.Bottom - 15, w, 20), fmtCenter);
+                            // 資料列
+                            while (rowIndex < dgv.Rows.Count) 
+                            {
+                                DataGridViewRow row = dgv.Rows[rowIndex];
+                                float rowH = row.Height < 30 ? 30 : row.Height;
+                                
+                                if (y + rowH > bottomLimit) 
+                                {
+                                    break;
+                                }
 
-                        if (rowIndex < dgv.Rows.Count) {
-                            pageNumber++;
-                            e.HasMorePages = true;
-                        } else {
-                            e.HasMorePages = false;
-                            rowIndex = 0;
-                            pageNumber = 1;
-                        }
-                    };
+                                x = e.MarginBounds.Left / scale;
+                                for (int i = 0; i < visCols.Count; i++) 
+                                {
+                                    RectangleF rectF = new RectangleF(x, y, visCols[i].Width, rowH);
+                                    Rectangle rect = Rectangle.Round(rectF);
+                                    g.DrawRectangle(Pens.Black, rect);
+                                    
+                                    string val = row.Cells[visCols[i].Index].Value?.ToString() ?? "";
+                                    g.DrawString(val, font, Brushes.Black, rect, fmtCenter);
+                                    x += visCols[i].Width;
+                                }
+                                y += rowH;
+                                rowIndex++;
+                            }
 
-                    try 
-                    { 
+                            g.ResetTransform();
+                            
+                            // 底部頁碼置中
+                            g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(e.MarginBounds.Left, e.MarginBounds.Bottom - 15, w, 20), fmtCenter);
+
+                            if (rowIndex < dgv.Rows.Count) {
+                                pageNumber++;
+                                e.HasMorePages = true;
+                            } else {
+                                e.HasMorePages = false;
+                                rowIndex = 0;
+                                pageNumber = 1;
+                            }
+                        };
+
                         pd.Print(); 
-                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex) 
                     { 
-                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
                 }
             }
