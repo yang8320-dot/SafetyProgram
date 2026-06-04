@@ -106,7 +106,7 @@ namespace Safety_System
             _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(110, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
 
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 選擇並導出 PDF", Size = new Size(180, btnHeight), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
             btnPdf.Click += BtnPdf_Click;
 
             Button btnSetting = new Button { Text = "⚙️ 統計設定", Size = new Size(130, btnHeight), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(10, 0, 0, 0) };
@@ -174,9 +174,6 @@ namespace Safety_System
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 150), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
-        // =========================================================
-        // 萬能日期解析器：自動應付民國年、西元年、各種格式差異
-        // =========================================================
         private DateTime? ParseUniversalDate(string dateStr)
         {
             if (string.IsNullOrWhiteSpace(dateStr)) return null;
@@ -208,9 +205,6 @@ namespace Safety_System
             return null;
         }
 
-        // =========================================================
-        // 日期控制與資料運算
-        // =========================================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
@@ -681,7 +675,7 @@ namespace Safety_System
                     Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
                     ComboBox cbColEnd = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
                     
-                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
+                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x7, cy), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
                     ComboBox cbColStart = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
 
                     pRow.Controls.AddRange(new Control[] {
@@ -976,146 +970,18 @@ namespace Safety_System
             var panelsToExport = GetSelectedExportPanels();
             if (panelsToExport.Count == 0) return;
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "工安數據統計表_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            // 🟢 替換為呼叫共用模板
+            List<Bitmap> bitmaps = new List<Bitmap>();
+            foreach (var pnl in panelsToExport) 
             {
-                if (sfd.ShowDialog() == DialogResult.OK) 
-                {
-                    try 
-                    {
-                        Application.UseWaitCursor = true;
-                        Cursor.Current = Cursors.WaitCursor;
-
-                        List<Bitmap> bitmaps = new List<Bitmap>();
-                        foreach (var pnl in panelsToExport) 
-                        {
-                            Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                            pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                            bitmaps.Add(bmp);
-                        }
-
-                        PrintDocument pd = new PrintDocument();
-                        pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
-                        pd.PrinterSettings.PrintToFile = true;
-                        pd.PrinterSettings.PrintFileName = sfd.FileName;
-                        pd.DefaultPageSettings.Landscape = true; 
-                        pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
-
-                        int currentBmpIndex = 0;
-                        int pageNumber = 1;
-
-                        int totalPages = 1;
-                        float simW = 1169f - 80f; 
-                        float simH = 827f - 80f;  
-                        float simStartY = 40f + 145f; 
-                        float simCurrentY = simStartY;
-                        float simBottomLimit = 40f + simH - 30f; 
-
-                        foreach (var bmp in bitmaps) {
-                            float simScale = simW / bmp.Width;
-                            float simScaledHeight = bmp.Height * simScale;
-
-                            if (simCurrentY + simScaledHeight > simBottomLimit) {
-                                if (simCurrentY == simStartY) {
-                                    simCurrentY += simScaledHeight + 20f;
-                                } else {
-                                    totalPages++;
-                                    simCurrentY = simStartY + simScaledHeight + 20f;
-                                }
-                            } else {
-                                simCurrentY += simScaledHeight + 20f;
-                            }
-                        }
-
-                        pd.PrintPage += (s, ev) => 
-                        {
-                            Graphics g = ev.Graphics;
-                            float w = ev.MarginBounds.Width;
-                            float x = ev.MarginBounds.Left;
-                            float y = ev.MarginBounds.Top;
-
-                            Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
-                            Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
-                            Font fSign = new Font("Microsoft JhengHei UI", 12F);
-                            Font fDate = new Font("Microsoft JhengHei UI", 11F);
-
-                            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
-                            StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near };
-
-                            g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
-                            y += 40;
-
-                            g.DrawString("工安數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
-                            y += 40;
-
-                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________   主辦：______________    制表：______________";
-                            g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
-                            y += 35;
-
-                            // 🟢 移除導出日期
-                            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
-                            g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
-                            y += 30;
-
-                            float headerHeightReserved = y; 
-                            float bottomLimit = ev.MarginBounds.Bottom - 30; 
-
-                            while (currentBmpIndex < bitmaps.Count) 
-                            {
-                                Bitmap bmp = bitmaps[currentBmpIndex];
-                                float scale = w / bmp.Width;
-                                float scaledHeight = bmp.Height * scale;
-
-                                if (y + scaledHeight > bottomLimit) 
-                                {
-                                    if (y == headerHeightReserved) 
-                                    {
-                                        scale = Math.Min(scale, (float)(bottomLimit - y) / bmp.Height);
-                                        scaledHeight = bmp.Height * scale;
-                                        g.DrawImage(bmp, x, y, bmp.Width * scale, scaledHeight);
-                                        y += scaledHeight + 20;
-                                        currentBmpIndex++;
-                                    } 
-                                    else 
-                                    {
-                                        break; 
-                                    }
-                                } 
-                                else 
-                                {
-                                    g.DrawImage(bmp, x, y, w, scaledHeight);
-                                    y += scaledHeight + 20; 
-                                    currentBmpIndex++;
-                                }
-                            }
-
-                            g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
-
-                            if (currentBmpIndex < bitmaps.Count) {
-                                pageNumber++;
-                                ev.HasMorePages = true;
-                            } else {
-                                ev.HasMorePages = false;
-                            }
-                        };
-
-                        pd.Print();
-                        foreach (var bmp in bitmaps) bmp.Dispose();
-
-                        Application.UseWaitCursor = false;
-                        Cursor.Current = Cursors.Default;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-
-                        MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        Application.UseWaitCursor = false;
-                        Cursor.Current = Cursors.Default;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    } 
-                }
+                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                bitmaps.Add(bmp);
             }
+
+            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+            
+            PdfHelper.ExportDashboardToPdf(bitmaps, "工安數據統計表", dateStr, "工安數據統計表");
         }
     }
 }
