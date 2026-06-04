@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_AirDashboard.cs ///
+/// FILE: Safety_System/Dashboard/App_AirDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -640,11 +640,12 @@ namespace Safety_System
                             g.DrawString("空污費申報【排放量】統計報表", fSubTitle, Brushes.MidnightBlue, new RectangleF(x, y, pageWidth, 25), sfCenter); 
                             y += 45; 
                             
-                            string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        製表人：_________________";
+                            string signText = "廠主管：_________________        經/副理：_________________        課/股長：_________________        主辦：_________________        製表人：_________________";
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
 
-                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}    查詢區間：{_cboAirYear.Text}年度 {_cboAirQuarter.Text}", fDate, Brushes.Gray, x, y); 
+                            // 🟢 移除導出日期，僅保留查詢區間
+                            g.DrawString($"查詢區間：{_cboAirYear.Text}年度 {_cboAirQuarter.Text}", fDate, Brushes.Gray, x, y); 
                             y += 25;
                             
                             string[] headers = { "當期申報數據", "去年同期數據", "前年同期數據", "與去年同期差異" };
@@ -742,10 +743,10 @@ namespace Safety_System
                             g.DrawString(signText, fSign, Brushes.Black, new RectangleF(x, y, pageWidth, 20), sfCenter);
                             y += 45; 
 
-                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fDate, Brushes.Gray, x, y); 
+                            // 🟢 移除導出日期，僅保留間距高度
                             y += 25;
                         } else {
-                            g.DrawString($"導出日期：{DateTime.Now:yyyy-MM-dd HH:mm}", fDate, Brushes.Gray, x, y); 
+                            // 🟢 移除導出日期，僅保留間距高度
                             y += 25;
                         }
                         
