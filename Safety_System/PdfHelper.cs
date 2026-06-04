@@ -289,7 +289,7 @@ namespace Safety_System
                         };
 
                         pd.Print();
-                        MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("PDF 匯出成功", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex)
                     {
