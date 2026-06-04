@@ -556,7 +556,6 @@ namespace Safety_System
             return dict;
         }
 
-        // 🟢 改用 年月 查詢
         private Dictionary<string, double> CalculateMonthlyVolumeStats(string startYM, string endYM)
         {
             var dict = new Dictionary<string, double> { 
@@ -589,7 +588,6 @@ namespace Safety_System
             return dict;
         }
 
-        // 🟢 改用 年月 查詢
         private Dictionary<string, double> CalculateDischargeStats(string startYM, string endYM)
         {
             var dict = new Dictionary<string, double>();
@@ -944,18 +942,18 @@ namespace Safety_System
                         pd.PrinterSettings.PrintToFile = true;
                         pd.PrinterSettings.PrintFileName = sfd.FileName;
                         pd.DefaultPageSettings.Landscape = true; 
-                        pd.DefaultPageSettings.Margins = new Margins(30, 30, 40, 40); // 底部保留 40
+                        pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40); 
 
                         int currentBmpIndex = 0;
                         int pageNumber = 1;
 
                         // ====== 先計算總頁數 ======
                         int totalPages = 1;
-                        float simW = 1169f - 60f; 
+                        float simW = 1169f - 80f; 
                         float simH = 827f - 80f;  
-                        float simStartY = 30f + 145f; 
+                        float simStartY = 40f + 145f; 
                         float simCurrentY = simStartY;
-                        float simBottomLimit = simH - 30f; 
+                        float simBottomLimit = 40f + simH - 30f; 
 
                         foreach (var bmp in bitmaps) {
                             float simScale = simW / bmp.Width;
@@ -1048,17 +1046,18 @@ namespace Safety_System
                         pd.Print();
                         foreach (var bmp in bitmaps) bmp.Dispose();
 
-                        Application.UseWaitCursor = false;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-
                         MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } 
                     catch (Exception ex) 
                     { 
-                        Application.UseWaitCursor = false;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    } 
+                    }
+                    finally
+                    {
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
                 }
             }
         }
