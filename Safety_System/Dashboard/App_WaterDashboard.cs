@@ -114,7 +114,7 @@ namespace Safety_System
             box1.Controls.Add(flpTop);
             mainLayout.Controls.Add(box1, 0, 0);
 
-            // 日報表資料框 - 移除「台灣玻璃彰濱廠 - 」
+            // 日報表資料框 (移除台灣玻璃彰濱廠 - )
             _pnlWaterBox = BuildNineGridBox("WaterStat", "水資源數據統計", Color.Teal, out _lblBox2Sub1, out _lblBox2Sub2, out _lblBox2Sub3, out _lblBox2Sub4, out _pnlBox2Data1, out _pnlBox2Data2, out _pnlBox2Data3, out _pnlBox2Data4);
             _pnlRecycleBox = BuildNineGridBox("RecycleStat", "回收水統計", Color.ForestGreen, out _lblBox3Sub1, out _lblBox3Sub2, out _lblBox3Sub3, out _lblBox3Sub4, out _pnlBox3Data1, out _pnlBox3Data2, out _pnlBox3Data3, out _pnlBox3Data4);
             _pnlChemBox = BuildNineGridBox("ChemStat", "藥劑數據統計", Color.Sienna, out _lblBox4Sub1, out _lblBox4Sub2, out _lblBox4Sub3, out _lblBox4Sub4, out _pnlBox4Data1, out _pnlBox4Data2, out _pnlBox4Data3, out _pnlBox4Data4);
@@ -160,7 +160,7 @@ namespace Safety_System
             boxMonthlyFilter.Controls.Add(flpTopMonthly);
             mainLayout.Controls.Add(boxMonthlyFilter, 0, 5);
 
-            // 月報表資料框 - 移除「台灣玻璃彰濱廠 - 」
+            // 月報表資料框 (移除台灣玻璃彰濱廠 - )
             _pnlDischargeBox = BuildNineGridBox("DischargeStat", "納管排放數據統計", Color.DarkCyan, out _lblBox6Sub1, out _lblBox6Sub2, out _lblBox6Sub3, out _lblBox6Sub4, out _pnlBox6Data1, out _pnlBox6Data2, out _pnlBox6Data3, out _pnlBox6Data4);
             _pnlMonthlyVolumeBox = BuildNineGridBox("MonthlyVolume", "自來水用量(繳費單)月統計", Color.MediumPurple, out _lblBox7Sub1, out _lblBox7Sub2, out _lblBox7Sub3, out _lblBox7Sub4, out _pnlBox7Data1, out _pnlBox7Data2, out _pnlBox7Data3, out _pnlBox7Data4);
 
@@ -556,6 +556,7 @@ namespace Safety_System
             return dict;
         }
 
+        // 🟢 改用 年月 查詢
         private Dictionary<string, double> CalculateMonthlyVolumeStats(string startYM, string endYM)
         {
             var dict = new Dictionary<string, double> { 
@@ -588,6 +589,7 @@ namespace Safety_System
             return dict;
         }
 
+        // 🟢 改用 年月 查詢
         private Dictionary<string, double> CalculateDischargeStats(string startYM, string endYM)
         {
             var dict = new Dictionary<string, double>();
@@ -920,146 +922,18 @@ namespace Safety_System
             var panelsToExport = GetSelectedExportPanels();
             if (panelsToExport.Count == 0) return;
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = "水資源綜合統計表_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            // 🟢 替換為呼叫共用模板
+            List<Bitmap> bitmaps = new List<Bitmap>();
+            foreach (var pnl in panelsToExport) 
             {
-                if (sfd.ShowDialog() == DialogResult.OK) 
-                {
-                    try 
-                    {
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-                        Application.UseWaitCursor = true;
-
-                        List<Bitmap> bitmaps = new List<Bitmap>();
-                        foreach (var pnl in panelsToExport) 
-                        {
-                            Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                            pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                            bitmaps.Add(bmp);
-                        }
-
-                        PrintDocument pd = new PrintDocument();
-                        pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
-                        pd.PrinterSettings.PrintToFile = true;
-                        pd.PrinterSettings.PrintFileName = sfd.FileName;
-                        pd.DefaultPageSettings.Landscape = true; 
-                        pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40); 
-
-                        int currentBmpIndex = 0;
-                        int pageNumber = 1;
-
-                        // ====== 先計算總頁數 ======
-                        int totalPages = 1;
-                        float simW = 1169f - 80f; 
-                        float simH = 827f - 80f;  
-                        float simStartY = 40f + 145f; 
-                        float simCurrentY = simStartY;
-                        float simBottomLimit = 40f + simH - 30f; 
-
-                        foreach (var bmp in bitmaps) {
-                            float simScale = simW / bmp.Width;
-                            float simScaledHeight = bmp.Height * simScale;
-
-                            if (simCurrentY + simScaledHeight > simBottomLimit) {
-                                if (simCurrentY == simStartY) {
-                                    simCurrentY += simScaledHeight + 20f;
-                                } else {
-                                    totalPages++;
-                                    simCurrentY = simStartY + simScaledHeight + 20f;
-                                }
-                            } else {
-                                simCurrentY += simScaledHeight + 20f;
-                            }
-                        }
-
-                        // ====== 正式繪製 ======
-                        pd.PrintPage += (s, ev) => 
-                        {
-                            Graphics g = ev.Graphics;
-                            float w = ev.MarginBounds.Width;
-                            float x = ev.MarginBounds.Left;
-                            float y = ev.MarginBounds.Top;
-
-                            Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
-                            Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
-                            Font fSign = new Font("Microsoft JhengHei UI", 12F);
-                            Font fDate = new Font("Microsoft JhengHei UI", 11F);
-
-                            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
-                            StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near };
-
-                            g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
-                            y += 40;
-
-                            g.DrawString("水資源數據統計表", fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
-                            y += 40;
-
-                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
-                            g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
-                            y += 35;
-
-                            string dateStr = $"日報查詢：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text}~{_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}    月報查詢：{_cboStartMonthYear.Text}/{_cboStartMonthMonth.Text}~{_cboEndMonthYear.Text}/{_cboEndMonthMonth.Text}";
-                            g.DrawString(dateStr, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
-                            y += 30;
-
-                            float headerHeightReserved = y; 
-                            float bottomLimit = ev.MarginBounds.Bottom - 30; 
-
-                            while (currentBmpIndex < bitmaps.Count) 
-                            {
-                                Bitmap bmp = bitmaps[currentBmpIndex];
-                                float scale = w / bmp.Width;
-                                float scaledHeight = bmp.Height * scale;
-
-                                if (y + scaledHeight > bottomLimit) 
-                                {
-                                    if (y == headerHeightReserved) 
-                                    {
-                                        scale = Math.Min(scale, (float)(bottomLimit - y) / bmp.Height);
-                                        scaledHeight = bmp.Height * scale;
-                                        g.DrawImage(bmp, x, y, bmp.Width * scale, scaledHeight);
-                                        y += scaledHeight + 20;
-                                        currentBmpIndex++;
-                                    } 
-                                    else 
-                                    {
-                                        break; 
-                                    }
-                                } 
-                                else 
-                                {
-                                    g.DrawImage(bmp, x, y, w, scaledHeight);
-                                    y += scaledHeight + 20; 
-                                    currentBmpIndex++;
-                                }
-                            }
-
-                            g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
-
-                            if (currentBmpIndex < bitmaps.Count) {
-                                pageNumber++;
-                                ev.HasMorePages = true;
-                            } else {
-                                ev.HasMorePages = false;
-                            }
-                        };
-
-                        pd.Print();
-                        foreach (var bmp in bitmaps) bmp.Dispose();
-
-                        MessageBox.Show("PDF 匯出成功！已依設定格式排版完成。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } 
-                    catch (Exception ex) 
-                    { 
-                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                    finally
-                    {
-                        Application.UseWaitCursor = false;
-                        Cursor.Current = Cursors.Default;
-                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
-                    }
-                }
+                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                bitmaps.Add(bmp);
             }
+
+            string dateStr = $"日報查詢：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text}~{_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}    月報查詢：{_cboStartMonthYear.Text}/{_cboStartMonthMonth.Text}~{_cboEndMonthYear.Text}/{_cboEndMonthMonth.Text}";
+            
+            PdfHelper.ExportDashboardToPdf(bitmaps, "水資源綜合統計表", dateStr, "水資源綜合統計表");
         }
     }
 
