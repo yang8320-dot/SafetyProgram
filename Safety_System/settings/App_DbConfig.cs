@@ -13,6 +13,8 @@ namespace Safety_System
     public class App_DbConfig
     {
         private TextBox _txtPath;
+        // 🟢 新增附件路徑文字框
+        private TextBox _txtAttachmentPath;
         private TextBox _txtBackupPath;
         private NumericUpDown _numKeepCount;
         private NumericUpDown _numIntervalDays; 
@@ -66,7 +68,7 @@ namespace Safety_System
                     { "WastePermitMaterial", "廢棄物污許可(原物料)" }, 
                     { "WastePermitProduct", "廢棄物污許可(產品)" }, 
                     { "WastePermitWaste", "廢棄物污許可(廢棄物)" },
-                    { "WasteDisposalRecord", "廢棄物清運記錄" } // 🟢 新增
+                    { "WasteDisposalRecord", "廢棄物清運記錄" }
                 })},
                 { "Fire", ("消防", new Dictionary<string, string> { 
                     { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
@@ -259,7 +261,8 @@ namespace Safety_System
             tabDb.BackColor = Color.WhiteSmoke;
             Panel pnlDb = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
 
-            GroupBox boxPath = new GroupBox { Text = "資料庫存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            // ================= DB 路徑 =================
+            GroupBox boxPath = new GroupBox { Text = "資料庫 (DB) 存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
             _txtPath = new TextBox { Location = new Point(30, 50), Width = 600, ReadOnly = true, Text = currentPath, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -278,7 +281,7 @@ namespace Safety_System
 
                 if (System.IO.Directory.Exists(_txtPath.Text)) {
                     DataManager.SetBasePath(_txtPath.Text);
-                    MessageBox.Show("路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("DB 路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 } else {
                     MessageBox.Show("請選擇有效的資料夾路徑。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -286,6 +289,36 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
+            // ================= 🟢 新增：附件路徑 =================
+            GroupBox boxAttachPath = new GroupBox { Text = "附件檔案存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            boxAttachPath.Margin = new Padding(0, 30, 0, 0);
+
+            string currentAttachPath = string.IsNullOrEmpty(DataManager.AttachmentBasePath) ? "" : DataManager.AttachmentBasePath;
+            _txtAttachmentPath = new TextBox { Location = new Point(30, 50), Width = 600, ReadOnly = true, Text = currentAttachPath, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
+            Button btnBrowseAttach = new Button { Text = "選擇資料夾", Location = new Point(650, 48), Size = new Size(150, 35), Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnBrowseAttach.Click += (s, e) => {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog { Description = "請選擇附件檔案存放的資料夾" }) {
+                    if (fbd.ShowDialog() == DialogResult.OK) _txtAttachmentPath.Text = fbd.SelectedPath;
+                }
+            };
+            
+            Button btnSaveAttachPath = new Button { Text = "儲存附件路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnSaveAttachPath.Click += (s, e) => {
+                string authPrompt = "變更附件存放路徑需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                if (!AuthManager.VerifyAdmin(authPrompt)) return; 
+
+                if (System.IO.Directory.Exists(_txtAttachmentPath.Text)) {
+                    DataManager.SetAttachmentBasePath(_txtAttachmentPath.Text);
+                    MessageBox.Show("附件路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } else {
+                    MessageBox.Show("請選擇有效的資料夾路徑。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            boxAttachPath.Controls.AddRange(new Control[] { _txtAttachmentPath, btnBrowseAttach, btnSaveAttachPath });
+
+            // ================= 備份設定 =================
             GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (背景自動執行)", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxBackup.Margin = new Padding(0, 30, 0, 0);
 
@@ -326,6 +359,7 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, lblB4, _numIntervalDays, lblB5, btnSaveBackup, btnManualBackup });
 
+            // ================= 刪除資料表 =================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
 
@@ -344,10 +378,13 @@ namespace Safety_System
 
             Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 30 };
             Panel spacer2 = new Panel { Dock = DockStyle.Top, Height = 30 };
+            Panel spacer3 = new Panel { Dock = DockStyle.Top, Height = 30 };
 
             pnlDb.Controls.Add(boxDelete);
-            pnlDb.Controls.Add(spacer2);
+            pnlDb.Controls.Add(spacer3);
             pnlDb.Controls.Add(boxBackup);
+            pnlDb.Controls.Add(spacer2);
+            pnlDb.Controls.Add(boxAttachPath); 
             pnlDb.Controls.Add(spacer1);
             pnlDb.Controls.Add(boxPath);
 
