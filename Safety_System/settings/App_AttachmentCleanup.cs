@@ -1,3 +1,4 @@
+/// FILE: Safety_System/settings/App_AttachmentCleanup.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
@@ -165,8 +166,12 @@ namespace Safety_System
                                             string[] paths = pathsStr.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
                                             foreach (var p in paths)
                                             {
-                                                // 統一轉為正斜線 / 以利比對
-                                                dbReferencedPaths.Add(p.Replace("\\", "/").Trim());
+                                                // 統一轉為正斜線 / 以利比對，並去掉 "附件/" 開頭，以配合動態路徑對接
+                                                string cleanPath = p.Replace("\\", "/").Trim();
+                                                if (cleanPath.StartsWith("附件/")) {
+                                                    cleanPath = cleanPath.Substring(3);
+                                                }
+                                                dbReferencedPaths.Add(cleanPath);
                                             }
                                         }
                                     }
@@ -186,7 +191,9 @@ namespace Safety_System
                 // 2. 掃描實體附件資料夾
                 try
                 {
-                    string attachRootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
+                    // 🟢 套用動態附件路徑
+                    string attachRootDir = DataManager.AttachmentBasePath;
+                    
                     if (!Directory.Exists(attachRootDir))
                     {
                         Log("⚠️ 找不到「附件」資料夾，目前無任何實體檔案。", Color.Orange);
@@ -201,8 +208,8 @@ namespace Safety_System
 
                     foreach (var file in physicalFiles)
                     {
-                        // 將絕對路徑轉為相對路徑 (例如: 附件/Water/WaterMeterReadings/2023-10/123.pdf)
-                        string relPath = file.Substring(AppDomain.CurrentDomain.BaseDirectory.Length).TrimStart('\\', '/').Replace("\\", "/");
+                        // 🟢 將實體檔案絕對路徑轉為相對路徑，以對接資料庫紀錄 (例如：Water/WaterMeterReadings/2023-10/123.pdf)
+                        string relPath = file.Substring(attachRootDir.Length).TrimStart('\\', '/').Replace("\\", "/");
 
                         if (dbReferencedPaths.Contains(relPath))
                         {
@@ -210,7 +217,6 @@ namespace Safety_System
                         }
                         else
                         {
-                            // 🟢 企業級防護 3：如果檔案是在 24 小時內建立的，強制保護不列入孤兒名單
                             FileInfo fi = new FileInfo(file);
                             if (fi.CreationTime > cutoffTime || fi.LastWriteTime > cutoffTime)
                             {
@@ -280,7 +286,9 @@ namespace Safety_System
                 // 清理空資料夾
                 try
                 {
-                    string attachRootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
+                    // 🟢 套用動態附件路徑
+                    string attachRootDir = DataManager.AttachmentBasePath;
+                    
                     if (Directory.Exists(attachRootDir))
                     {
                         int dirDeleted = CleanEmptyDirectories(attachRootDir);
