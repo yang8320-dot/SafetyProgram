@@ -209,6 +209,9 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(原物料)", () => new App_CoreTable("Waste", "WastePermitMaterial", "廢棄物污許可(原物料)", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(產品)", () => new App_CoreTable("Waste", "WastePermitProduct", "廢棄物污許可(產品)", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(廢棄物)", () => new App_CoreTable("Waste", "WastePermitWaste", "廢棄物污許可(廢棄物)", new DefaultLogic()).GetView()));
+            // 🟢 新增的【廢棄物清運記錄】按鈕
+            menuWaste.DropDownItems.Add(new ToolStripSeparator());
+            menuWaste.DropDownItems.Add(CreateItem("廢棄物清運記錄", () => new App_CoreTable("Waste", "WasteDisposalRecord", "廢棄物清運記錄", new DefaultLogic()).GetView()));
 
             menuAirWaterWaste.DropDownItems.Add(menuAir);
             menuAirWaterWaste.DropDownItems.Add(menuWater);
@@ -323,7 +326,6 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 🟢 整合為單一「權限設定」選項 (包含授權帳號與選單閱覽權限)
             var permissionItem = new ToolStripMenuItem("權限設定");
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
@@ -418,13 +420,9 @@ namespace Safety_System
                 menuApp, _menu1, _menu2, _menu3, _menu4, menuSettings 
             });
 
-            // 🟢 新增：在選單建置完成後，依據當前登入者身分隱藏不具權限的選單
             ApplyViewPermissions();
         }
 
-        // =========================================================================
-        // 🟢 動態閱覽權限管理引擎核心邏輯
-        // =========================================================================
         private void ApplyViewPermissions()
         {
             try
@@ -432,14 +430,12 @@ namespace Safety_System
                 string currentUser = Environment.UserName.Trim();
                 HashSet<string> hiddenMenus = new HashSet<string>();
 
-                // 從資料庫撈取此使用者的黑名單
                 string dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
                 if (!File.Exists(dbPath)) return;
 
                 using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
                 {
                     conn.Open();
-                    // 確保資料表存在以防首次啟動時出錯
                     using (var cmdChk = new System.Data.SQLite.SQLiteCommand("CREATE TABLE IF NOT EXISTS [HiddenUserMenus] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [UserName] TEXT, [MenuText] TEXT, UNIQUE(UserName, MenuText));", conn)) {
                         cmdChk.ExecuteNonQuery();
                     }
@@ -457,9 +453,8 @@ namespace Safety_System
                     }
                 }
 
-                if (hiddenMenus.Count == 0) return; // 沒有被限制的選單，直接結束
+                if (hiddenMenus.Count == 0) return; 
 
-                // 遞迴隱藏選單
                 HideMenuItems(_mainMenu.Items, hiddenMenus);
             }
             catch { }
@@ -471,14 +466,12 @@ namespace Safety_System
             {
                 if (item is ToolStripMenuItem menuItem)
                 {
-                    // 如果這個選單的名稱存在於隱藏名單中，就把它藏起來
                     if (hiddenMenus.Contains(menuItem.Text))
                     {
                         menuItem.Visible = false;
                     }
                     else
                     {
-                        // 否則繼續往下層檢查
                         HideMenuItems(menuItem.DropDownItems, hiddenMenus);
                     }
                 }
@@ -562,7 +555,6 @@ namespace Safety_System
                 pnlSpecific.Controls.Add(lblTb);
                 pnlSpecific.Controls.Add(cboTb);
 
-                // 綁定連動
                 rbAll.CheckedChanged += (s, e) => pnlSpecific.Enabled = rbSpecific.Checked;
                 
                 var dbMap = App_DbConfig.GetDbMapCache();
@@ -621,7 +613,6 @@ namespace Safety_System
 
                             if (isFullRestore) 
                             {
-                                // 覆蓋全部
                                 string[] backupFiles = Directory.GetFiles(sourceDir, "*.sqlite");
                                 foreach (var file in backupFiles)
                                 {
@@ -635,7 +626,6 @@ namespace Safety_System
                             } 
                             else 
                             {
-                                // 選擇性還原
                                 string sourceDbFile = Path.Combine(sourceDir, targetDb + ".sqlite");
                                 string destDbFile = Path.Combine(destDir, targetDb + ".sqlite");
 
@@ -645,10 +635,8 @@ namespace Safety_System
                                 }
 
                                 if (targetTb == "*") {
-                                    // 覆蓋整個單一庫
                                     File.Copy(sourceDbFile, destDbFile, true);
                                 } else {
-                                    // 精細抽出單一表 (透過 SQLite 跨庫 Insert/Replace)
                                     string attachSql = $"ATTACH DATABASE '{sourceDbFile}' AS BackupDB;";
                                     string clearSql = $"DELETE FROM main.[{targetTb}];";
                                     string copySql = $"INSERT INTO main.[{targetTb}] SELECT * FROM BackupDB.[{targetTb}];";
