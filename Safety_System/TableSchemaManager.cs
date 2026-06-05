@@ -32,21 +32,15 @@ namespace Safety_System
             { "VisitorRecord", "[日期] TEXT, [發文單位] TEXT, [拜訪目的] TEXT, [拜訪人員] TEXT, [內容概述] TEXT, [會同人員] TEXT, [聯絡書] TEXT, [相關單位] TEXT, [結案] TEXT, [簽核] TEXT, [利害相關者] TEXT, [溝通方式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
 			// ---工安---
-			// 虛驚事件
 			{ "NearMiss", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [項目] TEXT, [事故類別] TEXT, [類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [屬同事件] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-			// 輕傷事件
 			{ "MinorInjury", "[日期] TEXT, [時間] TEXT, [文件編號] TEXT, [單位] TEXT, [地點] TEXT, [項目] TEXT, [事故類別] TEXT, [類型] TEXT, [發生經過] TEXT, [改善對策] TEXT, [屬同事件] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            // 巡檢
 			{ "SafetyInspection", "[日期] TEXT, [單位] TEXT, [表單單號] TEXT, [表單主題] TEXT, [申請者] TEXT, [缺失責任人] TEXT, [危害類型主項] TEXT, [危害類型細分類] TEXT, [違規樣態類型] TEXT, [列入安全觀查事項] TEXT, [不安全行為] TEXT, [廠內曾發生工傷事件項目] TEXT, [違規分類] TEXT, [違反規定名稱] TEXT, [違反規定條款] TEXT, [建議改善事項] TEXT, [追蹤改善狀況] TEXT, [改善完成日] TEXT, [改善進度] TEXT, [附件檔案] TEXT, [備註] TEXT, [連結] TEXT" },
-			//安全觀查
             { "SafetyObservation", "[項目編號] TEXT, [日期] TEXT, [單位] TEXT, [區域] TEXT, [觀查事項說明] TEXT, [建議改善說明] TEXT, [追蹤說明] TEXT, [結案日] TEXT, [本案進度] TEXT, [觀查人] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            //工傷事件
             { "WorkInjury", "[日期] TEXT, [單位] TEXT, [姓名] TEXT, [職務] TEXT, [出生年月日] TEXT, [此工作連續服務] TEXT, [事故發生經過情形] TEXT, [事故發生原因分析] TEXT, [作業標準及訓練] TEXT, [就診醫院] TEXT, [是否住院] TEXT, [受傷程度] TEXT, [防止對策及改善措施] TEXT, [本事件負責人] TEXT, [原因類別] TEXT, [傷害類別] TEXT, [嚴重度] TEXT, [是否修訂標準書] TEXT, [工安意見] TEXT, [廠主管意見] TEXT, [失能天數] TEXT, [後追蹤說明] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            //交通意外
 			{ "TrafficInjury", "[日期] TEXT, [單位] TEXT, [姓名] TEXT, [職務] TEXT, [出生年月日] TEXT, [住址] TEXT, [電話] TEXT, [事故地點] TEXT, [交通工具] TEXT, [事故發生時間] TEXT, [原因] TEXT, [受傷程度] TEXT, [就診醫院] TEXT, [有無違反交通規則] TEXT, [有無配戴安全帽] TEXT, [駕照號碼] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            
-			
             { "LaborInspection", "[日期] TEXT, [公文文號] TEXT, [缺失事項] TEXT, [法規] TEXT, [條] TEXT, [項] TEXT, [款] TEXT, [法令條款說明] TEXT, [限期改善或罰緩] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            
+            // 廢棄物
             { "Waste_IL", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [丁基膠MT] TEXT, [結構膠MT] TEXT, [鋁條MT] TEXT, [乾燥劑MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_LM", "[年月] TEXT, [生產加不良MT] TEXT, [生產量MT] TEXT, [PVB膜MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "Waste_CR", "[年月] TEXT, [鍍膜加不良MT] TEXT, [鍍膜生產量MT] TEXT, [除膜生產加不良MT] TEXT, [除膜成品產量MT] TEXT, [靶材MT] TEXT, [隔離粉MT] TEXT, [氧化鈰MT] TEXT, [噴砂底板成品鋁MT] TEXT, [噴砂底板成品其他MT] TEXT, [氧化鋁砂金鋼砂MT] TEXT, [D1099MT] TEXT, [D2499MT] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -57,6 +51,8 @@ namespace Safety_System
             { "WastePermitMaterial", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [原料代碼] TEXT, [原料名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最大使用量t] TEXT, [月平均使用量t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastePermitProduct", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [產品代碼] TEXT, [產品名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最產出量t] TEXT, [月平均產出t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastePermitWaste", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼] TEXT, [其他製程說明] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [廢棄物月最大量] TEXT, [廢棄物月平均量] TEXT, [物理性質] TEXT, [有害特性] TEXT, [主要有害成分] TEXT, [貯存地點] TEXT, [貯存設施容施容量] TEXT, [貯存設施密閉性] TEXT, [清除方式] TEXT, [處理方式] TEXT, [中間處理方法] TEXT, [再利用管理方式] TEXT, [最終處置方式] TEXT, [產出廢液製程編號] TEXT, [清除頻率] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            // 🟢 新增：廢棄物清運記錄
+            { "WasteDisposalRecord", "[清運日期] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [清運重量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
