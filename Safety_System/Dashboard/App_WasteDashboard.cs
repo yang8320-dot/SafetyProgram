@@ -19,9 +19,10 @@ namespace Safety_System
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
-        // 兩大區塊容器
+        // 🟢 三大區塊容器 (新增了廢棄物清除)
         private DashboardSection _wasteSection;
         private DashboardSection _materialSection;
+        private DashboardSection _disposalSection;
 
         // 設定檔路徑與快取
         private readonly string SettingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WasteDashboardSettings.txt");
@@ -37,7 +38,7 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        // 定義自訂統計項目的資料結構 (加入 Category 區分廢棄物或原物料)
+        // 定義自訂統計項目的資料結構 (加入 Category 區分廢棄物、原物料或清除)
         private class WasteConfigItem
         {
             public string DisplayName { get; set; }
@@ -84,9 +85,10 @@ namespace Safety_System
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
                 ColumnCount = 1, 
-                RowCount = 4,
+                RowCount = 5, // 🟢 增加了一列給廢棄物清除
                 Margin = new Padding(0)
             };
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
@@ -137,15 +139,17 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 建置兩大區塊：廢棄物產出 與 原物料產出
+            // 建置三大區塊：廢棄物產出、原物料產出 與 廢棄物清除
             // ==========================================
             _wasteSection = BuildSection("廢棄物產出數據統計", "廢棄物產出", Color.SeaGreen);
             _materialSection = BuildSection("原物料產出數據統計", "原物料產出", Color.Sienna);
+            _disposalSection = BuildSection("廢棄物清除數據統計", "廢棄物清除", Color.SlateGray); // 🟢 新增第三大區塊
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
             masterLayout.Controls.Add(_wasteSection.MainPanel, 0, 2);
             masterLayout.Controls.Add(_materialSection.MainPanel, 0, 3);
+            masterLayout.Controls.Add(_disposalSection.MainPanel, 0, 4); // 🟢 佈局寫入第三大區塊
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -298,8 +302,10 @@ namespace Safety_System
                 DateTime dtS = GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
                 DateTime dtE = GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
 
+                // 🟢 加入第三個區塊的讀取
                 await ProcessSectionAsync(_wasteSection, dtS, dtE);
                 await ProcessSectionAsync(_materialSection, dtS, dtE);
+                await ProcessSectionAsync(_disposalSection, dtS, dtE);
             }
             finally
             {
@@ -406,7 +412,9 @@ namespace Safety_System
             section.FlpBottomBox.Controls.Clear();
             section.MonthlyPanels.Clear();
 
-            Color headerColor = section.Category == "廢棄物產出" ? Color.SeaGreen : Color.Sienna;
+            // 🟢 根據三個類別調整報表標題與顏色
+            Color headerColor = section.Category == "廢棄物產出" ? Color.SeaGreen : 
+                               (section.Category == "原物料產出" ? Color.Sienna : Color.SlateGray);
 
             foreach (var kvp in monthlyTables)
             {
@@ -500,7 +508,7 @@ namespace Safety_System
                         var cols = DataManager.GetColumnNames(src.DbName, src.TableName);
                         if (cols == null || cols.Count == 0) continue; 
 
-                        string dateCol = cols.Contains("日期") ? "日期" : (cols.Contains("年月") ? "年月" : (cols.Contains("年度") ? "年度" : ""));
+                        string dateCol = cols.Contains("清運日期") ? "清運日期" : (cols.Contains("日期") ? "日期" : (cols.Contains("年月") ? "年月" : (cols.Contains("年度") ? "年度" : "")));
                         if (string.IsNullOrEmpty(dateCol)) continue;
 
                         DataTable dt = DataManager.GetTableData(src.DbName, src.TableName, dateCol, sStr, eStr);
@@ -665,20 +673,21 @@ namespace Safety_System
                 Panel pName = new Panel { Width = 1100, Height = 45 };
                 
                 pName.Controls.Add(new Label { Text = "看板分類：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                ComboBox cboCategory = new ComboBox { Width = 130, Location = new Point(100, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-                cboCategory.Items.AddRange(new string[] { "廢棄物產出", "原物料產出" });
+                ComboBox cboCategory = new ComboBox { Width = 140, Location = new Point(100, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 加入第三個分類「廢棄物清除」
+                cboCategory.Items.AddRange(new string[] { "廢棄物產出", "原物料產出", "廢棄物清除" });
                 cboCategory.SelectedIndex = 0;
                 pName.Controls.Add(cboCategory);
 
-                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(240, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 230, Location = new Point(340, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(250, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtName = new TextBox { Width = 230, Location = new Point(350, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(580, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 80, Location = new Point(640, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "噸" };
+                pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(590, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                TextBox txtUnit = new TextBox { Width = 80, Location = new Point(650, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "噸" };
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(740, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(750, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnAddSource.FlatAppearance.BorderSize = 0;
                 pName.Controls.Add(btnAddSource);
                 
@@ -961,6 +970,7 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
+                // 🟢 加入廢棄物清除項目的勾選
                 clb.Items.Add("[廢棄物產出] 區間統計總計 (四大區塊)", true); 
                 foreach (var kvp in _wasteSection.MonthlyPanels) {
                     clb.Items.Add($"[廢棄物產出] 近三年逐月：{kvp.Key}", true);
@@ -969,6 +979,11 @@ namespace Safety_System
                 clb.Items.Add("[原物料產出] 區間統計總計 (四大區塊)", true); 
                 foreach (var kvp in _materialSection.MonthlyPanels) {
                     clb.Items.Add($"[原物料產出] 近三年逐月：{kvp.Key}", true);
+                }
+
+                clb.Items.Add("[廢棄物清除] 區間統計總計 (四大區塊)", true); 
+                foreach (var kvp in _disposalSection.MonthlyPanels) {
+                    clb.Items.Add($"[廢棄物清除] 近三年逐月：{kvp.Key}", true);
                 }
                 
                 tlp.Controls.Add(clb, 0, 1);
@@ -1000,16 +1015,22 @@ namespace Safety_System
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
                         
+                        // 🟢 處理匯出映射邏輯
                         if (text == "[廢棄物產出] 區間統計總計 (四大區塊)") {
                             selectedPanels.Add(_wasteSection.TopBox);
                         } else if (text == "[原物料產出] 區間統計總計 (四大區塊)") {
                             selectedPanels.Add(_materialSection.TopBox);
+                        } else if (text == "[廢棄物清除] 區間統計總計 (四大區塊)") {
+                            selectedPanels.Add(_disposalSection.TopBox);
                         } else if (text.StartsWith("[廢棄物產出] 近三年逐月：")) {
                             string key = text.Replace("[廢棄物產出] 近三年逐月：", "");
                             if (_wasteSection.MonthlyPanels.ContainsKey(key)) selectedPanels.Add(_wasteSection.MonthlyPanels[key]);
                         } else if (text.StartsWith("[原物料產出] 近三年逐月：")) {
                             string key = text.Replace("[原物料產出] 近三年逐月：", "");
                             if (_materialSection.MonthlyPanels.ContainsKey(key)) selectedPanels.Add(_materialSection.MonthlyPanels[key]);
+                        } else if (text.StartsWith("[廢棄物清除] 近三年逐月：")) {
+                            string key = text.Replace("[廢棄物清除] 近三年逐月：", "");
+                            if (_disposalSection.MonthlyPanels.ContainsKey(key)) selectedPanels.Add(_disposalSection.MonthlyPanels[key]);
                         }
                     }
                 }
@@ -1024,7 +1045,6 @@ namespace Safety_System
             var panelsToExport = GetSelectedExportPanels();
             if (panelsToExport.Count == 0) return;
 
-            // 🟢 替換為呼叫共用模板
             List<Bitmap> bitmaps = new List<Bitmap>();
             foreach (var pnl in panelsToExport) 
             {
