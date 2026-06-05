@@ -65,7 +65,8 @@ namespace Safety_System
                     { "Waste_T", "強化月表" }, { "Waste_GCTE", "切磨月表" }, { "Waste_ML", "物料月表" }, { "Waste_Water", "水站月表" },
                     { "WastePermitMaterial", "廢棄物污許可(原物料)" }, 
                     { "WastePermitProduct", "廢棄物污許可(產品)" }, 
-                    { "WastePermitWaste", "廢棄物污許可(廢棄物)" } 
+                    { "WastePermitWaste", "廢棄物污許可(廢棄物)" },
+                    { "WasteDisposalRecord", "廢棄物清運記錄" } // 🟢 新增
                 })},
                 { "Fire", ("消防", new Dictionary<string, string> { 
                     { "FireResponsible", "火源責任人" }, { "HazardStats", "公共危險物統計" }, { "FireEquip", "消防設備清單" }, { "FireSelfInspection", "各單位消防自主檢查" } 
@@ -384,7 +385,6 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F)
             };
             
-            // 🟢 同步開啟雙緩衝防閃爍
             typeof(DataGridView).InvokeMember("DoubleBuffered", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, 
                 null, _dgvAudit, new object[] { true });
@@ -404,7 +404,6 @@ namespace Safety_System
             
             mainPanel.Controls.Add(tabControl);
 
-            // 🟢 優化：改用陣列批次匯入，避免逐項 Add 觸發數百次畫面重繪
             var blankDb = new ItemMap { EnName = "", ChName = "" };
             var dbItems = _dbMap.Select(kvp => new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName }).ToArray();
 
@@ -846,7 +845,6 @@ namespace Safety_System
 
             foreach (string menu in requiredMenusToUnlock)
             {
-                // 🟢 統一呼叫 AuthManager 進行密碼驗證
                 if (!AuthManager.VerifyHiddenMenu(menu))
                 {
                     MessageBox.Show($"已取消儲存！因為您未通過【{menu}】的密碼驗證。", "權限不足", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -938,7 +936,6 @@ namespace Safety_System
 
                     if (!string.IsNullOrEmpty(menuName))
                     {
-                        // 🟢 統一呼叫 AuthManager 進行密碼驗證
                         if (!AuthManager.VerifyHiddenMenu(menuName))
                         {
                             _cboDb.SelectedIndex = 0; 
