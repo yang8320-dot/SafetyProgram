@@ -145,7 +145,7 @@ namespace Safety_System
         }
 
         // =========================================================================================
-        // 🟢 專供儀表板 (Dashboard) 使用的獨立 PDF 導出模板 (修復總頁數計算異常)
+        // 🟢 專供儀表板 (Dashboard) 使用的獨立 PDF 導出模板 (已修復總頁數計算精準度)
         // =========================================================================================
         public static void ExportDashboardToPdf(List<Bitmap> bitmaps, string subTitle, string dateRangeText, string defaultFileName, bool isLandscape = true)
         {
@@ -174,54 +174,46 @@ namespace Safety_System
                         int currentBmpIndex = 0;
                         int pageNumber = 1;
 
-                        // ====== 先計算總頁數 ======
+                        // ====== 先計算精準的總頁數 ======
                         int totalPages = 1;
-                        // 扣除左右 Margin
-                        float simW = (isLandscape ? 1169f : 827f) - 80f; 
-                        // 扣除上下 Margin
-                        float simH = (isLandscape ? 827f : 1169f) - 80f;  
+                        float simMargin = 40f;
+                        float simW = (isLandscape ? 1169f : 827f) - (simMargin * 2); 
+                        float simH = (isLandscape ? 827f : 1169f);  
+                        float simBottomLimit = simH - simMargin - 30f; // 留給底部頁碼的空間
                         
-                        // 標題與簽核預留高度：35(主標) + 40(間距) + 30(副標) + 40(間距) + 25(簽核) + 35(間距) + 20(日期) + 30(間距) = 255f
-                        float headerHeightReserved = 255f; 
-                        float simCurrentY = headerHeightReserved;
-                        float simBottomLimit = simH - 30f; // 留給底部頁碼的空間
+                        // 🟢 核心修復：這必須與下方繪製的 Y 軸累加高度完全一致
+                        // MarginTop(40) + y+=40 + y+=40 + y+=35 + y+=30 = 185f
+                        float simStartY = simMargin + 40f + 40f + 35f + 30f; 
+                        float simY = simStartY;
 
-                        foreach (var bmp in bitmaps)
+                        int simIndex = 0;
+                        while (simIndex < bitmaps.Count)
                         {
+                            Bitmap bmp = bitmaps[simIndex];
                             float simScale = simW / bmp.Width;
                             float simScaledHeight = bmp.Height * simScale;
 
-                            if (simCurrentY + simScaledHeight > simBottomLimit)
+                            if (simY + simScaledHeight > simBottomLimit)
                             {
-                                if (simCurrentY == headerHeightReserved) 
+                                if (simY == simStartY) // 如果單張圖高度就超過一頁，硬塞進本頁並強制壓縮
                                 {
-                                    // 🟢 核心修復：像實際印表一樣模擬強制縮放，不再任由高度失控導致頁碼暴增
-                                    float compressedScale = Math.Min(simScale, (simBottomLimit - simCurrentY) / bmp.Height);
-                                    float compressedHeight = bmp.Height * compressedScale;
-                                    simCurrentY += compressedHeight + 20f;
+                                    simScale = Math.Min(simScale, (simBottomLimit - simY) / bmp.Height);
+                                    simScaledHeight = bmp.Height * simScale;
+                                    simY += simScaledHeight + 20f;
+                                    simIndex++;
                                 }
                                 else
                                 {
-                                    // 換頁
+                                    // 超出空間，換頁處理
                                     totalPages++;
-                                    simCurrentY = headerHeightReserved; 
-                                    
-                                    // 🟢 核心修復：換到新頁後，這張圖變成了該頁的首張圖，再次檢查是否需要縮放
-                                    if (simCurrentY + simScaledHeight > simBottomLimit)
-                                    {
-                                        float compressedScale = Math.Min(simScale, (simBottomLimit - simCurrentY) / bmp.Height);
-                                        float compressedHeight = bmp.Height * compressedScale;
-                                        simCurrentY += compressedHeight + 20f;
-                                    }
-                                    else
-                                    {
-                                        simCurrentY += simScaledHeight + 20f;
-                                    }
+                                    simY = simStartY; // 重置下一頁的 Y 座標
+                                    // 注意：這裡【不增加】 simIndex，讓這張圖在「下一頁」重新計算是否放得下
                                 }
                             }
                             else
                             {
-                                simCurrentY += simScaledHeight + 20f;
+                                simY += simScaledHeight + 20f;
+                                simIndex++;
                             }
                         }
 
@@ -231,7 +223,7 @@ namespace Safety_System
                             Graphics g = ev.Graphics;
                             float w = ev.MarginBounds.Width;
                             float x = ev.MarginBounds.Left;
-                            float y = ev.MarginBounds.Top;
+                            float y = ev.MarginBounds.Top; // 40
 
                             Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
                             Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
@@ -243,22 +235,22 @@ namespace Safety_System
 
                             // 第一行：大標題置中
                             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
-                            y += 40;
+                            y += 40; // 80
 
                             // 第二行：副標題置中
                             g.DrawString(subTitle, fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
-                            y += 40;
+                            y += 40; // 120
 
                             // 第三行：簽核置中
                             string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
-                            y += 35;
+                            y += 35; // 155
 
                             // 第四行：查詢區間靠左
                             g.DrawString(dateRangeText, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
-                            y += 30;
+                            y += 30; // 185
 
-                            float startY = y; 
+                            float startY = y; // 確保 startY == 185
                             float bottomLimit = ev.MarginBounds.Bottom - 30; 
 
                             while (currentBmpIndex < bitmaps.Count)
@@ -313,7 +305,7 @@ namespace Safety_System
                     }
                     finally
                     {
-                        // 統一在這裡進行 Bitmap 清理與滑鼠還原
+                        // 統一在這裡進行 Bitmap 清理與滑鼠還原，乾淨俐落
                         foreach (var bmp in bitmaps) bmp.Dispose();
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
