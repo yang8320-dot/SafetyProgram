@@ -109,7 +109,7 @@ namespace Safety_System
             };
             
             TableLayoutPanel innerTable = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1 };
-            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F)); // 稍微調小高度
+            innerTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F)); 
             innerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  
 
             Panel pnlTitle = new Panel { 
@@ -119,7 +119,6 @@ namespace Safety_System
             };
             pnlTitle.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTitle.ClientRectangle, Color.LightSkyBlue, ButtonBorderStyle.Solid);
             
-            // 🟢 移除畫面上多餘的「台灣玻璃工業股份有限公司 - 彰濱廠」
             Label lblSubTitle = new Label { 
                 Text = "化學品清單一覽表", 
                 Dock = DockStyle.Fill, 
@@ -135,7 +134,6 @@ namespace Safety_System
                 Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) 
             };
 
-            // 🟢 強制關閉 AutoGenerateColumns，改由後方程式依照排序設定來手動生成欄位
             _dgvSDS = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 BackgroundColor = Color.White, 
@@ -183,7 +181,6 @@ namespace Safety_System
                         }
                     }
 
-                    // 🟢 傳入 DataTable 進行結構對齊與強制手動生成欄位
                     ApplyVisibilityAndGenerateColumns(dt); 
                     
                     _dgvSDS.DataSource = dt;
@@ -202,18 +199,14 @@ namespace Safety_System
             catch { _dgvSDS.DataSource = null; }
         }
 
-        // 🟢 核心修改：依照 _columnSettings 設定的順序，手動創建欄位加進去表格
         private void ApplyVisibilityAndGenerateColumns(DataTable dt)
         {
             if (dt == null) return;
 
-            // 取得當前真實的資料庫欄位清單
             List<string> actualCols = dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName).ToList();
 
-            // 如果從未設定過 (檔案不存在或為空)，則依照預設建立順序
             if (_columnSettings.Count == 0)
             {
-                // 先加入預設欄位 (顯示)
                 foreach (string defCol in _defaultVisibleCols)
                 {
                     if (actualCols.Contains(defCol))
@@ -222,7 +215,6 @@ namespace Safety_System
                     }
                 }
 
-                // 再加入其餘隱藏的欄位
                 foreach (string colName in actualCols)
                 {
                     if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
@@ -235,7 +227,6 @@ namespace Safety_System
             }
             else
             {
-                // 補齊新增加的欄位，預設丟到隱藏區
                 foreach (string colName in actualCols)
                 {
                     if (colName.Equals("Id", StringComparison.OrdinalIgnoreCase)) continue;
@@ -244,11 +235,9 @@ namespace Safety_System
                         _columnSettings.Add(new ColConfig { Name = colName, IsVisible = false });
                     }
                 }
-                // 移除資料庫中已經不存在的舊欄位
                 _columnSettings.RemoveAll(c => !actualCols.Contains(c.Name));
             }
 
-            // 🟢 強制清空舊欄位，重新照著 _columnSettings 依序綁定
             _dgvSDS.Columns.Clear();
             int currentDisplayIndex = 0;
 
@@ -260,7 +249,7 @@ namespace Safety_System
                     {
                         Name = cfg.Name,
                         HeaderText = cfg.Name,
-                        DataPropertyName = cfg.Name, // 綁定到 DataTable 對應的欄位
+                        DataPropertyName = cfg.Name, 
                         Visible = cfg.IsVisible
                     };
                     
@@ -313,7 +302,6 @@ namespace Safety_System
                         BackColor = Color.FromArgb(250, 250, 250)
                     };
 
-                    // 載入目前設定
                     foreach (var cfg in _columnSettings)
                     {
                         clb.Items.Add(cfg.Name, cfg.IsVisible);
@@ -377,7 +365,6 @@ namespace Safety_System
                         }
                         SaveVisibilitySettings();
                         
-                        // 🟢 重新整理表格，套用新的順序
                         LoadData();
 
                         f.DialogResult = DialogResult.OK;
@@ -431,7 +418,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 A4 危害性化學品清單 PDF 功能 (套用標準排版)
+        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (移除大標題/簽核/頁碼，保留主標題)
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -457,8 +444,6 @@ namespace Safety_System
                         pd.DefaultPageSettings.Margins = new Margins(50, 50, 60, 60);
                         
                         int currentRow = 0;
-                        int pageNumber = 1;
-                        int totalPages = _dgvSDS.Rows.Count; // 這個格式一頁一筆化學品
 
                         pd.PrintPage += (s, e) => {
                             Graphics g = e.Graphics;
@@ -466,12 +451,10 @@ namespace Safety_System
                             float y = e.MarginBounds.Top;
                             float w = e.MarginBounds.Width;
 
-                            Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold); 
-                            Font fSubTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
-                            Font fSign = new Font("Microsoft JhengHei UI", 12F);
-                            Font fDate = new Font("Microsoft JhengHei UI", 11F);
-                            Font fBody = new Font("Microsoft JhengHei UI", 13F);
-                            
+                            Font fTitle = new Font("DFKai-SB", 26F, FontStyle.Bold); 
+                            Font fBody = new Font("DFKai-SB", 14F);
+                            Font fSmall = new Font("DFKai-SB", 12F);
+
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
@@ -485,22 +468,9 @@ namespace Safety_System
                                 return "";
                             }
 
-                            // 1. 第一行：大標題置中
-                            g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
-                            y += 40;
-
-                            // 2. 第二行：副標題置中
-                            g.DrawString("危害性化學品清單", fSubTitle, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
-                            y += 40;
-
-                            // 3. 第三行：簽核置中
-                            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
-                            g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
-                            y += 35;
-
-                            // 4. 第四行：查詢條件留空高度
-                            g.DrawString("", fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
-                            y += 30;
+                            // 1. 唯一標題：危害性化學品清單
+                            g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 50), sfCenter);
+                            y += 80;
 
                             // 以下為實體內容
                             g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
@@ -563,18 +533,15 @@ namespace Safety_System
 
                             g.DrawString(separator, fBody, Brushes.Black, x, y); y += 40;
 
-                            // 底部
-                            g.DrawString("8-ES-B09-01 危害性化學品清單", fDate, Brushes.Black, x, e.MarginBounds.Bottom - 20);
-                            g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
+                            // 底部表單號 (無頁碼)
+                            g.DrawString("8-ES-B09-01 危害性化學品清單", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
 
                             currentRow++;
                             if (currentRow < _dgvSDS.Rows.Count) {
-                                pageNumber++;
                                 e.HasMorePages = true;
                             } else {
                                 e.HasMorePages = false;
                                 currentRow = 0; 
-                                pageNumber = 1;
                             }
                         };
 
@@ -627,7 +594,7 @@ namespace Safety_System
                         float simW = 1169f - 60f; 
                         float simH = 827f - 60f;  
                         
-                        float simStartY = 30f + 40f + 40f + 35f + 30f + 32f; // 預留表頭與標題高度
+                        float simStartY = 30f + 40f + 40f + 35f + 30f + 32f; 
                         float simCurrentY = simStartY;
                         float simBottomLimit = simH - 30f; 
 
