@@ -132,7 +132,9 @@ namespace Safety_System
                 { 
                     try 
                     { 
-                        string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                        // 🟢 套用動態附件路徑
+                        string sourcePath = Path.Combine(DataManager.AttachmentBasePath, path.Replace("附件/", ""));
+                        
                         if (File.Exists(sourcePath))
                         {
                             string tempFolder = Path.Combine(Path.GetTempPath(), "SafetySystem_Viewer");
@@ -160,7 +162,8 @@ namespace Safety_System
                 {
                     try 
                     {
-                        string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                        // 🟢 套用動態附件路徑
+                        string sourcePath = Path.Combine(DataManager.AttachmentBasePath, path.Replace("附件/", ""));
                         if (!File.Exists(sourcePath)) 
                         { 
                             MessageBox.Show("找不到原始檔案，可能已被移動或刪除。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
@@ -187,7 +190,6 @@ namespace Safety_System
                     }
                 };
 
-                // 🟢 更名功能：隱藏副檔名與防呆處理
                 Button bRename = new Button { Text = "更名", Width = 70, Dock = DockStyle.Right, BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand };
                 bRename.Click += (s, e) => 
                 {
@@ -200,35 +202,31 @@ namespace Safety_System
 
                     if (string.IsNullOrWhiteSpace(newNameWithoutExt) || newNameWithoutExt == oldNameWithoutExt) return;
 
-                    // 檢查是否含有不合法字元
                     if (newNameWithoutExt.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) {
                         MessageBox.Show("檔名包含無效字元！請勿輸入 \\ / : * ? \" < > |", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
 
-                    // 🟢 防呆：如果使用者自己還是打了副檔名，幫他濾掉
                     if (newNameWithoutExt.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) {
                         newNameWithoutExt = newNameWithoutExt.Substring(0, newNameWithoutExt.Length - ext.Length);
                     }
 
-                    // 組合出包含副檔名的新檔名
                     string newFileName = newNameWithoutExt + ext;
 
                     try {
-                        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                        string oldAbsPath = Path.Combine(baseDir, path);
+                        // 🟢 套用動態附件路徑
+                        string oldAbsPath = Path.Combine(DataManager.AttachmentBasePath, path.Replace("附件/", ""));
                         
-                        // 取得原本所在的相對目錄路徑 (結尾加上斜線)
                         string directoryRelPath = path.Substring(0, path.LastIndexOf('/') + 1);
                         string newRelPath = directoryRelPath + newFileName;
-                        string newAbsPath = Path.Combine(baseDir, newRelPath);
+                        
+                        string newAbsPath = Path.Combine(DataManager.AttachmentBasePath, newRelPath.Replace("附件/", ""));
 
                         if (File.Exists(newAbsPath) && oldAbsPath.ToLower() != newAbsPath.ToLower()) {
                             MessageBox.Show("該資料夾下已存在同名檔案，請更換名稱！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
 
-                        // 變更實體檔案名稱
                         if (File.Exists(oldAbsPath)) {
                             File.Move(oldAbsPath, newAbsPath);
                         } else {
@@ -236,11 +234,9 @@ namespace Safety_System
                             return;
                         }
 
-                        // 更新記憶體中的路徑清單
                         int idx = _paths.IndexOf(path);
                         if (idx >= 0) _paths[idx] = newRelPath;
 
-                        // 重新繪製 UI
                         RefreshListUI();
                     } catch (Exception ex) {
                         MessageBox.Show("更名失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -273,7 +269,7 @@ namespace Safety_System
             using (Form form = new Form())
             {
                 form.Width = 450;
-                form.Height = 220; // 稍微加高以容納更詳細的提示文字
+                form.Height = 220; 
                 form.FormBorderStyle = FormBorderStyle.FixedDialog;
                 form.Text = title;
                 form.StartPosition = FormStartPosition.CenterParent;
@@ -297,7 +293,6 @@ namespace Safety_System
             }
         }
 
-        // 實作批量轉存邏輯
         private void BtnBatchExport_Click(object sender, EventArgs e)
         {
             var selectedPaths = _checkBoxMap.Where(kvp => kvp.Value.Checked).Select(kvp => kvp.Key).ToList();
@@ -320,7 +315,9 @@ namespace Safety_System
                     {
                         try
                         {
-                            string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relPath);
+                            // 🟢 套用動態附件路徑
+                            string sourcePath = Path.Combine(DataManager.AttachmentBasePath, relPath.Replace("附件/", ""));
+                            
                             if (File.Exists(sourcePath))
                             {
                                 string fileName = Path.GetFileName(relPath);
@@ -374,7 +371,8 @@ namespace Safety_System
             if (sourceFiles.Length == 0) return;
             using (ImageCompressionHelper compressor = new ImageCompressionHelper()) 
             {
-                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件", _dbName, _tableName, _targetFolder);
+                // 🟢 套用動態附件路徑
+                string destDir = Path.Combine(DataManager.AttachmentBasePath, _dbName, _tableName, _targetFolder);
                 if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
                 
                 foreach (string src in sourceFiles) 
