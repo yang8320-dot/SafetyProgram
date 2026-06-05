@@ -145,7 +145,7 @@ namespace Safety_System
         }
 
         // =========================================================================================
-        // 🟢 [新增] 專供儀表板 (Dashboard) 使用的獨立 PDF 導出模板
+        // 🟢 專供儀表板 (Dashboard) 使用的獨立 PDF 導出模板 (修復總頁數計算異常)
         // =========================================================================================
         public static void ExportDashboardToPdf(List<Bitmap> bitmaps, string subTitle, string dateRangeText, string defaultFileName, bool isLandscape = true)
         {
@@ -193,14 +193,30 @@ namespace Safety_System
 
                             if (simCurrentY + simScaledHeight > simBottomLimit)
                             {
-                                if (simCurrentY == headerHeightReserved) // 如果單張圖高度就超過一頁，硬塞進本頁
+                                if (simCurrentY == headerHeightReserved) 
                                 {
-                                    simCurrentY += simScaledHeight + 20f;
+                                    // 🟢 核心修復：像實際印表一樣模擬強制縮放，不再任由高度失控導致頁碼暴增
+                                    float compressedScale = Math.Min(simScale, (simBottomLimit - simCurrentY) / bmp.Height);
+                                    float compressedHeight = bmp.Height * compressedScale;
+                                    simCurrentY += compressedHeight + 20f;
                                 }
                                 else
                                 {
+                                    // 換頁
                                     totalPages++;
-                                    simCurrentY = headerHeightReserved + simScaledHeight + 20f;
+                                    simCurrentY = headerHeightReserved; 
+                                    
+                                    // 🟢 核心修復：換到新頁後，這張圖變成了該頁的首張圖，再次檢查是否需要縮放
+                                    if (simCurrentY + simScaledHeight > simBottomLimit)
+                                    {
+                                        float compressedScale = Math.Min(simScale, (simBottomLimit - simCurrentY) / bmp.Height);
+                                        float compressedHeight = bmp.Height * compressedScale;
+                                        simCurrentY += compressedHeight + 20f;
+                                    }
+                                    else
+                                    {
+                                        simCurrentY += simScaledHeight + 20f;
+                                    }
                                 }
                             }
                             else
@@ -297,7 +313,7 @@ namespace Safety_System
                     }
                     finally
                     {
-                        // 統一在這裡進行 Bitmap 清理與滑鼠還原，乾淨俐落
+                        // 統一在這裡進行 Bitmap 清理與滑鼠還原
                         foreach (var bmp in bitmaps) bmp.Dispose();
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
