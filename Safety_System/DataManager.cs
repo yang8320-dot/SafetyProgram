@@ -1,3 +1,4 @@
+/// FILE: Safety_System/DataManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -16,8 +17,10 @@ namespace Safety_System
         public static readonly string SysConfigDbPath = Path.Combine(AppDir, "SystemConfig.sqlite");
 
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
+        
+        // 🟢 新增：全域附件存放路徑，預設為主程式底下的「附件」資料夾
+        public static string AttachmentBasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
 
-        // 🟢 最終優化 1：廢除 ThreadStatic，改用全域排他鎖，徹底防止多背景執行緒撞車
         private static readonly object _syncLock = new object();
 
         static DataManager()
@@ -70,7 +73,6 @@ namespace Safety_System
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 最終優化 2：建立全域刪除稽核日誌表 (完美犯罪終結者)
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS System_DeleteLogs (
                                         Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                                         DbName TEXT, 
@@ -116,6 +118,11 @@ namespace Safety_System
             string savedPath = GetSysSetting("BasePath", "");
             if (!string.IsNullOrEmpty(savedPath)) BasePath = savedPath;
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
+
+            // 🟢 讀取自訂的附件資料夾路徑
+            string attachPath = GetSysSetting("AttachmentBasePath", "");
+            if (!string.IsNullOrEmpty(attachPath)) AttachmentBasePath = attachPath;
+            if (!Directory.Exists(AttachmentBasePath)) Directory.CreateDirectory(AttachmentBasePath);
         }
 
         public static void SetBasePath(string newPath)
@@ -123,6 +130,14 @@ namespace Safety_System
             BasePath = newPath;
             SetSysSetting("BasePath", newPath);
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
+        }
+
+        // 🟢 新增：設定附件資料夾路徑的方法
+        public static void SetAttachmentBasePath(string newPath)
+        {
+            AttachmentBasePath = newPath;
+            SetSysSetting("AttachmentBasePath", newPath);
+            if (!Directory.Exists(AttachmentBasePath)) Directory.CreateDirectory(AttachmentBasePath);
         }
 
         public static void SaveGridConfig(string dbName, string tableName, string configType, string colName, string value)
@@ -375,7 +390,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 核心修復：修改回傳型別為 long，並實作 SQLite last_insert_rowid() 回傳新建立的資料庫 ID
         public static long UpsertRecord(string dbName, string tableName, DataRow row)
         {
             if (row.RowState == DataRowState.Deleted || row.RowState == DataRowState.Unchanged) return -1;
@@ -425,7 +439,6 @@ namespace Safety_System
                     cmd.CommandText = $"INSERT INTO [{tableName}] ({string.Join(", ", c)}) VALUES ({string.Join(", ", v)})";
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 取得剛剛 INSERT 產生的最新 Id
                     cmd.CommandText = "SELECT last_insert_rowid()";
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value)
@@ -441,7 +454,6 @@ namespace Safety_System
 
         public static void DeleteRecord(string dbName, string tableName, int id) 
         {
-            // 🟢 最終優化 2：刪除前，將動作寫入系統稽核表，防止惡意破壞無紀錄可查
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
@@ -467,7 +479,6 @@ namespace Safety_System
 
         public static void RunSyncEngine(string triggerDb, string triggerTable)
         {
-            // 🟢 最終優化 1：嚴格的全域排他鎖，防止 5 人同時啟動背景執行緒撞車
             lock (_syncLock)
             {
                 try
@@ -579,13 +590,11 @@ namespace Safety_System
             }
         }
 
-        // 🟢 最終優化 3：極速檢查附件是否仍被其他人使用，將比對時間從數十秒縮減至 0.01 秒
         public static bool IsAttachmentInUse(string dbName, string tableName, string relativePath)
         {
             bool inUse = false;
             try {
                 ExecuteWithRetry(dbName, conn => {
-                    // 直接下 SQL 檢查是否有其他紀錄包含該路徑 (用 COUNT 大幅節省記憶體與網路傳輸)
                     string sql = $"SELECT COUNT(1) FROM [{tableName}] WHERE [附件檔案] LIKE @Path";
                     using (var cmd = new SQLiteCommand(sql, conn)) {
                         cmd.Parameters.AddWithValue("@Path", $"%{relativePath}%");
