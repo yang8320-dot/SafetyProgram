@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Printing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -10,7 +11,29 @@ namespace Safety_System
 {
     public static class PdfHelper
     {
-        // 原有的 DataGridView 匯出功能保留不變
+        // 🟢 輔助方法：尋找文字對應的快取圖示
+        private static Image GetIconFromCache(string tableName, string colName, string cellValue)
+        {
+            if (string.IsNullOrEmpty(cellValue)) return null;
+
+            string prefix = $"{tableName}|{colName}|";
+            foreach (var kvp in App_DropdownManager.DropdownCache)
+            {
+                if (kvp.Key.StartsWith(prefix))
+                {
+                    var match = kvp.Value.FirstOrDefault(d => d.Text == cellValue);
+                    if (match != null && !string.IsNullOrEmpty(match.IconBase64))
+                    {
+                        return match.GetImage();
+                    }
+                }
+            }
+            return null;
+        }
+
+        // =========================================================================================
+        // DataGridView 匯出 PDF (支援圖文並茂)
+        // =========================================================================================
         public static void ExportDataGridViewToPdf(DataGridView dgv, string reportTitle, string fileNamePrefix, bool isA3 = false, bool isLandscape = true)
         {
             if (dgv.Rows.Count <= 1 && dgv.AllowUserToAddRows) 
@@ -41,6 +64,9 @@ namespace Safety_System
                     int rowIndex = 0;
                     int pageNumber = 1;
                     
+                    // 為了尋找圖片，我們需要知道這是哪一張表，我們將傳入的 fileNamePrefix 作為 tableName 的參考
+                    string tableName = fileNamePrefix; 
+
                     pd.PrintPage += (s, ev) =>
                     {
                         Graphics g = ev.Graphics;
@@ -114,9 +140,29 @@ namespace Safety_System
                             {
                                 RectangleF rect = new RectangleF(currX, y, actualColWidths[i], maxRowH);
                                 g.DrawRectangle(Pens.Black, Rectangle.Round(rect));
+                                
+                                string colName = visCols[i].Name;
                                 string val = dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? "";
-                                RectangleF textRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+                                
+                                // 🟢 檢查是否有圖示
+                                Image cellIcon = GetIconFromCache(tableName, colName, val);
+                                
+                                float textOffsetX = 2; // 預設文字偏移量
+                                
+                                if (cellIcon != null)
+                                {
+                                    // 繪製圖示 (設定圖片大小 14x14)
+                                    float imgSize = 14 + fontSizeBonus;
+                                    float imgY = rect.Y + (rect.Height - imgSize) / 2;
+                                    g.DrawImage(cellIcon, rect.X + 4, imgY, imgSize, imgSize);
+                                    
+                                    textOffsetX = imgSize + 8; // 有圖片時文字向右推移
+                                }
+
+                                // 繪製文字
+                                RectangleF textRect = new RectangleF(rect.X + textOffsetX, rect.Y + 2, rect.Width - textOffsetX - 2, rect.Height - 4);
                                 g.DrawString(val, fBody, Brushes.Black, textRect, sfLeft);
+                                
                                 currX += actualColWidths[i];
                             }
                             y += maxRowH;
@@ -145,7 +191,7 @@ namespace Safety_System
         }
 
         // =========================================================================================
-        // 🟢 專供儀表板 (Dashboard) 使用的獨立 PDF 導出模板 (已修復總頁數計算精準度)
+        // 專供儀表板 (Dashboard) 使用的獨立 PDF 導出模板 (保持原本邏輯)
         // =========================================================================================
         public static void ExportDashboardToPdf(List<Bitmap> bitmaps, string subTitle, string dateRangeText, string defaultFileName, bool isLandscape = true)
         {
@@ -174,15 +220,12 @@ namespace Safety_System
                         int currentBmpIndex = 0;
                         int pageNumber = 1;
 
-                        // ====== 先計算精準的總頁數 ======
                         int totalPages = 1;
                         float simMargin = 40f;
                         float simW = (isLandscape ? 1169f : 827f) - (simMargin * 2); 
                         float simH = (isLandscape ? 827f : 1169f);  
-                        float simBottomLimit = simH - simMargin - 30f; // 留給底部頁碼的空間
+                        float simBottomLimit = simH - simMargin - 30f; 
                         
-                        // 🟢 核心修復：這必須與下方繪製的 Y 軸累加高度完全一致
-                        // MarginTop(40) + y+=40 + y+=40 + y+=35 + y+=30 = 185f
                         float simStartY = simMargin + 40f + 40f + 35f + 30f; 
                         float simY = simStartY;
 
@@ -195,7 +238,7 @@ namespace Safety_System
 
                             if (simY + simScaledHeight > simBottomLimit)
                             {
-                                if (simY == simStartY) // 如果單張圖高度就超過一頁，硬塞進本頁並強制壓縮
+                                if (simY == simStartY) 
                                 {
                                     simScale = Math.Min(simScale, (simBottomLimit - simY) / bmp.Height);
                                     simScaledHeight = bmp.Height * simScale;
@@ -204,10 +247,8 @@ namespace Safety_System
                                 }
                                 else
                                 {
-                                    // 超出空間，換頁處理
                                     totalPages++;
-                                    simY = simStartY; // 重置下一頁的 Y 座標
-                                    // 注意：這裡【不增加】 simIndex，讓這張圖在「下一頁」重新計算是否放得下
+                                    simY = simStartY; 
                                 }
                             }
                             else
@@ -217,13 +258,12 @@ namespace Safety_System
                             }
                         }
 
-                        // ====== 正式繪製 ======
                         pd.PrintPage += (s, ev) =>
                         {
                             Graphics g = ev.Graphics;
                             float w = ev.MarginBounds.Width;
                             float x = ev.MarginBounds.Left;
-                            float y = ev.MarginBounds.Top; // 40
+                            float y = ev.MarginBounds.Top; 
 
                             Font fTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
                             Font fSub = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
@@ -233,24 +273,20 @@ namespace Safety_System
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
                             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near };
 
-                            // 第一行：大標題置中
                             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
-                            y += 40; // 80
+                            y += 40; 
 
-                            // 第二行：副標題置中
                             g.DrawString(subTitle, fSub, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
-                            y += 40; // 120
+                            y += 40; 
 
-                            // 第三行：簽核置中
                             string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
-                            y += 35; // 155
+                            y += 35; 
 
-                            // 第四行：查詢區間靠左
                             g.DrawString(dateRangeText, fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), sfLeft); 
-                            y += 30; // 185
+                            y += 30; 
 
-                            float startY = y; // 確保 startY == 185
+                            float startY = y; 
                             float bottomLimit = ev.MarginBounds.Bottom - 30; 
 
                             while (currentBmpIndex < bitmaps.Count)
@@ -261,7 +297,7 @@ namespace Safety_System
 
                                 if (y + scaledHeight > bottomLimit)
                                 {
-                                    if (y == startY) // 圖片太高，整頁塞不下只好再縮小
+                                    if (y == startY) 
                                     {
                                         scale = Math.Min(scale, (float)(bottomLimit - y) / bmp.Height);
                                         scaledHeight = bmp.Height * scale;
@@ -271,7 +307,7 @@ namespace Safety_System
                                     }
                                     else
                                     {
-                                        break; // 換頁
+                                        break; 
                                     }
                                 }
                                 else
@@ -282,7 +318,6 @@ namespace Safety_System
                                 }
                             }
 
-                            // 底部：第?頁/共?頁置中
                             g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
                             if (currentBmpIndex < bitmaps.Count)
@@ -305,7 +340,6 @@ namespace Safety_System
                     }
                     finally
                     {
-                        // 統一在這裡進行 Bitmap 清理與滑鼠還原，乾淨俐落
                         foreach (var bmp in bitmaps) bmp.Dispose();
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
