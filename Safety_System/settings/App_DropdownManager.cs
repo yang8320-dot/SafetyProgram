@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -11,13 +12,35 @@ using OfficeOpenXml;
 
 namespace Safety_System
 {
+    // 🟢 新增：定義圖文綁定的選項資料結構
+    public class DropdownItemDef
+    {
+        public string Text { get; set; }
+        public string IconBase64 { get; set; }
+
+        public Image GetImage()
+        {
+            if (string.IsNullOrEmpty(IconBase64)) return null;
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(IconBase64);
+                using (MemoryStream ms = new MemoryStream(bytes))
+                {
+                    return Image.FromStream(ms);
+                }
+            }
+            catch { return null; }
+        }
+    }
+
     public class App_DropdownManager : Form
     {
         private TabControl _tabControl;
 
         // ================= Tab 1: 單選連動下拉選單控制項 =================
         private ComboBox _cboDb, _cboTable;
-        private TextBox[] _txtOptions;
+        // 🟢 改造：將文字框換成 DataGridView 以支援圖文對照
+        private DataGridView[] _dgvOptions;
         private ComboBox[] _cboCols;
         private ComboBox[] _cboParentVals;
         private Button _btnSave, _btnExport, _btnImport, _btnClearAll, _btnClearDb;
@@ -46,8 +69,8 @@ namespace Safety_System
 
         private readonly Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
-        // 🟢 全域快取
-        public static Dictionary<string, string[]> DropdownCache = new Dictionary<string, string[]>();
+        // 🟢 改造全域快取：現在支援存放圖文物件
+        public static Dictionary<string, List<DropdownItemDef>> DropdownCache = new Dictionary<string, List<DropdownItemDef>>();
         public static Dictionary<string, string[]> MultiSelectCache = new Dictionary<string, string[]>();
 
         public App_DropdownManager()
@@ -70,7 +93,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 智慧讀取：若實體表尚未建立，強制從 SchemaMap 讀取預設欄位結構
         private List<string> GetColumnsSafe(string dbName, string tbName)
         {
             var cols = DataManager.GetColumnNames(dbName, tbName);
@@ -96,7 +118,6 @@ namespace Safety_System
             return cols;
         }
 
-        // 🟢 輔助方法：檢查該欄位是否已存在於「單選下拉」設定中
         private bool IsColumnInDropdownCache(string tbName, string colName)
         {
             string prefix = $"{tbName}|{colName}|";
@@ -116,14 +137,12 @@ namespace Safety_System
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
                 {
                     conn.Open();
-                    // 🟢 修正1：加入 Options 欄位讀取，以便判斷是否為空設定
                     using(var cmd = new SQLiteCommand("SELECT TableName, ColName, ParentColName, Options FROM DropdownConfigs", conn))
                     using(var reader = cmd.ExecuteReader()) 
                     {
                         while(reader.Read()) 
                         {
                             string opts = reader["Options"].ToString();
-                            // 🟢 修正1：如果選項內容是空的，直接跳過，不當作已設定，讓選單不會顯示變色
                             if (string.IsNullOrWhiteSpace(opts)) continue; 
 
                             string tb = reader["TableName"].ToString();
@@ -191,9 +210,6 @@ namespace Safety_System
             this.Controls.Add(_tabControl);
         }
 
-        // =========================================================
-        // Tab 1 UI 構建與邏輯 (單選下拉選單)
-        // =========================================================
         private void BuildTabSingle(TabPage page)
         {
             Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20) };
@@ -208,7 +224,7 @@ namespace Safety_System
             _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearDb.Click += BtnClearDb_Click;
 
-            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 已設定過且具備「多層連動關係」的項目，以【紅色粗體】標示。\n※ 已於「組合文字(複選)」設定的項目，以【灰底粗體】標示，為防呆限制不可重複設定。\n※ 選項內容的排列順序，即為系統表單中下拉選單顯示的順序。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            Label lblHint = new Label { Text = "※ 欲綁定圖示，請點擊「上傳」，系統會自動優化壓縮並隨選單顯示。\n※ 若只需純文字選單，圖示欄位留空即可。\n※ 已於「組合文字(複選)」設定的項目，不可重複於此設定。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -226,7 +242,7 @@ namespace Safety_System
             pnlTop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTop.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
             FlowLayoutPanel flpTopMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
-            Label lblTitle = new Label { Text = "🔧 單選下拉與多層連動設定", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
+            Label lblTitle = new Label { Text = "🔧 單選下拉與多層連動設定 (支援自訂圖示)", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
             
             FlowLayoutPanel flpControls = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
             
@@ -252,7 +268,7 @@ namespace Safety_System
 
             _cboCols = new ComboBox[4];
             _cboParentVals = new ComboBox[4];
-            _txtOptions = new TextBox[4];
+            _dgvOptions = new DataGridView[4];
 
             string[] headers = { "第一層 (主選項)", "第二層 (依第一層連動)", "第三層 (依第二層連動)", "第四層 (依第三層連動)" };
 
@@ -281,7 +297,7 @@ namespace Safety_System
                 _cboParentVals[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15) };
                 
                 FlowLayoutPanel flpOptHeader = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0,0,0,5) };
-                Label lOpt = new Label { Text = "下拉選項內容：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,5,0) };
+                Label lOpt = new Label { Text = "下拉選項(圖文)內容：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,5,0) };
                 Button btnExtract = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnExtract.FlatAppearance.BorderSize = 0;
                 btnExtract.Click += (s, e) => ExtractDataFromDB(currentIndex, false);
@@ -289,7 +305,24 @@ namespace Safety_System
                 flpOptHeader.Controls.Add(lOpt);
                 flpOptHeader.Controls.Add(btnExtract);
 
-                _txtOptions[i] = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Both, WordWrap = false, Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 🟢 改造：加入 DataGridView 作為圖文設定清單
+                _dgvOptions[i] = new DataGridView { 
+                    Dock = DockStyle.Fill, 
+                    AllowUserToAddRows = true, 
+                    AllowUserToDeleteRows = true,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
+                    RowHeadersVisible = false,
+                    BackgroundColor = Color.WhiteSmoke,
+                    RowTemplate = { Height = 35 }
+                };
+                
+                _dgvOptions[i].Columns.Add(new DataGridViewTextBoxColumn { Name = "Text", HeaderText = "選項文字", FillWeight = 50 });
+                _dgvOptions[i].Columns.Add(new DataGridViewImageColumn { Name = "Icon", HeaderText = "圖示預覽", ImageLayout = DataGridViewImageCellLayout.Zoom, FillWeight = 20 });
+                _dgvOptions[i].Columns.Add(new DataGridViewButtonColumn { Name = "Upload", HeaderText = "上傳", Text = "上傳", UseColumnTextForButtonValue = true, FillWeight = 15 });
+                _dgvOptions[i].Columns.Add(new DataGridViewButtonColumn { Name = "Clear", HeaderText = "清除", Text = "清除", UseColumnTextForButtonValue = true, FillWeight = 15 });
+
+                int dgvIndex = i;
+                _dgvOptions[i].CellContentClick += (s, e) => DgvOptions_CellContentClick(s, e, dgvIndex);
 
                 if (i == 0) {
                     lParent.Visible = false;
@@ -302,7 +335,7 @@ namespace Safety_System
                 pColInner.Controls.Add(lParent, 0, 3);
                 pColInner.Controls.Add(_cboParentVals[i], 0, 4);
                 pColInner.Controls.Add(flpOptHeader, 0, 5);
-                pColInner.Controls.Add(_txtOptions[i], 0, 6);
+                pColInner.Controls.Add(_dgvOptions[i], 0, 6);
 
                 int colIndex = i;
                 _cboCols[colIndex].SelectedIndexChanged += (s, e) => HandleColSelectionChanged(colIndex);
@@ -326,6 +359,54 @@ namespace Safety_System
             
             _cboDb.SelectedIndexChanged += CboDb_SelectedIndexChanged;
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
+        }
+
+        // 🟢 處理圖片上傳與 Base64 壓縮
+        private void DgvOptions_CellContentClick(object sender, DataGridViewCellEventArgs e, int gridIndex)
+        {
+            if (e.RowIndex < 0) return;
+            DataGridView dgv = _dgvOptions[gridIndex];
+
+            if (dgv.Columns[e.ColumnIndex].Name == "Upload")
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog { Filter = "圖片檔案 (*.png;*.jpg;*.jpeg;*.ico)|*.png;*.jpg;*.jpeg;*.ico", Title = "選擇小圖示 (建議正方形)" })
+                {
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                        try
+                        {
+                            using (Image img = Image.FromFile(ofd.FileName))
+                            {
+                                // 強制縮放為 16x16 以符合下拉選單最佳視覺
+                                using (Bitmap bmp = new Bitmap(16, 16))
+                                {
+                                    using (Graphics g = Graphics.FromImage(bmp))
+                                    {
+                                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                                        g.DrawImage(img, 0, 0, 16, 16);
+                                    }
+                                    using (MemoryStream ms = new MemoryStream())
+                                    {
+                                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                        string base64 = Convert.ToBase64String(ms.ToArray());
+                                        dgv.Rows[e.RowIndex].Cells["Icon"].Tag = base64; // 存入 Tag
+                                        dgv.Rows[e.RowIndex].Cells["Icon"].Value = Image.FromStream(new MemoryStream(ms.ToArray())); // 畫面預覽
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("圖片處理失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+            }
+            else if (dgv.Columns[e.ColumnIndex].Name == "Clear")
+            {
+                dgv.Rows[e.RowIndex].Cells["Icon"].Tag = null;
+                dgv.Rows[e.RowIndex].Cells["Icon"].Value = null;
+            }
         }
 
         // =========================================================
@@ -398,7 +479,6 @@ namespace Safety_System
             tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-            // 左側輸入框區塊
             Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
@@ -416,7 +496,6 @@ namespace Safety_System
             pnlLeftBorder.Controls.Add(_txtOptionsMulti);
             pnlLeftBorder.Controls.Add(flpMultiOptHeader); 
 
-            // 右側清單區塊
             Panel pnlRightBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlRightBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlRightBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
@@ -432,7 +511,6 @@ namespace Safety_System
             page.Controls.Add(tlpMain);
             tlpMain.BringToFront();
 
-            // 事件綁定
             _cboDbMulti.SelectedIndexChanged += (s, e) => {
                 _cboTableMulti.Items.Clear(); _cboTableMulti.Items.Add(new ItemMap { EnName = "", ChName = "" }); _cboColMulti.Items.Clear(); _txtOptionsMulti.Clear();
                 var db = _cboDbMulti.SelectedItem as ItemMap;
@@ -450,7 +528,6 @@ namespace Safety_System
                 }
             };
 
-            // 🟢 防呆攔截：若選擇了已在單選下拉設定過的欄位，則阻擋
             _cboColMulti.SelectedIndexChanged += (s, e) => {
                 if (_isRevertingMultiCol) return;
 
@@ -462,7 +539,7 @@ namespace Safety_System
                     if (IsColumnInDropdownCache(tb.EnName, colName)) {
                         MessageBox.Show($"此欄位【{colName}】已在「一、單選下拉與多層連動」中設定過！\n為避免系統判斷異常，同一欄位不可同時設定單選與複選。\n\n若要設定為組合文字，請先至第一分頁刪除該欄位的設定。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         _isRevertingMultiCol = true;
-                        _cboColMulti.SelectedIndex = -1; // 取消選取
+                        _cboColMulti.SelectedIndex = -1; 
                         _isRevertingMultiCol = false;
                         return;
                     }
@@ -475,9 +552,7 @@ namespace Safety_System
             };
         }
 
-        // =========================================================
-        // 🟢 全新功能：一鍵從現有資料表中萃取不重複文字
-        // =========================================================
+        // 🟢 修改：將資料庫匯入對齊 DGV
         private void ExtractDataFromDB(int colIndex, bool isMulti)
         {
             string db = isMulti ? ((ItemMap)_cboDbMulti.SelectedItem)?.EnName : ((ItemMap)_cboDb.SelectedItem)?.EnName;
@@ -515,18 +590,32 @@ namespace Safety_System
                 }
 
                 if (uniqueVals.Count > 0) {
-                    TextBox targetTxt = isMulti ? _txtOptionsMulti : _txtOptions[colIndex];
-                    var currentLines = targetTxt.Text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
-                    
                     int addedCount = 0;
-                    foreach(var v in uniqueVals) {
-                        if (!currentLines.Contains(v)) {
-                            currentLines.Add(v);
-                            addedCount++;
+                    if (isMulti) {
+                        var currentLines = _txtOptionsMulti.Text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+                        foreach(var v in uniqueVals) {
+                            if (!currentLines.Contains(v)) {
+                                currentLines.Add(v);
+                                addedCount++;
+                            }
+                        }
+                        _txtOptionsMulti.Text = string.Join(Environment.NewLine, currentLines);
+                    } else {
+                        // 單選現在是 DGV
+                        DataGridView dgv = _dgvOptions[colIndex];
+                        List<string> existing = new List<string>();
+                        foreach(DataGridViewRow r in dgv.Rows) {
+                            if (!r.IsNewRow && r.Cells["Text"].Value != null) existing.Add(r.Cells["Text"].Value.ToString().Trim());
+                        }
+                        foreach(var v in uniqueVals) {
+                            if (!existing.Contains(v)) {
+                                int rIdx = dgv.Rows.Add();
+                                dgv.Rows[rIdx].Cells["Text"].Value = v;
+                                addedCount++;
+                            }
                         }
                     }
-                    targetTxt.Text = string.Join(Environment.NewLine, currentLines);
-                    MessageBox.Show($"導入完成！共新增 {addedCount} 筆不重複資料至文字框中。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"導入完成！共新增 {addedCount} 筆不重複資料至設定中。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 } else {
                     MessageBox.Show("導入完成，但在該欄位沒有發現有效資料。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
@@ -535,9 +624,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================
-        // 🟢 Tab 1 事件邏輯與下拉選單重繪 (加入灰色背景標示)
-        // =========================================================
         private void CboDb_DrawItem(object sender, DrawItemEventArgs e) {
             if (e.Index < 0) return;
             var item = _cboDb.Items[e.Index] as ItemMap;
@@ -593,7 +679,7 @@ namespace Safety_System
                 if (isConfigured || isOtherConfigured) currentFont = new Font(e.Font, FontStyle.Bold);
             } else {
                 if (isOtherConfigured) {
-                    bgBrush = Brushes.LightGray; // 🟢 被另一邊設定了，顯示灰底
+                    bgBrush = Brushes.LightGray; 
                     textBrush = Brushes.DimGray;
                     currentFont = new Font(e.Font, FontStyle.Bold);
                 } else if (isConfigured) {
@@ -607,9 +693,6 @@ namespace Safety_System
             e.DrawFocusRectangle();
         }
 
-        // =========================================================
-        // 🟢 Tab 2 事件邏輯與下拉選單重繪 (加入灰色背景標示)
-        // =========================================================
         private void CboDbMulti_DrawItem(object sender, DrawItemEventArgs e) {
             if (e.Index < 0) return;
             var item = _cboDbMulti.Items[e.Index] as ItemMap;
@@ -666,7 +749,7 @@ namespace Safety_System
                 if (isConfigured || isOtherConfigured) currentFont = new Font(e.Font, FontStyle.Bold);
             } else {
                 if (isOtherConfigured) {
-                    bgBrush = Brushes.LightGray; // 🟢 被另一邊設定了，顯示灰底
+                    bgBrush = Brushes.LightGray; 
                     textBrush = Brushes.DimGray;
                     currentFont = new Font(e.Font, FontStyle.Bold);
                 } else if (isConfigured) {
@@ -791,12 +874,11 @@ namespace Safety_System
             for (int i = 0; i < 4; i++) {
                 if (_cboCols[i].Items.Count > 0) _cboCols[i].SelectedIndex = 0;
                 if (i > 0) { _cboParentVals[i].Items.Clear(); _cboParentVals[i].Items.Add(""); }
-                _txtOptions[i].Clear();
+                _dgvOptions[i].Rows.Clear();
             }
             _isRevertingCol = false;
         }
 
-        // 🟢 防呆攔截：若選擇了已在組合文字(複選)設定過的欄位，則阻擋
         private void HandleColSelectionChanged(int colIndex) {
             if (_isRevertingCol) return;
             string selectedCol = _cboCols[colIndex].Text;
@@ -807,7 +889,7 @@ namespace Safety_System
                 if (MultiSelectCache.ContainsKey(multiKey)) {
                     MessageBox.Show($"此欄位【{selectedCol}】已在「二、組合文字 (複選)」中設定過！\n為避免系統判斷異常，同一欄位不可同時設定單選與複選。\n\n若要設定為單選連動，請先至第二分頁刪除該欄位的設定。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _isRevertingCol = true;
-                    _cboCols[colIndex].SelectedIndex = 0; // 回復空白
+                    _cboCols[colIndex].SelectedIndex = 0; 
                     _isRevertingCol = false;
                     return;
                 }
@@ -826,11 +908,11 @@ namespace Safety_System
             try {
                 if (colIndex == 0) {
                     if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
-                        LoadOptionsToTextBox(tbName, selectedCol, "", "", _txtOptions[0]);
-                        UpdateChildParentVals(1, _txtOptions[0].Text);
+                        LoadOptionsToGrid(tbName, selectedCol, "", "", _dgvOptions[0]);
+                        UpdateChildParentVals(1, _dgvOptions[0]);
                     } else {
-                        _txtOptions[0].Clear();
-                        UpdateChildParentVals(1, "");
+                        _dgvOptions[0].Rows.Clear();
+                        UpdateChildParentVals(1, _dgvOptions[0]);
                     }
                 }
             } catch { }
@@ -846,25 +928,31 @@ namespace Safety_System
                 string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
 
                 if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
-                    LoadOptionsToTextBox(tbName, colName, parentCol, parentVal, _txtOptions[colIndex]);
-                    if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _txtOptions[colIndex].Text);
+                    LoadOptionsToGrid(tbName, colName, parentCol, parentVal, _dgvOptions[colIndex]);
+                    if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _dgvOptions[colIndex]);
                 } else {
-                    _txtOptions[colIndex].Clear();
-                    if (colIndex < 3) UpdateChildParentVals(colIndex + 1, "");
+                    _dgvOptions[colIndex].Rows.Clear();
+                    if (colIndex < 3) UpdateChildParentVals(colIndex + 1, _dgvOptions[colIndex]);
                 }
             } catch { }
         }
 
-        private void UpdateChildParentVals(int childIndex, string parentOptionsText) {
+        // 🟢 改造：改由 DataGridView 中提取文字
+        private void UpdateChildParentVals(int childIndex, DataGridView dgvParent) {
             try {
                 if (childIndex <= 0 || childIndex >= 4) return;
                 
-                var opts = parentOptionsText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                 string currentVal = _cboParentVals[childIndex].Text;
-                
                 _cboParentVals[childIndex].Items.Clear();
                 _cboParentVals[childIndex].Items.Add("");
-                foreach (var o in opts) _cboParentVals[childIndex].Items.Add(o.Trim());
+                
+                foreach(DataGridViewRow r in dgvParent.Rows) {
+                    if (r.IsNewRow) continue;
+                    string txt = r.Cells["Text"].Value?.ToString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(txt)) {
+                        _cboParentVals[childIndex].Items.Add(txt.Trim());
+                    }
+                }
 
                 if (!string.IsNullOrEmpty(currentVal) && _cboParentVals[childIndex].Items.Contains(currentVal))
                     _cboParentVals[childIndex].Text = currentVal;
@@ -873,9 +961,35 @@ namespace Safety_System
             } catch { }
         }
 
-        private void LoadOptionsToTextBox(string tableName, string colName, string parentColName, string parentVal, TextBox txt) {
-            string opts = GetDropdownOptionsFromDB(tableName, colName, parentColName, parentVal);
-            txt.Text = opts.Replace(",", Environment.NewLine);
+        // 🟢 改造：載入資料時自動解譯 [ICON:base64] 格式並顯示圖片
+        private void LoadOptionsToGrid(string tableName, string colName, string parentColName, string parentVal, DataGridView dgv) {
+            dgv.Rows.Clear();
+            string optsStr = GetDropdownOptionsFromDB(tableName, colName, parentColName, parentVal);
+            
+            var parts = optsStr.Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries);
+            foreach(var p in parts) {
+                string text = p.Trim(); 
+                string b64 = "";
+                int idx = p.IndexOf("[ICON:");
+                if (idx >= 0 && p.EndsWith("]")) {
+                    text = p.Substring(0, idx).Trim();
+                    b64 = p.Substring(idx + 6, p.Length - idx - 7);
+                }
+                
+                if (string.IsNullOrWhiteSpace(text)) continue;
+
+                int rIdx = dgv.Rows.Add();
+                dgv.Rows[rIdx].Cells["Text"].Value = text;
+                if (!string.IsNullOrEmpty(b64)) {
+                    try {
+                        byte[] bytes = Convert.FromBase64String(b64);
+                        using(MemoryStream ms = new MemoryStream(bytes)) {
+                            dgv.Rows[rIdx].Cells["Icon"].Value = Image.FromStream(ms);
+                        }
+                        dgv.Rows[rIdx].Cells["Icon"].Tag = b64;
+                    } catch { }
+                }
+            }
         }
 
         private string GetDropdownOptionsFromDB(string tableName, string colName, string parentColName, string parentVal) {
@@ -895,6 +1009,7 @@ namespace Safety_System
             } catch { return ""; }
         }
 
+        // 🟢 改造：儲存時將 DataGridView 內的圖片與文字壓縮打包
         private void BtnSave_Click(object sender, EventArgs e) {
             if (_cboTable.SelectedItem == null || string.IsNullOrEmpty(((ItemMap)_cboTable.SelectedItem).EnName)) {
                 MessageBox.Show("請先選擇資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
@@ -902,7 +1017,6 @@ namespace Safety_System
 
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
 
-            // 🟢 強制儲存前雙重檢驗防呆
             for (int i = 0; i < 4; i++) {
                 string colName = _cboCols[i].Text;
                 if (!string.IsNullOrEmpty(colName) && MultiSelectCache.ContainsKey($"{tbName}|{colName}")) {
@@ -925,10 +1039,21 @@ namespace Safety_System
                             string parentCol = i > 0 ? _cboCols[i-1].Text : "";
                             string parentVal = i > 0 ? _cboParentVals[i].Text : "";
                             
-                            var optsArray = _txtOptions[i].Text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
-                            string optsStr = string.Join(",", optsArray);
+                            List<string> optList = new List<string>();
+                            foreach(DataGridViewRow r in _dgvOptions[i].Rows) {
+                                if (r.IsNewRow) continue;
+                                string text = r.Cells["Text"].Value?.ToString() ?? "";
+                                if (string.IsNullOrWhiteSpace(text)) continue;
+                                
+                                string b64 = r.Cells["Icon"].Tag?.ToString() ?? "";
+                                if (!string.IsNullOrEmpty(b64)) {
+                                    optList.Add($"{text}[ICON:{b64}]");
+                                } else {
+                                    optList.Add(text);
+                                }
+                            }
+                            string optsStr = string.Join(",", optList);
 
-                            // 🟢 修正1：如果文字框被清空，執行刪除而不是寫入空字串
                             if (string.IsNullOrEmpty(optsStr))
                             {
                                 string sqlDel = @"DELETE FROM DropdownConfigs 
@@ -959,7 +1084,7 @@ namespace Safety_System
                 RefreshConfiguredCache(); 
                 _cboDb.Invalidate(); _cboTable.Invalidate(); foreach(var c in _cboCols) c.Invalidate(); 
                 LoadDropdownConfigs(); 
-                if (!string.IsNullOrEmpty(_txtOptions[0].Text)) UpdateChildParentVals(1, _txtOptions[0].Text);
+                UpdateChildParentVals(1, _dgvOptions[0]);
             } catch (Exception ex) {
                 MessageBox.Show($"儲存失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -972,16 +1097,28 @@ namespace Safety_System
                         DataTable dt = new DataTable();
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
-                            using (var cmd = new SQLiteCommand("SELECT TableName AS [資料表名稱], ColName AS [欄位名稱], ParentColName AS [父層欄位], ParentValue AS [觸發條件], Options AS [選項內容(逗號分隔)] FROM DropdownConfigs", conn))
+                            using (var cmd = new SQLiteCommand("SELECT TableName AS [資料表名稱], ColName AS [欄位名稱], ParentColName AS [父層欄位], ParentValue AS [觸發條件], Options AS [選項內容(純文字)] FROM DropdownConfigs", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
+                        
+                        // 🟢 匯出時過濾掉 Base64 代碼，保持報表乾淨
+                        foreach(DataRow row in dt.Rows) {
+                            string rawOpts = row["選項內容(純文字)"].ToString();
+                            var parts = rawOpts.Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries);
+                            for(int i=0; i<parts.Length; i++) {
+                                int idx = parts[i].IndexOf("[ICON:");
+                                if(idx >= 0) parts[i] = parts[i].Substring(0, idx);
+                            }
+                            row["選項內容(純文字)"] = string.Join(",", parts);
+                        }
+
                         using (ExcelPackage p = new ExcelPackage()) {
                             var ws = p.Workbook.Worksheets.Add("下拉選單設定");
                             ws.Cells["A1"].LoadFromDataTable(dt, true);
                             ws.Cells.AutoFitColumns();
                             p.SaveAs(new FileInfo(sfd.FileName));
                         }
-                        MessageBox.Show("匯出成功！請直接在 Excel 中編輯後匯入。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("匯出成功！\n注意：Excel匯出功能不支援夾帶圖示，匯出的檔案僅包含純文字選項。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 }
             }
@@ -1025,6 +1162,7 @@ namespace Safety_System
             }
         }
 
+        // 🟢 改造：全域記憶體讀取改為支援圖文結構
         public static void LoadDropdownConfigs() {
             DropdownCache.Clear();
             try {
@@ -1036,17 +1174,32 @@ namespace Safety_System
                             string tb = reader["TableName"].ToString(); string col = reader["ColName"].ToString();
                             string pCol = reader["ParentColName"].ToString(); string pVal = reader["ParentValue"].ToString(); string opts = reader["Options"].ToString();
                             string key = $"{tb}|{col}|{pCol}|{pVal}";
-                            var arr = opts.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
-                            DropdownCache[key] = arr;
+                            
+                            var arr = opts.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            List<DropdownItemDef> defs = new List<DropdownItemDef>();
+                            
+                            foreach(var opt in arr) {
+                                string text = opt.Trim(); string b64 = "";
+                                int idx = opt.IndexOf("[ICON:");
+                                if (idx >= 0 && opt.EndsWith("]")) {
+                                    text = opt.Substring(0, idx).Trim();
+                                    b64 = opt.Substring(idx + 6, opt.Length - idx - 7);
+                                }
+                                if(!string.IsNullOrEmpty(text)) {
+                                    defs.Add(new DropdownItemDef { Text = text, IconBase64 = b64 });
+                                }
+                            }
+                            DropdownCache[key] = defs;
                         }
                     }
                 }
             } catch { }
         }
 
+        // 🟢 為了向下相容原本純文字的架構，GetOptions 直接萃取純文字回傳
         public static string[] GetOptions(string tableName, string colName, string parentColName = "", string parentValue = "") {
             string key = $"{tableName}|{colName}|{parentColName}|{parentValue}";
-            if (DropdownCache.ContainsKey(key)) return DropdownCache[key];
+            if (DropdownCache.ContainsKey(key)) return DropdownCache[key].Select(d => d.Text).ToArray();
             return null;
         }
 
@@ -1054,7 +1207,9 @@ namespace Safety_System
             HashSet<string> allOpts = new HashSet<string> { "" };
             foreach(var kvp in DropdownCache) {
                 var parts = kvp.Key.Split('|');
-                if(parts.Length == 4 && parts[0] == tableName && parts[1] == colName) foreach(var opt in kvp.Value) allOpts.Add(opt);
+                if(parts.Length == 4 && parts[0] == tableName && parts[1] == colName) {
+                    foreach(var opt in kvp.Value) allOpts.Add(opt.Text);
+                }
             }
             return allOpts.ToArray();
         }
@@ -1072,7 +1227,6 @@ namespace Safety_System
             string tblName = tb.EnName;
             string colName = _cboColMulti.SelectedItem.ToString();
             
-            // 🟢 強制儲存前雙重檢驗防呆
             if (IsColumnInDropdownCache(tblName, colName)) {
                 MessageBox.Show($"欄位【{colName}】已在「單選下拉與多層連動」設定中！\n為避免系統錯亂，不可同時設定單選與複選，無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return;
@@ -1372,7 +1526,6 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    // 確保資料表存在以防首次執行出錯
                     using (var cmdChk = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [MultiSelectConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));", conn)) { cmdChk.ExecuteNonQuery(); }
 
                     using (var cmd = new SQLiteCommand("SELECT TableName, ColName, Options FROM MultiSelectConfigs", conn))
