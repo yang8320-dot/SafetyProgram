@@ -20,7 +20,6 @@ namespace Safety_System
 
         private void BindEvents()
         {
-            // Grid 視覺與互動事件
             _dgv.CellFormatting += new DataGridViewCellFormattingEventHandler(Dgv_CellFormatting);
             _dgv.CellClick += new DataGridViewCellEventHandler(Dgv_CellClick);
             _dgv.CellDoubleClick += new DataGridViewCellEventHandler(Dgv_CellDoubleClick);
@@ -29,7 +28,7 @@ namespace Safety_System
             _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
             _dgv.EditingControlShowing += new DataGridViewEditingControlShowingEventHandler(Dgv_EditingControlShowing);
             
-            // 🟢 新增：攔截儲存格繪製事件，以支援圖文並茂的顯示
+            // 🟢 核心攔截：儲存格自訂繪製
             _dgv.CellPainting += new DataGridViewCellPaintingEventHandler(Dgv_CellPainting);
             
             _dgv.DataError += delegate(object s, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; };
@@ -42,7 +41,6 @@ namespace Safety_System
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
             _dgv.ColumnDisplayIndexChanged += new DataGridViewColumnEventHandler(Dgv_ColumnDisplayIndexChanged);
 
-            // 綁定資料列驗證事件 (當離開編輯儲存格/列時觸發)
             _dgv.RowValidated += new DataGridViewCellEventHandler(Dgv_RowValidated);
 
             _btnSave.Click += new EventHandler(BtnSave_Click);
@@ -121,10 +119,9 @@ namespace Safety_System
             string[] items = null;
 
             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                items = App_DropdownManager.MultiSelectCache[multiKey];
+                items = App_DropdownManager.MultiSelectCache[multiKey].Select(x => x.Text).ToArray();
             } 
             else {
-                // 🟢 查詢下拉也要支援擷取設定好的純文字
                 string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, selectedCol);
                 if (dbItems != null && dbItems.Length > 1) {
                     items = dbItems;
@@ -195,9 +192,6 @@ namespace Safety_System
 
         private void Dgv_Sorted(object sender, EventArgs e) { }
 
-        // =========================================================================
-        // 智慧型打字緩衝防呆存檔機制 (Debounce Auto-Save)
-        // =========================================================================
         private async void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
         {
             if (_isBulkUpdating || _dgv.DataSource == null) return;
@@ -211,7 +205,6 @@ namespace Safety_System
                     {
                         DataRow row = drv.Row;
 
-                        // 只有當資料列狀態是「新增」或「被修改」時才進行存檔
                         if (row.RowState == DataRowState.Added || row.RowState == DataRowState.Modified) 
                         {
                             bool isNewData = (row.RowState == DataRowState.Added) || 
@@ -388,7 +381,6 @@ namespace Safety_System
                                             if (!DataManager.IsAttachmentInUse(_dbName, _tableName, p))
                                             {
                                                 try {
-                                                    // 🟢 同步刪除實體檔案時轉換動態路徑
                                                     string absPath = Path.Combine(DataManager.AttachmentBasePath, p.Replace("附件/", ""));
                                                     if (File.Exists(absPath)) File.Delete(absPath);
                                                 } catch { }
@@ -453,7 +445,6 @@ namespace Safety_System
 
             Dictionary<string, string[]> dropdownData = new Dictionary<string, string[]>();
             
-            // 🟢 取出純文字的驗證清單，供給 Excel 使用
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 if (col.Name != "Id" && col.Name != "附件檔案" && col.Name != "備註") {
                     string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
@@ -606,7 +597,8 @@ namespace Safety_System
                     bool isA3 = cboSize.SelectedItem.ToString() == "A3";
                     bool isLandscape = cboLayout.SelectedItem.ToString() == "橫式";
                     
-                    PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _chineseTitle, isA3, isLandscape);
+                    // 🟢 傳入 tableName 作為尋找圖示的 Key
+                    PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _tableName, isA3, isLandscape);
                 }
             }
         }
@@ -772,9 +764,9 @@ namespace Safety_System
             if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode) {
                 if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar)) {
                     
-                    // 🟢 阻擋文字直接覆蓋下拉選單的功能，避免 OwnerDraw 時閃退
                     string key = $"{_tableName}|{_dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name}";
-                    if (App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(key + "|"))) {
+                    if (App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(key + "|")) || 
+                        App_DropdownManager.MultiSelectCache.ContainsKey(key)) {
                         e.Handled = true;
                         return;
                     }
@@ -790,9 +782,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================================================
-        // 🟢 核心改造：客製化下拉選單視窗 (取代原生的 DataGridViewComboBoxColumn)
-        // =========================================================================================
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
             if (e.Control is TextBox) { 
@@ -803,52 +792,91 @@ namespace Safety_System
             }
         }
 
-        // 🟢 自己畫儲存格內容，如果資料庫有存對應圖片，就畫上去
+        // =========================================================================================
+        // 🟢 核心重繪引擎：支援【純圖示模式】與【多重並排圖示】
+        // =========================================================================================
         private void Dgv_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
             string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            // 只針對設定過的欄位進行攔截
-            string prefix = $"{_tableName}|{colName}|";
-            bool isDropdownCol = App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(prefix));
+            bool isSingleDropdown = App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith($"{_tableName}|{colName}|"));
+            bool isMultiDropdown = App_DropdownManager.MultiSelectCache.ContainsKey($"{_tableName}|{colName}");
             
-            if (isDropdownCol && e.Value != null)
+            if ((isSingleDropdown || isMultiDropdown) && e.Value != null)
             {
                 e.PaintBackground(e.ClipBounds, true);
 
                 string valStr = e.Value.ToString().Trim();
-                Image icon = null;
+                if (string.IsNullOrEmpty(valStr)) return;
 
-                // 搜尋全域快取找出對應的 Icon
-                foreach (var kvp in App_DropdownManager.DropdownCache) {
-                    if (kvp.Key.StartsWith(prefix)) {
-                        var match = kvp.Value.FirstOrDefault(d => d.Text == valStr);
-                        if (match != null && !string.IsNullOrEmpty(match.IconBase64)) {
-                            icon = match.GetImage();
-                            break;
+                Rectangle rect = e.CellBounds;
+                int imgSize = 24; // 🟢 放大圖示為 24x24
+                
+                // 檢查是否具有圖示設定
+                bool hasAnyIcon = false;
+                List<Image> iconsToDraw = new List<Image>();
+
+                if (isSingleDropdown)
+                {
+                    string prefix = $"{_tableName}|{colName}|";
+                    foreach (var kvp in App_DropdownManager.DropdownCache) {
+                        if (kvp.Key.StartsWith(prefix)) {
+                            var match = kvp.Value.FirstOrDefault(d => d.Text == valStr);
+                            if (match != null && !string.IsNullOrEmpty(match.IconBase64)) {
+                                Image img = match.GetImage();
+                                if (img != null) {
+                                    iconsToDraw.Add(img);
+                                    hasAnyIcon = true;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if (isMultiDropdown)
+                {
+                    string key = $"{_tableName}|{colName}";
+                    var opts = valStr.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+                    
+                    if (App_DropdownManager.MultiSelectCache.ContainsKey(key)) {
+                        var defs = App_DropdownManager.MultiSelectCache[key];
+                        foreach(var opt in opts) {
+                            var match = defs.FirstOrDefault(d => d.Text == opt);
+                            if (match != null && !string.IsNullOrEmpty(match.IconBase64)) {
+                                Image img = match.GetImage();
+                                if (img != null) {
+                                    iconsToDraw.Add(img);
+                                    hasAnyIcon = true;
+                                }
+                            }
                         }
                     }
                 }
 
-                Rectangle rect = e.CellBounds;
-                int imgSize = 16;
-                int textOffset = 2;
-
-                if (icon != null) {
-                    // 畫圖示
+                if (hasAnyIcon)
+                {
+                    // 🟢 有圖片的話，進入「純圖示模式」，隱藏文字
+                    int startX = rect.X + 6;
                     int imgY = rect.Y + (rect.Height - imgSize) / 2;
-                    e.Graphics.DrawImage(icon, rect.X + 4, imgY, imgSize, imgSize);
-                    textOffset = 24; 
+
+                    // 若是多張圖片(複選)，則水平並排畫出
+                    foreach(var img in iconsToDraw) {
+                        e.Graphics.DrawImage(img, startX, imgY, imgSize, imgSize);
+                        startX += imgSize + 4; // 圖示之間的間距
+                    }
+                }
+                else
+                {
+                    // 若沒有任何圖片設定，就按照原生方式畫出純文字
+                    using (Brush brush = new SolidBrush(e.CellStyle.ForeColor)) {
+                        StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center };
+                        RectangleF textRect = new RectangleF(rect.X + 2, rect.Y, rect.Width - 2, rect.Height);
+                        e.Graphics.DrawString(valStr, e.CellStyle.Font, brush, textRect, sf);
+                    }
                 }
 
-                // 畫文字
-                using (Brush brush = new SolidBrush(e.CellStyle.ForeColor)) {
-                    StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center };
-                    RectangleF textRect = new RectangleF(rect.X + textOffset, rect.Y, rect.Width - textOffset, rect.Height);
-                    e.Graphics.DrawString(valStr, e.CellStyle.Font, brush, textRect, sf);
-                }
-
+                // 告訴系統：我們自己畫完了，不用再用預設方法畫一次了
                 e.Handled = true;
             }
         }
@@ -874,12 +902,12 @@ namespace Safety_System
 
             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey))
             {
-                string[] options = App_DropdownManager.MultiSelectCache[multiKey];
+                var options = App_DropdownManager.MultiSelectCache[multiKey];
                 string currentVal = _dgv[colIndex, rowIndex].Value?.ToString() ?? "";
 
                 using (Form fMulti = new Form())
                 {
-                    fMulti.Text = $"複選組合文字：{colName}";
+                    fMulti.Text = $"複選組合：{colName}";
                     fMulti.Size = new Size(350, 450);
                     fMulti.StartPosition = FormStartPosition.CenterParent;
                     fMulti.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -887,6 +915,7 @@ namespace Safety_System
                     fMulti.MinimizeBox = false;
                     fMulti.BackColor = Color.White;
 
+                    // 🟢 改造複選視窗：也加入圖示顯示
                     CheckedListBox clb = new CheckedListBox {
                         Dock = DockStyle.Fill,
                         Font = new Font("Microsoft JhengHei UI", 12F),
@@ -896,10 +925,10 @@ namespace Safety_System
                     };
 
                     string[] currentSelected = currentVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
-                    foreach (string opt in options)
+                    foreach (var opt in options)
                     {
-                        bool isChecked = currentSelected.Contains(opt);
-                        clb.Items.Add(opt, isChecked);
+                        bool isChecked = currentSelected.Contains(opt.Text);
+                        clb.Items.Add(opt.Text, isChecked);
                     }
 
                     Button btnOk = new Button {
@@ -960,7 +989,6 @@ namespace Safety_System
                 } 
                 else 
                 {
-                    // 🟢 如果是單選圖文連動欄位，攔截滑鼠點擊，自己彈出視窗
                     string prefix = $"{_tableName}|{colName}|";
                     if (App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(prefix)))
                     {
@@ -987,7 +1015,7 @@ namespace Safety_System
         }
 
         // =========================================================================================
-        // 🟢 核心功能：自製下拉選單視窗 (支援圖示 + 文字選單)
+        // 🟢 自製下拉選單視窗 (支援 24x24 大圖示並排，隱藏文字)
         // =========================================================================================
         private void ShowCustomDropdown(int rowIndex, int colIndex)
         {
@@ -1018,13 +1046,9 @@ namespace Safety_System
                 }
             }
 
-            // 過濾重複的選項
             var uniqueItems = items.GroupBy(x => x.Text).Select(g => g.First()).ToList();
-
-            // 若沒有選項，則不彈出視窗
             if (uniqueItems.Count == 0) return;
 
-            // 建立懸浮視窗
             ToolStripDropDown dropDown = new ToolStripDropDown();
             dropDown.Margin = Padding.Empty;
             dropDown.Padding = Padding.Empty;
@@ -1032,18 +1056,16 @@ namespace Safety_System
             ListBox listBox = new ListBox {
                 IntegralHeight = false,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 28,
+                ItemHeight = 36, // 🟢 加大列高給 24x24 的圖示
                 Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            // 設定 ListBox 寬度 (以儲存格寬度為基準)
             Rectangle cellRect = _dgv.GetCellDisplayRectangle(colIndex, rowIndex, false);
-            listBox.Width = cellRect.Width > 150 ? cellRect.Width : 150;
-            listBox.Height = uniqueItems.Count * 28 + 5;
-            if (listBox.Height > 250) listBox.Height = 250; 
+            listBox.Width = cellRect.Width > 180 ? cellRect.Width : 180;
+            listBox.Height = uniqueItems.Count * 36 + 5;
+            if (listBox.Height > 300) listBox.Height = 300; 
 
-            // 自己畫 ListBox 裡面的項目 (包含圖片)
             listBox.DrawItem += (s, e) => {
                 if (e.Index < 0) return;
                 e.DrawBackground();
@@ -1051,23 +1073,23 @@ namespace Safety_System
                 var item = uniqueItems[e.Index];
                 Brush textBrush = ((e.State & DrawItemState.Selected) == DrawItemState.Selected) ? Brushes.White : Brushes.Black;
                 
-                int imgSize = 16;
+                int imgSize = 24; 
                 int textOffset = 2;
 
                 Image img = item.GetImage();
                 if (img != null) {
                     int imgY = e.Bounds.Y + (e.Bounds.Height - imgSize) / 2;
-                    e.Graphics.DrawImage(img, e.Bounds.X + 4, imgY, imgSize, imgSize);
-                    textOffset = 24;
+                    e.Graphics.DrawImage(img, e.Bounds.X + 8, imgY, imgSize, imgSize);
+                    textOffset = 40; 
                 }
 
-                e.Graphics.DrawString(item.Text, listBox.Font, textBrush, new PointF(e.Bounds.X + textOffset, e.Bounds.Y + 4));
+                // 在彈出的選單中，我們還是需要畫出文字，否則使用者不知道這個圖示代表什麼
+                e.Graphics.DrawString(item.Text, listBox.Font, textBrush, new PointF(e.Bounds.X + textOffset, e.Bounds.Y + 8));
                 e.DrawFocusRectangle();
             };
 
             foreach (var item in uniqueItems) listBox.Items.Add(item);
 
-            // 當使用者點擊或按下 Enter 時，將值寫入儲存格並關閉懸浮視窗
             listBox.MouseClick += (s, e) => {
                 if (listBox.SelectedIndex >= 0) {
                     _dgv[colIndex, rowIndex].Value = uniqueItems[listBox.SelectedIndex].Text;
@@ -1091,7 +1113,6 @@ namespace Safety_System
             host.Padding = Padding.Empty;
             dropDown.Items.Add(host);
 
-            // 計算在畫面上彈出的相對位置
             Point displayLocation = _dgv.PointToScreen(new Point(cellRect.Left, cellRect.Bottom));
             dropDown.Show(displayLocation);
             
@@ -1122,7 +1143,6 @@ namespace Safety_System
 
             _isCascading = true;
             try {
-                // 🟢 連動清空子選單的邏輯 (這部分邏輯不變，只是抓的字串要對應新結構)
                 foreach (var kvp in App_DropdownManager.DropdownCache) {
                     string[] parts = kvp.Key.Split('|');
                     if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName) {
