@@ -15,7 +15,7 @@ namespace Safety_System
     {
         private bool _isBulkUpdating = false;
 
-        // 🟢 智慧防呆緩衝器：紀錄每一列資料的延遲儲存任務
+        // 智慧防呆緩衝器：紀錄每一列資料的延遲儲存任務
         private Dictionary<DataRow, CancellationTokenSource> _rowSaveTimers = new Dictionary<DataRow, CancellationTokenSource>();
 
         private void BindEvents()
@@ -29,6 +29,9 @@ namespace Safety_System
             _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
             _dgv.EditingControlShowing += new DataGridViewEditingControlShowingEventHandler(Dgv_EditingControlShowing);
             
+            // 🟢 新增：攔截儲存格繪製事件，以支援圖文並茂的顯示
+            _dgv.CellPainting += new DataGridViewCellPaintingEventHandler(Dgv_CellPainting);
+            
             _dgv.DataError += delegate(object s, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; };
             
             _dgv.CurrentCellDirtyStateChanged += new EventHandler(Dgv_CurrentCellDirtyStateChanged);
@@ -39,7 +42,7 @@ namespace Safety_System
             _dgv.ColumnWidthChanged += new DataGridViewColumnEventHandler(Dgv_ColumnWidthChanged);
             _dgv.ColumnDisplayIndexChanged += new DataGridViewColumnEventHandler(Dgv_ColumnDisplayIndexChanged);
 
-            // 🟢 綁定資料列驗證事件 (當離開編輯儲存格/列時觸發)
+            // 綁定資料列驗證事件 (當離開編輯儲存格/列時觸發)
             _dgv.RowValidated += new DataGridViewCellEventHandler(Dgv_RowValidated);
 
             _btnSave.Click += new EventHandler(BtnSave_Click);
@@ -56,7 +59,7 @@ namespace Safety_System
                     _isFirstLoad = false;
                     _currentSearchMode = SearchMode.Limit;
                     
-                    int limit = 100; // 預設改為 100
+                    int limit = 100; 
                     if (int.TryParse(_txtLatestCount.Text, out limit)) _currentLimit = limit;
                     
                     await ReloadCurrentDataAsync();
@@ -121,6 +124,7 @@ namespace Safety_System
                 items = App_DropdownManager.MultiSelectCache[multiKey];
             } 
             else {
+                // 🟢 查詢下拉也要支援擷取設定好的純文字
                 string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, selectedCol);
                 if (dbItems != null && dbItems.Length > 1) {
                     items = dbItems;
@@ -192,7 +196,7 @@ namespace Safety_System
         private void Dgv_Sorted(object sender, EventArgs e) { }
 
         // =========================================================================
-        // 🟢 核心修復：智慧型打字緩衝防呆存檔機制 (Debounce Auto-Save)
+        // 智慧型打字緩衝防呆存檔機制 (Debounce Auto-Save)
         // =========================================================================
         private async void Dgv_RowValidated(object sender, DataGridViewCellEventArgs e)
         {
@@ -210,49 +214,40 @@ namespace Safety_System
                         // 只有當資料列狀態是「新增」或「被修改」時才進行存檔
                         if (row.RowState == DataRowState.Added || row.RowState == DataRowState.Modified) 
                         {
-                            // 判斷是否為剛產生的全新資料 (包含未配發 Id 的狀態)
                             bool isNewData = (row.RowState == DataRowState.Added) || 
                                              (row.Table.Columns.Contains("Id") && (row["Id"] == DBNull.Value || Convert.ToInt32(row["Id"]) <= 0));
 
-                            // 🟢 緩衝時間設定：新資料給 10 秒輸入緩衝；既有資料修改給 0.5 秒短暫緩衝
                             int delayMs = isNewData ? 10000 : 500;
 
-                            // 如果這個列之前有倒數計時，取消它 (使用者持續在編輯，重置計時器)
                             if (_rowSaveTimers.ContainsKey(row)) 
                             {
                                 _rowSaveTimers[row].Cancel();
                                 _rowSaveTimers[row].Dispose();
                             }
 
-                            // 建立新的倒數計時器
                             CancellationTokenSource cts = new CancellationTokenSource();
                             _rowSaveTimers[row] = cts;
 
                             try 
                             {
-                                // 等待指定的秒數 (若期間被 Cancel 則會拋出例外)
                                 await Task.Delay(delayMs, cts.Token);
                             } 
                             catch (TaskCanceledException) 
                             {
-                                // 被新的編輯動作打斷，直接結束本次任務
                                 return; 
                             }
 
-                            // 如果安全度過了緩衝時間，從計時清單中移除並執行背景寫入
                             _rowSaveTimers.Remove(row);
 
                             await Task.Run(() => 
                             {
                                 try 
                                 {
-                                    // 將資料寫入底層，並取回新產生的 Id
                                     long newId = DataManager.UpsertRecord(_dbName, _tableName, row);
                                     
                                     if (_dgv.InvokeRequired) 
                                     {
                                         _dgv.Invoke(new Action(() => {
-                                            // 🟢 將新產生的 Id 回填至畫面，避免下次編輯被誤認為新資料而產生重複
                                             if (newId > 0 && row.Table.Columns.Contains("Id")) {
                                                 bool originalReadOnly = row.Table.Columns["Id"].ReadOnly;
                                                 row.Table.Columns["Id"].ReadOnly = false;
@@ -293,7 +288,6 @@ namespace Safety_System
                 
                 if (_dgv.BindingContext != null && _dgv.DataSource != null) _dgv.BindingContext[_dgv.DataSource].EndCurrentEdit();
 
-                // 手動按儲存時，強制取消所有正在等待的緩衝任務，直接全域儲存
                 foreach (var cts in _rowSaveTimers.Values) {
                     try { cts.Cancel(); cts.Dispose(); } catch { }
                 }
@@ -394,7 +388,8 @@ namespace Safety_System
                                             if (!DataManager.IsAttachmentInUse(_dbName, _tableName, p))
                                             {
                                                 try {
-                                                    string absPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, p);
+                                                    // 🟢 同步刪除實體檔案時轉換動態路徑
+                                                    string absPath = Path.Combine(DataManager.AttachmentBasePath, p.Replace("附件/", ""));
                                                     if (File.Exists(absPath)) File.Delete(absPath);
                                                 } catch { }
                                             }
@@ -457,15 +452,13 @@ namespace Safety_System
             DataTable dt = (DataTable)_dgv.DataSource;
 
             Dictionary<string, string[]> dropdownData = new Dictionary<string, string[]>();
+            
+            // 🟢 取出純文字的驗證清單，供給 Excel 使用
             foreach (DataGridViewColumn col in _dgv.Columns) {
-                if (col is DataGridViewComboBoxColumn) {
-                    DataGridViewComboBoxColumn cboCol = (DataGridViewComboBoxColumn)col;
-                    List<string> itemsList = new List<string>();
-                    foreach (object obj in cboCol.Items) {
-                        itemsList.Add(obj.ToString());
-                    }
-                    if (itemsList.Count > 0) {
-                        dropdownData[col.Name] = itemsList.ToArray();
+                if (col.Name != "Id" && col.Name != "附件檔案" && col.Name != "備註") {
+                    string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
+                    if (dbItems != null && dbItems.Length > 1) {
+                        dropdownData[col.Name] = dbItems;
                     }
                 }
             }
@@ -550,7 +543,6 @@ namespace Safety_System
                     _isApplyingWidths = true;
                     _dgv.SuspendLayout();
 
-                    PreFillComboBoxItems(workingDt); 
                     _dgv.DataSource = workingDt; 
                     ApplyGridStyles(); 
                     RestoreColumnOrder();
@@ -763,7 +755,6 @@ namespace Safety_System
                 _isApplyingWidths = true;
                 _dgv.SuspendLayout();
 
-                PreFillComboBoxItems(workingDt); 
                 _dgv.DataSource = workingDt; 
                 ApplyGridStyles(); 
                 RestoreColumnOrder();
@@ -780,6 +771,14 @@ namespace Safety_System
         {
             if (_dgv.CurrentCell != null && !_dgv.CurrentCell.ReadOnly && !_dgv.IsCurrentCellInEditMode) {
                 if (char.IsLetterOrDigit(e.KeyChar) || char.IsPunctuation(e.KeyChar) || char.IsSymbol(e.KeyChar) || char.IsWhiteSpace(e.KeyChar)) {
+                    
+                    // 🟢 阻擋文字直接覆蓋下拉選單的功能，避免 OwnerDraw 時閃退
+                    string key = $"{_tableName}|{_dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name}";
+                    if (App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(key + "|"))) {
+                        e.Handled = true;
+                        return;
+                    }
+
                     _dgv.BeginEdit(true); 
                     if (_dgv.EditingControl is TextBox) { 
                         TextBox txt = (TextBox)_dgv.EditingControl;
@@ -791,64 +790,12 @@ namespace Safety_System
             }
         }
 
+        // =========================================================================================
+        // 🟢 核心改造：客製化下拉選單視窗 (取代原生的 DataGridViewComboBoxColumn)
+        // =========================================================================================
         private void Dgv_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e) 
         {
-            e.Control.PreviewKeyDown -= new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
-            e.Control.PreviewKeyDown += new PreviewKeyDownEventHandler(EditingControl_PreviewKeyDown);
-
-            if (e.Control is ComboBox) {
-                ComboBox cbo = (ComboBox)e.Control;
-                
-                cbo.DropDownStyle = ComboBoxStyle.DropDownList;
-                cbo.DrawMode = DrawMode.OwnerDrawFixed; 
-                cbo.FlatStyle = FlatStyle.Flat; 
-
-                cbo.DrawItem -= Cbo_DrawItem;
-                cbo.DrawItem += Cbo_DrawItem;
-
-                if (_dgv.CurrentCell != null) {
-                    string colName = _dgv.Columns[_dgv.CurrentCell.ColumnIndex].Name;
-                    string parentColName = "";
-                    
-                    foreach (KeyValuePair<string, string[]> kvp in App_DropdownManager.DropdownCache) {
-                        string[] parts = kvp.Key.Split('|');
-                        if (parts.Length == 4 && parts[0] == _tableName && parts[1] == colName && !string.IsNullOrEmpty(parts[2])) {
-                            parentColName = parts[2]; break;
-                        }
-                    }
-
-                    string[] items = null;
-                    if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName)) {
-                        string parentVal = "";
-                        object rawVal = _dgv.CurrentRow.Cells[parentColName].Value;
-                        if (rawVal != null) parentVal = rawVal.ToString();
-
-                        items = App_DropdownManager.GetOptions(_tableName, colName, parentColName, parentVal);
-                        if (items == null || items.Length == 0) items = _logic.GetDependentDropdownList(_tableName, colName, parentVal); 
-                    } else {
-                        items = App_DropdownManager.GetAllOptionsForColumn(_tableName, colName);
-                        if (items == null || items.Length <= 1) items = _logic.GetDropdownList(_tableName, colName);
-                    }
-                    
-                    if (items != null) { 
-                        object currentVal = _dgv.CurrentCell.Value; 
-                        cbo.Items.Clear(); 
-                        
-                        HashSet<string> uniqueItems = new HashSet<string>(items);
-                        if (currentVal != null && !string.IsNullOrWhiteSpace(currentVal.ToString())) {
-                            uniqueItems.Add(currentVal.ToString());
-                        }
-
-                        var finalArray = uniqueItems.ToArray();
-                        cbo.DataSource = finalArray;
-
-                        if (currentVal != null && uniqueItems.Contains(currentVal.ToString())) {
-                            cbo.SelectedItem = currentVal.ToString();
-                        }
-                    }
-                }
-            }
-            else if (e.Control is TextBox) { 
+            if (e.Control is TextBox) { 
                 TextBox txt = (TextBox)e.Control;
                 txt.Multiline = true; 
                 txt.KeyDown -= new KeyEventHandler(TextBox_KeyDown); 
@@ -856,29 +803,54 @@ namespace Safety_System
             }
         }
 
-        private void Cbo_DrawItem(object sender, DrawItemEventArgs e)
+        // 🟢 自己畫儲存格內容，如果資料庫有存對應圖片，就畫上去
+        private void Dgv_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
         {
-            if (e.Index < 0) return;
-            ComboBox cbo = sender as ComboBox;
-            if (cbo == null) return;
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            string colName = _dgv.Columns[e.ColumnIndex].Name;
 
-            e.DrawBackground();
-
-            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-            Brush bgBrush = isSelected ? SystemBrushes.Highlight : Brushes.White;
-            Brush textBrush = isSelected ? SystemBrushes.HighlightText : Brushes.Black;
-
-            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+            // 只針對設定過的欄位進行攔截
+            string prefix = $"{_tableName}|{colName}|";
+            bool isDropdownCol = App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(prefix));
             
-            string text = cbo.Items[e.Index].ToString();
-            float y = e.Bounds.Y + ((e.Bounds.Height - e.Font.Height) / 2);
-            e.Graphics.DrawString(text, e.Font, textBrush, new PointF(e.Bounds.X + 2, y));
+            if (isDropdownCol && e.Value != null)
+            {
+                e.PaintBackground(e.ClipBounds, true);
 
-            e.DrawFocusRectangle();
-        }
+                string valStr = e.Value.ToString().Trim();
+                Image icon = null;
 
-        private void EditingControl_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e) {
-            if (e.Control && e.KeyCode == Keys.S) { e.IsInputKey = true; _btnSave.PerformClick(); }
+                // 搜尋全域快取找出對應的 Icon
+                foreach (var kvp in App_DropdownManager.DropdownCache) {
+                    if (kvp.Key.StartsWith(prefix)) {
+                        var match = kvp.Value.FirstOrDefault(d => d.Text == valStr);
+                        if (match != null && !string.IsNullOrEmpty(match.IconBase64)) {
+                            icon = match.GetImage();
+                            break;
+                        }
+                    }
+                }
+
+                Rectangle rect = e.CellBounds;
+                int imgSize = 16;
+                int textOffset = 2;
+
+                if (icon != null) {
+                    // 畫圖示
+                    int imgY = rect.Y + (rect.Height - imgSize) / 2;
+                    e.Graphics.DrawImage(icon, rect.X + 4, imgY, imgSize, imgSize);
+                    textOffset = 24; 
+                }
+
+                // 畫文字
+                using (Brush brush = new SolidBrush(e.CellStyle.ForeColor)) {
+                    StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center };
+                    RectangleF textRect = new RectangleF(rect.X + textOffset, rect.Y, rect.Width - textOffset, rect.Height);
+                    e.Graphics.DrawString(valStr, e.CellStyle.Font, brush, textRect, sf);
+                }
+
+                e.Handled = true;
+            }
         }
 
         private void TextBox_KeyDown(object sender, KeyEventArgs e) {
@@ -987,8 +959,17 @@ namespace Safety_System
                     TriggerMultiSelectDialog(e.RowIndex, e.ColumnIndex);
                 } 
                 else 
-                { 
-                    _logic.OnCellClick(_dgv, e); 
+                {
+                    // 🟢 如果是單選圖文連動欄位，攔截滑鼠點擊，自己彈出視窗
+                    string prefix = $"{_tableName}|{colName}|";
+                    if (App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(prefix)))
+                    {
+                        ShowCustomDropdown(e.RowIndex, e.ColumnIndex);
+                    }
+                    else
+                    {
+                        _logic.OnCellClick(_dgv, e); 
+                    }
                 }
             }
         }
@@ -1003,6 +984,118 @@ namespace Safety_System
                     TriggerMultiSelectDialog(e.RowIndex, e.ColumnIndex);
                 }
             }
+        }
+
+        // =========================================================================================
+        // 🟢 核心功能：自製下拉選單視窗 (支援圖示 + 文字選單)
+        // =========================================================================================
+        private void ShowCustomDropdown(int rowIndex, int colIndex)
+        {
+            string colName = _dgv.Columns[colIndex].Name;
+            string parentColName = "";
+            
+            foreach (var kvp in App_DropdownManager.DropdownCache) {
+                string[] parts = kvp.Key.Split('|');
+                if (parts.Length == 4 && parts[0] == _tableName && parts[1] == colName && !string.IsNullOrEmpty(parts[2])) {
+                    parentColName = parts[2]; break;
+                }
+            }
+
+            List<DropdownItemDef> items = new List<DropdownItemDef>();
+
+            if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName)) {
+                string parentVal = _dgv.Rows[rowIndex].Cells[parentColName].Value?.ToString() ?? "";
+                string key = $"{_tableName}|{colName}|{parentColName}|{parentVal}";
+                if (App_DropdownManager.DropdownCache.ContainsKey(key)) {
+                    items = App_DropdownManager.DropdownCache[key];
+                }
+            } else {
+                string prefix = $"{_tableName}|{colName}|";
+                foreach(var kvp in App_DropdownManager.DropdownCache) {
+                    if (kvp.Key.StartsWith(prefix)) {
+                        items.AddRange(kvp.Value);
+                    }
+                }
+            }
+
+            // 過濾重複的選項
+            var uniqueItems = items.GroupBy(x => x.Text).Select(g => g.First()).ToList();
+
+            // 若沒有選項，則不彈出視窗
+            if (uniqueItems.Count == 0) return;
+
+            // 建立懸浮視窗
+            ToolStripDropDown dropDown = new ToolStripDropDown();
+            dropDown.Margin = Padding.Empty;
+            dropDown.Padding = Padding.Empty;
+
+            ListBox listBox = new ListBox {
+                IntegralHeight = false,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = 28,
+                Font = new Font("Microsoft JhengHei UI", 12F),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            // 設定 ListBox 寬度 (以儲存格寬度為基準)
+            Rectangle cellRect = _dgv.GetCellDisplayRectangle(colIndex, rowIndex, false);
+            listBox.Width = cellRect.Width > 150 ? cellRect.Width : 150;
+            listBox.Height = uniqueItems.Count * 28 + 5;
+            if (listBox.Height > 250) listBox.Height = 250; 
+
+            // 自己畫 ListBox 裡面的項目 (包含圖片)
+            listBox.DrawItem += (s, e) => {
+                if (e.Index < 0) return;
+                e.DrawBackground();
+
+                var item = uniqueItems[e.Index];
+                Brush textBrush = ((e.State & DrawItemState.Selected) == DrawItemState.Selected) ? Brushes.White : Brushes.Black;
+                
+                int imgSize = 16;
+                int textOffset = 2;
+
+                Image img = item.GetImage();
+                if (img != null) {
+                    int imgY = e.Bounds.Y + (e.Bounds.Height - imgSize) / 2;
+                    e.Graphics.DrawImage(img, e.Bounds.X + 4, imgY, imgSize, imgSize);
+                    textOffset = 24;
+                }
+
+                e.Graphics.DrawString(item.Text, listBox.Font, textBrush, new PointF(e.Bounds.X + textOffset, e.Bounds.Y + 4));
+                e.DrawFocusRectangle();
+            };
+
+            foreach (var item in uniqueItems) listBox.Items.Add(item);
+
+            // 當使用者點擊或按下 Enter 時，將值寫入儲存格並關閉懸浮視窗
+            listBox.MouseClick += (s, e) => {
+                if (listBox.SelectedIndex >= 0) {
+                    _dgv[colIndex, rowIndex].Value = uniqueItems[listBox.SelectedIndex].Text;
+                    _dgv.EndEdit();
+                    dropDown.Close();
+                }
+            };
+
+            listBox.KeyDown += (s, e) => {
+                if (e.KeyCode == Keys.Enter && listBox.SelectedIndex >= 0) {
+                    _dgv[colIndex, rowIndex].Value = uniqueItems[listBox.SelectedIndex].Text;
+                    _dgv.EndEdit();
+                    dropDown.Close();
+                } else if (e.KeyCode == Keys.Escape) {
+                    dropDown.Close();
+                }
+            };
+
+            ToolStripControlHost host = new ToolStripControlHost(listBox);
+            host.Margin = Padding.Empty;
+            host.Padding = Padding.Empty;
+            dropDown.Items.Add(host);
+
+            // 計算在畫面上彈出的相對位置
+            Point displayLocation = _dgv.PointToScreen(new Point(cellRect.Left, cellRect.Bottom));
+            dropDown.Show(displayLocation);
+            
+            listBox.Focus();
         }
 
         private void Dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
@@ -1029,7 +1122,8 @@ namespace Safety_System
 
             _isCascading = true;
             try {
-                foreach (KeyValuePair<string, string[]> kvp in App_DropdownManager.DropdownCache) {
+                // 🟢 連動清空子選單的邏輯 (這部分邏輯不變，只是抓的字串要對應新結構)
+                foreach (var kvp in App_DropdownManager.DropdownCache) {
                     string[] parts = kvp.Key.Split('|');
                     if (parts.Length == 4 && parts[0] == _tableName && parts[2] == colName) {
                         string childColName = parts[1];
