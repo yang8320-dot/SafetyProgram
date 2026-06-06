@@ -151,6 +151,10 @@ namespace Safety_System
             _dgvSDS.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
             _dgvSDS.ColumnHeadersHeight = 40;
             _dgvSDS.AlternatingRowsDefaultCellStyle.BackColor = Color.WhiteSmoke;
+            
+            // 🟢 補上圖示重繪事件
+            _dgvSDS.CellPainting += DgvSDS_CellPainting;
+
             boxGrid.Controls.Add(_dgvSDS);
 
             innerTable.Controls.Add(pnlTitle, 0, 0);
@@ -418,7 +422,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (移除大標題/簽核/頁碼，保留主標題)
+        // 導出 A4 危害性化學品清單 PDF 功能 (移除大標題/簽核/頁碼，保留主標題)
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -591,7 +595,6 @@ namespace Safety_System
 
                         // ====== 先計算總頁數 ======
                         int totalPages = 1;
-                        // float simW = 1169f - 60f; // 🟢 已移除未使用變數
                         float simH = 827f - 60f;  
                         
                         float simStartY = 30f + 40f + 40f + 35f + 30f + 32f; 
@@ -666,7 +669,27 @@ namespace Safety_System
                                     RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
                                     g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
                                     string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
-                                    g.DrawString(val, fBody, Brushes.Black, rect, sfBody);
+                                    
+                                    // 🟢 檢查是否有圖示
+                                    var icons = PdfHelper.GetIconsFromCache(TableName, col.Name, val);
+                                    if (icons.Count > 0)
+                                    {
+                                        float imgSize = 18f; // PDF上的圖示大小
+                                        float imgY = y + (rowH - imgSize) / 2;
+                                        float startX = currX + 4;
+                                        foreach (var img in icons)
+                                        {
+                                            g.DrawImage(img, startX, imgY, imgSize, imgSize);
+                                            startX += imgSize + 4;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // 沒圖示就畫純文字
+                                        RectangleF textRect = new RectangleF(rect.X + 2, rect.Y, rect.Width - 4, rect.Height);
+                                        g.DrawString(val, fBody, Brushes.Black, textRect, sfBody);
+                                    }
+                                    
                                     currX += col.Width * scale;
                                 }
                                 y += rowH;
@@ -699,6 +722,37 @@ namespace Safety_System
                     } finally {
                         if (activeForm != null) activeForm.Cursor = Cursors.Default;
                     }
+                }
+            }
+        }
+
+        // =========================================================================
+        // 🟢 讓化學品看板的 Grid 也支援純圖示/多圖示並排顯示
+        // =========================================================================
+        private void DgvSDS_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            string colName = _dgvSDS.Columns[e.ColumnIndex].Name;
+
+            if (e.Value != null)
+            {
+                // 呼叫 PdfHelper 公開的快取方法取得圖示
+                var icons = PdfHelper.GetIconsFromCache(TableName, colName, e.Value.ToString());
+                
+                if (icons.Count > 0)
+                {
+                    e.PaintBackground(e.ClipBounds, true);
+                    
+                    int imgSize = 24; 
+                    int startX = e.CellBounds.X + 6;
+                    int imgY = e.CellBounds.Y + (e.CellBounds.Height - imgSize) / 2;
+
+                    foreach (var img in icons)
+                    {
+                        e.Graphics.DrawImage(img, startX, imgY, imgSize, imgSize);
+                        startX += imgSize + 4;
+                    }
+                    e.Handled = true; // 告知系統已畫完，隱藏純文字
                 }
             }
         }
