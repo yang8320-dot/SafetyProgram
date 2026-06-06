@@ -11,28 +11,57 @@ namespace Safety_System
 {
     public static class PdfHelper
     {
-        // 🟢 輔助方法：尋找文字對應的快取圖示
-        private static Image GetIconFromCache(string tableName, string colName, string cellValue)
+        // 🟢 輔助方法：搜尋快取，回傳對應的圖示串列 (支援單選與複選)
+        private static List<Image> GetIconsFromCache(string tableName, string colName, string cellValue)
         {
-            if (string.IsNullOrEmpty(cellValue)) return null;
+            List<Image> icons = new List<Image>();
+            if (string.IsNullOrEmpty(cellValue)) return icons;
 
-            string prefix = $"{tableName}|{colName}|";
-            foreach (var kvp in App_DropdownManager.DropdownCache)
+            bool isSingleDropdown = App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith($"{tableName}|{colName}|"));
+            bool isMultiDropdown = App_DropdownManager.MultiSelectCache.ContainsKey($"{tableName}|{colName}");
+
+            if (isSingleDropdown)
             {
-                if (kvp.Key.StartsWith(prefix))
+                string prefix = $"{tableName}|{colName}|";
+                foreach (var kvp in App_DropdownManager.DropdownCache)
                 {
-                    var match = kvp.Value.FirstOrDefault(d => d.Text == cellValue);
-                    if (match != null && !string.IsNullOrEmpty(match.IconBase64))
+                    if (kvp.Key.StartsWith(prefix))
                     {
-                        return match.GetImage();
+                        var match = kvp.Value.FirstOrDefault(d => d.Text == cellValue);
+                        if (match != null && !string.IsNullOrEmpty(match.IconBase64))
+                        {
+                            Image img = match.GetImage();
+                            if (img != null) icons.Add(img);
+                            break;
+                        }
                     }
                 }
             }
-            return null;
+            else if (isMultiDropdown)
+            {
+                string key = $"{tableName}|{colName}";
+                var opts = cellValue.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+                
+                if (App_DropdownManager.MultiSelectCache.ContainsKey(key))
+                {
+                    var defs = App_DropdownManager.MultiSelectCache[key];
+                    foreach (var opt in opts)
+                    {
+                        var match = defs.FirstOrDefault(d => d.Text == opt);
+                        if (match != null && !string.IsNullOrEmpty(match.IconBase64))
+                        {
+                            Image img = match.GetImage();
+                            if (img != null) icons.Add(img);
+                        }
+                    }
+                }
+            }
+
+            return icons;
         }
 
         // =========================================================================================
-        // DataGridView 匯出 PDF (支援圖文並茂)
+        // DataGridView 匯出 PDF (支援純圖示與多圖並排)
         // =========================================================================================
         public static void ExportDataGridViewToPdf(DataGridView dgv, string reportTitle, string fileNamePrefix, bool isA3 = false, bool isLandscape = true)
         {
@@ -64,7 +93,7 @@ namespace Safety_System
                     int rowIndex = 0;
                     int pageNumber = 1;
                     
-                    // 為了尋找圖片，我們需要知道這是哪一張表，我們將傳入的 fileNamePrefix 作為 tableName 的參考
+                    // fileNamePrefix 本質上就是 TableName
                     string tableName = fileNamePrefix; 
 
                     pd.PrintPage += (s, ev) =>
@@ -103,8 +132,10 @@ namespace Safety_System
                         }
 
                         float currX = x;
-                        float rowH = 32 + fontSizeBonus * 2;
+                        float baseRowH = 32 + fontSizeBonus * 2;
+                        float rowH = baseRowH;
 
+                        // 畫表頭
                         for (int i = 0; i < visCols.Count; i++)
                         {
                             RectangleF rect = new RectangleF(currX, y, actualColWidths[i], rowH);
@@ -115,11 +146,12 @@ namespace Safety_System
                         }
                         y += rowH;
 
+                        // 畫資料列
                         while (rowIndex < dgv.Rows.Count)
                         {
                             if (dgv.Rows[rowIndex].IsNewRow) { rowIndex++; continue; }
 
-                            float maxRowH = rowH;
+                            float maxRowH = baseRowH;
                             for (int i = 0; i < visCols.Count; i++)
                             {
                                 string val = dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? "";
@@ -145,24 +177,28 @@ namespace Safety_System
                                 string val = dgv[visCols[i].Index, rowIndex].Value?.ToString() ?? "";
                                 
                                 // 🟢 檢查是否有圖示
-                                Image cellIcon = GetIconFromCache(tableName, colName, val);
+                                List<Image> cellIcons = GetIconsFromCache(tableName, colName, val);
                                 
-                                float textOffsetX = 2; // 預設文字偏移量
-                                
-                                if (cellIcon != null)
+                                if (cellIcons.Count > 0)
                                 {
-                                    // 繪製圖示 (設定圖片大小 14x14)
-                                    float imgSize = 14 + fontSizeBonus;
+                                    // 🟢 純圖示模式：如果有圖片，我們就不畫文字了
+                                    float imgSize = 18 + fontSizeBonus; // PDF 上縮放的圖示大小
                                     float imgY = rect.Y + (rect.Height - imgSize) / 2;
-                                    g.DrawImage(cellIcon, rect.X + 4, imgY, imgSize, imgSize);
-                                    
-                                    textOffsetX = imgSize + 8; // 有圖片時文字向右推移
+                                    float imgStartX = rect.X + 4;
+
+                                    foreach (var icon in cellIcons)
+                                    {
+                                        g.DrawImage(icon, imgStartX, imgY, imgSize, imgSize);
+                                        imgStartX += imgSize + 4; // 水平並排間距
+                                    }
+                                }
+                                else
+                                {
+                                    // 🟢 沒有圖片的話，就正常畫出文字
+                                    RectangleF textRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+                                    g.DrawString(val, fBody, Brushes.Black, textRect, sfLeft);
                                 }
 
-                                // 繪製文字
-                                RectangleF textRect = new RectangleF(rect.X + textOffsetX, rect.Y + 2, rect.Width - textOffsetX - 2, rect.Height - 4);
-                                g.DrawString(val, fBody, Brushes.Black, textRect, sfLeft);
-                                
                                 currX += actualColWidths[i];
                             }
                             y += maxRowH;
