@@ -12,7 +12,8 @@ namespace Safety_System
     public static class PdfHelper
     {
         // 🟢 輔助方法：搜尋快取，回傳對應的圖示串列 (支援單選與複選)
-        private static List<Image> GetIconsFromCache(string tableName, string colName, string cellValue)
+        // 🟢 修改點：將 private 改為 public，讓 Dashboard 也能呼叫此方法
+        public static List<Image> GetIconsFromCache(string tableName, string colName, string cellValue)
         {
             List<Image> icons = new List<Image>();
             if (string.IsNullOrEmpty(cellValue)) return icons;
