@@ -183,7 +183,6 @@ namespace Safety_System
 
             _cboSearchColumn = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Margin = ctrlPad };
             
-            // 🟢 新增：將原本單純的 TextBox 換成包含 TextBox 與 ComboBox 的容器
             Panel pnlSearchInput = new Panel { Width = 180, Height = btnHeight, Margin = ctrlPad };
             
             _txtSearchKeyword = new TextBox { Dock = DockStyle.Fill };
@@ -259,6 +258,10 @@ namespace Safety_System
             };
 
             EnableDoubleBuffered(_dgv);
+
+            // 🟢 改造：加寬 DataGridView 列高，以容納 24x24 或多個並排圖示
+            _dgv.RowTemplate.Height = 35;
+            _dgv.RowTemplate.MinimumHeight = 35;
 
             _dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.RowsDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -375,7 +378,8 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
+            // 🟢 改為不自動撐高 Row，由自繪引擎與換行符號決定，效能更好且不會因為大圖片跑版
+            _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
@@ -416,75 +420,38 @@ namespace Safety_System
                     int colIndex = col.Index; 
                     _dgv.Columns.RemoveAt(colIndex);
                     
-                    DataGridViewComboBoxColumn cboCol = new DataGridViewComboBoxColumn { 
-                        Name = col.Name, HeaderText = col.HeaderText, DataPropertyName = col.DataPropertyName, 
-                        DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox, 
-                        FlatStyle = FlatStyle.Flat, 
-                        SortMode = DataGridViewColumnSortMode.Automatic 
+                    // 🟢 放棄使用 DataGridViewComboBoxColumn，改用純文字欄位以容許我們自己 OwnerDraw 繪圖
+                    DataGridViewTextBoxColumn txtCol = new DataGridViewTextBoxColumn { 
+                        Name = col.Name, HeaderText = col.HeaderText, DataPropertyName = col.DataPropertyName
                     };
 
-                    cboCol.DefaultCellStyle.BackColor = Color.White;
-                    cboCol.DefaultCellStyle.ForeColor = Color.Black;
-                    cboCol.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue;
-                    cboCol.DefaultCellStyle.SelectionForeColor = Color.Black;
+                    txtCol.DefaultCellStyle.BackColor = Color.White;
+                    txtCol.DefaultCellStyle.ForeColor = Color.Black;
+                    txtCol.DefaultCellStyle.SelectionBackColor = Color.LightSteelBlue;
+                    txtCol.DefaultCellStyle.SelectionForeColor = Color.Black;
                     
-                    if (_columnVisibility.ContainsKey(col.Name)) cboCol.Visible = _columnVisibility[col.Name];
-                    cboCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
+                    if (_columnVisibility.ContainsKey(col.Name)) txtCol.Visible = _columnVisibility[col.Name];
+                    txtCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
                     
-                    List<string> finalItems = new List<string>();
-                    foreach (string item in items) finalItems.Add(item);
-
-                    if (_dgv.DataSource is DataTable) { 
-                        DataTable dt = (DataTable)_dgv.DataSource;
-                        foreach (DataRow row in dt.Rows) { 
-                            object valObj = row[col.Name];
-                            if (valObj != null) {
-                                string val = valObj.ToString().Trim(); 
-                                if (!string.IsNullOrEmpty(val) && !finalItems.Contains(val)) finalItems.Add(val); 
-                            }
-                        } 
-                    }
+                    // 雖然是文字欄位，但我們給它加一點樣式讓它看起來像可以點擊的選單
+                    txtCol.DefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
                     
-                    cboCol.Items.AddRange(finalItems.ToArray()); 
-                    _dgv.Columns.Insert(colIndex, cboCol);
+                    _dgv.Columns.Insert(colIndex, txtCol);
                 }
             }
         }
 
         private void PreFillComboBoxItems(DataTable dt)
         {
-            if (dt == null || _dgv.Columns.Count == 0) return;
-            foreach (DataGridViewColumn col in _dgv.Columns) {
-                if (col is DataGridViewComboBoxColumn && dt.Columns.Contains(col.Name)) {
-                    DataGridViewComboBoxColumn cboCol = (DataGridViewComboBoxColumn)col;
-                    List<string> existingItems = new List<string>();
-                    foreach (object item in cboCol.Items) existingItems.Add(item.ToString());
-
-                    foreach (DataRow row in dt.Rows) {
-                        if (row.RowState == DataRowState.Deleted) continue;
-                        object valObj = row[col.Name];
-                        if (valObj != null) {
-                            string val = valObj.ToString().Trim();
-                            if (!string.IsNullOrEmpty(val) && !existingItems.Contains(val)) {
-                                existingItems.Add(val); 
-                                cboCol.Items.Add(val);
-                            }
-                        }
-                    }
-                }
-            }
+            // 此功能因已捨棄原生 ComboBoxColumn，已無作用，但保留空殼避免其他地方呼叫出錯
         }
 
-        // 🟢 核心修復：在重整欄位清單時，同步記憶並恢復使用者的搜尋選項
         private void UpdateCboColumns() 
         {
-            // 記住目前的狀態
             string currentSearchSel = _cboSearchColumn.SelectedItem?.ToString() ?? "";
-            
-            // 記住目前的關鍵字 (無論是文字框還是選單)
             string currentKeyword = _isSearchDropdownMode ? (_cboSearchKeyword.SelectedItem?.ToString() ?? "") : _txtSearchKeyword.Text;
 
-            _isCascading = true; // 暫停觸發事件防呆
+            _isCascading = true; 
             
             _cboColumns.Items.Clear(); 
             _cboSearchColumn.Items.Clear(); 
@@ -495,7 +462,7 @@ namespace Safety_System
                 if (c.Name != "Id") { _cboSearchColumn.Items.Add(c.Name); } 
             }
             
-            _isCascading = false; // 恢復觸發
+            _isCascading = false; 
             
             if (!string.IsNullOrEmpty(currentSearchSel) && _cboSearchColumn.Items.Contains(currentSearchSel)) { 
                 _cboSearchColumn.SelectedItem = currentSearchSel; 
@@ -503,7 +470,6 @@ namespace Safety_System
                 _cboSearchColumn.SelectedIndex = 0; 
             }
 
-            // 🟢 查詢完成後，恢復使用者選定的搜尋字詞，避免畫面變回空白
             if (_isSearchDropdownMode) {
                 if (_cboSearchKeyword.Items.Contains(currentKeyword)) {
                     _cboSearchKeyword.SelectedItem = currentKeyword;
