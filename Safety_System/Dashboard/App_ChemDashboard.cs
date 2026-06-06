@@ -591,7 +591,7 @@ namespace Safety_System
 
                         // ====== 先計算總頁數 ======
                         int totalPages = 1;
-                        float simW = 1169f - 60f; 
+                        // float simW = 1169f - 60f; // 🟢 已移除未使用變數
                         float simH = 827f - 60f;  
                         
                         float simStartY = 30f + 40f + 40f + 35f + 30f + 32f; 
