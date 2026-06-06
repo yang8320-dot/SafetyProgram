@@ -738,10 +738,11 @@ namespace Safety_System
                             string tbName = selTb.EnName;
                             
                             string multiKey = $"{tbName}|{col}";
+                            // 🟢 [修復 Error CS1061 & CS1503] 加入 opt.Text 來提取文字屬性，而非把 DropdownItemDef 當字串處理
                             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
                                 foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
-                                    if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
-                                        cbFilter.Items.Add(opt.Trim());
+                                    if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
+                                        cbFilter.Items.Add(opt.Text.Trim());
                                     }
                                 }
                             }
