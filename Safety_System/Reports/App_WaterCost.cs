@@ -29,7 +29,6 @@ namespace Safety_System
             public Button BtnSetting;
         }
 
-        // 🟢 完整宣告五大區塊
         private DashboardSectionUI _sec1, _sec2, _sec3, _sec4, _sec5;
         
         // PDF 匯出用隱藏清單
@@ -74,7 +73,6 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
-            // 🟢 RowCount 設為 7 以容納 5 個區塊
             TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 7, Margin = new Padding(0) };
             for(int i=0; i<7; i++) masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -118,13 +116,13 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 2. 建立五大區塊 (導入四格網格與封裝)
+            // 2. 建立五大區塊 
             // ==========================================
             _sec1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna);
             _sec2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue);
             _sec3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen);
             _sec4 = BuildSection("雨水回收效益分析", "雨水回收", Color.SteelBlue); 
-            _sec5 = BuildSection("污泥減量與處置效益", "污泥減量", Color.Purple); // 🟢 第五區塊回歸
+            _sec5 = BuildSection("污泥減量與處置效益", "污泥減量", Color.Purple); 
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
@@ -141,9 +139,6 @@ namespace Safety_System
             return mainScrollPanel;
         }
 
-        // ==========================================
-        // 資料庫初始化與快取
-        // ==========================================
         private void InitDatabase()
         {
             string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Formula TEXT);";
@@ -180,9 +175,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // ==========================================
-        // 🟢 UI 區塊建立 (全新四格網格版面)
-        // ==========================================
         private DashboardSectionUI BuildSection(string title, string sectionCode, Color themeColor)
         {
             DashboardSectionUI ui = new DashboardSectionUI();
@@ -246,9 +238,6 @@ namespace Safety_System
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
-        // ==========================================
-        // 核心計算引擎
-        // ==========================================
         private void ExecuteCalculation()
         {
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
@@ -260,7 +249,7 @@ namespace Safety_System
             RenderSectionData("淨水處理", _sec2, dtS, dtE, Color.MediumBlue);
             RenderSectionData("回收水", _sec3, dtS, dtE, Color.ForestGreen);
             RenderSectionData("雨水回收", _sec4, dtS, dtE, Color.SteelBlue); 
-            RenderSectionData("污泥減量", _sec5, dtS, dtE, Color.Purple); // 🟢 污泥減量運算
+            RenderSectionData("污泥減量", _sec5, dtS, dtE, Color.Purple); 
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
@@ -345,7 +334,6 @@ namespace Safety_System
             string sYm = dtS.ToString("yyyy-MM");
             string eYm = dtE.ToString("yyyy-MM");
 
-            // 1. 解析並取代 COST([DB].[TB].[Col], Category)
             Regex costRegex = new Regex(@"COST\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\],\s*(?<cat>[^\)]+)\)");
             var costMatches = costRegex.Matches(formula);
             
@@ -380,7 +368,6 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, costSum.ToString());
             }
 
-            // 2. 解析並取代 SUM([DB].[TB].[Col])
             Regex sumRegex = new Regex(@"SUM\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var sumMatches = sumRegex.Matches(formula);
 
@@ -406,7 +393,6 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, qtySum.ToString());
             }
 
-            // 3. 利用 DataTable 內建引擎計算數學算式 (如 1000 / (50 * 12.5))
             double finalVal = 0;
             try {
                 DataTable dtMath = new DataTable();
@@ -489,26 +475,27 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 公式設定介面 (新增匯出匯入功能)
+        // 🟢 全新 UI 重排版的 公式設定介面
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
-            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1100, 680), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1180, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340F)); // 左側加寬
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
                 // ==== 左側：清單與匯出匯入 ====
-                Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
-                Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 30 };
+                Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
+                Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35 };
                 ListBox lbItems = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
                 
-                Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                // 調整按鈕間距
+                Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
                 
-                Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 45, Padding = new Padding(0, 5, 0, 0) };
-                Button btnExpConf = new Button { Text = "📤 匯出設定", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
-                Button btnImpConf = new Button { Text = "📥 匯入設定", Width = 135, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
+                Button btnExpConf = new Button { Text = "📤 匯出設定", Width = 145, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button btnImpConf = new Button { Text = "📥 匯入設定", Width = 145, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 
                 btnExpConf.Click += (s, e) => ExportFormulasToExcel();
                 btnImpConf.Click += (s, e) => { ImportFormulasFromExcel(); f.DialogResult = DialogResult.OK; };
@@ -520,42 +507,69 @@ namespace Safety_System
                 pnlLeft.Controls.Add(l1);
                 pnlLeft.Controls.Add(pnlIo);
                 pnlLeft.Controls.Add(btnDel);
+                btnDel.BringToFront(); // 確保排在最下面
 
                 // ==== 右側：編輯區 ====
-                Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
-                Label l2 = new Label { Text = "編輯 / 新增統計公式", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Top, Height = 40 };
+                Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20) };
+                Label l2 = new Label { Text = "編輯 / 新增統計公式", Font = new Font("Microsoft JhengHei UI", 15F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Top, Height = 45 };
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                Panel pName = new Panel { Width = 750, Height = 45 };
-                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 250, Location = new Point(100, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                Panel pName = new Panel { Width = 760, Height = 55 };
+                pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                TextBox txtName = new TextBox { Width = 260, Location = new Point(100, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 140, Location = new Point(470, 7), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
+                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(390, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                ComboBox cboFormat = new ComboBox { Width = 160, Location = new Point(490, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
                 flpEditor.Controls.Add(pName);
 
-                // 產生公式區塊
-                GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=740, Height = 140, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
-                FlowLayoutPanel flpBuilder = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
+                // 🟢 產生公式區塊 (改用精確的絕對座標排版，解決截圖中擁擠與對齊問題)
+                GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=760, Height = 145, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
+                Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
-                ComboBox cbTb = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
-                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbTb = new ComboBox { Width = 210, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbCol = new ComboBox { Width = 210, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
                 
-                ComboBox cbAction = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbAction = new ComboBox { Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "純數量加總 (SUM)", "結合費率計算成本 (COST)" });
                 cbAction.SelectedIndex = 0;
 
                 ComboBox cbPrice = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Enabled=false };
                 cbPrice.Items.AddRange(_prices.Select(p => p.Category).Distinct().ToArray());
 
-                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 120, Height = 35, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand };
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 130, Height = 36, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle=FlatStyle.Flat };
+                btnInsert.FlatAppearance.BorderSize = 0;
+
+                // 排版：第一排 (庫、表、欄)
+                pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                cbDb.Location = new Point(50, 17);
+                pnlBuilder.Controls.Add(cbDb);
+
+                pnlBuilder.Controls.Add(new Label { Text = "表:", Location = new Point(220, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                cbTb.Location = new Point(260, 17);
+                pnlBuilder.Controls.Add(cbTb);
+
+                pnlBuilder.Controls.Add(new Label { Text = "欄:", Location = new Point(490, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                cbCol.Location = new Point(530, 17);
+                pnlBuilder.Controls.Add(cbCol);
+
+                // 排版：第二排 (動作、綁定費率、插入按鈕)
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                cbAction.Location = new Point(65, 65);
+                pnlBuilder.Controls.Add(cbAction);
+
+                pnlBuilder.Controls.Add(new Label { Text = "綁定費率:", Location = new Point(275, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                cbPrice.Location = new Point(365, 65);
+                pnlBuilder.Controls.Add(cbPrice);
+
+                btnInsert.Location = new Point(610, 63);
+                pnlBuilder.Controls.Add(btnInsert);
 
                 // 綁定中英文對照
                 cbDb.Items.Add(new ItemMap { EnName="", ChName="" });
@@ -580,21 +594,20 @@ namespace Safety_System
 
                 cbAction.SelectedIndexChanged += (s, e) => { cbPrice.Enabled = cbAction.SelectedIndex == 1; };
 
-                flpBuilder.Controls.AddRange(new Control[] { new Label{Text="庫:",AutoSize=true}, cbDb, new Label{Text="表:",AutoSize=true}, cbTb, new Label{Text="欄:",AutoSize=true}, cbCol, new Label{Text="動作:",AutoSize=true}, cbAction, new Label{Text="綁定費率:",AutoSize=true}, cbPrice, btnInsert });
-                boxBuilder.Controls.Add(flpBuilder);
+                boxBuilder.Controls.Add(pnlBuilder);
                 flpEditor.Controls.Add(boxBuilder);
 
                 // 計算符號
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=740, Height = 45, Padding = new Padding(0, 5, 0, 5) };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=760, Height = 50, Padding = new Padding(0, 10, 0, 5) };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
                 foreach (var k in keys) {
-                    Button b = new Button { Text = k, Width = 50, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold) };
+                    Button b = new Button { Text = k, Width = 55, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold) };
                     pnlKeys.Controls.Add(b);
                 }
                 flpEditor.Controls.Add(pnlKeys);
 
-                RichTextBox rtbFormula = new RichTextBox { Width=740, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue };
-                Label lblF = new Label { Text = "計算公式 (可混合純數字與變數)：", Height = 25, Font=new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                RichTextBox rtbFormula = new RichTextBox { Width=760, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                Label lblF = new Label { Text = "計算公式 (可混合純數字與變數)：", Height = 30, Font=new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
 
                 foreach (Control c in pnlKeys.Controls) {
                     if (c is Button b) b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " ");
@@ -605,7 +618,7 @@ namespace Safety_System
                     if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、欄位！"); return; }
                     
                     if (cbAction.SelectedIndex == 1) {
-                        if (cbPrice.SelectedItem == null) { MessageBox.Show("請選擇要綁定的費率/係數類別！"); return; }
+                        if (cbPrice.SelectedItem == null) { MessageBox.Show("請選擇要綁定的費率類別！"); return; }
                         rtbFormula.AppendText($"COST([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}], {cbPrice.SelectedItem})");
                     } else {
                         rtbFormula.AppendText($"SUM([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}])");
@@ -615,7 +628,8 @@ namespace Safety_System
                 flpEditor.Controls.Add(lblF);
                 flpEditor.Controls.Add(rtbFormula);
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 740, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 20, 0, 0), Cursor = Cursors.Hand };
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 760, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnSaveRow.FlatAppearance.BorderSize = 0;
 
                 pnlRight.Controls.Add(flpEditor);
                 pnlRight.Controls.Add(l2);
@@ -790,7 +804,7 @@ namespace Safety_System
                 clb.Items.Add("淨水處理費用統計", true); 
                 clb.Items.Add("回收水成本與效益", true);
                 clb.Items.Add("雨水回收效益分析", true); 
-                clb.Items.Add("污泥減量與處置效益", true); // 🟢 加入污泥減量的匯出選項
+                clb.Items.Add("污泥減量與處置效益", true); 
                 
                 f.Controls.Add(clb);
 
