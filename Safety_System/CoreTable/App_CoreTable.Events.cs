@@ -1,4 +1,3 @@
-/// FILE: Safety_System/CoreTable/App_CoreTable.Events.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -28,7 +27,7 @@ namespace Safety_System
             _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
             _dgv.EditingControlShowing += new DataGridViewEditingControlShowingEventHandler(Dgv_EditingControlShowing);
             
-            // 🟢 核心攔截：儲存格自訂繪製
+            // 🟢 核心攔截：儲存格自訂繪製 (純圖示處理)
             _dgv.CellPainting += new DataGridViewCellPaintingEventHandler(Dgv_CellPainting);
             
             _dgv.DataError += delegate(object s, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; };
@@ -597,7 +596,6 @@ namespace Safety_System
                     bool isA3 = cboSize.SelectedItem.ToString() == "A3";
                     bool isLandscape = cboLayout.SelectedItem.ToString() == "橫式";
                     
-                    // 🟢 傳入 tableName 作為尋找圖示的 Key
                     PdfHelper.ExportDataGridViewToPdf(_dgv, _chineseTitle, _tableName, isA3, isLandscape);
                 }
             }
@@ -805,15 +803,12 @@ namespace Safety_System
             
             if ((isSingleDropdown || isMultiDropdown) && e.Value != null)
             {
-                e.PaintBackground(e.ClipBounds, true);
-
                 string valStr = e.Value.ToString().Trim();
                 if (string.IsNullOrEmpty(valStr)) return;
 
                 Rectangle rect = e.CellBounds;
-                int imgSize = 24; // 🟢 放大圖示為 24x24
+                int imgSize = 24; 
                 
-                // 檢查是否具有圖示設定
                 bool hasAnyIcon = false;
                 List<Image> iconsToDraw = new List<Image>();
 
@@ -856,28 +851,20 @@ namespace Safety_System
 
                 if (hasAnyIcon)
                 {
-                    // 🟢 有圖片的話，進入「純圖示模式」，隱藏文字
+                    // 🟢 核心修正：精確繪製背景與邊框，完全排除文字的渲染
+                    e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.Focus | DataGridViewPaintParts.SelectionBackground);
+
                     int startX = rect.X + 6;
                     int imgY = rect.Y + (rect.Height - imgSize) / 2;
 
                     // 若是多張圖片(複選)，則水平並排畫出
                     foreach(var img in iconsToDraw) {
                         e.Graphics.DrawImage(img, startX, imgY, imgSize, imgSize);
-                        startX += imgSize + 4; // 圖示之間的間距
+                        startX += imgSize + 4; 
                     }
+                    
+                    e.Handled = true; // 告知系統已處理，不要再畫文字
                 }
-                else
-                {
-                    // 若沒有任何圖片設定，就按照原生方式畫出純文字
-                    using (Brush brush = new SolidBrush(e.CellStyle.ForeColor)) {
-                        StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center };
-                        RectangleF textRect = new RectangleF(rect.X + 2, rect.Y, rect.Width - 2, rect.Height);
-                        e.Graphics.DrawString(valStr, e.CellStyle.Font, brush, textRect, sf);
-                    }
-                }
-
-                // 告訴系統：我們自己畫完了，不用再用預設方法畫一次了
-                e.Handled = true;
             }
         }
 
@@ -893,6 +880,9 @@ namespace Safety_System
             }
         }
 
+        // =========================================================================================
+        // 🟢 複選 (多選) 設定視窗：支援「核取方塊 + 圖示 + 文字」
+        // =========================================================================================
         private void TriggerMultiSelectDialog(int rowIndex, int colIndex)
         {
             if (rowIndex < 0 || colIndex < 0 || rowIndex >= _dgv.Rows.Count) return;
@@ -908,28 +898,57 @@ namespace Safety_System
                 using (Form fMulti = new Form())
                 {
                     fMulti.Text = $"複選組合：{colName}";
-                    fMulti.Size = new Size(350, 450);
+                    fMulti.Size = new Size(380, 500); // 稍微加寬以容納圖片
                     fMulti.StartPosition = FormStartPosition.CenterParent;
                     fMulti.FormBorderStyle = FormBorderStyle.FixedDialog;
                     fMulti.MaximizeBox = false;
                     fMulti.MinimizeBox = false;
                     fMulti.BackColor = Color.White;
 
-                    // 🟢 改造複選視窗：也加入圖示顯示
-                    CheckedListBox clb = new CheckedListBox {
+                    // 🟢 升級為 DataGridView 以支援圖文並排
+                    DataGridView dgvMulti = new DataGridView {
                         Dock = DockStyle.Fill,
-                        Font = new Font("Microsoft JhengHei UI", 12F),
-                        CheckOnClick = true,
-                        BorderStyle = BorderStyle.None,
-                        Padding = new Padding(10)
+                        BackgroundColor = Color.White,
+                        AllowUserToAddRows = false,
+                        AllowUserToDeleteRows = false,
+                        AllowUserToResizeColumns = false,
+                        AllowUserToResizeRows = false,
+                        RowHeadersVisible = false,
+                        ColumnHeadersVisible = false,
+                        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                        CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                        Font = new Font("Microsoft JhengHei UI", 12F)
                     };
+                    dgvMulti.RowTemplate.Height = 40; // 給圖示空間
+
+                    DataGridViewCheckBoxColumn chkCol = new DataGridViewCheckBoxColumn { Name = "Check", Width = 40, AutoSizeMode = DataGridViewAutoSizeColumnMode.None };
+                    DataGridViewImageColumn imgCol = new DataGridViewImageColumn { Name = "Icon", Width = 40, AutoSizeMode = DataGridViewAutoSizeColumnMode.None, ImageLayout = DataGridViewImageCellLayout.Zoom };
+                    DataGridViewTextBoxColumn txtCol = new DataGridViewTextBoxColumn { Name = "Text", ReadOnly = true };
+
+                    dgvMulti.Columns.Add(chkCol);
+                    dgvMulti.Columns.Add(imgCol);
+                    dgvMulti.Columns.Add(txtCol);
 
                     string[] currentSelected = currentVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                    
                     foreach (var opt in options)
                     {
+                        int rIdx = dgvMulti.Rows.Add();
                         bool isChecked = currentSelected.Contains(opt.Text);
-                        clb.Items.Add(opt.Text, isChecked);
+                        dgvMulti.Rows[rIdx].Cells["Check"].Value = isChecked;
+                        dgvMulti.Rows[rIdx].Cells["Icon"].Value = opt.GetImage() ?? new Bitmap(1, 1); // 沒圖給空圖佔位
+                        dgvMulti.Rows[rIdx].Cells["Text"].Value = opt.Text;
+                        dgvMulti.Rows[rIdx].Tag = opt.Text; // 儲存真實文字
                     }
+
+                    // 點擊行就切換 CheckBox
+                    dgvMulti.CellClick += (s, ev) => {
+                        if (ev.RowIndex >= 0) {
+                            bool current = Convert.ToBoolean(dgvMulti.Rows[ev.RowIndex].Cells["Check"].Value);
+                            dgvMulti.Rows[ev.RowIndex].Cells["Check"].Value = !current;
+                        }
+                    };
 
                     Button btnOk = new Button {
                         Text = "✔️ 確認並填入",
@@ -943,8 +962,10 @@ namespace Safety_System
                     
                     btnOk.Click += (s2, ev2) => {
                         List<string> selectedItems = new List<string>();
-                        foreach (var checkedItem in clb.CheckedItems) {
-                            selectedItems.Add(checkedItem.ToString());
+                        foreach (DataGridViewRow r in dgvMulti.Rows) {
+                            if (Convert.ToBoolean(r.Cells["Check"].Value)) {
+                                selectedItems.Add(r.Tag.ToString());
+                            }
                         }
                         
                         _dgv[colIndex, rowIndex].Value = string.Join(Environment.NewLine, selectedItems);
@@ -952,7 +973,7 @@ namespace Safety_System
                         fMulti.DialogResult = DialogResult.OK;
                     };
 
-                    fMulti.Controls.Add(clb);
+                    fMulti.Controls.Add(dgvMulti);
                     fMulti.Controls.Add(btnOk);
                     fMulti.ShowDialog(Form.ActiveForm);
                 }
@@ -1015,7 +1036,7 @@ namespace Safety_System
         }
 
         // =========================================================================================
-        // 🟢 自製下拉選單視窗 (支援 24x24 大圖示並排，隱藏文字)
+        // 🟢 自製單選下拉選單視窗 (支援 24x24 大圖示並排，隱藏文字)
         // =========================================================================================
         private void ShowCustomDropdown(int rowIndex, int colIndex)
         {
@@ -1083,7 +1104,7 @@ namespace Safety_System
                     textOffset = 40; 
                 }
 
-                // 在彈出的選單中，我們還是需要畫出文字，否則使用者不知道這個圖示代表什麼
+                // 🟢 彈出清單必須同時畫出文字與圖片，讓使用者可以辨識
                 e.Graphics.DrawString(item.Text, listBox.Font, textBrush, new PointF(e.Bounds.X + textOffset, e.Bounds.Y + 8));
                 e.DrawFocusRectangle();
             };
