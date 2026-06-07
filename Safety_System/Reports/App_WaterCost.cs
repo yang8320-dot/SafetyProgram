@@ -176,7 +176,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 UI 區塊建立 (全新四格網格版面)
+        // UI 區塊建立 (全新四格網格版面)
         // ==========================================
         private DashboardSectionUI BuildSection(string title, string sectionCode, Color themeColor)
         {
@@ -776,10 +776,10 @@ namespace Safety_System
 
                 if (f.ShowDialog() == DialogResult.OK) 
                 {
-                    if (clb.GetItemChecked(0)) selectedPanels.Add(_pnlBox1);
-                    if (clb.GetItemChecked(1)) selectedPanels.Add(_pnlBox2);
-                    if (clb.GetItemChecked(2)) selectedPanels.Add(_pnlBox3);
-                    if (clb.GetItemChecked(3)) selectedPanels.Add(_pnlBox4); 
+                    if (clb.GetItemChecked(0)) selectedPanels.Add(_sec1.MainBox);
+                    if (clb.GetItemChecked(1)) selectedPanels.Add(_sec2.MainBox);
+                    if (clb.GetItemChecked(2)) selectedPanels.Add(_sec3.MainBox);
+                    if (clb.GetItemChecked(3)) selectedPanels.Add(_sec4.MainBox); 
                 }
             }
             return selectedPanels;
