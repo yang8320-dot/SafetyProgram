@@ -19,7 +19,6 @@ namespace Safety_System
 
         private Button _btnSearch;
 
-        // 🟢 將各區塊的 UI 封裝，以利管理四格網格
         private class DashboardSectionUI {
             public Panel MainBox;
             public Label LblSub1, LblSub2, LblSub3, LblSub4;
@@ -31,7 +30,6 @@ namespace Safety_System
 
         private DashboardSectionUI _sec1, _sec2, _sec3, _sec4, _sec5;
         
-        // PDF 匯出用隱藏清單
         private List<Control> _controlsToHideForPdf = new List<Control>();
 
         // 資料庫與快取
@@ -49,6 +47,7 @@ namespace Safety_System
             public string Section { get; set; }     
             public string DisplayName { get; set; }
             public string OutputType { get; set; }  
+            public string Unit { get; set; } // 🟢 新增自訂單位
             public string Formula { get; set; }     
         }
 
@@ -116,7 +115,7 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 2. 建立五大區塊 
+            // 2. 建立五大區塊
             // ==========================================
             _sec1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna);
             _sec2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue);
@@ -139,13 +138,34 @@ namespace Safety_System
             return mainScrollPanel;
         }
 
+        // ==========================================
+        // 資料庫初始化與快取
+        // ==========================================
         private void InitDatabase()
         {
-            string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Formula TEXT);";
+            // 🟢 加入 Unit 欄位支援自訂單位
+            string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Unit TEXT, Formula TEXT);";
             string sql2 = $"CREATE TABLE IF NOT EXISTS [{PriceTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Category TEXT, StartDate TEXT, EndDate TEXT, UnitPrice REAL);";
             
             DataManager.InitTable(SysDbName, ConfigTable, sql1);
             DataManager.InitTable(SysDbName, PriceTable, sql2);
+
+            // 確保舊版資料庫也能自動擴充 Unit 欄位
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    var cols = new List<string>();
+                    using (var cmd = new SQLiteCommand($"PRAGMA table_info([{ConfigTable}])", conn))
+                    using (var r = cmd.ExecuteReader()) {
+                        while (r.Read()) cols.Add(r["name"].ToString());
+                    }
+                    if (!cols.Contains("Unit")) {
+                        using (var cmd = new SQLiteCommand($"ALTER TABLE [{ConfigTable}] ADD COLUMN Unit TEXT;", conn)) {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+            } catch { }
         }
 
         private void LoadCache()
@@ -157,10 +177,13 @@ namespace Safety_System
                     conn.Open();
                     using (var cmd = new SQLiteCommand($"SELECT * FROM {ConfigTable}", conn))
                     using (var r = cmd.ExecuteReader()) {
-                        while (r.Read()) _configs.Add(new CostFormulaItem { 
-                            Id = Convert.ToInt32(r["Id"]), Section = r["Section"].ToString(), DisplayName = r["DisplayName"].ToString(), 
-                            OutputType = r["OutputType"].ToString(), Formula = r["Formula"].ToString()
-                        });
+                        while (r.Read()) {
+                            string unit = r.Table.Columns.Contains("Unit") ? r["Unit"].ToString() : "";
+                            _configs.Add(new CostFormulaItem { 
+                                Id = Convert.ToInt32(r["Id"]), Section = r["Section"].ToString(), DisplayName = r["DisplayName"].ToString(), 
+                                OutputType = r["OutputType"].ToString(), Unit = unit, Formula = r["Formula"].ToString()
+                            });
+                        }
                     }
 
                     using (var cmd = new SQLiteCommand($"SELECT * FROM {PriceTable}", conn))
@@ -175,6 +198,9 @@ namespace Safety_System
             } catch { }
         }
 
+        // ==========================================
+        // UI 區塊建立 (全新四格網格版面)
+        // ==========================================
         private DashboardSectionUI BuildSection(string title, string sectionCode, Color themeColor)
         {
             DashboardSectionUI ui = new DashboardSectionUI();
@@ -238,6 +264,9 @@ namespace Safety_System
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
+        // ==========================================
+        // 核心計算引擎
+        // ==========================================
         private void ExecuteCalculation()
         {
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
@@ -282,10 +311,18 @@ namespace Safety_System
                 double vLy   = EvaluateFormula(cfg.Formula, dtS.AddYears(-1), dtE.AddYears(-1));
                 double vL2y  = EvaluateFormula(cfg.Formula, dtS.AddYears(-2), dtE.AddYears(-2));
 
-                string unit = "";
+                // 🟢 根據 OutputType 與 Unit 自訂顯示單位
+                string unit = string.IsNullOrEmpty(cfg.Unit) ? "" : cfg.Unit;
                 string prefix = "";
-                if (cfg.OutputType == "金額") { unit = "元"; prefix = "$"; }
-                else if (cfg.OutputType == "碳排(kgCO2e)") { unit = "kgCO2e"; prefix = "☁️"; }
+
+                if (cfg.OutputType == "金額") { 
+                    if (string.IsNullOrEmpty(unit)) unit = "元"; 
+                    prefix = "$"; 
+                }
+                else if (cfg.OutputType == "碳排(kgCO2e)") { 
+                    if (string.IsNullOrEmpty(unit)) unit = "kgCO2e"; 
+                    prefix = "☁️"; 
+                }
 
                 ui.PnlData1.Controls.Add(CreateStatLabel(cfg.DisplayName, vCurr, unit, prefix, themeColor));
                 ui.PnlData2.Controls.Add(CreateStatLabel(cfg.DisplayName, vLy, unit, prefix, themeColor));
@@ -334,6 +371,7 @@ namespace Safety_System
             string sYm = dtS.ToString("yyyy-MM");
             string eYm = dtE.ToString("yyyy-MM");
 
+            // 1. 解析並取代 COST([DB].[TB].[Col], Category)
             Regex costRegex = new Regex(@"COST\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\],\s*(?<cat>[^\)]+)\)");
             var costMatches = costRegex.Matches(formula);
             
@@ -368,6 +406,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, costSum.ToString());
             }
 
+            // 2. 解析並取代 SUM([DB].[TB].[Col])
             Regex sumRegex = new Regex(@"SUM\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var sumMatches = sumRegex.Matches(formula);
 
@@ -393,6 +432,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, qtySum.ToString());
             }
 
+            // 3. 利用 DataTable 內建引擎計算數學算式 (如 1000 / (50 * 12.5))
             double finalVal = 0;
             try {
                 DataTable dtMath = new DataTable();
@@ -475,14 +515,14 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 全新 UI 重排版的 公式設定介面
+        // 公式設定介面 (新增匯出匯入功能與單位自訂)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
             using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1180, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340F)); // 左側加寬
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340F)); 
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
                 // ==== 左側：清單與匯出匯入 ====
@@ -490,7 +530,6 @@ namespace Safety_System
                 Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35 };
                 ListBox lbItems = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
                 
-                // 調整按鈕間距
                 Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
                 
                 Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
@@ -507,7 +546,7 @@ namespace Safety_System
                 pnlLeft.Controls.Add(l1);
                 pnlLeft.Controls.Add(pnlIo);
                 pnlLeft.Controls.Add(btnDel);
-                btnDel.BringToFront(); // 確保排在最下面
+                btnDel.BringToFront(); 
 
                 // ==== 右側：編輯區 ====
                 Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20) };
@@ -517,18 +556,23 @@ namespace Safety_System
                 
                 Panel pName = new Panel { Width = 760, Height = 55 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 260, Location = new Point(100, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                TextBox txtName = new TextBox { Width = 180, Location = new Point(95, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(390, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 160, Location = new Point(490, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
+                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(290, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(385, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
+                // 🟢 新增單位文字框
+                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(540, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                TextBox txtUnit = new TextBox { Width = 110, Location = new Point(635, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                pName.Controls.Add(txtUnit);
+                
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 產生公式區塊 (改用精確的絕對座標排版，解決截圖中擁擠與對齊問題)
+                // 產生公式區塊
                 GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=760, Height = 145, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
@@ -654,13 +698,14 @@ namespace Safety_System
                     var cfg = _configs.First(x => x.Section == sectionCode && x.DisplayName == lbItems.SelectedItem.ToString());
                     txtName.Text = cfg.DisplayName;
                     cboFormat.Text = cfg.OutputType;
+                    txtUnit.Text = cfg.Unit;
                     rtbFormula.Text = cfg.Formula;
                 };
 
                 btnDel.Click += (ss, ee) => {
                     if (lbItems.SelectedIndex >= 0) {
                         _configs.RemoveAll(x => x.Section == sectionCode && x.DisplayName == lbItems.SelectedItem.ToString());
-                        SaveConfigsToDb(); refreshList(); txtName.Clear(); rtbFormula.Clear();
+                        SaveConfigsToDb(); refreshList(); txtName.Clear(); rtbFormula.Clear(); txtUnit.Clear();
                     }
                 };
 
@@ -668,7 +713,7 @@ namespace Safety_System
                     if (string.IsNullOrWhiteSpace(txtName.Text) || string.IsNullOrWhiteSpace(rtbFormula.Text)) { MessageBox.Show("請輸入顯示名稱與公式！"); return; }
                     
                     _configs.RemoveAll(x => x.Section == sectionCode && x.DisplayName == txtName.Text);
-                    _configs.Add(new CostFormulaItem { Section = sectionCode, DisplayName = txtName.Text.Trim(), OutputType = cboFormat.Text, Formula = rtbFormula.Text.Trim() });
+                    _configs.Add(new CostFormulaItem { Section = sectionCode, DisplayName = txtName.Text.Trim(), OutputType = cboFormat.Text, Unit = txtUnit.Text.Trim(), Formula = rtbFormula.Text.Trim() });
                     
                     SaveConfigsToDb(); refreshList();
                     MessageBox.Show("儲存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -683,11 +728,11 @@ namespace Safety_System
             try {
                 DataTable dt = new DataTable();
                 dt.Columns.Add("Section", typeof(string)); dt.Columns.Add("DisplayName", typeof(string)); 
-                dt.Columns.Add("OutputType", typeof(string)); dt.Columns.Add("Formula", typeof(string));
+                dt.Columns.Add("OutputType", typeof(string)); dt.Columns.Add("Unit", typeof(string)); dt.Columns.Add("Formula", typeof(string));
                 
                 foreach(var c in _configs) {
                     DataRow r = dt.NewRow();
-                    r["Section"] = c.Section; r["DisplayName"] = c.DisplayName; r["OutputType"] = c.OutputType; r["Formula"] = c.Formula;
+                    r["Section"] = c.Section; r["DisplayName"] = c.DisplayName; r["OutputType"] = c.OutputType; r["Unit"] = c.Unit; r["Formula"] = c.Formula;
                     dt.Rows.Add(r);
                 }
 
@@ -699,7 +744,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 公式設定的 Excel 匯出與匯入功能
+        // 🟢 公式設定的 Excel 匯出與匯入功能
         // ==========================================
         private void ExportFormulasToExcel()
         {
@@ -713,7 +758,7 @@ namespace Safety_System
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
                         {
                             conn.Open();
-                            using (var cmd = new SQLiteCommand($"SELECT Section AS [看板區塊], DisplayName AS [顯示名稱], OutputType AS [產出格式], Formula AS [計算公式] FROM {ConfigTable}", conn))
+                            using (var cmd = new SQLiteCommand($"SELECT Section AS [看板區塊], DisplayName AS [顯示名稱], OutputType AS [產出格式], Unit AS [自訂單位], Formula AS [計算公式] FROM {ConfigTable}", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
 
@@ -754,6 +799,7 @@ namespace Safety_System
                             dt.Columns.Add("Section", typeof(string)); 
                             dt.Columns.Add("DisplayName", typeof(string)); 
                             dt.Columns.Add("OutputType", typeof(string)); 
+                            dt.Columns.Add("Unit", typeof(string)); 
                             dt.Columns.Add("Formula", typeof(string));
 
                             for (int r = 2; r <= ws.Dimension.Rows; r++) 
@@ -761,16 +807,16 @@ namespace Safety_System
                                 string section = ws.Cells[r, 1].Text.Trim();
                                 string disp = ws.Cells[r, 2].Text.Trim();
                                 string output = ws.Cells[r, 3].Text.Trim();
-                                string formula = ws.Cells[r, 4].Text.Trim();
+                                string unit = ws.Cells[r, 4].Text.Trim();
+                                string formula = ws.Cells[r, 5].Text.Trim();
 
                                 if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(disp) || string.IsNullOrEmpty(formula)) continue;
 
                                 DataRow row = dt.NewRow();
-                                row["Section"] = section; row["DisplayName"] = disp; row["OutputType"] = output; row["Formula"] = formula;
+                                row["Section"] = section; row["DisplayName"] = disp; row["OutputType"] = output; row["Unit"] = unit; row["Formula"] = formula;
                                 dt.Rows.Add(row);
                             }
 
-                            // 覆寫資料庫
                             DataManager.DropTable(SysDbName, ConfigTable);
                             InitDatabase();
                             DataManager.BulkSaveTable(SysDbName, ConfigTable, dt);
@@ -832,7 +878,6 @@ namespace Safety_System
 
             try 
             {
-                // 匯出前隱藏設定按鈕與標籤
                 foreach (Control ctrl in _controlsToHideForPdf) ctrl.Visible = false;
                 Application.DoEvents(); 
 
@@ -844,7 +889,6 @@ namespace Safety_System
                     bitmaps.Add(bmp);
                 }
 
-                // 🟢 加入 ESG 稽核附錄頁
                 Bitmap appendixBmp = CreateAppendixBitmap();
                 bitmaps.Add(appendixBmp);
 
@@ -863,7 +907,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 動態生成 ESG 稽核附錄 Bitmap
         private Bitmap CreateAppendixBitmap()
         {
             int width = 1100;
