@@ -17,11 +17,15 @@ namespace Safety_System
 
         private FlowLayoutPanel _flpSection1, _flpSection2, _flpSection3;
         private Label _lblTotal1, _lblTotal2, _lblTotal3; // 區塊總計
+        
+        // 🟢 PDF 匯出用區塊外框
+        private Panel _pnlBox1, _pnlBox2, _pnlBox3;
+        
         private Button _btnSearch;
 
         // 資料庫與快取
         private const string SysDbName = "SystemConfig";
-        private const string ConfigTable = "WaterCostFormulas"; // 🟢 全新支援公式的設定表
+        private const string ConfigTable = "WaterCostFormulas"; // 全新支援公式的設定表
         private const string PriceTable = "WaterPrices";
 
         private List<CostFormulaItem> _configs = new List<CostFormulaItem>();
@@ -84,7 +88,7 @@ namespace Safety_System
             Button btnPriceManager = new Button { Text = "💰 浮動單價/費率管理", Size = new Size(210, 42), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPriceManager.Click += (s, e) => { OpenPriceManager(); ExecuteCalculation(); };
 
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(130, 42), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            Button btnPdf = new Button { Text = "📄 選擇並導出 PDF", Size = new Size(180, 42), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPdf.Click += (s,e) => ExportToPdf();
 
             flpControls.Controls.AddRange(new Control[] { 
@@ -102,15 +106,15 @@ namespace Safety_System
             // ==========================================
             // 2. 建立三大區塊
             // ==========================================
-            var sec1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna, out _flpSection1, out _lblTotal1);
-            var sec2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue, out _flpSection2, out _lblTotal2);
-            var sec3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen, out _flpSection3, out _lblTotal3);
+            _pnlBox1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna, out _flpSection1, out _lblTotal1);
+            _pnlBox2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue, out _flpSection2, out _lblTotal2);
+            _pnlBox3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen, out _flpSection3, out _lblTotal3);
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
-            masterLayout.Controls.Add(sec1, 0, 2);
-            masterLayout.Controls.Add(sec2, 0, 3);
-            masterLayout.Controls.Add(sec3, 0, 4);
+            masterLayout.Controls.Add(_pnlBox1, 0, 2);
+            masterLayout.Controls.Add(_pnlBox2, 0, 3);
+            masterLayout.Controls.Add(_pnlBox3, 0, 4);
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -243,7 +247,6 @@ namespace Safety_System
             lblTotal.Text = $"區塊總計金額: $ {sectionTotalCost:N0}";
         }
 
-        // 🟢 核心公式解析引擎
         private double EvaluateFormula(string formula, DateTime dtS, DateTime dtE)
         {
             string sStr = dtS.ToString("yyyy-MM-dd");
@@ -339,7 +342,7 @@ namespace Safety_System
         {
             using (Form f = new Form { Text = "💰 浮動單價/費率管理中心", Size = new Size(700, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
-                Label lblTop = new Label { Text = "在此設定各計價項目(如自來水、電費、PAC)於特定區間的單價。\n若為固定費率，可將結束日期設為 2099 年。", Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(15), Dock = DockStyle.Top, Height=60 };
+                Label lblTop = new Label { Text = "在此設定各計價項目(如自來水、電費、藥劑)於特定區間的單價。\n若為固定費率，可將結束日期設為 2099 年。", Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(15), Dock = DockStyle.Top, Height=60 };
 
                 DataGridView dgv = new DataGridView { 
                     Dock = DockStyle.Fill, BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = true, 
@@ -579,11 +582,54 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 輔助與導出
+        // 🟢 導出 PDF 功能與輔助方法
         // ==========================================
+        private List<Panel> GetSelectedExportPanels()
+        {
+            List<Panel> selectedPanels = new List<Panel>();
+            using (Form f = new Form() { Width = 400, Height = 350, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
+                f.Controls.Add(lbl);
+
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 180, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
+                clb.Items.Add("廢水處理費用統計", true); 
+                clb.Items.Add("淨水處理費用統計", true); 
+                clb.Items.Add("回收水成本與效益", true);
+                
+                f.Controls.Add(clb);
+
+                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 50, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                f.Controls.Add(btnOk);
+
+                if (f.ShowDialog() == DialogResult.OK) 
+                {
+                    if (clb.GetItemChecked(0)) selectedPanels.Add(_pnlBox1);
+                    if (clb.GetItemChecked(1)) selectedPanels.Add(_pnlBox2);
+                    if (clb.GetItemChecked(2)) selectedPanels.Add(_pnlBox3);
+                }
+            }
+            return selectedPanels;
+        }
+
         private void ExportToPdf()
         {
-            MessageBox.Show("水資源成本分析 PDF 匯出功能開發中，敬請期待。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            var panelsToExport = GetSelectedExportPanels();
+            if (panelsToExport.Count == 0) return;
+
+            List<Bitmap> bitmaps = new List<Bitmap>();
+            foreach (var pnl in panelsToExport) 
+            {
+                // 將每個勾選的區塊截圖
+                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                bitmaps.Add(bmp);
+            }
+
+            string dateStr = $"結算區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+            
+            // 呼叫 PdfHelper 的共用儀表板匯出引擎
+            PdfHelper.ExportDashboardToPdf(bitmaps, "水資源成本與效益分析報表", dateStr, "水資源成本分析表");
         }
 
         private void InitDateComboBoxes()
