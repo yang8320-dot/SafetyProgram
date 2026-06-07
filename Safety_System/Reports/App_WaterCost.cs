@@ -47,7 +47,7 @@ namespace Safety_System
             public string Section { get; set; }     
             public string DisplayName { get; set; }
             public string OutputType { get; set; }  
-            public string Unit { get; set; } // 🟢 新增自訂單位
+            public string Unit { get; set; } 
             public string Formula { get; set; }     
         }
 
@@ -143,14 +143,12 @@ namespace Safety_System
         // ==========================================
         private void InitDatabase()
         {
-            // 🟢 加入 Unit 欄位支援自訂單位
             string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Unit TEXT, Formula TEXT);";
             string sql2 = $"CREATE TABLE IF NOT EXISTS [{PriceTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Category TEXT, StartDate TEXT, EndDate TEXT, UnitPrice REAL);";
             
             DataManager.InitTable(SysDbName, ConfigTable, sql1);
             DataManager.InitTable(SysDbName, PriceTable, sql2);
 
-            // 確保舊版資料庫也能自動擴充 Unit 欄位
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
@@ -177,8 +175,6 @@ namespace Safety_System
                     conn.Open();
                     using (var cmd = new SQLiteCommand($"SELECT * FROM {ConfigTable}", conn))
                     using (var r = cmd.ExecuteReader()) {
-                        
-                        // 🟢 修正 CS1061 錯誤：從 DataReader 安全地判斷欄位是否存在
                         bool hasUnitCol = false;
                         for (int i = 0; i < r.FieldCount; i++) {
                             if (r.GetName(i).Equals("Unit", StringComparison.OrdinalIgnoreCase)) {
@@ -209,7 +205,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // UI 區塊建立 (全新四格網格版面)
+        // UI 區塊建立 
         // ==========================================
         private DashboardSectionUI BuildSection(string title, string sectionCode, Color themeColor)
         {
@@ -321,7 +317,6 @@ namespace Safety_System
                 double vLy   = EvaluateFormula(cfg.Formula, dtS.AddYears(-1), dtE.AddYears(-1));
                 double vL2y  = EvaluateFormula(cfg.Formula, dtS.AddYears(-2), dtE.AddYears(-2));
 
-                // 🟢 根據 OutputType 與 Unit 自訂顯示單位
                 string unit = string.IsNullOrEmpty(cfg.Unit) ? "" : cfg.Unit;
                 string prefix = "";
 
@@ -381,7 +376,6 @@ namespace Safety_System
             string sYm = dtS.ToString("yyyy-MM");
             string eYm = dtE.ToString("yyyy-MM");
 
-            // 1. 解析並取代 COST([DB].[TB].[Col], Category)
             Regex costRegex = new Regex(@"COST\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\],\s*(?<cat>[^\)]+)\)");
             var costMatches = costRegex.Matches(formula);
             
@@ -416,7 +410,6 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, costSum.ToString());
             }
 
-            // 2. 解析並取代 SUM([DB].[TB].[Col])
             Regex sumRegex = new Regex(@"SUM\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var sumMatches = sumRegex.Matches(formula);
 
@@ -442,7 +435,6 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, qtySum.ToString());
             }
 
-            // 3. 利用 DataTable 內建引擎計算數學算式 (如 1000 / (50 * 12.5))
             double finalVal = 0;
             try {
                 DataTable dtMath = new DataTable();
@@ -463,13 +455,31 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 浮動單價/費率管理視窗
+        // 🟢 浮動單價/費率管理視窗 (含匯出匯入)
         // ==========================================
         private void OpenPriceManager()
         {
             using (Form f = new Form { Text = "💰 費率與碳排係數管理中心", Size = new Size(700, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
-                Label lblTop = new Label { Text = "在此設定各計價項目(如自來水、電費)或「碳排係數」於特定區間的單價。\n若為固定費率，可將結束日期設為 2099 年。", Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(15), Dock = DockStyle.Top, Height=60 };
+                // 🟢 修正 1：版面調整，放入 Panel 避免被 Grid 蓋住，並加入匯出匯入按鈕
+                Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(10) };
+                
+                Label lblTop = new Label { 
+                    Text = "在此設定各計價項目(如自來水、電費)或「碳排係數」於特定區間的單價。\n若為固定費率，可將結束日期設為 2099 年。日期格式請輸入: yyyy-MM-dd", 
+                    Font = new Font("Microsoft JhengHei UI", 11F), 
+                    AutoSize = true, 
+                    Location = new Point(10, 10) 
+                };
+
+                Button btnExp = new Button { Text = "📤 匯出設定", Location = new Point(15, 55), Size = new Size(130, 35), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button btnImp = new Button { Text = "📥 匯入設定", Location = new Point(155, 55), Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                
+                btnExp.Click += (s, e) => ExportPricesToExcel();
+                btnImp.Click += (s, e) => { ImportPricesFromExcel(); f.DialogResult = DialogResult.OK; };
+
+                pnlTop.Controls.Add(lblTop);
+                pnlTop.Controls.Add(btnExp);
+                pnlTop.Controls.Add(btnImp);
 
                 DataGridView dgv = new DataGridView { 
                     Dock = DockStyle.Fill, BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = true, 
@@ -487,49 +497,150 @@ namespace Safety_System
                 }
 
                 Button btnSave = new Button { Text = "💾 儲存所有費率", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                
+                // 🟢 修正 2：確保儲存資料能正確寫入並重新載入
                 btnSave.Click += (s, e) => {
                     dgv.EndEdit();
-                    DataTable dt = new DataTable();
-                    dt.Columns.Add("Id", typeof(int)); dt.Columns.Add("Category", typeof(string)); dt.Columns.Add("StartDate", typeof(string)); dt.Columns.Add("EndDate", typeof(string)); dt.Columns.Add("UnitPrice", typeof(double));
+                    
+                    try {
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            conn.Open();
+                            using (var trans = conn.BeginTransaction()) {
+                                new SQLiteCommand($"DELETE FROM {PriceTable}", conn, trans).ExecuteNonQuery();
+                                
+                                foreach(DataGridViewRow r in dgv.Rows) {
+                                    if (r.IsNewRow) continue;
+                                    string cat = r.Cells["Category"].Value?.ToString();
+                                    string sd = r.Cells["StartDate"].Value?.ToString();
+                                    string ed = r.Cells["EndDate"].Value?.ToString();
+                                    string pr = r.Cells["UnitPrice"].Value?.ToString();
 
-                    foreach(DataGridViewRow r in dgv.Rows) {
-                        if (r.IsNewRow) continue;
-                        string cat = r.Cells["Category"].Value?.ToString();
-                        string sd = r.Cells["StartDate"].Value?.ToString();
-                        string ed = r.Cells["EndDate"].Value?.ToString();
-                        string pr = r.Cells["UnitPrice"].Value?.ToString();
-
-                        if (!string.IsNullOrWhiteSpace(cat) && DateTime.TryParse(sd, out _) && DateTime.TryParse(ed, out _) && double.TryParse(pr, out double prVal)) {
-                            DataRow dr = dt.NewRow();
-                            if (r.Cells["Id"].Value != null && int.TryParse(r.Cells["Id"].Value.ToString(), out int id)) dr["Id"] = id;
-                            dr["Category"] = cat; dr["StartDate"] = sd; dr["EndDate"] = ed; dr["UnitPrice"] = prVal;
-                            dt.Rows.Add(dr);
-                        } else {
-                            MessageBox.Show("部分資料格式錯誤，請確保日期格式為 yyyy-MM-dd，數值為數字。"); return;
+                                    if (!string.IsNullOrWhiteSpace(cat) && DateTime.TryParse(sd, out _) && DateTime.TryParse(ed, out _) && double.TryParse(pr, out double prVal)) {
+                                        var cmd = new SQLiteCommand($"INSERT INTO {PriceTable} (Category, StartDate, EndDate, UnitPrice) VALUES (@c, @s, @e, @u)", conn, trans);
+                                        cmd.Parameters.AddWithValue("@c", cat);
+                                        cmd.Parameters.AddWithValue("@s", sd);
+                                        cmd.Parameters.AddWithValue("@e", ed);
+                                        cmd.Parameters.AddWithValue("@u", prVal);
+                                        cmd.ExecuteNonQuery();
+                                    } else {
+                                        MessageBox.Show("部分資料格式錯誤，請確保日期格式為 yyyy-MM-dd，數值為數字。儲存已中止。"); 
+                                        trans.Rollback();
+                                        return;
+                                    }
+                                }
+                                trans.Commit();
+                            }
                         }
+                        
+                        LoadCache(); // 重新載入快取
+                        MessageBox.Show("費率與碳排係數儲存成功！", "成功");
+                        f.DialogResult = DialogResult.OK;
+                    } catch (Exception ex) {
+                        MessageBox.Show($"儲存失敗：{ex.Message}", "錯誤");
                     }
-
-                    DataManager.DropTable(SysDbName, PriceTable);
-                    InitDatabase();
-                    DataManager.BulkSaveTable(SysDbName, PriceTable, dt);
-                    LoadCache();
-                    MessageBox.Show("費率與碳排係數儲存成功！", "成功");
-                    f.DialogResult = DialogResult.OK;
                 };
 
                 f.Controls.Add(dgv);
                 f.Controls.Add(btnSave);
-                f.Controls.Add(lblTop);
+                f.Controls.Add(pnlTop);
                 f.ShowDialog();
             }
         }
 
+        private void ExportPricesToExcel()
+        {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "費率與碳排係數設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        DataTable dt = new DataTable();
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                        {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand($"SELECT Category AS [類別], StartDate AS [生效起日], EndDate AS [生效迄日], UnitPrice AS [數值] FROM {PriceTable}", conn))
+                            using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                        }
+
+                        using (ExcelPackage p = new ExcelPackage()) 
+                        {
+                            var ws = p.Workbook.Worksheets.Add("費率設定");
+                            ws.Cells["A1"].LoadFromDataTable(dt, true);
+                            ws.Cells.AutoFitColumns();
+                            p.SaveAs(new FileInfo(sfd.FileName));
+                        }
+                        MessageBox.Show("費率設定匯出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void ImportPricesFromExcel()
+        {
+            string authPrompt = "匯入費率設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的費率設定檔" }) 
+            {
+                if (ofd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
+                        {
+                            ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                            if (ws == null || ws.Dimension == null) return;
+
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                conn.Open();
+                                using (var trans = conn.BeginTransaction()) {
+                                    new SQLiteCommand($"DELETE FROM {PriceTable}", conn, trans).ExecuteNonQuery();
+
+                                    for (int r = 2; r <= ws.Dimension.Rows; r++) 
+                                    {
+                                        string cat = ws.Cells[r, 1].Text.Trim();
+                                        string sd = ws.Cells[r, 2].Text.Trim();
+                                        string ed = ws.Cells[r, 3].Text.Trim();
+                                        string pr = ws.Cells[r, 4].Text.Trim();
+
+                                        if (string.IsNullOrEmpty(cat) || !DateTime.TryParse(sd, out _) || !DateTime.TryParse(ed, out _) || !double.TryParse(pr, out double prVal)) 
+                                            continue;
+
+                                        var cmd = new SQLiteCommand($"INSERT INTO {PriceTable} (Category, StartDate, EndDate, UnitPrice) VALUES (@c, @s, @e, @u)", conn, trans);
+                                        cmd.Parameters.AddWithValue("@c", cat);
+                                        cmd.Parameters.AddWithValue("@s", sd);
+                                        cmd.Parameters.AddWithValue("@e", ed);
+                                        cmd.Parameters.AddWithValue("@u", prVal);
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                    trans.Commit();
+                                }
+                            }
+                            LoadCache();
+                        }
+                        
+                        MessageBox.Show("費率設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
         // ==========================================
-        // 公式設定介面 (新增匯出匯入功能與單位自訂)
+        // 🟢 公式設定介面 (新增匯出匯入功能與單位自訂)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
-            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1180, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            // 🟢 修正 3：視窗寬度增加 20，避免文字與輸入框太擠
+            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1220, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340F)); 
@@ -564,26 +675,27 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                Panel pName = new Panel { Width = 760, Height = 55 };
+                // 🟢 修正 4：座標重新計算，間隔 +20
+                Panel pName = new Panel { Width = 800, Height = 55 };
+                
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 180, Location = new Point(95, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                TextBox txtName = new TextBox { Width = 180, Location = new Point(110, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(290, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(385, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
+                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(310, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(420, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
-                // 🟢 新增單位文字框
-                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(540, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 110, Location = new Point(635, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(575, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                TextBox txtUnit = new TextBox { Width = 110, Location = new Point(685, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtUnit);
                 
                 flpEditor.Controls.Add(pName);
 
                 // 產生公式區塊
-                GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=760, Height = 145, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
+                GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=800, Height = 145, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
                 ComboBox cbDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
@@ -652,7 +764,7 @@ namespace Safety_System
                 flpEditor.Controls.Add(boxBuilder);
 
                 // 計算符號
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=760, Height = 50, Padding = new Padding(0, 10, 0, 5) };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=800, Height = 50, Padding = new Padding(0, 10, 0, 5) };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 55, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold) };
@@ -660,7 +772,7 @@ namespace Safety_System
                 }
                 flpEditor.Controls.Add(pnlKeys);
 
-                RichTextBox rtbFormula = new RichTextBox { Width=760, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                RichTextBox rtbFormula = new RichTextBox { Width=800, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
                 Label lblF = new Label { Text = "計算公式 (可混合純數字與變數)：", Height = 30, Font=new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
 
                 foreach (Control c in pnlKeys.Controls) {
@@ -682,7 +794,7 @@ namespace Safety_System
                 flpEditor.Controls.Add(lblF);
                 flpEditor.Controls.Add(rtbFormula);
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 760, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 800, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSaveRow.FlatAppearance.BorderSize = 0;
 
                 pnlRight.Controls.Add(flpEditor);
@@ -735,26 +847,35 @@ namespace Safety_System
 
         private void SaveConfigsToDb()
         {
+            // 🟢 修正 5：改用原生 SQL 直接 DELETE 再 INSERT，確保穩定性與不會丟失其他區塊的資料
             try {
-                DataTable dt = new DataTable();
-                dt.Columns.Add("Section", typeof(string)); dt.Columns.Add("DisplayName", typeof(string)); 
-                dt.Columns.Add("OutputType", typeof(string)); dt.Columns.Add("Unit", typeof(string)); dt.Columns.Add("Formula", typeof(string));
-                
-                foreach(var c in _configs) {
-                    DataRow r = dt.NewRow();
-                    r["Section"] = c.Section; r["DisplayName"] = c.DisplayName; r["OutputType"] = c.OutputType; r["Unit"] = c.Unit; r["Formula"] = c.Formula;
-                    dt.Rows.Add(r);
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        // 清除資料表所有資料
+                        new SQLiteCommand($"DELETE FROM {ConfigTable}", conn, trans).ExecuteNonQuery();
+                        
+                        // 重新寫入最新的所有資料
+                        foreach(var c in _configs) {
+                            var cmd = new SQLiteCommand($"INSERT INTO {ConfigTable} (Section, DisplayName, OutputType, Unit, Formula) VALUES (@s, @d, @o, @u, @f)", conn, trans);
+                            cmd.Parameters.AddWithValue("@s", c.Section);
+                            cmd.Parameters.AddWithValue("@d", c.DisplayName);
+                            cmd.Parameters.AddWithValue("@o", c.OutputType);
+                            cmd.Parameters.AddWithValue("@u", c.Unit);
+                            cmd.Parameters.AddWithValue("@f", c.Formula);
+                            cmd.ExecuteNonQuery();
+                        }
+                        trans.Commit();
+                    }
                 }
-
-                DataManager.DropTable(SysDbName, ConfigTable);
-                InitDatabase();
-                DataManager.BulkSaveTable(SysDbName, ConfigTable, dt);
-                LoadCache();
-            } catch { }
+                LoadCache(); // 重載確保同步
+            } catch (Exception ex) { 
+                MessageBox.Show($"儲存配置失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         // ==========================================
-        // 🟢 公式設定的 Excel 匯出與匯入功能
+        // 公式設定的 Excel 匯出與匯入功能
         // ==========================================
         private void ExportFormulasToExcel()
         {
@@ -805,31 +926,32 @@ namespace Safety_System
                             ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
                             if (ws == null || ws.Dimension == null) return;
 
-                            DataTable dt = new DataTable();
-                            dt.Columns.Add("Section", typeof(string)); 
-                            dt.Columns.Add("DisplayName", typeof(string)); 
-                            dt.Columns.Add("OutputType", typeof(string)); 
-                            dt.Columns.Add("Unit", typeof(string)); 
-                            dt.Columns.Add("Formula", typeof(string));
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                conn.Open();
+                                using (var trans = conn.BeginTransaction()) {
+                                    new SQLiteCommand($"DELETE FROM {ConfigTable}", conn, trans).ExecuteNonQuery();
 
-                            for (int r = 2; r <= ws.Dimension.Rows; r++) 
-                            {
-                                string section = ws.Cells[r, 1].Text.Trim();
-                                string disp = ws.Cells[r, 2].Text.Trim();
-                                string output = ws.Cells[r, 3].Text.Trim();
-                                string unit = ws.Cells[r, 4].Text.Trim();
-                                string formula = ws.Cells[r, 5].Text.Trim();
+                                    for (int r = 2; r <= ws.Dimension.Rows; r++) 
+                                    {
+                                        string section = ws.Cells[r, 1].Text.Trim();
+                                        string disp = ws.Cells[r, 2].Text.Trim();
+                                        string output = ws.Cells[r, 3].Text.Trim();
+                                        string unit = ws.Cells[r, 4].Text.Trim();
+                                        string formula = ws.Cells[r, 5].Text.Trim();
 
-                                if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(disp) || string.IsNullOrEmpty(formula)) continue;
+                                        if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(disp) || string.IsNullOrEmpty(formula)) continue;
 
-                                DataRow row = dt.NewRow();
-                                row["Section"] = section; row["DisplayName"] = disp; row["OutputType"] = output; row["Unit"] = unit; row["Formula"] = formula;
-                                dt.Rows.Add(row);
+                                        var cmd = new SQLiteCommand($"INSERT INTO {ConfigTable} (Section, DisplayName, OutputType, Unit, Formula) VALUES (@s, @d, @o, @u, @f)", conn, trans);
+                                        cmd.Parameters.AddWithValue("@s", section);
+                                        cmd.Parameters.AddWithValue("@d", disp);
+                                        cmd.Parameters.AddWithValue("@o", output);
+                                        cmd.Parameters.AddWithValue("@u", unit);
+                                        cmd.Parameters.AddWithValue("@f", formula);
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                    trans.Commit();
+                                }
                             }
-
-                            DataManager.DropTable(SysDbName, ConfigTable);
-                            InitDatabase();
-                            DataManager.BulkSaveTable(SysDbName, ConfigTable, dt);
                             LoadCache();
                         }
                         
