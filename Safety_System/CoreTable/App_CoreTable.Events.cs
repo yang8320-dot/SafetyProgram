@@ -1083,9 +1083,22 @@ namespace Safety_System
             };
 
             Rectangle cellRect = _dgv.GetCellDisplayRectangle(colIndex, rowIndex, false);
-            listBox.Width = cellRect.Width > 180 ? cellRect.Width : 180;
-            listBox.Height = uniqueItems.Count * 36 + 5;
-            if (listBox.Height > 300) listBox.Height = 300; 
+            
+            // 🟢 核心修正：動態計算 ListBox 內容的最大寬度，防止 ToolStripDropDown 自動縮放導致文字被切斷
+            int maxTextWidth = 180;
+            using (Graphics g = _dgv.CreateGraphics()) {
+                foreach (var item in uniqueItems) {
+                    int w = (int)g.MeasureString(item.Text, listBox.Font).Width;
+                    if (w + 60 > maxTextWidth) maxTextWidth = w + 60; // 60 是預留給圖示與 padding 的寬度
+                }
+            }
+
+            int finalWidth = Math.Max(cellRect.Width, maxTextWidth);
+            int finalHeight = uniqueItems.Count * 36 + 5;
+            if (finalHeight > 300) finalHeight = 300; 
+
+            listBox.Width = finalWidth;
+            listBox.Height = finalHeight;
 
             listBox.DrawItem += (s, e) => {
                 if (e.Index < 0) return;
@@ -1095,13 +1108,13 @@ namespace Safety_System
                 Brush textBrush = ((e.State & DrawItemState.Selected) == DrawItemState.Selected) ? Brushes.White : Brushes.Black;
                 
                 int imgSize = 24; 
-                int textOffset = 2;
+                int textOffset = 8; // 預設沒有圖片時文字靠左的距離
 
                 Image img = item.GetImage();
                 if (img != null) {
                     int imgY = e.Bounds.Y + (e.Bounds.Height - imgSize) / 2;
                     e.Graphics.DrawImage(img, e.Bounds.X + 8, imgY, imgSize, imgSize);
-                    textOffset = 40; 
+                    textOffset = 40; // 有圖片時，文字向右平移避開圖片
                 }
 
                 // 🟢 彈出清單必須同時畫出文字與圖片，讓使用者可以辨識
@@ -1132,6 +1145,11 @@ namespace Safety_System
             ToolStripControlHost host = new ToolStripControlHost(listBox);
             host.Margin = Padding.Empty;
             host.Padding = Padding.Empty;
+            
+            // 🟢 強制關閉 AutoSize 並手動指定 Size，避免寬度被系統壓縮
+            host.AutoSize = false;
+            host.Size = new Size(finalWidth, finalHeight);
+            
             dropDown.Items.Add(host);
 
             Point displayLocation = _dgv.PointToScreen(new Point(cellRect.Left, cellRect.Bottom));
