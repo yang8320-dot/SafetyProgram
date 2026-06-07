@@ -12,7 +12,6 @@ namespace Safety_System
     public static class PdfHelper
     {
         // 🟢 輔助方法：搜尋快取，回傳對應的圖示串列 (支援單選與複選)
-        // 🟢 修改點：將 private 改為 public，讓 Dashboard 也能呼叫此方法
         public static List<Image> GetIconsFromCache(string tableName, string colName, string cellValue)
         {
             List<Image> icons = new List<Image>();
@@ -28,7 +27,8 @@ namespace Safety_System
                 {
                     if (kvp.Key.StartsWith(prefix))
                     {
-                        var match = kvp.Value.FirstOrDefault(d => d.Text == cellValue);
+                        // 🟢 防呆：強制 Trim() 避免隱藏空白導致找不到圖示
+                        var match = kvp.Value.FirstOrDefault(d => d.Text.Trim() == cellValue.Trim());
                         if (match != null && !string.IsNullOrEmpty(match.IconBase64))
                         {
                             Image img = match.GetImage();
@@ -48,7 +48,8 @@ namespace Safety_System
                     var defs = App_DropdownManager.MultiSelectCache[key];
                     foreach (var opt in opts)
                     {
-                        var match = defs.FirstOrDefault(d => d.Text == opt);
+                        // 🟢 防呆：強制 Trim() 確保精準命中
+                        var match = defs.FirstOrDefault(d => d.Text.Trim() == opt.Trim());
                         if (match != null && !string.IsNullOrEmpty(match.IconBase64))
                         {
                             Image img = match.GetImage();
