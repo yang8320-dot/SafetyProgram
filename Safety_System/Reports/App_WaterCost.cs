@@ -177,8 +177,18 @@ namespace Safety_System
                     conn.Open();
                     using (var cmd = new SQLiteCommand($"SELECT * FROM {ConfigTable}", conn))
                     using (var r = cmd.ExecuteReader()) {
+                        
+                        // 🟢 修正 CS1061 錯誤：從 DataReader 安全地判斷欄位是否存在
+                        bool hasUnitCol = false;
+                        for (int i = 0; i < r.FieldCount; i++) {
+                            if (r.GetName(i).Equals("Unit", StringComparison.OrdinalIgnoreCase)) {
+                                hasUnitCol = true;
+                                break;
+                            }
+                        }
+
                         while (r.Read()) {
-                            string unit = r.Table.Columns.Contains("Unit") ? r["Unit"].ToString() : "";
+                            string unit = hasUnitCol ? r["Unit"].ToString() : "";
                             _configs.Add(new CostFormulaItem { 
                                 Id = Convert.ToInt32(r["Id"]), Section = r["Section"].ToString(), DisplayName = r["DisplayName"].ToString(), 
                                 OutputType = r["OutputType"].ToString(), Unit = unit, Formula = r["Formula"].ToString()
