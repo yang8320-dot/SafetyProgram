@@ -15,17 +15,17 @@ namespace Safety_System
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
-        private FlowLayoutPanel _flpSection1, _flpSection2, _flpSection3;
-        private Label _lblTotal1, _lblTotal2, _lblTotal3; // 區塊總計
+        private FlowLayoutPanel _flpSection1, _flpSection2, _flpSection3, _flpSection4;
+        private Label _lblTotal1, _lblTotal2, _lblTotal3, _lblTotal4; // 區塊總計
         
-        // 🟢 PDF 匯出用區塊外框
-        private Panel _pnlBox1, _pnlBox2, _pnlBox3;
+        // 🟢 PDF 匯出用區塊外框 (包含新的區塊4)
+        private Panel _pnlBox1, _pnlBox2, _pnlBox3, _pnlBox4;
         
         private Button _btnSearch;
 
         // 資料庫與快取
         private const string SysDbName = "SystemConfig";
-        private const string ConfigTable = "WaterCostFormulas"; // 全新支援公式的設定表
+        private const string ConfigTable = "WaterCostFormulas"; // 支援公式的設定表
         private const string PriceTable = "WaterPrices";
 
         private List<CostFormulaItem> _configs = new List<CostFormulaItem>();
@@ -35,7 +35,7 @@ namespace Safety_System
         // 模型定義
         private class CostFormulaItem {
             public int Id { get; set; }
-            public string Section { get; set; }     // 廢水處理, 淨水處理, 回收水
+            public string Section { get; set; }     // 廢水處理, 淨水處理, 回收水, 雨水回收
             public string DisplayName { get; set; }
             public string OutputType { get; set; }  // 金額, 數量
             public string Formula { get; set; }     // 儲存實際計算公式
@@ -61,8 +61,10 @@ namespace Safety_System
             LoadCache();
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
-            TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 5, Margin = new Padding(0) };
-            for(int i=0; i<5; i++) masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            
+            // 🟢 RowCount 增加到 6，以容納新的區塊
+            TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 6, Margin = new Padding(0) };
+            for(int i=0; i<6; i++) masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             // ==========================================
             // 1. 標題與操作區
@@ -104,17 +106,19 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 2. 建立三大區塊
+            // 2. 建立四大區塊 (新增雨水回收)
             // ==========================================
             _pnlBox1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna, out _flpSection1, out _lblTotal1);
             _pnlBox2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue, out _flpSection2, out _lblTotal2);
             _pnlBox3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen, out _flpSection3, out _lblTotal3);
+            _pnlBox4 = BuildSection("雨水回收效益分析", "雨水回收", Color.SteelBlue, out _flpSection4, out _lblTotal4); 
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
             masterLayout.Controls.Add(_pnlBox1, 0, 2);
             masterLayout.Controls.Add(_pnlBox2, 0, 3);
             masterLayout.Controls.Add(_pnlBox3, 0, 4);
+            masterLayout.Controls.Add(_pnlBox4, 0, 5); 
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -203,6 +207,8 @@ namespace Safety_System
             RenderSectionCards("廢水處理", _flpSection1, _lblTotal1, dtS, dtE, Color.Sienna);
             RenderSectionCards("淨水處理", _flpSection2, _lblTotal2, dtS, dtE, Color.MediumBlue);
             RenderSectionCards("回收水", _flpSection3, _lblTotal3, dtS, dtE, Color.ForestGreen);
+            // 🟢 加入雨水回收區塊的計算
+            RenderSectionCards("雨水回收", _flpSection4, _lblTotal4, dtS, dtE, Color.SteelBlue);
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
@@ -247,6 +253,7 @@ namespace Safety_System
             lblTotal.Text = $"區塊總計金額: $ {sectionTotalCost:N0}";
         }
 
+        // 🟢 核心公式解析引擎
         private double EvaluateFormula(string formula, DateTime dtS, DateTime dtE)
         {
             string sStr = dtS.ToString("yyyy-MM-dd");
@@ -398,7 +405,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 全新公式設定介面 (支援防呆與中文顯示)
+        // 公式設定介面 (支援防呆與中文顯示)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
@@ -587,15 +594,16 @@ namespace Safety_System
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
-            using (Form f = new Form() { Width = 400, Height = 350, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            using (Form f = new Form() { Width = 400, Height = 400, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
                 f.Controls.Add(lbl);
 
-                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 180, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 230, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 clb.Items.Add("廢水處理費用統計", true); 
                 clb.Items.Add("淨水處理費用統計", true); 
                 clb.Items.Add("回收水成本與效益", true);
+                clb.Items.Add("雨水回收效益分析", true); // 🟢 加入雨水回收的匯出選項
                 
                 f.Controls.Add(clb);
 
@@ -607,6 +615,7 @@ namespace Safety_System
                     if (clb.GetItemChecked(0)) selectedPanels.Add(_pnlBox1);
                     if (clb.GetItemChecked(1)) selectedPanels.Add(_pnlBox2);
                     if (clb.GetItemChecked(2)) selectedPanels.Add(_pnlBox3);
+                    if (clb.GetItemChecked(3)) selectedPanels.Add(_pnlBox4); // 🟢 獲取雨水回收區塊
                 }
             }
             return selectedPanels;
