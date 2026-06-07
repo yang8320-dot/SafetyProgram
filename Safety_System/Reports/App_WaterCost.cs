@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using OfficeOpenXml;
 
 namespace Safety_System
 {
@@ -15,17 +17,25 @@ namespace Safety_System
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
-        private FlowLayoutPanel _flpSection1, _flpSection2, _flpSection3, _flpSection4;
-        private Label _lblTotal1, _lblTotal2, _lblTotal3, _lblTotal4; // 區塊總計
-        
-        // 🟢 PDF 匯出用區塊外框 (包含新的區塊4)
-        private Panel _pnlBox1, _pnlBox2, _pnlBox3, _pnlBox4;
-        
         private Button _btnSearch;
+
+        // 🟢 將各區塊的 UI 封裝，以利管理四格網格
+        private class DashboardSectionUI {
+            public Panel MainBox;
+            public Label LblSub1, LblSub2, LblSub3, LblSub4;
+            public FlowLayoutPanel PnlData1, PnlData2, PnlData3, PnlData4;
+            public Label LblTotal;
+            public Button BtnSetting;
+        }
+
+        private DashboardSectionUI _sec1, _sec2, _sec3, _sec4;
+        
+        // PDF 匯出用隱藏清單
+        private List<Control> _controlsToHideForPdf = new List<Control>();
 
         // 資料庫與快取
         private const string SysDbName = "SystemConfig";
-        private const string ConfigTable = "WaterCostFormulas"; // 支援公式的設定表
+        private const string ConfigTable = "WaterCostFormulas";
         private const string PriceTable = "WaterPrices";
 
         private List<CostFormulaItem> _configs = new List<CostFormulaItem>();
@@ -35,10 +45,10 @@ namespace Safety_System
         // 模型定義
         private class CostFormulaItem {
             public int Id { get; set; }
-            public string Section { get; set; }     // 廢水處理, 淨水處理, 回收水, 雨水回收
+            public string Section { get; set; }     
             public string DisplayName { get; set; }
-            public string OutputType { get; set; }  // 金額, 數量
-            public string Formula { get; set; }     // 儲存實際計算公式
+            public string OutputType { get; set; }  
+            public string Formula { get; set; }     
         }
 
         private class PriceItem {
@@ -62,7 +72,6 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
-            // 🟢 RowCount 增加到 6，以容納新的區塊
             TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 6, Margin = new Padding(0) };
             for(int i=0; i<6; i++) masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -106,19 +115,19 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 2. 建立四大區塊 (新增雨水回收)
+            // 2. 建立四大區塊 (導入 4格網格版面)
             // ==========================================
-            _pnlBox1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna, out _flpSection1, out _lblTotal1);
-            _pnlBox2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue, out _flpSection2, out _lblTotal2);
-            _pnlBox3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen, out _flpSection3, out _lblTotal3);
-            _pnlBox4 = BuildSection("雨水回收效益分析", "雨水回收", Color.SteelBlue, out _flpSection4, out _lblTotal4); 
+            _sec1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna);
+            _sec2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue);
+            _sec3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen);
+            _sec4 = BuildSection("雨水回收效益分析", "雨水回收", Color.SteelBlue); 
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
-            masterLayout.Controls.Add(_pnlBox1, 0, 2);
-            masterLayout.Controls.Add(_pnlBox2, 0, 3);
-            masterLayout.Controls.Add(_pnlBox3, 0, 4);
-            masterLayout.Controls.Add(_pnlBox4, 0, 5); 
+            masterLayout.Controls.Add(_sec1.MainBox, 0, 2);
+            masterLayout.Controls.Add(_sec2.MainBox, 0, 3);
+            masterLayout.Controls.Add(_sec3.MainBox, 0, 4);
+            masterLayout.Controls.Add(_sec4.MainBox, 0, 5); 
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -167,35 +176,62 @@ namespace Safety_System
         }
 
         // ==========================================
-        // UI 區塊建立
+        // 🟢 UI 區塊建立 (全新四格網格版面)
         // ==========================================
-        private Panel BuildSection(string title, string sectionCode, Color themeColor, out FlowLayoutPanel flpData, out Label lblTotal)
+        private DashboardSectionUI BuildSection(string title, string sectionCode, Color themeColor)
         {
-            Panel pnlWrapper = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 25) };
-            pnlWrapper.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlWrapper.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+            DashboardSectionUI ui = new DashboardSectionUI();
+
+            ui.MainBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 25) };
+            ui.MainBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, ui.MainBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
             Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblTitle = new Label { Text = $"■ {title}", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = themeColor, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left, AutoSize = true, Padding=new Padding(10,15,0,0) };
             
-            lblTotal = new Label { Text = "區塊總計: $ 0", Font = new Font("Consolas", 18F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Dock = DockStyle.Right, AutoSize = true, Padding=new Padding(0,10,20,0) };
+            ui.LblTotal = new Label { Text = "區塊總計: $ 0", Font = new Font("Consolas", 18F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Dock = DockStyle.Right, AutoSize = true, Padding=new Padding(0,10,20,0) };
 
-            Button btnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(160, 35), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
-            btnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
+            ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(160, 35), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
+            ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
 
-            pnlHeader.Controls.Add(btnSetting);
-            pnlHeader.Controls.Add(lblTotal);
+            _controlsToHideForPdf.Add(ui.BtnSetting);
+            _controlsToHideForPdf.Add(ui.LblTotal);
+
+            pnlHeader.Controls.Add(ui.BtnSetting);
+            pnlHeader.Controls.Add(ui.LblTotal);
             pnlHeader.Controls.Add(lblTitle);
 
-            flpData = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, MinimumSize=new Size(0, 120), Padding = new Padding(15), WrapContents = true };
+            TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
+            for (int i = 0; i < 4; i++) gridFour.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            gridFour.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
+            gridFour.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            pnlWrapper.Controls.Add(flpData);
-            pnlWrapper.Controls.Add(pnlHeader);
+            ui.LblSub1 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            ui.LblSub2 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            ui.LblSub3 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
+            ui.LblSub4 = new Label { Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.White, BackColor = themeColor, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Margin = new Padding(2) };
 
-            return pnlWrapper;
+            gridFour.Controls.Add(ui.LblSub1, 0, 0); gridFour.Controls.Add(ui.LblSub2, 1, 0);
+            gridFour.Controls.Add(ui.LblSub3, 2, 0); gridFour.Controls.Add(ui.LblSub4, 3, 0);
+
+            ui.PnlData1 = CreateDataPanel(); ui.PnlData2 = CreateDataPanel();
+            ui.PnlData3 = CreateDataPanel(); ui.PnlData4 = CreateDataPanel();
+
+            gridFour.Controls.Add(ui.PnlData1, 0, 1); gridFour.Controls.Add(ui.PnlData2, 1, 1);
+            gridFour.Controls.Add(ui.PnlData3, 2, 1); gridFour.Controls.Add(ui.PnlData4, 3, 1);
+
+            ui.MainBox.Controls.Add(gridFour);
+            ui.MainBox.Controls.Add(pnlHeader);
+
+            return ui;
+        }
+
+        private FlowLayoutPanel CreateDataPanel()
+        {
+            return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 100), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
         // ==========================================
-        // 核心計算引擎 (正規表示式解析公式)
+        // 核心計算引擎 (四格網格版)
         // ==========================================
         private void ExecuteCalculation()
         {
@@ -204,56 +240,81 @@ namespace Safety_System
             DateTime dtS = GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
             DateTime dtE = GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
 
-            RenderSectionCards("廢水處理", _flpSection1, _lblTotal1, dtS, dtE, Color.Sienna);
-            RenderSectionCards("淨水處理", _flpSection2, _lblTotal2, dtS, dtE, Color.MediumBlue);
-            RenderSectionCards("回收水", _flpSection3, _lblTotal3, dtS, dtE, Color.ForestGreen);
-            // 🟢 加入雨水回收區塊的計算
-            RenderSectionCards("雨水回收", _flpSection4, _lblTotal4, dtS, dtE, Color.SteelBlue);
+            RenderSectionData("廢水處理", _sec1, dtS, dtE, Color.Sienna);
+            RenderSectionData("淨水處理", _sec2, dtS, dtE, Color.MediumBlue);
+            RenderSectionData("回收水", _sec3, dtS, dtE, Color.ForestGreen);
+            RenderSectionData("雨水回收", _sec4, dtS, dtE, Color.SteelBlue); 
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
 
-        private void RenderSectionCards(string sectionCode, FlowLayoutPanel flp, Label lblTotal, DateTime dtS, DateTime dtE, Color themeColor)
+        private void RenderSectionData(string sectionCode, DashboardSectionUI ui, DateTime dtS, DateTime dtE, Color themeColor)
         {
-            flp.Controls.Clear();
+            ui.PnlData1.Controls.Clear(); ui.PnlData2.Controls.Clear(); 
+            ui.PnlData3.Controls.Clear(); ui.PnlData4.Controls.Clear();
+
             var sectionConfigs = _configs.Where(c => c.Section == sectionCode).ToList();
 
             if (sectionConfigs.Count == 0) {
-                flp.Controls.Add(new Label { Text = "尚未設定任何統計項目，請點擊右上角設定。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
-                lblTotal.Text = "";
+                ui.PnlData1.Controls.Add(new Label { Text = "尚未設定任何統計項目，請點擊右上角設定。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
+                ui.LblTotal.Text = "";
                 return;
             }
+
+            ui.LblSub1.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n區間統計總計";
+            ui.LblSub2.Text = $"【{dtS.AddYears(-1):yyyy/MM/dd} ~ {dtE.AddYears(-1):yyyy/MM/dd}】\n去年同期統計總計";
+            ui.LblSub3.Text = $"【{dtS.AddYears(-2):yyyy/MM/dd} ~ {dtE.AddYears(-2):yyyy/MM/dd}】\n前年同期統計總計";
+            ui.LblSub4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析";
 
             double sectionTotalCost = 0;
 
             foreach (var cfg in sectionConfigs)
             {
-                double computedVal = EvaluateFormula(cfg.Formula, dtS, dtE);
+                double vCurr = EvaluateFormula(cfg.Formula, dtS, dtE);
+                double vLy   = EvaluateFormula(cfg.Formula, dtS.AddYears(-1), dtE.AddYears(-1));
+                double vL2y  = EvaluateFormula(cfg.Formula, dtS.AddYears(-2), dtE.AddYears(-2));
 
-                Panel card = new Panel { Size = new Size(300, 110), BackColor = Color.WhiteSmoke, Margin = new Padding(10) };
-                card.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, card.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-                
-                Label lTitle = new Label { Text = cfg.DisplayName, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), ForeColor = Color.FromArgb(60,60,60), Location = new Point(15,15), AutoSize = true };
-                
-                Label lVal = new Label { Font = new Font("Consolas", 20F, FontStyle.Bold), Location = new Point(15, 55), AutoSize = true };
+                string unit = cfg.OutputType == "金額" ? "元" : "";
+                string prefix = cfg.OutputType == "金額" ? "$" : "";
 
-                if (cfg.OutputType == "金額") {
-                    lVal.Text = $"$ {computedVal:N0}";
-                    lVal.ForeColor = themeColor;
-                    sectionTotalCost += computedVal;
-                } else {
-                    lVal.Text = $"{computedVal:N2}";
-                    lVal.ForeColor = Color.DarkSlateBlue;
-                }
+                ui.PnlData1.Controls.Add(CreateStatLabel(cfg.DisplayName, vCurr, unit, prefix, themeColor));
+                ui.PnlData2.Controls.Add(CreateStatLabel(cfg.DisplayName, vLy, unit, prefix, themeColor));
+                ui.PnlData3.Controls.Add(CreateStatLabel(cfg.DisplayName, vL2y, unit, prefix, themeColor));
 
-                card.Controls.AddRange(new Control[] { lTitle, lVal });
-                flp.Controls.Add(card);
+                double diff = vCurr - vLy;
+                double yoy = vLy == 0 ? 0 : (diff / Math.Abs(vLy)) * 100;
+
+                string diffText = vLy == 0 && vCurr > 0 ? "新數據" : (vLy == 0 ? "無基期" : $"{(yoy > 0 ? "+" : "")}{yoy:N1} %");
+                Color diffColor = (vLy == 0 && vCurr > 0) ? Color.SteelBlue : (vLy == 0 ? Color.DimGray : (yoy > 0 ? Color.IndianRed : Color.ForestGreen));
+
+                ui.PnlData4.Controls.Add(new Label { 
+                    Text = $"{cfg.DisplayName}: {diffText}", 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    ForeColor = diffColor, 
+                    AutoSize = true, 
+                    Margin = new Padding(0, 0, 0, 8) 
+                });
+
+                if (cfg.OutputType == "金額") sectionTotalCost += vCurr;
             }
 
-            lblTotal.Text = $"區塊總計金額: $ {sectionTotalCost:N0}";
+            ui.LblTotal.Text = $"區塊總計金額: $ {sectionTotalCost:N0}";
         }
 
-        // 🟢 核心公式解析引擎
+        private Label CreateStatLabel(string title, double value, string unit, string prefix, Color themeColor)
+        {
+            string valStr = prefix == "$" ? $"{value:N0}" : $"{value:N2}";
+            string fullText = $"{title}: {prefix} {valStr} {unit}".Trim();
+            
+            return new Label { 
+                Text = fullText, 
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                ForeColor = Color.FromArgb(60, 60, 60), 
+                AutoSize = true, 
+                Margin = new Padding(0, 0, 0, 10) 
+            };
+        }
+
         private double EvaluateFormula(string formula, DateTime dtS, DateTime dtE)
         {
             string sStr = dtS.ToString("yyyy-MM-dd");
@@ -405,7 +466,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 公式設定介面 (支援防呆與中文顯示)
+        // 公式設定介面 (新增匯出匯入功能)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
@@ -415,14 +476,27 @@ namespace Safety_System
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
-                // ==== 左側：清單 ====
+                // ==== 左側：清單與匯出匯入 ====
                 Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
                 Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 30 };
                 ListBox lbItems = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
+                
                 Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 
+                // 🟢 加入匯出匯入按鈕
+                Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 45, Padding = new Padding(0, 5, 0, 0) };
+                Button btnExpConf = new Button { Text = "📤 匯出設定", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
+                Button btnImpConf = new Button { Text = "📥 匯入設定", Width = 135, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
+                
+                btnExpConf.Click += (s, e) => ExportFormulasToExcel();
+                btnImpConf.Click += (s, e) => { ImportFormulasFromExcel(); f.DialogResult = DialogResult.OK; };
+
+                pnlIo.Controls.Add(btnExpConf);
+                pnlIo.Controls.Add(btnImpConf);
+
                 pnlLeft.Controls.Add(lbItems);
                 pnlLeft.Controls.Add(l1);
+                pnlLeft.Controls.Add(pnlIo);
                 pnlLeft.Controls.Add(btnDel);
 
                 // ==== 右側：編輯區 ====
@@ -589,21 +663,111 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 導出 PDF 功能與輔助方法
+        // 🟢 公式設定的 Excel 匯出與匯入功能
+        // ==========================================
+        private void ExportFormulasToExcel()
+        {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "成本統計公式設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        DataTable dt = new DataTable();
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                        {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand($"SELECT Section AS [看板區塊], DisplayName AS [顯示名稱], OutputType AS [產出格式], Formula AS [計算公式] FROM {ConfigTable}", conn))
+                            using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                        }
+
+                        using (ExcelPackage p = new ExcelPackage()) 
+                        {
+                            var ws = p.Workbook.Worksheets.Add("成本公式設定");
+                            ws.Cells["A1"].LoadFromDataTable(dt, true);
+                            ws.Cells.AutoFitColumns();
+                            p.SaveAs(new FileInfo(sfd.FileName));
+                        }
+                        MessageBox.Show("公式設定匯出成功！您可以以此檔案作為備份。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void ImportFormulasFromExcel()
+        {
+            string authPrompt = "匯入公式設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的公式設定檔" }) 
+            {
+                if (ofd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
+                        {
+                            ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                            if (ws == null || ws.Dimension == null) return;
+
+                            DataTable dt = new DataTable();
+                            dt.Columns.Add("Section", typeof(string)); 
+                            dt.Columns.Add("DisplayName", typeof(string)); 
+                            dt.Columns.Add("OutputType", typeof(string)); 
+                            dt.Columns.Add("Formula", typeof(string));
+
+                            for (int r = 2; r <= ws.Dimension.Rows; r++) 
+                            {
+                                string section = ws.Cells[r, 1].Text.Trim();
+                                string disp = ws.Cells[r, 2].Text.Trim();
+                                string output = ws.Cells[r, 3].Text.Trim();
+                                string formula = ws.Cells[r, 4].Text.Trim();
+
+                                if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(disp) || string.IsNullOrEmpty(formula)) continue;
+
+                                DataRow row = dt.NewRow();
+                                row["Section"] = section; row["DisplayName"] = disp; row["OutputType"] = output; row["Formula"] = formula;
+                                dt.Rows.Add(row);
+                            }
+
+                            // 覆寫資料庫
+                            DataManager.DropTable(SysDbName, ConfigTable);
+                            InitDatabase();
+                            DataManager.BulkSaveTable(SysDbName, ConfigTable, dt);
+                            LoadCache();
+                        }
+                        
+                        MessageBox.Show("公式設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        ExecuteCalculation(); 
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 🟢 導出 PDF 功能與隱藏多餘按鈕
         // ==========================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
-            using (Form f = new Form() { Width = 400, Height = 400, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            using (Form f = new Form() { Width = 400, Height = 430, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
                 f.Controls.Add(lbl);
 
-                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 230, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 210, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 clb.Items.Add("廢水處理費用統計", true); 
                 clb.Items.Add("淨水處理費用統計", true); 
                 clb.Items.Add("回收水成本與效益", true);
-                clb.Items.Add("雨水回收效益分析", true); // 🟢 加入雨水回收的匯出選項
+                clb.Items.Add("雨水回收效益分析", true); 
                 
                 f.Controls.Add(clb);
 
@@ -615,7 +779,7 @@ namespace Safety_System
                     if (clb.GetItemChecked(0)) selectedPanels.Add(_pnlBox1);
                     if (clb.GetItemChecked(1)) selectedPanels.Add(_pnlBox2);
                     if (clb.GetItemChecked(2)) selectedPanels.Add(_pnlBox3);
-                    if (clb.GetItemChecked(3)) selectedPanels.Add(_pnlBox4); // 🟢 獲取雨水回收區塊
+                    if (clb.GetItemChecked(3)) selectedPanels.Add(_pnlBox4); 
                 }
             }
             return selectedPanels;
@@ -626,19 +790,42 @@ namespace Safety_System
             var panelsToExport = GetSelectedExportPanels();
             if (panelsToExport.Count == 0) return;
 
-            List<Bitmap> bitmaps = new List<Bitmap>();
-            foreach (var pnl in panelsToExport) 
-            {
-                // 將每個勾選的區塊截圖
-                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                bitmaps.Add(bmp);
-            }
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-            string dateStr = $"結算區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
-            
-            // 呼叫 PdfHelper 的共用儀表板匯出引擎
-            PdfHelper.ExportDashboardToPdf(bitmaps, "水資源成本與效益分析報表", dateStr, "水資源成本分析表");
+            try 
+            {
+                // 🟢 匯出前，先將「設定按鈕」與「總計金額字樣」隱藏
+                foreach (Control ctrl in _controlsToHideForPdf) {
+                    ctrl.Visible = false;
+                }
+
+                Application.DoEvents(); 
+
+                List<Bitmap> bitmaps = new List<Bitmap>();
+                foreach (var pnl in panelsToExport) 
+                {
+                    Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                    pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                    bitmaps.Add(bmp);
+                }
+
+                string dateStr = $"結算區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+                
+                // 呼叫 PdfHelper 的共用儀表板匯出引擎
+                PdfHelper.ExportDashboardToPdf(bitmaps, "水資源成本與效益分析報表", dateStr, "水資源成本分析表");
+            } 
+            catch (Exception ex)
+            {
+                MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                // 🟢 匯出後，恢復控制項顯示
+                foreach (Control ctrl in _controlsToHideForPdf) {
+                    ctrl.Visible = true;
+                }
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            }
         }
 
         private void InitDateComboBoxes()
