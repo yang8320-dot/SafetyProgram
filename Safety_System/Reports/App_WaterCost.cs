@@ -19,17 +19,18 @@ namespace Safety_System
 
         private Button _btnSearch;
 
-        // 🟢 將各區塊的 UI 封裝，並新增碳排總計
+        // 🟢 將各區塊的 UI 封裝，以利管理四格網格
         private class DashboardSectionUI {
             public Panel MainBox;
             public Label LblSub1, LblSub2, LblSub3, LblSub4;
             public FlowLayoutPanel PnlData1, PnlData2, PnlData3, PnlData4;
             public Label LblTotalCost;
-            public Label LblTotalCarbon; // 🟢 新增：碳排總計
+            public Label LblTotalCarbon; 
             public Button BtnSetting;
         }
 
-        private DashboardSectionUI _sec1, _sec2, _sec3, _sec4;
+        // 🟢 完整宣告五大區塊
+        private DashboardSectionUI _sec1, _sec2, _sec3, _sec4, _sec5;
         
         // PDF 匯出用隱藏清單
         private List<Control> _controlsToHideForPdf = new List<Control>();
@@ -48,7 +49,7 @@ namespace Safety_System
             public int Id { get; set; }
             public string Section { get; set; }     
             public string DisplayName { get; set; }
-            public string OutputType { get; set; }  // 金額, 數量, 碳排(kgCO2e)
+            public string OutputType { get; set; }  
             public string Formula { get; set; }     
         }
 
@@ -73,8 +74,9 @@ namespace Safety_System
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             
-            TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 6, Margin = new Padding(0) };
-            for(int i=0; i<6; i++) masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            // 🟢 RowCount 設為 7 以容納 5 個區塊
+            TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 7, Margin = new Padding(0) };
+            for(int i=0; i<7; i++) masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             // ==========================================
             // 1. 標題與操作區
@@ -116,12 +118,13 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 2. 建立四大區塊
+            // 2. 建立五大區塊 (導入四格網格與封裝)
             // ==========================================
             _sec1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna);
             _sec2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue);
             _sec3 = BuildSection("回收水成本與效益", "回收水", Color.ForestGreen);
             _sec4 = BuildSection("雨水回收效益分析", "雨水回收", Color.SteelBlue); 
+            _sec5 = BuildSection("污泥減量與處置效益", "污泥減量", Color.Purple); // 🟢 第五區塊回歸
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
@@ -129,6 +132,7 @@ namespace Safety_System
             masterLayout.Controls.Add(_sec2.MainBox, 0, 3);
             masterLayout.Controls.Add(_sec3.MainBox, 0, 4);
             masterLayout.Controls.Add(_sec4.MainBox, 0, 5); 
+            masterLayout.Controls.Add(_sec5.MainBox, 0, 6); 
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -177,7 +181,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // UI 區塊建立 (全新四格網格版面)
+        // 🟢 UI 區塊建立 (全新四格網格版面)
         // ==========================================
         private DashboardSectionUI BuildSection(string title, string sectionCode, Color themeColor)
         {
@@ -189,7 +193,6 @@ namespace Safety_System
             Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblTitle = new Label { Text = $"■ {title}", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = themeColor, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left, AutoSize = true, Padding=new Padding(10,15,0,0) };
             
-            // 🟢 將總計區分為金額與碳排兩個 Label
             Panel pnlTotals = new Panel { Dock = DockStyle.Fill };
             
             ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
@@ -203,7 +206,6 @@ namespace Safety_System
 
             pnlTotals.Controls.Add(ui.LblTotalCarbon);
             pnlTotals.Controls.Add(ui.LblTotalCost);
-            // 動態排列兩個 Label
             pnlTotals.Resize += (s, e) => {
                 ui.LblTotalCarbon.Left = pnlTotals.Width - ui.LblTotalCarbon.Width - 10;
                 ui.LblTotalCost.Left = ui.LblTotalCarbon.Left - ui.LblTotalCost.Width - 20;
@@ -258,6 +260,7 @@ namespace Safety_System
             RenderSectionData("淨水處理", _sec2, dtS, dtE, Color.MediumBlue);
             RenderSectionData("回收水", _sec3, dtS, dtE, Color.ForestGreen);
             RenderSectionData("雨水回收", _sec4, dtS, dtE, Color.SteelBlue); 
+            RenderSectionData("污泥減量", _sec5, dtS, dtE, Color.Purple); // 🟢 污泥減量運算
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
@@ -282,7 +285,7 @@ namespace Safety_System
             ui.LblSub4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析";
 
             double sectionTotalCost = 0;
-            double sectionTotalCarbon = 0; // 🟢 新增碳排總計
+            double sectionTotalCarbon = 0; 
 
             foreach (var cfg in sectionConfigs)
             {
@@ -290,7 +293,6 @@ namespace Safety_System
                 double vLy   = EvaluateFormula(cfg.Formula, dtS.AddYears(-1), dtE.AddYears(-1));
                 double vL2y  = EvaluateFormula(cfg.Formula, dtS.AddYears(-2), dtE.AddYears(-2));
 
-                // 🟢 根據 OutputType 給予不同的單位與前綴
                 string unit = "";
                 string prefix = "";
                 if (cfg.OutputType == "金額") { unit = "元"; prefix = "$"; }
@@ -532,8 +534,6 @@ namespace Safety_System
 
                 pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
                 ComboBox cboFormat = new ComboBox { Width = 140, Location = new Point(470, 7), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
-                
-                // 🟢 新增碳排(kgCO2e)選項
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
@@ -775,21 +775,22 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 導出 PDF 功能與附錄產生器
+        // 導出 PDF 功能與附錄產生器
         // ==========================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
-            using (Form f = new Form() { Width = 400, Height = 430, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            using (Form f = new Form() { Width = 400, Height = 460, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold) };
                 f.Controls.Add(lbl);
 
-                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 210, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Top, Height = 240, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 14F), Margin = new Padding(10), BorderStyle = BorderStyle.None, BackColor = f.BackColor };
                 clb.Items.Add("廢水處理費用統計", true); 
                 clb.Items.Add("淨水處理費用統計", true); 
                 clb.Items.Add("回收水成本與效益", true);
                 clb.Items.Add("雨水回收效益分析", true); 
+                clb.Items.Add("污泥減量與處置效益", true); // 🟢 加入污泥減量的匯出選項
                 
                 f.Controls.Add(clb);
 
@@ -802,6 +803,7 @@ namespace Safety_System
                     if (clb.GetItemChecked(1)) selectedPanels.Add(_sec2.MainBox);
                     if (clb.GetItemChecked(2)) selectedPanels.Add(_sec3.MainBox);
                     if (clb.GetItemChecked(3)) selectedPanels.Add(_sec4.MainBox); 
+                    if (clb.GetItemChecked(4)) selectedPanels.Add(_sec5.MainBox); 
                 }
             }
             return selectedPanels;
@@ -851,7 +853,6 @@ namespace Safety_System
         private Bitmap CreateAppendixBitmap()
         {
             int width = 1100;
-            // 預估高度：標題 150 + 每個公式 40 + 每個費率 30
             int height = 200 + (_configs.Count * 45) + (_prices.Count * 35);
             if (height < 600) height = 600;
 
