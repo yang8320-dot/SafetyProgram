@@ -152,7 +152,7 @@ namespace Safety_System
             _dgvSDS.ColumnHeadersHeight = 40;
             _dgvSDS.AlternatingRowsDefaultCellStyle.BackColor = Color.WhiteSmoke;
             
-            // 🟢 補上圖示重繪事件
+            // 🟢 UI 圖示重繪事件
             _dgvSDS.CellPainting += DgvSDS_CellPainting;
 
             boxGrid.Controls.Add(_dgvSDS);
@@ -422,7 +422,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 A4 危害性化學品清單 PDF 功能 (移除大標題/簽核/頁碼，保留主標題)
+        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (套用圖示顯示)
         // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
@@ -482,6 +482,22 @@ namespace Safety_System
                             g.DrawString($"其他名稱：{GetVal("其它化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
                             g.DrawString($"安全資料表索引碼：{GetVal("廠內編號")}", fBody, Brushes.Black, x, y); y += 30;
                             
+                            // 🟢 危害標示 (處理圖示)
+                            g.DrawString($"危害標示：", fBody, Brushes.Black, x, y);
+                            string hazardVal = GetVal("危害標示");
+                            var hazardIcons = PdfHelper.GetIconsFromCache(TableName, "危害標示", hazardVal);
+                            
+                            if (hazardIcons.Count > 0) {
+                                float imgStartX = x + 100;
+                                foreach (var img in hazardIcons) {
+                                    g.DrawImage(img, imgStartX, y - 4, 24, 24);
+                                    imgStartX += 28;
+                                }
+                            } else {
+                                g.DrawString(hazardVal, fBody, Brushes.Black, x + 100, y);
+                            }
+                            y += 30;
+
                             g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
                             g.DrawString($"製造者、輸入者或供應者：{GetVal("供應商")}", fBody, Brushes.Black, x, y); y += 30;
                             g.DrawString($"供應商地址：{GetVal("供應商地址")}", fBody, Brushes.Black, x, y); y += 30;
@@ -561,7 +577,7 @@ namespace Safety_System
         }
 
         // =========================================================================
-        // 導出 SDS 清冊 PDF 功能 (套用標準排版)
+        // 導出 SDS 清冊 PDF 功能 (套用圖示顯示)
         // =========================================================================
         private void ExportToPdf()
         {
@@ -668,6 +684,7 @@ namespace Safety_System
                                 {
                                     RectangleF rect = new RectangleF(currX, y, col.Width * scale, rowH);
                                     g.DrawRectangle(Pens.Black, rect.X, rect.Y, rect.Width, rect.Height);
+                                    
                                     string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
                                     
                                     // 🟢 檢查是否有圖示
@@ -736,9 +753,7 @@ namespace Safety_System
 
             if (e.Value != null)
             {
-                // 呼叫 PdfHelper 公開的快取方法取得圖示
                 var icons = PdfHelper.GetIconsFromCache(TableName, colName, e.Value.ToString());
-                
                 if (icons.Count > 0)
                 {
                     e.PaintBackground(e.ClipBounds, true);
