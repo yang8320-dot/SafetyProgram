@@ -19,12 +19,13 @@ namespace Safety_System
 
         private Button _btnSearch;
 
-        // 🟢 將各區塊的 UI 封裝，以利管理四格網格
+        // 🟢 將各區塊的 UI 封裝，並新增碳排總計
         private class DashboardSectionUI {
             public Panel MainBox;
             public Label LblSub1, LblSub2, LblSub3, LblSub4;
             public FlowLayoutPanel PnlData1, PnlData2, PnlData3, PnlData4;
-            public Label LblTotal;
+            public Label LblTotalCost;
+            public Label LblTotalCarbon; // 🟢 新增：碳排總計
             public Button BtnSetting;
         }
 
@@ -47,7 +48,7 @@ namespace Safety_System
             public int Id { get; set; }
             public string Section { get; set; }     
             public string DisplayName { get; set; }
-            public string OutputType { get; set; }  
+            public string OutputType { get; set; }  // 金額, 數量, 碳排(kgCO2e)
             public string Formula { get; set; }     
         }
 
@@ -79,7 +80,7 @@ namespace Safety_System
             // 1. 標題與操作區
             // ==========================================
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 60, Margin = new Padding(0) };
-            Label lblTitle = new Label { Text = "💰 水資源成本與效益分析看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+            Label lblTitle = new Label { Text = "🌱 水資源成本與 ESG 效益分析看板", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
             pnlHeader.Controls.Add(lblTitle);
 
             FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 10, 0, 20), Margin = new Padding(0) };
@@ -96,7 +97,7 @@ namespace Safety_System
             _btnSearch = new Button { Text = "🔍 執行精算", Size = new Size(130, 42), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.Click += (s, e) => ExecuteCalculation();
 
-            Button btnPriceManager = new Button { Text = "💰 浮動單價/費率管理", Size = new Size(210, 42), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            Button btnPriceManager = new Button { Text = "💰 費率與碳排係數管理", Size = new Size(230, 42), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPriceManager.Click += (s, e) => { OpenPriceManager(); ExecuteCalculation(); };
 
             Button btnPdf = new Button { Text = "📄 選擇並導出 PDF", Size = new Size(180, 42), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
@@ -115,7 +116,7 @@ namespace Safety_System
             });
 
             // ==========================================
-            // 2. 建立四大區塊 (導入 4格網格版面)
+            // 2. 建立四大區塊
             // ==========================================
             _sec1 = BuildSection("廢水處理費用統計", "廢水處理", Color.Sienna);
             _sec2 = BuildSection("淨水處理費用統計", "淨水處理", Color.MediumBlue);
@@ -188,17 +189,30 @@ namespace Safety_System
             Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
             Label lblTitle = new Label { Text = $"■ {title}", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = themeColor, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left, AutoSize = true, Padding=new Padding(10,15,0,0) };
             
-            ui.LblTotal = new Label { Text = "區塊總計: $ 0", Font = new Font("Consolas", 18F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Dock = DockStyle.Right, AutoSize = true, Padding=new Padding(0,10,20,0) };
+            // 🟢 將總計區分為金額與碳排兩個 Label
+            Panel pnlTotals = new Panel { Dock = DockStyle.Fill };
+            
+            ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
+            ui.LblTotalCost = new Label { Text = "區塊總計金額: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
 
             ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(160, 35), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
             ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
 
             _controlsToHideForPdf.Add(ui.BtnSetting);
-            _controlsToHideForPdf.Add(ui.LblTotal);
+            _controlsToHideForPdf.Add(pnlTotals);
 
+            pnlTotals.Controls.Add(ui.LblTotalCarbon);
+            pnlTotals.Controls.Add(ui.LblTotalCost);
+            // 動態排列兩個 Label
+            pnlTotals.Resize += (s, e) => {
+                ui.LblTotalCarbon.Left = pnlTotals.Width - ui.LblTotalCarbon.Width - 10;
+                ui.LblTotalCost.Left = ui.LblTotalCarbon.Left - ui.LblTotalCost.Width - 20;
+            };
+
+            pnlHeader.Controls.Add(pnlTotals);
             pnlHeader.Controls.Add(ui.BtnSetting);
-            pnlHeader.Controls.Add(ui.LblTotal);
             pnlHeader.Controls.Add(lblTitle);
+            ui.BtnSetting.BringToFront();
 
             TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
             for (int i = 0; i < 4; i++) gridFour.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
@@ -231,7 +245,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心計算引擎 (四格網格版)
+        // 核心計算引擎
         // ==========================================
         private void ExecuteCalculation()
         {
@@ -257,7 +271,8 @@ namespace Safety_System
 
             if (sectionConfigs.Count == 0) {
                 ui.PnlData1.Controls.Add(new Label { Text = "尚未設定任何統計項目，請點擊右上角設定。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
-                ui.LblTotal.Text = "";
+                ui.LblTotalCost.Text = "";
+                ui.LblTotalCarbon.Text = "";
                 return;
             }
 
@@ -267,6 +282,7 @@ namespace Safety_System
             ui.LblSub4.Text = $"【{dtS:yyyy/MM/dd} ~ {dtE:yyyy/MM/dd}】\n與去年同期差異分析";
 
             double sectionTotalCost = 0;
+            double sectionTotalCarbon = 0; // 🟢 新增碳排總計
 
             foreach (var cfg in sectionConfigs)
             {
@@ -274,8 +290,11 @@ namespace Safety_System
                 double vLy   = EvaluateFormula(cfg.Formula, dtS.AddYears(-1), dtE.AddYears(-1));
                 double vL2y  = EvaluateFormula(cfg.Formula, dtS.AddYears(-2), dtE.AddYears(-2));
 
-                string unit = cfg.OutputType == "金額" ? "元" : "";
-                string prefix = cfg.OutputType == "金額" ? "$" : "";
+                // 🟢 根據 OutputType 給予不同的單位與前綴
+                string unit = "";
+                string prefix = "";
+                if (cfg.OutputType == "金額") { unit = "元"; prefix = "$"; }
+                else if (cfg.OutputType == "碳排(kgCO2e)") { unit = "kgCO2e"; prefix = "☁️"; }
 
                 ui.PnlData1.Controls.Add(CreateStatLabel(cfg.DisplayName, vCurr, unit, prefix, themeColor));
                 ui.PnlData2.Controls.Add(CreateStatLabel(cfg.DisplayName, vLy, unit, prefix, themeColor));
@@ -296,9 +315,11 @@ namespace Safety_System
                 });
 
                 if (cfg.OutputType == "金額") sectionTotalCost += vCurr;
+                else if (cfg.OutputType == "碳排(kgCO2e)") sectionTotalCarbon += vCurr;
             }
 
-            ui.LblTotal.Text = $"區塊總計金額: $ {sectionTotalCost:N0}";
+            ui.LblTotalCost.Text = $"區塊總計金額: $ {sectionTotalCost:N0}";
+            ui.LblTotalCarbon.Text = $"總碳排當量: {sectionTotalCarbon:N1} kgCO2e";
         }
 
         private Label CreateStatLabel(string title, double value, string unit, string prefix, Color themeColor)
@@ -408,9 +429,9 @@ namespace Safety_System
         // ==========================================
         private void OpenPriceManager()
         {
-            using (Form f = new Form { Text = "💰 浮動單價/費率管理中心", Size = new Size(700, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = "💰 費率與碳排係數管理中心", Size = new Size(700, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
-                Label lblTop = new Label { Text = "在此設定各計價項目(如自來水、電費、藥劑)於特定區間的單價。\n若為固定費率，可將結束日期設為 2099 年。", Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(15), Dock = DockStyle.Top, Height=60 };
+                Label lblTop = new Label { Text = "在此設定各計價項目(如自來水、電費)或「碳排係數」於特定區間的單價。\n若為固定費率，可將結束日期設為 2099 年。", Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(15), Dock = DockStyle.Top, Height=60 };
 
                 DataGridView dgv = new DataGridView { 
                     Dock = DockStyle.Fill, BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = true, 
@@ -418,10 +439,10 @@ namespace Safety_System
                 };
                 
                 dgv.Columns.Add("Id", "Id"); dgv.Columns["Id"].Visible = false;
-                dgv.Columns.Add("Category", "計價類別 (例: 電費)");
+                dgv.Columns.Add("Category", "計價/係數類別 (例: 電費)");
                 dgv.Columns.Add("StartDate", "生效起日 (yyyy-MM-dd)");
                 dgv.Columns.Add("EndDate", "生效迄日 (yyyy-MM-dd)");
-                dgv.Columns.Add("UnitPrice", "單價數值");
+                dgv.Columns.Add("UnitPrice", "單價/係數數值");
 
                 foreach(var p in _prices) {
                     dgv.Rows.Add(p.Id, p.Category, p.StartDate.ToString("yyyy-MM-dd"), p.EndDate.ToString("yyyy-MM-dd"), p.UnitPrice);
@@ -446,7 +467,7 @@ namespace Safety_System
                             dr["Category"] = cat; dr["StartDate"] = sd; dr["EndDate"] = ed; dr["UnitPrice"] = prVal;
                             dt.Rows.Add(dr);
                         } else {
-                            MessageBox.Show("部分資料格式錯誤，請確保日期格式為 yyyy-MM-dd，單價為數字。"); return;
+                            MessageBox.Show("部分資料格式錯誤，請確保日期格式為 yyyy-MM-dd，數值為數字。"); return;
                         }
                     }
 
@@ -454,7 +475,7 @@ namespace Safety_System
                     InitDatabase();
                     DataManager.BulkSaveTable(SysDbName, PriceTable, dt);
                     LoadCache();
-                    MessageBox.Show("費率儲存成功！", "成功");
+                    MessageBox.Show("費率與碳排係數儲存成功！", "成功");
                     f.DialogResult = DialogResult.OK;
                 };
 
@@ -483,7 +504,6 @@ namespace Safety_System
                 
                 Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 
-                // 🟢 加入匯出匯入按鈕
                 Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 45, Padding = new Padding(0, 5, 0, 0) };
                 Button btnExpConf = new Button { Text = "📤 匯出設定", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand };
                 Button btnImpConf = new Button { Text = "📥 匯入設定", Width = 135, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand };
@@ -511,8 +531,10 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
 
                 pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(370, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 120, Location = new Point(470, 7), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
-                cboFormat.Items.AddRange(new string[] { "金額", "數量" });
+                ComboBox cboFormat = new ComboBox { Width = 140, Location = new Point(470, 7), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
+                
+                // 🟢 新增碳排(kgCO2e)選項
+                cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
@@ -583,7 +605,7 @@ namespace Safety_System
                     if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、欄位！"); return; }
                     
                     if (cbAction.SelectedIndex == 1) {
-                        if (cbPrice.SelectedItem == null) { MessageBox.Show("請選擇要綁定的費率類別！"); return; }
+                        if (cbPrice.SelectedItem == null) { MessageBox.Show("請選擇要綁定的費率/係數類別！"); return; }
                         rtbFormula.AppendText($"COST([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}], {cbPrice.SelectedItem})");
                     } else {
                         rtbFormula.AppendText($"SUM([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}])");
@@ -663,7 +685,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 公式設定的 Excel 匯出與匯入功能
+        // 公式設定的 Excel 匯出與匯入功能
         // ==========================================
         private void ExportFormulasToExcel()
         {
@@ -753,7 +775,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 導出 PDF 功能與隱藏多餘按鈕
+        // 🟢 導出 PDF 功能與附錄產生器
         // ==========================================
         private List<Panel> GetSelectedExportPanels()
         {
@@ -794,11 +816,8 @@ namespace Safety_System
 
             try 
             {
-                // 🟢 匯出前，先將「設定按鈕」與「總計金額字樣」隱藏
-                foreach (Control ctrl in _controlsToHideForPdf) {
-                    ctrl.Visible = false;
-                }
-
+                // 匯出前隱藏設定按鈕與標籤
+                foreach (Control ctrl in _controlsToHideForPdf) ctrl.Visible = false;
                 Application.DoEvents(); 
 
                 List<Bitmap> bitmaps = new List<Bitmap>();
@@ -809,10 +828,13 @@ namespace Safety_System
                     bitmaps.Add(bmp);
                 }
 
+                // 🟢 加入 ESG 稽核附錄頁
+                Bitmap appendixBmp = CreateAppendixBitmap();
+                bitmaps.Add(appendixBmp);
+
                 string dateStr = $"結算區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
                 
-                // 呼叫 PdfHelper 的共用儀表板匯出引擎
-                PdfHelper.ExportDashboardToPdf(bitmaps, "水資源成本與效益分析報表", dateStr, "水資源成本分析表");
+                PdfHelper.ExportDashboardToPdf(bitmaps, "水資源成本與 ESG 效益分析報表", dateStr, "水資源成本與效益分析報表");
             } 
             catch (Exception ex)
             {
@@ -820,12 +842,66 @@ namespace Safety_System
             }
             finally
             {
-                // 🟢 匯出後，恢復控制項顯示
-                foreach (Control ctrl in _controlsToHideForPdf) {
-                    ctrl.Visible = true;
-                }
+                foreach (Control ctrl in _controlsToHideForPdf) ctrl.Visible = true;
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
+        }
+
+        // 🟢 動態生成 ESG 稽核附錄 Bitmap
+        private Bitmap CreateAppendixBitmap()
+        {
+            int width = 1100;
+            // 預估高度：標題 150 + 每個公式 40 + 每個費率 30
+            int height = 200 + (_configs.Count * 45) + (_prices.Count * 35);
+            if (height < 600) height = 600;
+
+            Bitmap bmp = new Bitmap(width, height);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.White);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+                Font fTitle = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold);
+                Font fSection = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold);
+                Font fItem = new Font("Consolas", 12F);
+                Font fNote = new Font("Microsoft JhengHei UI", 10F);
+
+                float y = 30;
+                float x = 40;
+
+                g.DrawString("【附錄】ESG 數據溯源與計算公式總覽", fTitle, Brushes.DarkSlateBlue, x, y);
+                y += 45;
+                g.DrawString("此附錄為確保數據可追溯性 (Traceability) 而自動生成，詳列報表中使用的所有計算公式與費率係數。", fNote, Brushes.DimGray, x, y);
+                y += 50;
+
+                // 1. 公式清單
+                g.DrawString("一、 統計公式設定清單", fSection, Brushes.Teal, x, y);
+                y += 35;
+
+                foreach (var cfg in _configs.OrderBy(c => c.Section))
+                {
+                    string outputMark = cfg.OutputType == "金額" ? "[$]" : (cfg.OutputType == "碳排(kgCO2e)" ? "[☁️]" : "[#]");
+                    string line = $"[{cfg.Section}] {cfg.DisplayName} {outputMark} = {cfg.Formula}";
+                    g.DrawString(line, fItem, Brushes.Black, x + 20, y);
+                    y += 30;
+                }
+
+                y += 30;
+
+                // 2. 費率清單
+                g.DrawString("二、 費率與碳排係數清單", fSection, Brushes.DarkOrange, x, y);
+                y += 35;
+
+                foreach (var p in _prices.OrderBy(p => p.Category).ThenBy(p => p.StartDate))
+                {
+                    string endStr = p.EndDate.Year >= 2099 ? "長期有效" : p.EndDate.ToString("yyyy/MM/dd");
+                    string line = $"[{p.Category}] 適用區間: {p.StartDate:yyyy/MM/dd} ~ {endStr} => 數值: {p.UnitPrice}";
+                    g.DrawString(line, fItem, Brushes.Black, x + 20, y);
+                    y += 30;
+                }
+            }
+
+            return bmp;
         }
 
         private void InitDateComboBoxes()
