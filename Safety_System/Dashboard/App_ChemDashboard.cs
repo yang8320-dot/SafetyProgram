@@ -1,4 +1,3 @@
-/// FILE: Safety_System/Dashboard/App_ChemDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -152,7 +151,7 @@ namespace Safety_System
             _dgvSDS.ColumnHeadersHeight = 40;
             _dgvSDS.AlternatingRowsDefaultCellStyle.BackColor = Color.WhiteSmoke;
             
-            // 🟢 UI 圖示重繪事件
+            // 🟢 核心攔截：儲存格自訂繪製 (純圖示處理)
             _dgvSDS.CellPainting += DgvSDS_CellPainting;
 
             boxGrid.Controls.Add(_dgvSDS);
@@ -756,7 +755,8 @@ namespace Safety_System
                 var icons = PdfHelper.GetIconsFromCache(TableName, colName, e.Value.ToString());
                 if (icons.Count > 0)
                 {
-                    e.PaintBackground(e.ClipBounds, true);
+                    // 🟢 核心修正：只畫背景與邊框，刻意排除文字
+                    e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.Focus | DataGridViewPaintParts.SelectionBackground);
                     
                     int imgSize = 24; 
                     int startX = e.CellBounds.X + 6;
@@ -767,7 +767,7 @@ namespace Safety_System
                         e.Graphics.DrawImage(img, startX, imgY, imgSize, imgSize);
                         startX += imgSize + 4;
                     }
-                    e.Handled = true; // 告知系統已畫完，隱藏純文字
+                    e.Handled = true; // 告知系統已處理完成
                 }
             }
         }
