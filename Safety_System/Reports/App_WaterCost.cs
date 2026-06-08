@@ -34,7 +34,7 @@ namespace Safety_System
         private const string SysDbName = "SystemConfig";
         private const string ConfigTable = "WaterCostFormulas";
         private const string PriceTable = "WaterPrices";
-        private const string PriceCalcTemplateTable = "WaterPriceCalcTemplates"; // 🟢 新增：公式範本資料表
+        private const string PriceCalcTemplateTable = "WaterPriceCalcTemplates"; // 公式範本資料表
 
         private List<CostFormulaItem> _configs = new List<CostFormulaItem>();
         private List<PriceItem> _prices = new List<PriceItem>();
@@ -99,7 +99,6 @@ namespace Safety_System
             Button btnPriceManager = new Button { Text = "💰 費率與碳排係數管理", Size = new Size(230, 42), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPriceManager.Click += (s, e) => { OpenPriceManager(); ExecuteCalculation(); };
 
-            // 🟢 將統計設定按鈕統一移到此處
             Button btnUnifiedSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(200, 42), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnUnifiedSetting.Click += (s, e) => { OpenUnifiedConfigManager(); ExecuteCalculation(); };
 
@@ -152,7 +151,7 @@ namespace Safety_System
                     conn.Open();
                     string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Unit TEXT, Formula TEXT);";
                     string sql2 = $"CREATE TABLE IF NOT EXISTS [{PriceTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Category TEXT, StartDate TEXT, EndDate TEXT, UnitPrice REAL);";
-                    string sql3 = $"CREATE TABLE IF NOT EXISTS [{PriceCalcTemplateTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TemplateName TEXT, Formula TEXT);"; // 🟢 建立範本資料表
+                    string sql3 = $"CREATE TABLE IF NOT EXISTS [{PriceCalcTemplateTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TemplateName TEXT, Formula TEXT);"; 
                     
                     using (var cmd = new SQLiteCommand(sql1, conn)) { cmd.ExecuteNonQuery(); }
                     using (var cmd = new SQLiteCommand(sql2, conn)) { cmd.ExecuteNonQuery(); }
@@ -234,7 +233,6 @@ namespace Safety_System
                 Padding = new Padding(0, 10, 15, 0)
             };
 
-            // 🟢 移除了各區塊右上角的獨立「設定按鈕」
             ui.LblTotalBenefit = new Label { Text = "總效益: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.SteelBlue, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
             ui.LblTotalExpense = new Label { Text = "總支出: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
             ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
@@ -390,7 +388,7 @@ namespace Safety_System
             string sYm = dtS.ToString("yyyy-MM");
             string eYm = dtE.ToString("yyyy-MM");
 
-            // 1. COST()
+            // 1. COST() 邏輯保留向下相容
             Regex costRegex = new Regex(@"COST\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\],\s*(?<cat>[^\)]+)\)");
             var costMatches = costRegex.Matches(formula);
             foreach (Match m in costMatches) {
@@ -420,7 +418,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, costSum.ToString());
             }
 
-            // 2. SUM()
+            // 2. SUM() 邏輯
             Regex sumRegex = new Regex(@"SUM\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var sumMatches = sumRegex.Matches(formula);
             foreach (Match m in sumMatches) {
@@ -443,12 +441,13 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, qtySum.ToString());
             }
 
-            // 3. AVG()
+            // 3. AVG() 邏輯 
             Regex avgRegex = new Regex(@"AVG\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var avgMatches = avgRegex.Matches(formula);
             foreach (Match m in avgMatches) {
                 string db = m.Groups["db"].Value; string tb = m.Groups["tb"].Value; string col = m.Groups["col"].Value;
-                double qtySum = 0; int qtyCount = 0;
+                double qtySum = 0;
+                int qtyCount = 0;
                 try {
                     var allCols = DataManager.GetColumnNames(db, tb);
                     string dateCol = allCols.Contains("日期") ? "日期" : (allCols.Contains("年月") ? "年月" : "");
@@ -459,7 +458,8 @@ namespace Safety_System
                         if (dt != null && dt.Columns.Contains(col)) {
                             foreach (DataRow r in dt.Rows) {
                                 if (double.TryParse(r[col]?.ToString().Replace(",",""), out double qty)) {
-                                    qtySum += qty; qtyCount++;
+                                    qtySum += qty;
+                                    qtyCount++;
                                 }
                             }
                         }
@@ -469,7 +469,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, avgVal.ToString());
             }
 
-            // 4. PRICE()
+            // 4. PRICE() 
             Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
             var priceMatches = priceRegex.Matches(formula);
             foreach (Match m in priceMatches) {
@@ -478,7 +478,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, price.ToString());
             }
 
-            // 5. 計算
+            // 5. 計算數學式
             double finalVal = 0;
             try {
                 DataTable dtMath = new DataTable();
@@ -499,7 +499,7 @@ namespace Safety_System
         }
 
         // =======================================================
-        // 🟢 歷史數據單價精算引擎
+        // 歷史數據單價精算引擎
         // =======================================================
         private double CalculateHistoricalPrice(string formula, DateTime dtS, DateTime dtE)
         {
@@ -586,7 +586,7 @@ namespace Safety_System
                 Button btnExp = new Button { Text = "📤 匯出設定", Location = new Point(15, 55), Size = new Size(130, 35), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 Button btnImp = new Button { Text = "📥 匯入設定", Location = new Point(155, 55), Size = new Size(130, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 
-                // 🟢 新增的歷史精算按鈕
+                // 歷史精算按鈕
                 Button btnCalc = new Button { Text = "🧮 從歷史數據精算單價", Location = new Point(295, 55), Size = new Size(210, 35), BackColor = Color.Indigo, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
 
                 btnExp.Click += (s, e) => ExportPricesToExcel();
@@ -671,6 +671,7 @@ namespace Safety_System
         // =======================================================
         private void OpenDynamicPriceCalculator(DataGridView dgvTarget)
         {
+            // 🟢 視窗放寬為 1000 以避免元件重疊
             using (Form f = new Form { Text = "🧮 歷史數據單價精算工具", Size = new Size(1000, 680), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = Color.WhiteSmoke })
             {
                 Label lblTop = new Label { 
