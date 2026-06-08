@@ -99,6 +99,7 @@ namespace Safety_System
             Button btnPriceManager = new Button { Text = "💰 費率與碳排係數管理", Size = new Size(230, 42), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPriceManager.Click += (s, e) => { OpenPriceManager(); ExecuteCalculation(); };
 
+            // 將統計設定按鈕統一移到此處
             Button btnUnifiedSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(200, 42), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnUnifiedSetting.Click += (s, e) => { OpenUnifiedConfigManager(); ExecuteCalculation(); };
 
@@ -671,7 +672,6 @@ namespace Safety_System
         // =======================================================
         private void OpenDynamicPriceCalculator(DataGridView dgvTarget)
         {
-            // 🟢 視窗放寬為 1000 以避免元件重疊
             using (Form f = new Form { Text = "🧮 歷史數據單價精算工具", Size = new Size(1000, 680), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = Color.WhiteSmoke })
             {
                 Label lblTop = new Label { 
@@ -682,7 +682,7 @@ namespace Safety_System
                     Location = new Point(20, 15) 
                 };
 
-                // 🟢 預設公式範本區塊
+                // 預設公式範本區塊
                 Panel pnlTemplate = new Panel { Width = 940, Height = 45, Location = new Point(20, 65) };
                 pnlTemplate.Controls.Add(new Label { Text = "歷史公式範本：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 ComboBox cboTemplates = new ComboBox { Width = 300, Location = new Point(130, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -754,9 +754,9 @@ namespace Safety_System
                 };
 
                 // 計算符號與公式輸入
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=940, Height = 45, Location = new Point(20, 285), WrapContents = false };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=940, Height = 40, Location = new Point(20, 285), WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
-                RichTextBox rtbFormula = new RichTextBox { Width=940, Height=150, Font = new Font("Consolas", 15F), BackColor = Color.AliceBlue, Location = new Point(20, 335) };
+                RichTextBox rtbFormula = new RichTextBox { Width=940, Height=100, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Location = new Point(20, 330) };
                 
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 50, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand };
@@ -850,8 +850,8 @@ namespace Safety_System
                 double lastTestedValue = 0;
                 bool isTested = false;
 
-                Button btnTest = new Button { Text = "⚙️ 測試計算結果", Width = 180, Height = 45, Location = new Point(20, 500), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-                Label lblTestResult = new Label { Text = "試算結果：未執行", Font = new Font("Consolas", 14F, FontStyle.Bold), ForeColor = Color.Crimson, AutoSize = true, Location = new Point(210, 510) };
+                Button btnTest = new Button { Text = "⚙️ 測試計算結果", Width = 180, Height = 45, Location = new Point(20, 450), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Label lblTestResult = new Label { Text = "試算結果：未執行", Font = new Font("Consolas", 14F, FontStyle.Bold), ForeColor = Color.Crimson, AutoSize = true, Location = new Point(210, 460) };
                 
                 btnTest.Click += (s, e) => {
                     if (string.IsNullOrWhiteSpace(rtbFormula.Text)) { MessageBox.Show("請先輸入公式！"); return; }
@@ -865,7 +865,7 @@ namespace Safety_System
                     }
                 };
 
-                Button btnConfirm = new Button { Text = "✔️ 確認並帶入費率表", Width = 200, Height = 55, Location = new Point(760, 495), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnConfirm = new Button { Text = "✔️ 確認並帶入費率表", Width = 200, Height = 55, Location = new Point(760, 445), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnConfirm.Click += (s, e) => {
                     if (string.IsNullOrWhiteSpace(txtCat.Text)) { MessageBox.Show("請填寫計價類別名稱！"); return; }
                     if (!isTested) { MessageBox.Show("請先點擊「測試計算結果」確認數值無誤再帶入！"); return; }
@@ -1005,7 +1005,7 @@ namespace Safety_System
                 // ==== 左側：清單與匯出匯入 ====
                 Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
                 
-                // 🟢 加入篩選區塊下拉選單
+                // 加入篩選區塊下拉選單
                 Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 75, Padding = new Padding(0, 0, 0, 10) };
                 Label lblFilter = new Label { Text = "1. 選擇看版區塊：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Location = new Point(0, 5) };
                 ComboBox cboSection = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 30), Width = 310 };
@@ -1409,7 +1409,6 @@ namespace Safety_System
 
             try 
             {
-                foreach (Control ctrl in _controlsToHideForPdf) ctrl.Visible = false;
                 Application.DoEvents(); 
 
                 List<Bitmap> bitmaps = new List<Bitmap>();
@@ -1433,7 +1432,6 @@ namespace Safety_System
             }
             finally
             {
-                foreach (Control ctrl in _controlsToHideForPdf) ctrl.Visible = true;
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
