@@ -259,7 +259,6 @@ namespace Safety_System
 
             EnableDoubleBuffered(_dgv);
 
-            // 🟢 改造：加寬 DataGridView 列高，以容納 24x24 或多個並排圖示
             _dgv.RowTemplate.Height = 35;
             _dgv.RowTemplate.MinimumHeight = 35;
 
@@ -268,7 +267,8 @@ namespace Safety_System
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
-            _calcHelper = new DataGridViewAutoCalcHelper(_dgv);
+            // 🟢 在這裡將 _dbName 與 _tableName 傳入 DataGridViewAutoCalcHelper 以綁定公式運算引擎
+            _calcHelper = new DataGridViewAutoCalcHelper(_dgv, _dbName, _tableName);
 
             InitContextMenu(bDelRow); 
 
@@ -378,7 +378,6 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            // 🟢 改為不自動撐高 Row，由自繪引擎與換行符號決定，效能更好且不會因為大圖片跑版
             _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
@@ -420,7 +419,6 @@ namespace Safety_System
                     int colIndex = col.Index; 
                     _dgv.Columns.RemoveAt(colIndex);
                     
-                    // 🟢 放棄使用 DataGridViewComboBoxColumn，改用純文字欄位以容許我們自己 OwnerDraw 繪圖
                     DataGridViewTextBoxColumn txtCol = new DataGridViewTextBoxColumn { 
                         Name = col.Name, HeaderText = col.HeaderText, DataPropertyName = col.DataPropertyName
                     };
@@ -433,7 +431,6 @@ namespace Safety_System
                     if (_columnVisibility.ContainsKey(col.Name)) txtCol.Visible = _columnVisibility[col.Name];
                     txtCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
                     
-                    // 雖然是文字欄位，但我們給它加一點樣式讓它看起來像可以點擊的選單
                     txtCol.DefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
                     
                     _dgv.Columns.Insert(colIndex, txtCol);
@@ -443,7 +440,6 @@ namespace Safety_System
 
         private void PreFillComboBoxItems(DataTable dt)
         {
-            // 此功能因已捨棄原生 ComboBoxColumn，已無作用，但保留空殼避免其他地方呼叫出錯
         }
 
         private void UpdateCboColumns() 
