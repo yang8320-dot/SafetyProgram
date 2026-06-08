@@ -26,17 +26,15 @@ namespace Safety_System
             public Label LblTotalExpense; 
             public Label LblTotalBenefit; 
             public Label LblTotalCarbon; 
-            public Button BtnSetting;
         }
 
         private DashboardSectionUI _sec1, _sec2, _sec3, _sec4, _sec5;
-        
-        private List<Control> _controlsToHideForPdf = new List<Control>();
 
         // 資料庫與快取
         private const string SysDbName = "SystemConfig";
         private const string ConfigTable = "WaterCostFormulas";
         private const string PriceTable = "WaterPrices";
+        private const string PriceCalcTemplateTable = "WaterPriceCalcTemplates"; // 🟢 新增：公式範本資料表
 
         private List<CostFormulaItem> _configs = new List<CostFormulaItem>();
         private List<PriceItem> _prices = new List<PriceItem>();
@@ -101,6 +99,10 @@ namespace Safety_System
             Button btnPriceManager = new Button { Text = "💰 費率與碳排係數管理", Size = new Size(230, 42), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPriceManager.Click += (s, e) => { OpenPriceManager(); ExecuteCalculation(); };
 
+            // 🟢 將統計設定按鈕統一移到此處
+            Button btnUnifiedSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(200, 42), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            btnUnifiedSetting.Click += (s, e) => { OpenUnifiedConfigManager(); ExecuteCalculation(); };
+
             Button btnPdf = new Button { Text = "📄 選擇並導出 PDF", Size = new Size(180, 42), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
             btnPdf.Click += (s,e) => ExportToPdf();
 
@@ -113,7 +115,7 @@ namespace Safety_System
                 _cboEndYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 _cboEndMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 _cboEndDay, new Label { Text = "日", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
-                _btnSearch, btnPriceManager, btnPdf
+                _btnSearch, btnPriceManager, btnUnifiedSetting, btnPdf
             });
 
             // ==========================================
@@ -150,9 +152,11 @@ namespace Safety_System
                     conn.Open();
                     string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Unit TEXT, Formula TEXT);";
                     string sql2 = $"CREATE TABLE IF NOT EXISTS [{PriceTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Category TEXT, StartDate TEXT, EndDate TEXT, UnitPrice REAL);";
+                    string sql3 = $"CREATE TABLE IF NOT EXISTS [{PriceCalcTemplateTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TemplateName TEXT, Formula TEXT);"; // 🟢 建立範本資料表
                     
                     using (var cmd = new SQLiteCommand(sql1, conn)) { cmd.ExecuteNonQuery(); }
                     using (var cmd = new SQLiteCommand(sql2, conn)) { cmd.ExecuteNonQuery(); }
+                    using (var cmd = new SQLiteCommand(sql3, conn)) { cmd.ExecuteNonQuery(); }
 
                     var cols = new List<string>();
                     using (var cmd = new SQLiteCommand($"PRAGMA table_info([{ConfigTable}])", conn))
@@ -230,19 +234,14 @@ namespace Safety_System
                 Padding = new Padding(0, 10, 15, 0)
             };
 
-            ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(190, 40), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
-            ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
-
+            // 🟢 移除了各區塊右上角的獨立「設定按鈕」
             ui.LblTotalBenefit = new Label { Text = "總效益: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.SteelBlue, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
             ui.LblTotalExpense = new Label { Text = "總支出: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
             ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
 
-            flpRight.Controls.Add(ui.BtnSetting);
             flpRight.Controls.Add(ui.LblTotalBenefit);
             flpRight.Controls.Add(ui.LblTotalExpense);
             flpRight.Controls.Add(ui.LblTotalCarbon);
-
-            _controlsToHideForPdf.Add(ui.BtnSetting);
 
             pnlHeader.Controls.Add(flpRight);
             pnlHeader.Controls.Add(lblTitle);
@@ -304,7 +303,7 @@ namespace Safety_System
             var sectionConfigs = _configs.Where(c => c.Section == sectionCode).ToList();
 
             if (sectionConfigs.Count == 0) {
-                ui.PnlData1.Controls.Add(new Label { Text = "尚未設定任何統計項目，請點擊右上角設定。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
+                ui.PnlData1.Controls.Add(new Label { Text = "尚未設定任何統計項目，請點擊上方 [公式與統計設定] 進行新增。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
                 ui.LblTotalExpense.Text = "總支出: $ 0";
                 ui.LblTotalBenefit.Text = "總效益: $ 0";
                 ui.LblTotalCarbon.Text = "總碳排當量: 0 kgCO2e";
@@ -391,7 +390,7 @@ namespace Safety_System
             string sYm = dtS.ToString("yyyy-MM");
             string eYm = dtE.ToString("yyyy-MM");
 
-            // 1. COST() 邏輯保留向下相容
+            // 1. COST()
             Regex costRegex = new Regex(@"COST\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\],\s*(?<cat>[^\)]+)\)");
             var costMatches = costRegex.Matches(formula);
             foreach (Match m in costMatches) {
@@ -421,7 +420,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, costSum.ToString());
             }
 
-            // 2. SUM() 邏輯
+            // 2. SUM()
             Regex sumRegex = new Regex(@"SUM\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var sumMatches = sumRegex.Matches(formula);
             foreach (Match m in sumMatches) {
@@ -444,13 +443,12 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, qtySum.ToString());
             }
 
-            // 3. AVG() 邏輯
+            // 3. AVG()
             Regex avgRegex = new Regex(@"AVG\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var avgMatches = avgRegex.Matches(formula);
             foreach (Match m in avgMatches) {
                 string db = m.Groups["db"].Value; string tb = m.Groups["tb"].Value; string col = m.Groups["col"].Value;
-                double qtySum = 0;
-                int qtyCount = 0;
+                double qtySum = 0; int qtyCount = 0;
                 try {
                     var allCols = DataManager.GetColumnNames(db, tb);
                     string dateCol = allCols.Contains("日期") ? "日期" : (allCols.Contains("年月") ? "年月" : "");
@@ -461,8 +459,7 @@ namespace Safety_System
                         if (dt != null && dt.Columns.Contains(col)) {
                             foreach (DataRow r in dt.Rows) {
                                 if (double.TryParse(r[col]?.ToString().Replace(",",""), out double qty)) {
-                                    qtySum += qty;
-                                    qtyCount++;
+                                    qtySum += qty; qtyCount++;
                                 }
                             }
                         }
@@ -472,7 +469,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, avgVal.ToString());
             }
 
-            // 4. PRICE() 單一費率變數，以區間結束日期為取價基準
+            // 4. PRICE()
             Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
             var priceMatches = priceRegex.Matches(formula);
             foreach (Match m in priceMatches) {
@@ -481,7 +478,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, price.ToString());
             }
 
-            // 5. 數學引擎處理
+            // 5. 計算
             double finalVal = 0;
             try {
                 DataTable dtMath = new DataTable();
@@ -502,7 +499,7 @@ namespace Safety_System
         }
 
         // =======================================================
-        // 🟢 單獨歷史數據萃取引擎 (供動態試算單價用)
+        // 🟢 歷史數據單價精算引擎
         // =======================================================
         private double CalculateHistoricalPrice(string formula, DateTime dtS, DateTime dtE)
         {
@@ -567,7 +564,7 @@ namespace Safety_System
                 if (computeResult != DBNull.Value) finalVal = Convert.ToDouble(computeResult);
             } catch { finalVal = 0; }
 
-            return Math.Round(finalVal, 4); // 回傳到小數點下4位，作為費率比較精準
+            return Math.Round(finalVal, 4); // 回傳到小數點下4位
         }
 
         // ==========================================
@@ -575,7 +572,7 @@ namespace Safety_System
         // ==========================================
         private void OpenPriceManager()
         {
-            using (Form f = new Form { Text = "💰 費率與碳排係數管理中心", Size = new Size(800, 650), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = "💰 費率與碳排係數管理中心", Size = new Size(750, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(10) };
                 
@@ -670,55 +667,68 @@ namespace Safety_System
         }
 
         // =======================================================
-        // 🟢 全新動態單價試算子視窗 (產生單價後拋回外層 DataGridView)
+        // 🟢 動態單價試算子視窗 (加寬版面 + 範本儲存功能)
         // =======================================================
         private void OpenDynamicPriceCalculator(DataGridView dgvTarget)
         {
-            using (Form f = new Form { Text = "🧮 歷史數據單價精算工具", Size = new Size(850, 520), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = Color.WhiteSmoke })
+            using (Form f = new Form { Text = "🧮 歷史數據單價精算工具", Size = new Size(1000, 680), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = Color.WhiteSmoke })
             {
                 Label lblTop = new Label { 
                     Text = "在此設定公式，系統將會從資料庫撈取特定區間的數據進行計算，\n算出您需要的單價（例如：總繳費金額 / 總排放量 = 年度平均排放費用）。", 
                     Font = new Font("Microsoft JhengHei UI", 11F), 
                     ForeColor = Color.DimGray,
                     AutoSize = true, 
-                    Location = new Point(20, 20) 
+                    Location = new Point(20, 15) 
                 };
 
+                // 🟢 預設公式範本區塊
+                Panel pnlTemplate = new Panel { Width = 940, Height = 45, Location = new Point(20, 65) };
+                pnlTemplate.Controls.Add(new Label { Text = "歷史公式範本：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                ComboBox cboTemplates = new ComboBox { Width = 300, Location = new Point(130, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                Button btnLoadTemplate = new Button { Text = "📥 載入", Width = 90, Height = 32, Location = new Point(440, 6), BackColor = Color.SteelBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                btnLoadTemplate.FlatAppearance.BorderSize = 0;
+                Button btnSaveTemplate = new Button { Text = "💾 儲存目前公式", Width = 160, Height = 32, Location = new Point(540, 6), BackColor = Color.ForestGreen, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                btnSaveTemplate.FlatAppearance.BorderSize = 0;
+                Button btnDelTemplate = new Button { Text = "❌ 刪除範本", Width = 120, Height = 32, Location = new Point(710, 6), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                btnDelTemplate.FlatAppearance.BorderSize = 0;
+                
+                pnlTemplate.Controls.AddRange(new Control[] { cboTemplates, btnLoadTemplate, btnSaveTemplate, btnDelTemplate });
+
                 // 填寫基本資料
-                Panel pnlBase = new Panel { Width = 800, Height = 45, Location = new Point(20, 70) };
+                Panel pnlBase = new Panel { Width = 940, Height = 45, Location = new Point(20, 120) };
                 pnlBase.Controls.Add(new Label { Text = "計價類別名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtCat = new TextBox { Width = 150, Location = new Point(130, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pnlBase.Controls.Add(txtCat);
 
-                pnlBase.Controls.Add(new Label { Text = "萃取資料區間：", AutoSize = true, Location = new Point(300, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                DateTimePicker dtpS = new DateTimePicker { Width = 140, Location = new Point(430, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 1, 1) };
+                pnlBase.Controls.Add(new Label { Text = "萃取資料區間：", AutoSize = true, Location = new Point(310, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                DateTimePicker dtpS = new DateTimePicker { Width = 140, Location = new Point(440, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 1, 1) };
                 pnlBase.Controls.Add(dtpS);
-                pnlBase.Controls.Add(new Label { Text = "~", AutoSize = true, Location = new Point(575, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                DateTimePicker dtpE = new DateTimePicker { Width = 140, Location = new Point(600, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 12, 31) };
+                pnlBase.Controls.Add(new Label { Text = "~", AutoSize = true, Location = new Point(585, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                DateTimePicker dtpE = new DateTimePicker { Width = 140, Location = new Point(610, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 12, 31) };
                 pnlBase.Controls.Add(dtpE);
 
-                // 公式變數生成器
-                GroupBox boxBuilder = new GroupBox { Text = "來源變數生成器", Width=800, Height = 100, Location = new Point(20, 125), Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
+                // 公式變數生成器 (版面拉寬與調整間距)
+                GroupBox boxBuilder = new GroupBox { Text = "來源變數生成器", Width=940, Height = 100, Location = new Point(20, 175), Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
                 
-                ComboBox cbDb = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(50, 45) };
-                ComboBox cbTb = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(230, 45) };
-                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(480, 45) };
-                
-                ComboBox cbAction = new ComboBox { Width = 90, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(15, 45) };
+                ComboBox cbAction = new ComboBox { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(15, 45) };
                 cbAction.Items.AddRange(new string[] { "SUM", "AVG" });
                 cbAction.SelectedIndex = 0;
 
-                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 110, Height = 36, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle=FlatStyle.Flat, Location = new Point(675, 43) };
+                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(145, 45) };
+                ComboBox cbTb = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(305, 45) };
+                ComboBox cbCol = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(545, 45) };
+                
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 130, Height = 36, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle=FlatStyle.Flat, Location = new Point(795, 43) };
                 btnInsert.FlatAppearance.BorderSize = 0;
 
                 boxBuilder.Controls.Add(cbAction);
-                boxBuilder.Controls.Add(new Label { Text = "(", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(115, 45) });
+                boxBuilder.Controls.Add(new Label { Text = "(", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(125, 45) });
                 boxBuilder.Controls.Add(cbDb);
-                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(190, 45) });
+                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(290, 45) });
                 boxBuilder.Controls.Add(cbTb);
-                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(440, 45) });
+                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(530, 45) });
                 boxBuilder.Controls.Add(cbCol);
-                boxBuilder.Controls.Add(new Label { Text = ")", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(660, 45) });
+                boxBuilder.Controls.Add(new Label { Text = ")", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(770, 45) });
                 boxBuilder.Controls.Add(btnInsert);
 
                 // 綁定中英文對照
@@ -743,9 +753,9 @@ namespace Safety_System
                 };
 
                 // 計算符號與公式輸入
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=800, Height = 40, Location = new Point(20, 235), WrapContents = false };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=940, Height = 45, Location = new Point(20, 285), WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
-                RichTextBox rtbFormula = new RichTextBox { Width=800, Height=100, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Location = new Point(20, 280) };
+                RichTextBox rtbFormula = new RichTextBox { Width=940, Height=150, Font = new Font("Consolas", 15F), BackColor = Color.AliceBlue, Location = new Point(20, 335) };
                 
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 50, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand };
@@ -759,12 +769,88 @@ namespace Safety_System
                     rtbFormula.AppendText($"{cbAction.Text}([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}])");
                 };
 
+                // 載入與儲存範本邏輯
+                Action loadTemplates = () => {
+                    cboTemplates.Items.Clear();
+                    try {
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand($"SELECT TemplateName FROM {PriceCalcTemplateTable}", conn))
+                            using (var r = cmd.ExecuteReader()) {
+                                while (r.Read()) cboTemplates.Items.Add(r["TemplateName"].ToString());
+                            }
+                        }
+                    } catch { }
+                };
+                loadTemplates();
+
+                btnLoadTemplate.Click += (s, e) => {
+                    if (cboTemplates.SelectedItem == null) return;
+                    try {
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand($"SELECT Formula FROM {PriceCalcTemplateTable} WHERE TemplateName=@t", conn)) {
+                                cmd.Parameters.AddWithValue("@t", cboTemplates.SelectedItem.ToString());
+                                var res = cmd.ExecuteScalar();
+                                if (res != null) rtbFormula.Text = res.ToString();
+                            }
+                        }
+                    } catch { }
+                };
+
+                btnSaveTemplate.Click += (s, e) => {
+                    if (string.IsNullOrWhiteSpace(rtbFormula.Text)) { MessageBox.Show("公式不能為空！"); return; }
+                    string tName = ShowInputBox("請輸入此公式範本的名稱：", "儲存範本", "新公式範本");
+                    if (string.IsNullOrWhiteSpace(tName)) return;
+
+                    try {
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            conn.Open();
+                            var checkCmd = new SQLiteCommand($"SELECT COUNT(1) FROM {PriceCalcTemplateTable} WHERE TemplateName=@t", conn);
+                            checkCmd.Parameters.AddWithValue("@t", tName);
+                            long cnt = (long)checkCmd.ExecuteScalar();
+
+                            if (cnt > 0) {
+                                var updateCmd = new SQLiteCommand($"UPDATE {PriceCalcTemplateTable} SET Formula=@f WHERE TemplateName=@t", conn);
+                                updateCmd.Parameters.AddWithValue("@f", rtbFormula.Text);
+                                updateCmd.Parameters.AddWithValue("@t", tName);
+                                updateCmd.ExecuteNonQuery();
+                            } else {
+                                var insertCmd = new SQLiteCommand($"INSERT INTO {PriceCalcTemplateTable} (TemplateName, Formula) VALUES (@t, @f)", conn);
+                                insertCmd.Parameters.AddWithValue("@t", tName);
+                                insertCmd.Parameters.AddWithValue("@f", rtbFormula.Text);
+                                insertCmd.ExecuteNonQuery();
+                            }
+                        }
+                        MessageBox.Show("公式範本儲存成功！");
+                        loadTemplates();
+                        cboTemplates.SelectedItem = tName;
+                    } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
+                };
+
+                btnDelTemplate.Click += (s, e) => {
+                    if (cboTemplates.SelectedItem == null) return;
+                    string tName = cboTemplates.SelectedItem.ToString();
+                    if (MessageBox.Show($"確定要刪除範本【{tName}】？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        try {
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                conn.Open();
+                                var cmd = new SQLiteCommand($"DELETE FROM {PriceCalcTemplateTable} WHERE TemplateName=@t", conn);
+                                cmd.Parameters.AddWithValue("@t", tName);
+                                cmd.ExecuteNonQuery();
+                            }
+                            loadTemplates();
+                            rtbFormula.Clear();
+                        } catch (Exception ex) { MessageBox.Show("刪除失敗：" + ex.Message); }
+                    }
+                };
+
                 // 底部測試與確認按鈕
                 double lastTestedValue = 0;
                 bool isTested = false;
 
-                Button btnTest = new Button { Text = "⚙️ 測試計算結果", Width = 180, Height = 45, Location = new Point(20, 400), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-                Label lblTestResult = new Label { Text = "試算結果：未執行", Font = new Font("Consolas", 14F, FontStyle.Bold), ForeColor = Color.Crimson, AutoSize = true, Location = new Point(210, 410) };
+                Button btnTest = new Button { Text = "⚙️ 測試計算結果", Width = 180, Height = 45, Location = new Point(20, 500), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Label lblTestResult = new Label { Text = "試算結果：未執行", Font = new Font("Consolas", 14F, FontStyle.Bold), ForeColor = Color.Crimson, AutoSize = true, Location = new Point(210, 510) };
                 
                 btnTest.Click += (s, e) => {
                     if (string.IsNullOrWhiteSpace(rtbFormula.Text)) { MessageBox.Show("請先輸入公式！"); return; }
@@ -778,7 +864,7 @@ namespace Safety_System
                     }
                 };
 
-                Button btnConfirm = new Button { Text = "✔️ 確認並帶入費率表", Width = 200, Height = 55, Location = new Point(620, 395), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnConfirm = new Button { Text = "✔️ 確認並帶入費率表", Width = 200, Height = 55, Location = new Point(760, 495), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnConfirm.Click += (s, e) => {
                     if (string.IsNullOrWhiteSpace(txtCat.Text)) { MessageBox.Show("請填寫計價類別名稱！"); return; }
                     if (!isTested) { MessageBox.Show("請先點擊「測試計算結果」確認數值無誤再帶入！"); return; }
@@ -788,6 +874,7 @@ namespace Safety_System
                 };
 
                 f.Controls.Add(lblTop);
+                f.Controls.Add(pnlTemplate);
                 f.Controls.Add(pnlBase);
                 f.Controls.Add(boxBuilder);
                 f.Controls.Add(pnlKeys);
@@ -797,6 +884,22 @@ namespace Safety_System
                 f.Controls.Add(btnConfirm);
 
                 f.ShowDialog(Form.ActiveForm);
+            }
+        }
+
+        private string ShowInputBox(string prompt, string title, string defaultValue)
+        {
+            using (Form form = new Form { Width = 400, Height = 200, FormBorderStyle = FormBorderStyle.FixedDialog, Text = title, StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, MinimizeBox = false, BackColor = Color.White })
+            {
+                Label label = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox textBox = new TextBox() { Left = 20, Top = 60, Width = 340, Text = defaultValue, Font = new Font("Microsoft JhengHei UI", 12F) };
+                Button confirmation = new Button() { Text = "確認", Left = 160, Width = 90, Height = 35, Top = 100, DialogResult = DialogResult.OK, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button cancel = new Button() { Text = "取消", Left = 270, Width = 90, Height = 35, Top = 100, DialogResult = DialogResult.Cancel, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+                form.Controls.Add(label); form.Controls.Add(textBox); form.Controls.Add(confirmation); form.Controls.Add(cancel);
+                form.AcceptButton = confirmation;
+
+                return form.ShowDialog() == DialogResult.OK ? textBox.Text : "";
             }
         }
 
@@ -888,11 +991,11 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 公式設定介面 
+        // 🟢 統一管理的公式與統計設定介面
         // ==========================================
-        private void OpenConfigManager(string sectionCode)
+        private void OpenUnifiedConfigManager()
         {
-            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1250, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = "⚙️ 統一看板公式與統計設定總管", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340F)); 
@@ -900,13 +1003,23 @@ namespace Safety_System
 
                 // ==== 左側：清單與匯出匯入 ====
                 Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
-                Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35 };
+                
+                // 🟢 加入篩選區塊下拉選單
+                Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 75, Padding = new Padding(0, 0, 0, 10) };
+                Label lblFilter = new Label { Text = "1. 選擇看版區塊：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Location = new Point(0, 5) };
+                ComboBox cboSection = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 30), Width = 310 };
+                cboSection.Items.AddRange(new string[] { "廢水處理", "淨水處理", "回收水", "雨水回收", "污泥減量" });
+                cboSection.SelectedIndex = 0;
+                pnlFilter.Controls.Add(lblFilter);
+                pnlFilter.Controls.Add(cboSection);
+                
+                Label l1 = new Label { Text = "2. 已建立的項目 (點擊編輯)", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35 };
                 ListBox lbItems = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
                 
                 Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
                 
                 Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
-                Button btnExpConf = new Button { Text = "📤 匯出設定", Width = 145, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button btnExpConf = new Button { Text = "📤 匯出全部", Width = 145, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 Button btnImpConf = new Button { Text = "📥 匯入設定", Width = 145, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 
                 btnExpConf.Click += (s, e) => ExportFormulasToExcel();
@@ -917,6 +1030,7 @@ namespace Safety_System
 
                 pnlLeft.Controls.Add(lbItems);
                 pnlLeft.Controls.Add(l1);
+                pnlLeft.Controls.Add(pnlFilter);
                 pnlLeft.Controls.Add(pnlIo);
                 pnlLeft.Controls.Add(btnDel);
                 btnDel.BringToFront(); 
@@ -1063,7 +1177,7 @@ namespace Safety_System
                 flpEditor.Controls.Add(lblF);
                 flpEditor.Controls.Add(rtbFormula);
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 850, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入此區塊清單", Width = 850, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSaveRow.FlatAppearance.BorderSize = 0;
 
                 pnlRight.Controls.Add(flpEditor);
@@ -1078,15 +1192,21 @@ namespace Safety_System
                 // 資料綁定
                 Action refreshList = () => {
                     lbItems.Items.Clear();
-                    foreach (var cfg in _configs.Where(x => x.Section == sectionCode)) {
+                    string sec = cboSection.Text;
+                    foreach (var cfg in _configs.Where(x => x.Section == sec)) {
                         lbItems.Items.Add(cfg.DisplayName);
                     }
                 };
-                refreshList();
+
+                cboSection.SelectedIndexChanged += (s, e) => {
+                    refreshList();
+                    txtName.Clear(); rtbFormula.Clear(); txtUnit.Clear(); cboFormat.SelectedIndex = 0; cboCostType.SelectedIndex = 0;
+                };
 
                 lbItems.SelectedIndexChanged += (ss, ee) => {
                     if (lbItems.SelectedIndex < 0) return;
-                    var cfg = _configs.First(x => x.Section == sectionCode && x.DisplayName == lbItems.SelectedItem.ToString());
+                    string sec = cboSection.Text;
+                    var cfg = _configs.First(x => x.Section == sec && x.DisplayName == lbItems.SelectedItem.ToString());
                     txtName.Text = cfg.DisplayName;
                     cboFormat.Text = cfg.OutputType;
                     cboCostType.Text = cfg.CostType; 
@@ -1096,7 +1216,8 @@ namespace Safety_System
 
                 btnDel.Click += (ss, ee) => {
                     if (lbItems.SelectedIndex >= 0) {
-                        _configs.RemoveAll(x => x.Section == sectionCode && x.DisplayName == lbItems.SelectedItem.ToString());
+                        string sec = cboSection.Text;
+                        _configs.RemoveAll(x => x.Section == sec && x.DisplayName == lbItems.SelectedItem.ToString());
                         SaveConfigsToDb(); refreshList(); txtName.Clear(); rtbFormula.Clear(); txtUnit.Clear();
                     }
                 };
@@ -1104,9 +1225,10 @@ namespace Safety_System
                 btnSaveRow.Click += (ss, ee) => {
                     if (string.IsNullOrWhiteSpace(txtName.Text) || string.IsNullOrWhiteSpace(rtbFormula.Text)) { MessageBox.Show("請輸入顯示名稱與公式！"); return; }
                     
-                    _configs.RemoveAll(x => x.Section == sectionCode && x.DisplayName == txtName.Text);
+                    string sec = cboSection.Text;
+                    _configs.RemoveAll(x => x.Section == sec && x.DisplayName == txtName.Text);
                     _configs.Add(new CostFormulaItem { 
-                        Section = sectionCode, 
+                        Section = sec, 
                         DisplayName = txtName.Text.Trim(), 
                         OutputType = cboFormat.Text, 
                         CostType = cboCostType.Text, 
@@ -1128,8 +1250,10 @@ namespace Safety_System
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
+                        // 清除資料表所有資料
                         new SQLiteCommand($"DELETE FROM {ConfigTable}", conn, trans).ExecuteNonQuery();
                         
+                        // 重新寫入最新的所有資料
                         foreach(var c in _configs) {
                             var cmd = new SQLiteCommand($"INSERT INTO {ConfigTable} (Section, DisplayName, OutputType, CostType, Unit, Formula) VALUES (@s, @d, @o, @ct, @u, @f)", conn, trans);
                             cmd.Parameters.AddWithValue("@s", c.Section);
@@ -1143,7 +1267,7 @@ namespace Safety_System
                         trans.Commit();
                     }
                 }
-                LoadCache(); 
+                LoadCache(); // 重載確保同步
             } catch (Exception ex) { 
                 MessageBox.Show($"儲存配置失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
