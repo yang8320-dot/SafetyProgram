@@ -17,8 +17,6 @@ namespace Safety_System
         public static readonly string SysConfigDbPath = Path.Combine(AppDir, "SystemConfig.sqlite");
 
         public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
-        
-        // 🟢 新增：全域附件存放路徑，預設為主程式底下的「附件」資料夾
         public static string AttachmentBasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
 
         private static readonly object _syncLock = new object();
@@ -81,6 +79,16 @@ namespace Safety_System
                                         DeletedBy TEXT, 
                                         DeletedTime TEXT);";
                     cmd.ExecuteNonQuery();
+
+                    // 🟢 新增：欄位自動運算公式表
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (
+                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                                        DbName TEXT, 
+                                        TableName TEXT, 
+                                        TargetCol TEXT, 
+                                        Formula TEXT,
+                                        UNIQUE(DbName, TableName, TargetCol));";
+                    cmd.ExecuteNonQuery();
                 }
             }
         }
@@ -119,7 +127,6 @@ namespace Safety_System
             if (!string.IsNullOrEmpty(savedPath)) BasePath = savedPath;
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
 
-            // 🟢 讀取自訂的附件資料夾路徑
             string attachPath = GetSysSetting("AttachmentBasePath", "");
             if (!string.IsNullOrEmpty(attachPath)) AttachmentBasePath = attachPath;
             if (!Directory.Exists(AttachmentBasePath)) Directory.CreateDirectory(AttachmentBasePath);
@@ -132,13 +139,62 @@ namespace Safety_System
             if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
         }
 
-        // 🟢 新增：設定附件資料夾路徑的方法
         public static void SetAttachmentBasePath(string newPath)
         {
             AttachmentBasePath = newPath;
             SetSysSetting("AttachmentBasePath", newPath);
             if (!Directory.Exists(AttachmentBasePath)) Directory.CreateDirectory(AttachmentBasePath);
         }
+
+        // ========================================================
+        // 🟢 欄位自訂公式 API
+        // ========================================================
+        public static Dictionary<string, string> GetTableFormulas(string dbName, string tableName)
+        {
+            var dict = new Dictionary<string, string>();
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT TargetCol, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                        cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
+                        using (var reader = cmd.ExecuteReader()) {
+                            while (reader.Read()) { dict[reader["TargetCol"].ToString()] = reader["Formula"].ToString(); }
+                        }
+                    }
+                }
+            } catch { }
+            return dict;
+        }
+
+        public static void SaveTableFormula(string dbName, string tableName, string targetCol, string formula)
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, Formula) VALUES (@DB, @TB, @TC, @F) ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
+                        cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@F", formula);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
+        public static void DeleteTableFormula(string dbName, string tableName, string targetCol)
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("DELETE FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB AND TargetCol=@TC", conn)) {
+                        cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName); cmd.Parameters.AddWithValue("@TC", targetCol);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
+        // ========================================================
 
         public static void SaveGridConfig(string dbName, string tableName, string configType, string colName, string value)
         {
