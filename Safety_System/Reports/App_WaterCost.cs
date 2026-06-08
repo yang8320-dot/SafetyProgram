@@ -214,7 +214,8 @@ namespace Safety_System
             ui.MainBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 25) };
             ui.MainBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, ui.MainBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-            Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White };
+            // 🟢 將高度增加到 60 配合更大的按鈕
+            Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.White };
             Label lblTitle = new Label { Text = $"■ {title}", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = themeColor, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left, AutoSize = true, Padding=new Padding(10,15,0,0) };
             
             Panel pnlTotals = new Panel { Dock = DockStyle.Fill };
@@ -222,7 +223,8 @@ namespace Safety_System
             ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
             ui.LblTotalCost = new Label { Text = "區塊總計金額: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
 
-            ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(160, 35), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
+            // 🟢 按鈕寬高再加大，Size 從 (160,35) 加大到 (190,40)
+            ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(190, 40), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
             ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
 
             _controlsToHideForPdf.Add(ui.BtnSetting);
@@ -633,7 +635,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 公式設定介面 (含 X 軸間距調整)
+        // 公式設定介面
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
@@ -672,7 +674,6 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                // 🟢 修正 4：座標重新計算，間隔精準設定為 +5 像素
                 Panel pName = new Panel { Width = 800, Height = 55 };
                 
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
@@ -848,8 +849,10 @@ namespace Safety_System
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
+                        // 清除資料表所有資料
                         new SQLiteCommand($"DELETE FROM {ConfigTable}", conn, trans).ExecuteNonQuery();
                         
+                        // 重新寫入最新的所有資料
                         foreach(var c in _configs) {
                             var cmd = new SQLiteCommand($"INSERT INTO {ConfigTable} (Section, DisplayName, OutputType, Unit, Formula) VALUES (@s, @d, @o, @u, @f)", conn, trans);
                             cmd.Parameters.AddWithValue("@s", c.Section);
@@ -862,7 +865,7 @@ namespace Safety_System
                         trans.Commit();
                     }
                 }
-                LoadCache(); 
+                LoadCache(); // 重載確保同步
             } catch (Exception ex) { 
                 MessageBox.Show($"儲存配置失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
