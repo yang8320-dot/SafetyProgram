@@ -219,28 +219,28 @@ namespace Safety_System
             Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.White };
             Label lblTitle = new Label { Text = $"■ {title}", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = themeColor, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left, AutoSize = true, Padding=new Padding(10,15,0,0) };
             
-            Panel pnlTotals = new Panel { Dock = DockStyle.Fill };
-            
-            ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
-            ui.LblTotalCost = new Label { Text = "區塊總計金額: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
-
-            ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(190, 40), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
-            ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
-
-            _controlsToHideForPdf.Add(ui.BtnSetting);
-            _controlsToHideForPdf.Add(pnlTotals);
-
-            pnlTotals.Controls.Add(ui.LblTotalCarbon);
-            pnlTotals.Controls.Add(ui.LblTotalCost);
-            pnlTotals.Resize += (s, e) => {
-                ui.LblTotalCarbon.Left = pnlTotals.Width - ui.LblTotalCarbon.Width - 10;
-                ui.LblTotalCost.Left = ui.LblTotalCarbon.Left - ui.LblTotalCost.Width - 20;
+            FlowLayoutPanel flpRight = new FlowLayoutPanel { 
+                Dock = DockStyle.Right, 
+                AutoSize = true, 
+                FlowDirection = FlowDirection.RightToLeft, 
+                WrapContents = false,
+                Padding = new Padding(0, 10, 15, 0)
             };
 
-            pnlHeader.Controls.Add(pnlTotals);
-            pnlHeader.Controls.Add(ui.BtnSetting);
+            ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(190, 40), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 0, 0, 0) };
+            ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
+
+            ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
+            ui.LblTotalCost = new Label { Text = "區塊總計金額: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Margin = new Padding(15, 8, 0, 0) };
+
+            flpRight.Controls.Add(ui.BtnSetting);
+            flpRight.Controls.Add(ui.LblTotalCarbon);
+            flpRight.Controls.Add(ui.LblTotalCost);
+
+            _controlsToHideForPdf.Add(ui.BtnSetting);
+
+            pnlHeader.Controls.Add(flpRight);
             pnlHeader.Controls.Add(lblTitle);
-            ui.BtnSetting.BringToFront();
 
             TableLayoutPanel gridFour = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, RowCount = 2, Padding = new Padding(10) };
             for (int i = 0; i < 4; i++) gridFour.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
@@ -378,6 +378,7 @@ namespace Safety_System
             string sYm = dtS.ToString("yyyy-MM");
             string eYm = dtE.ToString("yyyy-MM");
 
+            // 1. 解析並取代 COST([DB].[TB].[Col], Category)
             Regex costRegex = new Regex(@"COST\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\],\s*(?<cat>[^\)]+)\)");
             var costMatches = costRegex.Matches(formula);
             
@@ -412,6 +413,7 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, costSum.ToString());
             }
 
+            // 2. 解析並取代 SUM([DB].[TB].[Col])
             Regex sumRegex = new Regex(@"SUM\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
             var sumMatches = sumRegex.Matches(formula);
 
@@ -437,6 +439,16 @@ namespace Safety_System
                 formula = formula.Replace(m.Value, qtySum.ToString());
             }
 
+            // 3. 解析並取代 PRICE(Category) - 🟢 新增獨立費率變數，以計算區間結束日作為取價基準
+            Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
+            var priceMatches = priceRegex.Matches(formula);
+            foreach (Match m in priceMatches) {
+                string cat = m.Groups["cat"].Value.Trim();
+                double price = GetPriceForDate(cat, dtE);
+                formula = formula.Replace(m.Value, price.ToString());
+            }
+
+            // 4. 計算數學式
             double finalVal = 0;
             try {
                 DataTable dtMath = new DataTable();
@@ -484,7 +496,8 @@ namespace Safety_System
 
                 DataGridView dgv = new DataGridView { 
                     Dock = DockStyle.Fill, BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = true, 
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Font = new Font("Microsoft JhengHei UI", 11F) 
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Font = new Font("Microsoft JhengHei UI", 11F),
+                    EditMode = DataGridViewEditMode.EditOnEnter // 🟢 設定為直接進入編輯模式 (Key In 不用點兩下)
                 };
                 
                 dgv.Columns.Add("Id", "Id"); dgv.Columns["Id"].Visible = false;
@@ -635,7 +648,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 公式設定介面 (精準計算各間距 +25，產出格式加入自由填寫與百分比)
+        // 🟢 公式設定介面 (優化間距、改進下拉選單與費率按鈕位置)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
@@ -674,26 +687,19 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                // 🟢 修正：所有標籤與輸入框的 X 軸間距確實增加 25 像素，加寬 Panel 以避免被切掉
                 Panel pName = new Panel { Width = 850, Height = 55 };
                 
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                // Label 預估文字寬 90, 0+90+25(間隔) = 115
                 TextBox txtName = new TextBox { Width = 180, Location = new Point(115, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                // 115+180 = 295，設定為 300
                 pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(300, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                // Label 預估文字寬 90, 300+90+25(間隔) = 415
-                // 🟢 修正：DropDownStyle 改為 DropDown 以支援自訂輸入，加入"百分比"
                 ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(415, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDown };
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)", "百分比" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
-                // 415+135 = 550，設定為 560
                 pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(560, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                // Label 預估文字寬 90, 560+90+25(間隔) = 675
                 TextBox txtUnit = new TextBox { Width = 100, Location = new Point(675, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtUnit);
                 
@@ -711,9 +717,6 @@ namespace Safety_System
                 cbAction.Items.AddRange(new string[] { "純數量加總 (SUM)", "結合費率計算成本 (COST)" });
                 cbAction.SelectedIndex = 0;
 
-                ComboBox cbPrice = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Enabled=false };
-                cbPrice.Items.AddRange(_prices.Select(p => p.Category).Distinct().ToArray());
-
                 Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 130, Height = 36, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle=FlatStyle.Flat };
                 btnInsert.FlatAppearance.BorderSize = 0;
 
@@ -730,16 +733,12 @@ namespace Safety_System
                 cbCol.Location = new Point(530, 17);
                 pnlBuilder.Controls.Add(cbCol);
 
-                // 排版：第二排 (動作、綁定費率、插入按鈕)
+                // 排版：第二排 (動作、插入按鈕) 🟢 把綁定費率移走了
                 pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 cbAction.Location = new Point(65, 65);
                 pnlBuilder.Controls.Add(cbAction);
 
-                pnlBuilder.Controls.Add(new Label { Text = "綁定費率:", Location = new Point(275, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                cbPrice.Location = new Point(365, 65);
-                pnlBuilder.Controls.Add(cbPrice);
-
-                btnInsert.Location = new Point(610, 63);
+                btnInsert.Location = new Point(275, 63); // 往左靠
                 pnlBuilder.Controls.Add(btnInsert);
 
                 // 綁定中英文對照
@@ -763,36 +762,57 @@ namespace Safety_System
                     }
                 };
 
-                cbAction.SelectedIndexChanged += (s, e) => { cbPrice.Enabled = cbAction.SelectedIndex == 1; };
-
                 boxBuilder.Controls.Add(pnlBuilder);
                 flpEditor.Controls.Add(boxBuilder);
 
-                // 計算符號
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=850, Height = 50, Padding = new Padding(0, 10, 0, 5) };
+                // 計算符號 🟢 把綁定費率移到這裡
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=850, Height = 50, Padding = new Padding(0, 10, 0, 5), WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
+                
+                RichTextBox rtbFormula = new RichTextBox { Width=850, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                
                 foreach (var k in keys) {
-                    Button b = new Button { Text = k, Width = 55, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold) };
+                    Button b = new Button { Text = k, Width = 55, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand };
                     pnlKeys.Controls.Add(b);
+                    b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " ");
                 }
+
+                // 加入間隔
+                pnlKeys.Controls.Add(new Panel { Width = 15, Height = 10 });
+
+                Label lblPrice = new Label { Text = "綁定費率：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 5, 0, 0) };
+                ComboBox cbPrice = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(0, 3, 10, 0) };
+                cbPrice.Items.AddRange(_prices.Select(p => p.Category).Distinct().ToArray());
+                if (cbPrice.Items.Count > 0) cbPrice.SelectedIndex = 0;
+
+                Button btnInsertPrice = new Button { Text = "插入費率", Width = 100, Height = 35, BackColor = Color.DarkOrange, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 0, 0) };
+                btnInsertPrice.FlatAppearance.BorderSize = 0;
+                
+                pnlKeys.Controls.Add(lblPrice);
+                pnlKeys.Controls.Add(cbPrice);
+                pnlKeys.Controls.Add(btnInsertPrice);
+
                 flpEditor.Controls.Add(pnlKeys);
 
-                RichTextBox rtbFormula = new RichTextBox { Width=850, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
                 Label lblF = new Label { Text = "計算公式 (可混合純數字與變數)：", Height = 30, Font=new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
-
-                foreach (Control c in pnlKeys.Controls) {
-                    if (c is Button b) b.Click += (s, e) => rtbFormula.AppendText(" " + b.Text + " ");
-                }
 
                 btnInsert.Click += (s, e) => {
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
                     if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、欄位！"); return; }
                     
                     if (cbAction.SelectedIndex == 1) {
-                        if (cbPrice.SelectedItem == null) { MessageBox.Show("請選擇要綁定的費率類別！"); return; }
+                        if (cbPrice.SelectedItem == null) { MessageBox.Show("請在計算符號區選擇要綁定的費率類別！"); return; }
                         rtbFormula.AppendText($"COST([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}], {cbPrice.SelectedItem})");
                     } else {
                         rtbFormula.AppendText($"SUM([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}])");
+                    }
+                };
+
+                btnInsertPrice.Click += (s, e) => {
+                    if (cbPrice.SelectedItem != null) {
+                        rtbFormula.AppendText($" PRICE({cbPrice.SelectedItem}) ");
+                    } else {
+                        MessageBox.Show("請先選擇要綁定的費率類別！");
                     }
                 };
 
