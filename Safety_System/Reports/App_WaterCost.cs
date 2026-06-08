@@ -143,15 +143,17 @@ namespace Safety_System
         // ==========================================
         private void InitDatabase()
         {
-            string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Unit TEXT, Formula TEXT);";
-            string sql2 = $"CREATE TABLE IF NOT EXISTS [{PriceTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Category TEXT, StartDate TEXT, EndDate TEXT, UnitPrice REAL);";
-            
-            DataManager.InitTable(SysDbName, ConfigTable, sql1);
-            DataManager.InitTable(SysDbName, PriceTable, sql2);
-
+            // 🟢 徹底修復：直接在正確的系統根目錄資料庫中建立資料表，解決找不到表的錯誤
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
+                    string sql1 = $"CREATE TABLE IF NOT EXISTS [{ConfigTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Section TEXT, DisplayName TEXT, OutputType TEXT, Unit TEXT, Formula TEXT);";
+                    string sql2 = $"CREATE TABLE IF NOT EXISTS [{PriceTable}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Category TEXT, StartDate TEXT, EndDate TEXT, UnitPrice REAL);";
+                    
+                    using (var cmd = new SQLiteCommand(sql1, conn)) { cmd.ExecuteNonQuery(); }
+                    using (var cmd = new SQLiteCommand(sql2, conn)) { cmd.ExecuteNonQuery(); }
+
+                    // 自動擴充 Unit 欄位
                     var cols = new List<string>();
                     using (var cmd = new SQLiteCommand($"PRAGMA table_info([{ConfigTable}])", conn))
                     using (var r = cmd.ExecuteReader()) {
@@ -163,7 +165,9 @@ namespace Safety_System
                         }
                     }
                 }
-            } catch { }
+            } catch (Exception ex) { 
+                MessageBox.Show("初始化設定資料表發生異常：" + ex.Message);
+            }
         }
 
         private void LoadCache()
@@ -214,7 +218,6 @@ namespace Safety_System
             ui.MainBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 25) };
             ui.MainBox.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, ui.MainBox.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-            // 🟢 將高度增加到 60 配合更大的按鈕
             Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.White };
             Label lblTitle = new Label { Text = $"■ {title}", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = themeColor, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left, AutoSize = true, Padding=new Padding(10,15,0,0) };
             
@@ -223,7 +226,6 @@ namespace Safety_System
             ui.LblTotalCarbon = new Label { Text = "總碳排當量: 0 kgCO2e", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.DarkOliveGreen, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
             ui.LblTotalCost = new Label { Text = "區塊總計金額: $ 0", Font = new Font("Consolas", 15F, FontStyle.Bold), ForeColor = Color.Crimson, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right | AnchorStyles.Top, AutoSize = true, Location = new Point(0, 15) };
 
-            // 🟢 按鈕寬高再加大，Size 從 (160,35) 加大到 (190,40)
             ui.BtnSetting = new Button { Text = "⚙️ 公式與統計設定", Size = new Size(190, 40), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Dock = DockStyle.Right, Margin = new Padding(0,10,15,0) };
             ui.BtnSetting.Click += (s, e) => { OpenConfigManager(sectionCode); ExecuteCalculation(); };
 
@@ -635,7 +637,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 公式設定介面
+        // 🟢 公式設定介面 (精準 +5 間隔排版)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
@@ -674,20 +676,21 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
+                // 🟢 修正 4：所有標籤與輸入框的 X 軸間距增加 5 像素，避免擠壓
                 Panel pName = new Panel { Width = 800, Height = 55 };
                 
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 180, Location = new Point(115, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                TextBox txtName = new TextBox { Width = 180, Location = new Point(100, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
-                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(310, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(425, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
+                pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(300, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(400, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
-                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(580, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(695, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(555, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(655, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtUnit);
                 
                 flpEditor.Controls.Add(pName);
