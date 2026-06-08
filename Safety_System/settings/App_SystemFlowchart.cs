@@ -6,6 +6,7 @@ using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -34,6 +35,9 @@ namespace Safety_System
             public int Level { get; set; } = 0; 
             public bool HasBackgroundCalc { get; set; } 
             public string CalcDetail { get; set; }
+            // 🟢 新增：標示此表是否擁有自訂欄位運算
+            public bool HasCustomFormula { get; set; }
+            public string FormulaDetail { get; set; }
         }
 
         private class SyncEdge
@@ -68,7 +72,7 @@ namespace Safety_System
             lblTitle.AutoSize = true;
             
             Label lblLegend = new Label();
-            lblLegend.Text = "提示：滑鼠停留在【連線標籤】或【背景運算】上，可查看詳細轉換規則。    [藍色] 自訂單向    [橘色] 自訂雙向    [紫色] 系統聚合";
+            lblLegend.Text = "提示：滑鼠停留在【連線標籤】或右上角【綠色/橘色徽章】上，可查看詳細的自動轉換與運算規則。";
             lblLegend.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
             lblLegend.ForeColor = Color.DimGray;
             lblLegend.Location = new Point(25, 55);
@@ -123,6 +127,7 @@ namespace Safety_System
 
             try
             {
+                // 1. 讀取同步規則 (連線)
                 DataTable dtSync = new DataTable();
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;"))
                 {
@@ -159,9 +164,37 @@ namespace Safety_System
                         AddEdge(sDb, sTb, tDb, tTb, shortTitle, detail, EdgeCat.CustomSync);
                     }
                 }
+
+                // 2. 🟢 讀取自訂公式設定 (徽章)
+                DataTable dtFormula = new DataTable();
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;"))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM ColumnFormulas", conn))
+                    using (var da = new SQLiteDataAdapter(cmd))
+                    {
+                        da.Fill(dtFormula);
+                    }
+                }
+
+                var formulaGroups = dtFormula.Rows.Cast<DataRow>().GroupBy(r => new { Db = r["DbName"].ToString(), Tb = r["TableName"].ToString() });
+                foreach (var group in formulaGroups)
+                {
+                    Node targetNode = EnsureNode(group.Key.Db, group.Key.Tb);
+                    targetNode.HasCustomFormula = true;
+                    
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("已啟用的自訂換算公式：");
+                    foreach (DataRow r in group) {
+                        sb.AppendLine($"[{r["TargetCol"]}] = {r["Formula"]}");
+                    }
+                    targetNode.FormulaDetail = sb.ToString().Trim();
+                }
+
             }
             catch { }
 
+            // 系統內建的同步規則
             string[] lawTables = { "環保法規", "職安衛法規", "消防法規", "其它法規" };
             foreach(var lawTb in lawTables)
             {
@@ -169,6 +202,7 @@ namespace Safety_System
                         $"掃描同法規名稱進行歸類聚合\n提取最新日期與最高適用性回填", EdgeCat.SystemSync);
             }
 
+            // 系統內建的背景運算 (水資源差值運算)
             string[] waterTables = { "WaterMeterReadings", "WaterUsageDaily" };
             foreach(var wTb in waterTables)
             {
@@ -278,6 +312,7 @@ namespace Safety_System
 
             Font textFont = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
 
+            // 繪製連線
             using (Pen penCustomSingle = new Pen(Color.SteelBlue, 2))
             using (Pen penCustomDouble = new Pen(Color.DarkOrange, 2))
             using (Pen penSysSync = new Pen(Color.MediumPurple, 2))
@@ -307,6 +342,7 @@ namespace Safety_System
                 }
             }
 
+            // 繪製連線標籤
             foreach (var edge in _syncEdges)
             {
                 PointF ptStart = new PointF(edge.Source.Bounds.Right, edge.Source.Bounds.Top + edge.Source.Bounds.Height / 2);
@@ -327,6 +363,7 @@ namespace Safety_System
                 _hoverAreas[hitRect] = edge.DetailText;
             }
 
+            // 繪製節點 (資料表)
             using (Font dbFont = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold))
             using (Font tbFont = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold))
             {
@@ -356,12 +393,36 @@ namespace Safety_System
                     g.DrawString(dbText, dbFont, Brushes.SlateGray, startX, dbY);
                     g.DrawString(tbText, tbFont, Brushes.Black, startX + dbSize.Width - 5, tbY);
 
+                    // 繪製徽章機制：由右往左排列
+                    float currentBadgeRight = rect.Right + 5; 
+
+                    // 🟢 自訂運算徽章 (橘色)
+                    if (node.HasCustomFormula)
+                    {
+                        string badgeText = "[自訂運算]";
+                        SizeF bSize = g.MeasureString(badgeText, textFont);
+                        
+                        RectangleF badgeRect = new RectangleF(currentBadgeRight - bSize.Width - 4, rect.Top - 10, bSize.Width + 4, bSize.Height + 2);
+                        
+                        using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
+                        {
+                            g.FillPath(Brushes.DarkOrange, bPath);
+                            g.DrawString(badgeText, textFont, Brushes.White, new PointF(badgeRect.X + 2, badgeRect.Y + 1));
+                        }
+
+                        RectangleF hitRect = new RectangleF(badgeRect.X + _graphPanel.AutoScrollPosition.X, badgeRect.Y + _graphPanel.AutoScrollPosition.Y, badgeRect.Width, badgeRect.Height);
+                        _hoverAreas[hitRect] = node.FormulaDetail;
+
+                        currentBadgeRight = badgeRect.Left - 5; // 更新下一個徽章的右側基準點
+                    }
+
+                    // 🟢 背景運算徽章 (綠色)
                     if (node.HasBackgroundCalc)
                     {
                         string badgeText = "[背景運算]";
                         SizeF bSize = g.MeasureString(badgeText, textFont);
                         
-                        RectangleF badgeRect = new RectangleF(rect.Right - bSize.Width + 5, rect.Top - 10, bSize.Width + 4, bSize.Height + 2);
+                        RectangleF badgeRect = new RectangleF(currentBadgeRight - bSize.Width - 4, rect.Top - 10, bSize.Width + 4, bSize.Height + 2);
                         
                         using (GraphicsPath bPath = GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
                         {
@@ -482,8 +543,6 @@ namespace Safety_System
             catch { }
 
             tv.Nodes.Add(rootNode);
-            
-            // 🟢 需求 2 修正：僅展開第一層 (Root)，其餘資料夾皆預設收合
             rootNode.Expand();
 
             return tv;
