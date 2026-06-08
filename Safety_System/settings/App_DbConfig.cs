@@ -215,7 +215,7 @@ namespace Safety_System
             tabSync.Controls.Add(pnlSync);
 
             // ==========================================
-            // 分頁 2: 欄位自動運算 (公式設定) 🟢 自適應排版與防呆
+            // 分頁 2: 欄位自動運算 (公式設定) 🟢 改版排版
             // ==========================================
             TabPage tabFormula = new TabPage("🧮 欄位自動運算");
             tabFormula.BackColor = Color.WhiteSmoke;
@@ -233,18 +233,36 @@ namespace Safety_System
             
             flpRow1.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable });
 
-            // 🟢 Row 2: 目標欄位 (套用 +25px 間距)
+            // 🟢 Row 2: 目標欄位
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
-            Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", AutoSize = true, Margin = new Padding(15, 5, 25, 0), Font = new Font("Microsoft JhengHei UI", 12F) }; // 🟢 加入 25px 的 Right Margin
+            Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", AutoSize = true, Margin = new Padding(15, 5, 25, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaTargetCol = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
             flpRow2.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol });
 
-            // 🟢 Row 3: 計算公式標題、按鈕群、文字框
-            Panel pnlRow3 = new Panel { Dock = DockStyle.Top, Height = 250, Padding = new Padding(15, 10, 0, 10) };
-            Label lblFormula = new Label { Text = "計算公式：\n(如：[數量]*[單價])", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 12F) };
-            
-            FlowLayoutPanel pnlOps = new FlowLayoutPanel { Location = new Point(175, 0), AutoSize = true, WrapContents = false };
+            // 🟢 Row 3: 計算公式全新版面設計 (四行式 FlowLayoutPanel)
+            FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                FlowDirection = FlowDirection.TopDown, 
+                WrapContents = false, 
+                Padding = new Padding(15, 10, 10, 15) 
+            };
+
+            // 第 1 行：標題與說明
+            Label lblFormula = new Label { 
+                Text = "計算公式 (如：[數量]*[單價])：", 
+                AutoSize = true, 
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                Margin = new Padding(0, 0, 0, 10) 
+            };
+
+            // 第 2 行：運算符號與插入變數
+            FlowLayoutPanel pnlOps = new FlowLayoutPanel { 
+                AutoSize = true, 
+                WrapContents = false, 
+                Margin = new Padding(0, 0, 0, 10) 
+            };
             string[] ops = { "+", "-", "*", "/", "(", ")" };
             foreach (string op in ops) {
                 Button b = new Button { 
@@ -260,7 +278,7 @@ namespace Safety_System
                 pnlOps.Controls.Add(b);
             }
 
-            Button btnInsertVar = new Button { Text = "插入欄位變數", Location = new Point(480, 0), Size = new Size(130, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            Button btnInsertVar = new Button { Text = "插入欄位變數", Size = new Size(130, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             btnInsertVar.FlatAppearance.BorderSize = 0;
             btnInsertVar.Click += (s, e) => {
                 using(Form fSel = new Form { Text = "選擇欄位", Size = new Size(300, 400), StartPosition = FormStartPosition.CenterParent }) {
@@ -282,28 +300,50 @@ namespace Safety_System
                     fSel.ShowDialog();
                 }
             };
+            pnlOps.Controls.Add(btnInsertVar);
 
-            _rtbFormulaEditor = new RichTextBox { Location = new Point(175, 45), Width = 550, Height = 120, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
+            // 第 3 行：輸入框
+            _rtbFormulaEditor = new RichTextBox { 
+                Width = 700, 
+                Height = 120, 
+                Font = new Font("Consolas", 14F), 
+                BackColor = Color.AliceBlue, 
+                Margin = new Padding(0, 0, 0, 15) 
+            };
 
-            Button btnSaveFormula = new Button { Text = "💾 儲存此運算公式", Location = new Point(175, 180), Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            // 第 4 行：儲存按鈕
+            Button btnSaveFormula = new Button { 
+                Text = "💾 儲存此運算公式", 
+                Size = new Size(200, 45), 
+                BackColor = Color.ForestGreen, 
+                ForeColor = Color.White, 
+                Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                Cursor = Cursors.Hand, 
+                FlatStyle = FlatStyle.Flat 
+            };
             btnSaveFormula.FlatAppearance.BorderSize = 0;
             btnSaveFormula.Click += BtnSaveFormula_Click;
 
-            pnlRow3.Controls.AddRange(new Control[] { lblFormula, pnlOps, btnInsertVar, _rtbFormulaEditor, btnSaveFormula });
+            flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlOps, _rtbFormulaEditor, btnSaveFormula });
 
-            // 反向加入以配合 Dock = Top 的堆疊順序
-            boxFormula.Controls.Add(pnlRow3);
+            // 組合 boxFormula
+            boxFormula.Controls.Add(flpFormulaBlock);
             boxFormula.Controls.Add(flpRow2);
             boxFormula.Controls.Add(flpRow1);
 
-            // 🟢 操作清單的頂部按鈕區 (匯出匯入)
-            Panel pnlFormulaAction = new Panel { Dock = DockStyle.Top, Height = 55, Padding = new Padding(10, 0, 10, 10) };
+            // 🟢 操作清單的頂部按鈕區 (匯出匯入) - 修改為向左對齊的 FlowLayoutPanel
+            FlowLayoutPanel pnlFormulaAction = new FlowLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                Padding = new Padding(10, 0, 10, 10),
+                FlowDirection = FlowDirection.LeftToRight
+            };
             
-            Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Dock = DockStyle.Left, Width = 180, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Width = 180, Height = 40, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 15, 0) };
             btnExportFormula.FlatAppearance.BorderSize = 0;
             btnExportFormula.Click += BtnExportFormula_Click;
 
-            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Dock = DockStyle.Right, Width = 180, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Width = 180, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnImportFormula.FlatAppearance.BorderSize = 0;
             btnImportFormula.Click += BtnImportFormula_Click;
 
