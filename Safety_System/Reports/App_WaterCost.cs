@@ -143,7 +143,6 @@ namespace Safety_System
         // ==========================================
         private void InitDatabase()
         {
-            // 🟢 徹底修復：直接在正確的系統根目錄資料庫中建立資料表，解決找不到表的錯誤
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
@@ -153,7 +152,6 @@ namespace Safety_System
                     using (var cmd = new SQLiteCommand(sql1, conn)) { cmd.ExecuteNonQuery(); }
                     using (var cmd = new SQLiteCommand(sql2, conn)) { cmd.ExecuteNonQuery(); }
 
-                    // 自動擴充 Unit 欄位
                     var cols = new List<string>();
                     using (var cmd = new SQLiteCommand($"PRAGMA table_info([{ConfigTable}])", conn))
                     using (var r = cmd.ExecuteReader()) {
@@ -637,11 +635,11 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 公式設定介面 (精準 +5 間隔排版)
+        // 🟢 公式設定介面 (精準計算各間距 +25，產出格式加入自由填寫與百分比)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
-            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1220, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1250, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340F)); 
@@ -676,27 +674,33 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                // 🟢 修正 4：所有標籤與輸入框的 X 軸間距增加 5 像素，避免擠壓
-                Panel pName = new Panel { Width = 800, Height = 55 };
+                // 🟢 修正：所有標籤與輸入框的 X 軸間距確實增加 25 像素，加寬 Panel 以避免被切掉
+                Panel pName = new Panel { Width = 850, Height = 55 };
                 
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 180, Location = new Point(100, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                // Label 預估文字寬 90, 0+90+25(間隔) = 115
+                TextBox txtName = new TextBox { Width = 180, Location = new Point(115, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
+                // 115+180 = 295，設定為 300
                 pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(300, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(400, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
-                cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
+                // Label 預估文字寬 90, 300+90+25(間隔) = 415
+                // 🟢 修正：DropDownStyle 改為 DropDown 以支援自訂輸入，加入"百分比"
+                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(415, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDown };
+                cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)", "百分比" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
-                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(555, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(655, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                // 415+135 = 550，設定為 560
+                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(560, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                // Label 預估文字寬 90, 560+90+25(間隔) = 675
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(675, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtUnit);
                 
                 flpEditor.Controls.Add(pName);
 
                 // 產生公式區塊
-                GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=800, Height = 145, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
+                GroupBox boxBuilder = new GroupBox { Text = "公式變數生成器 (防呆選擇)", Width=850, Height = 145, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
                 ComboBox cbDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F) };
@@ -765,7 +769,7 @@ namespace Safety_System
                 flpEditor.Controls.Add(boxBuilder);
 
                 // 計算符號
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=800, Height = 50, Padding = new Padding(0, 10, 0, 5) };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=850, Height = 50, Padding = new Padding(0, 10, 0, 5) };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 55, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold) };
@@ -773,7 +777,7 @@ namespace Safety_System
                 }
                 flpEditor.Controls.Add(pnlKeys);
 
-                RichTextBox rtbFormula = new RichTextBox { Width=800, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                RichTextBox rtbFormula = new RichTextBox { Width=850, Height=150, Font = new Font("Consolas", 13F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
                 Label lblF = new Label { Text = "計算公式 (可混合純數字與變數)：", Height = 30, Font=new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
 
                 foreach (Control c in pnlKeys.Controls) {
@@ -795,7 +799,7 @@ namespace Safety_System
                 flpEditor.Controls.Add(lblF);
                 flpEditor.Controls.Add(rtbFormula);
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 800, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 850, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Margin = new Padding(0, 25, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSaveRow.FlatAppearance.BorderSize = 0;
 
                 pnlRight.Controls.Add(flpEditor);
