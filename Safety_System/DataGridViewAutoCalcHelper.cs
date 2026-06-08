@@ -17,7 +17,6 @@ namespace Safety_System
         // 快取自訂公式，避免每次都去 DB 撈
         private Dictionary<string, string> _customFormulas;
 
-        // 🟢 調整：建構子傳入庫名與表名，以利讀取公式
         public DataGridViewAutoCalcHelper(DataGridView dgv, string dbName, string tableName)
         {
             _dgv = dgv;
@@ -69,8 +68,32 @@ namespace Safety_System
             }
         }
 
-        // 🚀 高效能批次計算核心 (整合：絕對時間序差值 + 🟢 自訂公式換算)
-        public void RecalculateTable(DataTable dt, int specificRowIndex = -1, IProgress<int> progressInt = null, IProgress<string> progressStr = null)
+        // ============================================================================
+        // 🟢 方法多載 (Overloads)：完美相容不同的呼叫場景，解決 CS1503 錯誤
+        // ============================================================================
+        
+        // 給一般全表重算用 (如刪除列)
+        public void RecalculateTable(DataTable dt)
+        {
+            RecalculateTableInternal(dt, -1, null, null);
+        }
+
+        // 給 UI 單列改變用 (提升效能)
+        public void RecalculateTable(DataTable dt, int specificRowIndex)
+        {
+            RecalculateTableInternal(dt, specificRowIndex, null, null);
+        }
+
+        // 給批次匯入、貼上含進度條顯示用 (相容 App_CoreTable.Events.cs)
+        public void RecalculateTable(DataTable dt, IProgress<int> progressInt, IProgress<string> progressStr)
+        {
+            RecalculateTableInternal(dt, -1, progressInt, progressStr);
+        }
+
+        // ============================================================================
+        // 🚀 高效能批次計算核心 (整合：絕對時間序差值 + 自訂公式換算)
+        // ============================================================================
+        private void RecalculateTableInternal(DataTable dt, int specificRowIndex, IProgress<int> progressInt, IProgress<string> progressStr)
         {
             if (dt == null || dt.Rows.Count == 0) return;
             string[] weekDays = { "日", "一", "二", "三", "四", "五", "六" };
@@ -126,10 +149,9 @@ namespace Safety_System
 
                     DataRow row = validRows[i];
 
-                    // 如果有指定單行運算，非目標行跳過 (但若是影響到時間差值則不跳，這裡簡化處理)
+                    // 如果有指定單行運算，非目標行跳過 (若有差值欄位，仍需全算以確保時間軸連貫)
                     if (specificRowIndex != -1 && dt.Rows.IndexOf(row) != specificRowIndex)
                     {
-                        // 若有差值欄位，仍需全算以確保時間軸連貫
                         if (diffTargetCols.Count == 0) continue; 
                     }
 
@@ -163,7 +185,7 @@ namespace Safety_System
                         }
                     }
 
-                    // --- C. 🟢 執行自訂公式換算 ---
+                    // --- C. 執行自訂公式換算 ---
                     if (_customFormulas != null && _customFormulas.Count > 0)
                     {
                         foreach (var kvp in _customFormulas)
@@ -219,7 +241,7 @@ namespace Safety_System
         {
             foreach (DataGridViewColumn col in _dgv.Columns)
             {
-                // 自動鎖定星期、統計欄位，以及 🟢 被設定為公式輸出的目標欄位
+                // 自動鎖定星期、統計欄位，以及被設定為公式輸出的目標欄位
                 bool isFormulaTarget = _customFormulas != null && _customFormulas.ContainsKey(col.Name);
 
                 if (col.Name == "星期" || col.Name.EndsWith("日統計") || col.Name.EndsWith("月統計") || col.Name.EndsWith("年統計") || isFormulaTarget)
