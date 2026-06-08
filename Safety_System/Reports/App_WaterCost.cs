@@ -670,10 +670,13 @@ namespace Safety_System
         // =======================================================
         // 🟢 動態單價試算子視窗 (間距與高度版面完美優化版)
         // =======================================================
+        // =======================================================
+        // 🟢 動態單價試算子視窗 (修復重疊與截斷問題的最終版)
+        // =======================================================
         private void OpenDynamicPriceCalculator(DataGridView dgvTarget)
         {
-            // 修正：將視窗總高度從 680 縮減至 560，去除底部多餘留白
-            using (Form f = new Form { Text = "🧮 歷史數據單價精算工具", Size = new Size(1000, 560), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = Color.WhiteSmoke })
+            // 修正：視窗尺寸放大至 1050 x 600，確保邊界有足夠的緩衝空間
+            using (Form f = new Form { Text = "🧮 歷史數據單價精算工具", Size = new Size(1050, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = Color.WhiteSmoke })
             {
                 Label lblTop = new Label { 
                     Text = "在此設定公式，系統將會從資料庫撈取特定區間的數據進行計算，\n算出您需要的單價（例如：總繳費金額 / 總排放量 = 年度平均排放費用）。", 
@@ -683,63 +686,59 @@ namespace Safety_System
                     Location = new Point(20, 15) 
                 };
 
-                // 預設公式範本區塊
-                Panel pnlTemplate = new Panel { Width = 940, Height = 45, Location = new Point(20, 65) };
+                // 預設公式範本區塊 (容器加寬至 1000)
+                Panel pnlTemplate = new Panel { Width = 1000, Height = 45, Location = new Point(20, 65) };
                 pnlTemplate.Controls.Add(new Label { Text = "歷史公式範本：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                // 修正：ComboBox X座標從 130 往右推 25 變成 155
                 ComboBox cboTemplates = new ComboBox { Width = 300, Location = new Point(155, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
                 Button btnLoadTemplate = new Button { Text = "📥 載入", Width = 90, Height = 32, Location = new Point(470, 6), BackColor = Color.SteelBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 btnLoadTemplate.FlatAppearance.BorderSize = 0;
                 Button btnSaveTemplate = new Button { Text = "💾 儲存目前公式", Width = 160, Height = 32, Location = new Point(575, 6), BackColor = Color.ForestGreen, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 btnSaveTemplate.FlatAppearance.BorderSize = 0;
-                // 修正：按鈕加寬至 135 避免文字被遮住，位置往右推至 750
                 Button btnDelTemplate = new Button { Text = "❌ 刪除範本", Width = 135, Height = 32, Location = new Point(750, 6), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 btnDelTemplate.FlatAppearance.BorderSize = 0;
                 
                 pnlTemplate.Controls.AddRange(new Control[] { cboTemplates, btnLoadTemplate, btnSaveTemplate, btnDelTemplate });
 
-                // 填寫基本資料
-                Panel pnlBase = new Panel { Width = 940, Height = 45, Location = new Point(20, 120) };
+                // 填寫基本資料 (容器加寬至 1000，重排日期選擇器座標)
+                Panel pnlBase = new Panel { Width = 1000, Height = 45, Location = new Point(20, 120) };
                 pnlBase.Controls.Add(new Label { Text = "計價類別名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                // 修正：TextBox X座標從 130 往右推 25 變成 155
                 TextBox txtCat = new TextBox { Width = 150, Location = new Point(155, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pnlBase.Controls.Add(txtCat);
 
-                // 修正：各元件之間增加 25px 間隔
+                // 修正：萃取資料區間的標籤與輸入框徹底拉開距離
                 pnlBase.Controls.Add(new Label { Text = "萃取資料區間：", AutoSize = true, Location = new Point(340, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                DateTimePicker dtpS = new DateTimePicker { Width = 140, Location = new Point(485, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 1, 1) };
+                DateTimePicker dtpS = new DateTimePicker { Width = 140, Location = new Point(490, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 1, 1) };
                 pnlBase.Controls.Add(dtpS);
-                pnlBase.Controls.Add(new Label { Text = "~", AutoSize = true, Location = new Point(640, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                pnlBase.Controls.Add(new Label { Text = "~", AutoSize = true, Location = new Point(645, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 DateTimePicker dtpE = new DateTimePicker { Width = 140, Location = new Point(675, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 12, 31) };
                 pnlBase.Controls.Add(dtpE);
 
-                // 公式變數生成器 (內部符號全面+25px間距)
-                GroupBox boxBuilder = new GroupBox { Text = "來源變數生成器", Width=940, Height = 100, Location = new Point(20, 175), Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
+                // 公式變數生成器 (容器加寬至 1000，內部元件重新計算)
+                GroupBox boxBuilder = new GroupBox { Text = "來源變數生成器", Width=1000, Height = 100, Location = new Point(20, 175), Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
                 
                 ComboBox cbAction = new ComboBox { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(15, 45) };
                 cbAction.Items.AddRange(new string[] { "SUM", "AVG" });
                 cbAction.SelectedIndex = 0;
 
-                // 修正：內部標籤與下拉選單座標重新推算，保證不擠壓
                 boxBuilder.Controls.Add(cbAction);
-                boxBuilder.Controls.Add(new Label { Text = "(", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(140, 45) });
+                boxBuilder.Controls.Add(new Label { Text = "(", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(125, 45) });
                 
-                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(165, 45) };
+                ComboBox cbDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(150, 45) };
                 boxBuilder.Controls.Add(cbDb);
                 
-                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(320, 45) });
+                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(310, 45) });
                 
-                ComboBox cbTb = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(345, 45) };
+                ComboBox cbTb = new ComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(335, 45) };
                 boxBuilder.Controls.Add(cbTb);
                 
-                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(580, 45) });
+                boxBuilder.Controls.Add(new Label { Text = ".", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(575, 45) });
                 
-                ComboBox cbCol = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(605, 45) };
+                ComboBox cbCol = new ComboBox { Width = 210, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(600, 45) };
                 boxBuilder.Controls.Add(cbCol);
                 
                 boxBuilder.Controls.Add(new Label { Text = ")", AutoSize = true, Font = new Font("Consolas", 14F), Location = new Point(820, 45) });
                 
-                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 120, Height = 36, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle=FlatStyle.Flat, Location = new Point(850, 43) };
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 130, Height = 36, BackColor = Color.SteelBlue, ForeColor=Color.White, Cursor=Cursors.Hand, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle=FlatStyle.Flat, Location = new Point(850, 43) };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 boxBuilder.Controls.Add(btnInsert);
 
@@ -765,9 +764,9 @@ namespace Safety_System
                 };
 
                 // 計算符號與公式輸入
-                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=940, Height = 40, Location = new Point(20, 285), WrapContents = false };
+                FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=1000, Height = 40, Location = new Point(20, 285), WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")" };
-                RichTextBox rtbFormula = new RichTextBox { Width=940, Height=100, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Location = new Point(20, 330) };
+                RichTextBox rtbFormula = new RichTextBox { Width=1000, Height=100, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Location = new Point(20, 330) };
                 
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 50, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand };
@@ -857,7 +856,7 @@ namespace Safety_System
                     }
                 };
 
-                // 底部測試與確認按鈕 (由於 Form 總高調降，這邊的 Y 座標也一併上移)
+                // 底部測試與確認按鈕 (將 Y 座標固定在 450，確保按鈕底部不會被截斷)
                 double lastTestedValue = 0;
                 bool isTested = false;
 
@@ -876,7 +875,7 @@ namespace Safety_System
                     }
                 };
 
-                Button btnConfirm = new Button { Text = "✔️ 確認並帶入費率表", Width = 200, Height = 55, Location = new Point(760, 445), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                Button btnConfirm = new Button { Text = "✔️ 確認並帶入費率表", Width = 200, Height = 55, Location = new Point(820, 445), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnConfirm.Click += (s, e) => {
                     if (string.IsNullOrWhiteSpace(txtCat.Text)) { MessageBox.Show("請填寫計價類別名稱！"); return; }
                     if (!isTested) { MessageBox.Show("請先點擊「測試計算結果」確認數值無誤再帶入！"); return; }
