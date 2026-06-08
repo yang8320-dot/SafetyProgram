@@ -13,7 +13,6 @@ namespace Safety_System
     public class App_DbConfig
     {
         private TextBox _txtPath;
-        // 🟢 新增附件路徑文字框
         private TextBox _txtAttachmentPath;
         private TextBox _txtBackupPath;
         private NumericUpDown _numKeepCount;
@@ -21,11 +20,14 @@ namespace Safety_System
         
         private ComboBox _cboDb, _cboTable, _cboCol1, _cboCol2, _cboCol3, _cboCol4;
         private ComboBox _cboDelDb, _cboDelTable;
-
-        // 稽核日誌專用變數
         private ComboBox _cboAuditDb, _cboAuditTable;
         private DataGridView _dgvAudit;
         private CheckBox _chkShowDeletedLogs; 
+
+        // 公式設定專用下拉選單
+        private ComboBox _cboFormulaDb, _cboFormulaTable, _cboFormulaTargetCol;
+        private RichTextBox _rtbFormulaEditor;
+        private FlowLayoutPanel _flpFormulasList;
 
         private class SyncRowUI {
             public ComboBox CboSrcDb, CboSrcTable, CboSrcMatchCol, CboSrcSyncCol;
@@ -128,7 +130,7 @@ namespace Safety_System
             // ==========================================
             // 分頁 1: 同步
             // ==========================================
-            TabPage tabSync = new TabPage("🔄 資料同步");
+            TabPage tabSync = new TabPage("🔄 資料庫同步與聚合");
             tabSync.BackColor = Color.WhiteSmoke;
             Panel pnlSync = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
             
@@ -212,7 +214,63 @@ namespace Safety_System
             tabSync.Controls.Add(pnlSync);
 
             // ==========================================
-            // 分頁 2: 防重寫
+            // 分頁 2: 欄位自動運算 (公式設定)
+            // ==========================================
+            TabPage tabFormula = new TabPage("🧮 欄位自動運算");
+            tabFormula.BackColor = Color.WhiteSmoke;
+            Panel pnlFormula = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
+
+            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與欄位變數替換)", Dock = DockStyle.Top, Height = 420, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            
+            Label lblFDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaDb = new ComboBox { Location = new Point(150, 43), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            Label lblFTable = new Label { Text = "選擇資料表:", Location = new Point(350, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaTable = new ComboBox { Location = new Point(470, 43), Width = 230, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaTargetCol = new ComboBox { Location = new Point(300, 98), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            Label lblFormula = new Label { Text = "計算公式：\n(如：[數量] * [單價])", Location = new Point(30, 150), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _rtbFormulaEditor = new RichTextBox { Location = new Point(200, 150), Width = 500, Height = 130, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
+
+            Button btnInsertVar = new Button { Text = "插入欄位變數", Location = new Point(720, 150), Size = new Size(130, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            btnInsertVar.FlatAppearance.BorderSize = 0;
+            btnInsertVar.Click += (s, e) => {
+                using(Form fSel = new Form { Text = "選擇欄位", Size = new Size(300, 400), StartPosition = FormStartPosition.CenterParent }) {
+                    ListBox lb = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
+                    if (_cboFormulaDb.SelectedItem != null && _cboFormulaTable.SelectedItem != null) {
+                        string dName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
+                        string tName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
+                        var cols = DataManager.GetColumnNames(dName, tName);
+                        foreach(var c in cols) lb.Items.Add(c);
+                    }
+                    lb.DoubleClick += (s2, e2) => {
+                        if (lb.SelectedItem != null) {
+                            _rtbFormulaEditor.AppendText($"[{lb.SelectedItem}]");
+                            fSel.Close();
+                        }
+                    };
+                    fSel.Controls.Add(lb);
+                    fSel.ShowDialog();
+                }
+            };
+
+            Button btnSaveFormula = new Button { Text = "儲存此運算公式", Location = new Point(200, 290), Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            btnSaveFormula.Click += BtnSaveFormula_Click;
+
+            boxFormula.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable, lblFTarget, _cboFormulaTargetCol, lblFormula, _rtbFormulaEditor, btnInsertVar, btnSaveFormula });
+
+            GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0, 20, 0, 0) };
+            _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+            boxFormulasList.Controls.Add(_flpFormulasList);
+
+            pnlFormula.Controls.Add(boxFormulasList);
+            pnlFormula.Controls.Add(boxFormula);
+            tabFormula.Controls.Add(pnlFormula);
+
+            // ==========================================
+            // 分頁 3: 防重寫
             // ==========================================
             TabPage tabKeys = new TabPage("🛡️ 寫入防呆");
             tabKeys.BackColor = Color.WhiteSmoke;
@@ -255,13 +313,12 @@ namespace Safety_System
             tabKeys.Controls.Add(pnlKeys);
 
             // ==========================================
-            // 分頁 3: 資料庫 (路徑、備份、刪除)
+            // 分頁 4: 資料庫 (路徑、備份、刪除)
             // ==========================================
-            TabPage tabDb = new TabPage("💾 資料庫管理");
+            TabPage tabDb = new TabPage("💾 管理與備份");
             tabDb.BackColor = Color.WhiteSmoke;
             Panel pnlDb = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
 
-            // ================= DB 路徑 =================
             GroupBox boxPath = new GroupBox { Text = "資料庫 (DB) 存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             string currentPath = string.IsNullOrEmpty(DataManager.BasePath) ? "" : DataManager.BasePath;
@@ -289,7 +346,6 @@ namespace Safety_System
 
             boxPath.Controls.AddRange(new Control[] { _txtPath, btnBrowse, btnSavePath });
 
-            // ================= 🟢 新增：附件路徑 =================
             GroupBox boxAttachPath = new GroupBox { Text = "附件檔案存放路徑設定", Dock = DockStyle.Top, Height = 180, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxAttachPath.Margin = new Padding(0, 30, 0, 0);
 
@@ -318,7 +374,6 @@ namespace Safety_System
 
             boxAttachPath.Controls.AddRange(new Control[] { _txtAttachmentPath, btnBrowseAttach, btnSaveAttachPath });
 
-            // ================= 備份設定 =================
             GroupBox boxBackup = new GroupBox { Text = "資料庫備份設定 (背景自動執行)", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             boxBackup.Margin = new Padding(0, 30, 0, 0);
 
@@ -359,7 +414,6 @@ namespace Safety_System
 
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, lblB4, _numIntervalDays, lblB5, btnSaveBackup, btnManualBackup });
 
-            // ================= 刪除資料表 =================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
 
@@ -391,7 +445,7 @@ namespace Safety_System
             tabDb.Controls.Add(pnlDb);
 
             // ==========================================
-            // 分頁 4: 軌跡查詢
+            // 分頁 5: 軌跡查詢
             // ==========================================
             TabPage tabAudit = new TabPage("🕵️ 軌跡查詢");
             tabAudit.BackColor = Color.WhiteSmoke;
@@ -435,6 +489,7 @@ namespace Safety_System
             // 將分頁加入 TabControl
             // ==========================================
             tabControl.TabPages.Add(tabSync);
+            tabControl.TabPages.Add(tabFormula);
             tabControl.TabPages.Add(tabKeys);
             tabControl.TabPages.Add(tabDb);
             tabControl.TabPages.Add(tabAudit);
@@ -447,6 +502,7 @@ namespace Safety_System
             _cboDb.Items.Add(blankDb); _cboDb.Items.AddRange(dbItems);
             _cboDelDb.Items.Add(blankDb); _cboDelDb.Items.AddRange(dbItems);
             _cboAuditDb.Items.Add(blankDb); _cboAuditDb.Items.AddRange(dbItems);
+            _cboFormulaDb.Items.Add(blankDb); _cboFormulaDb.Items.AddRange(dbItems);
             
             foreach (var sr in _syncRows) {
                 sr.CboSrcDb.Items.Add(blankDb); sr.CboSrcDb.Items.AddRange(dbItems);
@@ -457,14 +513,119 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
             _cboDelDb.SelectedIndexChanged += CboDelDb_SelectedIndexChanged;
             _cboAuditDb.SelectedIndexChanged += CboAuditDb_SelectedIndexChanged;
+            _cboFormulaDb.SelectedIndexChanged += CboFormulaDb_SelectedIndexChanged;
+            _cboFormulaTable.SelectedIndexChanged += CboFormulaTable_SelectedIndexChanged;
 
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = 0;
             if (_cboDelDb.Items.Count > 0) _cboDelDb.SelectedIndex = 0;
             if (_cboAuditDb.Items.Count > 0) _cboAuditDb.SelectedIndex = 0;
+            if (_cboFormulaDb.Items.Count > 0) _cboFormulaDb.SelectedIndex = 0;
 
             return mainPanel;
         }
 
+        // ========================================================
+        // 🟢 公式運算設定的事件處理邏輯
+        // ========================================================
+        private void CboFormulaDb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            _cboFormulaTable.Items.Clear();
+            _cboFormulaTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            
+            if (_cboFormulaDb.SelectedItem == null) return;
+            var selectedDb = (ItemMap)_cboFormulaDb.SelectedItem;
+            
+            if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
+                var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                _cboFormulaTable.Items.AddRange(tbItems);
+            }
+        }
+
+        private void CboFormulaTable_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            _cboFormulaTargetCol.Items.Clear();
+            if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null) return;
+
+            string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
+            string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
+
+            if (!string.IsNullOrEmpty(dbName) && !string.IsNullOrEmpty(tableName)) {
+                var cols = DataManager.GetColumnNames(dbName, tableName).Where(c => c != "Id").ToArray();
+                _cboFormulaTargetCol.Items.AddRange(cols);
+                RefreshFormulasList(dbName, tableName);
+            }
+        }
+
+        private void BtnSaveFormula_Click(object sender, EventArgs e)
+        {
+            string authPrompt = "設定自動運算公式需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return; 
+
+            if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null || _cboFormulaTargetCol.SelectedItem == null) {
+                MessageBox.Show("請確認資料庫、資料表與目標欄位皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
+            string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
+            string targetCol = _cboFormulaTargetCol.SelectedItem.ToString();
+            string formula = _rtbFormulaEditor.Text.Trim();
+
+            if (string.IsNullOrEmpty(formula)) {
+                MessageBox.Show("公式不可為空！若要取消該欄位的公式，請在下方清單點擊刪除。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            DataManager.SaveTableFormula(dbName, tableName, targetCol, formula);
+            MessageBox.Show($"【{targetCol}】 運算公式已成功儲存！\n下次在該資料表輸入相關數據時，系統將自動算出結果。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            
+            _rtbFormulaEditor.Clear();
+            RefreshFormulasList(dbName, tableName);
+        }
+
+        private void RefreshFormulasList(string dbName, string tableName)
+        {
+            _flpFormulasList.Controls.Clear();
+            var dict = DataManager.GetTableFormulas(dbName, tableName);
+
+            if (dict.Count == 0) {
+                _flpFormulasList.Controls.Add(new Label { Text = "此資料表目前沒有設定任何自動運算公式。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                return;
+            }
+
+            foreach (var kvp in dict) {
+                string targetCol = kvp.Key;
+                string formula = kvp.Value;
+
+                string text = $"寫入目標: [{targetCol}]  ➡️  公式: {formula}";
+                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+                
+                int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
+                int panelW = Math.Max(_flpFormulasList.ClientSize.Width - 25, reqW);
+
+                Panel p = new Panel { Width = panelW, Height = 45, BackColor = Color.WhiteSmoke, Margin = new Padding(5) };
+                
+                Button btnDel = new Button { Text = "❌", Width = 40, Height = 35, Location = new Point(panelW - 60, 5), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+                btnDel.FlatAppearance.BorderSize = 0;
+                btnDel.Click += (s, ev) => {
+                    if (MessageBox.Show($"確定刪除 [{targetCol}] 的自動運算公式？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        string authPrompt = "刪除運算公式需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                        if (AuthManager.VerifyAdmin(authPrompt)) {
+                            DataManager.DeleteTableFormula(dbName, tableName, targetCol);
+                            RefreshFormulasList(dbName, tableName);
+                        }
+                    }
+                };
+
+                p.Controls.Add(lTxt);
+                p.Controls.Add(btnDel);
+                _flpFormulasList.Controls.Add(p);
+            }
+        }
+
+        // ========================================================
+        // 軌跡查詢及其他原有邏輯
+        // ========================================================
         private void BtnSearchAudit_Click(object sender, EventArgs e)
         {
             if (_cboAuditDb.SelectedItem == null || _cboAuditTable.SelectedItem == null) {
