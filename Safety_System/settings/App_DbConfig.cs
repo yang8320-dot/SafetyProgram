@@ -214,13 +214,13 @@ namespace Safety_System
             tabSync.Controls.Add(pnlSync);
 
             // ==========================================
-            // 分頁 2: 欄位自動運算 (公式設定)
+            // 分頁 2: 欄位自動運算 (公式設定) 🟢 優化版面
             // ==========================================
             TabPage tabFormula = new TabPage("🧮 欄位自動運算");
             tabFormula.BackColor = Color.WhiteSmoke;
             Panel pnlFormula = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
 
-            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與欄位變數替換)", Dock = DockStyle.Top, Height = 420, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與欄位變數替換)", Dock = DockStyle.Top, Height = 450, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             Label lblFDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaDb = new ComboBox { Location = new Point(150, 43), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -229,12 +229,31 @@ namespace Safety_System
             _cboFormulaTable = new ComboBox { Location = new Point(470, 43), Width = 230, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboFormulaTargetCol = new ComboBox { Location = new Point(300, 98), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            
+            // 🟢 需求1：目標欄位下拉選單間隔 +25px (原先 X 為 300，現改為 325)
+            _cboFormulaTargetCol = new ComboBox { Location = new Point(325, 98), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblFormula = new Label { Text = "計算公式：\n(如：[數量] * [單價])", Location = new Point(30, 150), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _rtbFormulaEditor = new RichTextBox { Location = new Point(200, 150), Width = 500, Height = 130, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
+            // 🟢 需求2：新增一排數學運算子按鈕 (+ - * / ( ))
+            FlowLayoutPanel pnlOps = new FlowLayoutPanel { Location = new Point(200, 145), Width = 500, Height = 40, WrapContents = false };
+            string[] ops = { "+", "-", "*", "/", "(", ")" };
+            foreach (string op in ops) {
+                Button b = new Button { 
+                    Text = op, Width = 45, Height = 35, 
+                    Font = new Font("Consolas", 14F, FontStyle.Bold), 
+                    Cursor = Cursors.Hand, 
+                    BackColor = Color.WhiteSmoke 
+                };
+                b.Click += (s, e) => {
+                    _rtbFormulaEditor.Focus();
+                    _rtbFormulaEditor.SelectedText = $" {op} "; // 直接在游標處插入
+                };
+                pnlOps.Controls.Add(b);
+            }
 
-            Button btnInsertVar = new Button { Text = "插入欄位變數", Location = new Point(720, 150), Size = new Size(130, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            Label lblFormula = new Label { Text = "計算公式：\n(如：[數量] * [單價])", Location = new Point(30, 190), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _rtbFormulaEditor = new RichTextBox { Location = new Point(200, 190), Width = 500, Height = 130, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue };
+
+            Button btnInsertVar = new Button { Text = "插入欄位變數", Location = new Point(720, 190), Size = new Size(130, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnInsertVar.FlatAppearance.BorderSize = 0;
             btnInsertVar.Click += (s, e) => {
                 using(Form fSel = new Form { Text = "選擇欄位", Size = new Size(300, 400), StartPosition = FormStartPosition.CenterParent }) {
@@ -247,7 +266,8 @@ namespace Safety_System
                     }
                     lb.DoubleClick += (s2, e2) => {
                         if (lb.SelectedItem != null) {
-                            _rtbFormulaEditor.AppendText($"[{lb.SelectedItem}]");
+                            _rtbFormulaEditor.Focus();
+                            _rtbFormulaEditor.SelectedText = $"[{lb.SelectedItem}]"; // 🟢 同步優化，在游標處插入變數
                             fSel.Close();
                         }
                     };
@@ -256,10 +276,11 @@ namespace Safety_System
                 }
             };
 
-            Button btnSaveFormula = new Button { Text = "儲存此運算公式", Location = new Point(200, 290), Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Button btnSaveFormula = new Button { Text = "儲存此運算公式", Location = new Point(200, 335), Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveFormula.Click += BtnSaveFormula_Click;
 
-            boxFormula.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable, lblFTarget, _cboFormulaTargetCol, lblFormula, _rtbFormulaEditor, btnInsertVar, btnSaveFormula });
+            // 依序將所有控制項加入畫面
+            boxFormula.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable, lblFTarget, _cboFormulaTargetCol, pnlOps, lblFormula, _rtbFormulaEditor, btnInsertVar, btnSaveFormula });
 
             GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0, 20, 0, 0) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
