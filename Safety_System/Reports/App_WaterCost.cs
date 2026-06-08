@@ -455,13 +455,12 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 浮動單價/費率管理視窗 (含匯出匯入)
+        // 浮動單價/費率管理視窗
         // ==========================================
         private void OpenPriceManager()
         {
             using (Form f = new Form { Text = "💰 費率與碳排係數管理中心", Size = new Size(700, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
-                // 🟢 修正 1：版面調整，放入 Panel 避免被 Grid 蓋住，並加入匯出匯入按鈕
                 Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(10) };
                 
                 Label lblTop = new Label { 
@@ -498,7 +497,6 @@ namespace Safety_System
 
                 Button btnSave = new Button { Text = "💾 儲存所有費率", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
                 
-                // 🟢 修正 2：確保儲存資料能正確寫入並重新載入
                 btnSave.Click += (s, e) => {
                     dgv.EndEdit();
                     
@@ -532,7 +530,7 @@ namespace Safety_System
                             }
                         }
                         
-                        LoadCache(); // 重新載入快取
+                        LoadCache(); 
                         MessageBox.Show("費率與碳排係數儲存成功！", "成功");
                         f.DialogResult = DialogResult.OK;
                     } catch (Exception ex) {
@@ -635,11 +633,10 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 公式設定介面 (新增匯出匯入功能與單位自訂)
+        // 🟢 公式設定介面 (含 X 軸間距調整)
         // ==========================================
         private void OpenConfigManager(string sectionCode)
         {
-            // 🟢 修正 3：視窗寬度增加 20，避免文字與輸入框太擠
             using (Form f = new Form { Text = $"⚙️ 統計項目與公式設定 ({sectionCode})", Size = new Size(1220, 720), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -675,21 +672,21 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                // 🟢 修正 4：座標重新計算，間隔 +20
+                // 🟢 修正 4：座標重新計算，間隔精準設定為 +5 像素
                 Panel pName = new Panel { Width = 800, Height = 55 };
                 
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 180, Location = new Point(110, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                TextBox txtName = new TextBox { Width = 180, Location = new Point(115, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
 
                 pName.Controls.Add(new Label { Text = "產出格式：", AutoSize = true, Location = new Point(310, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(420, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
+                ComboBox cboFormat = new ComboBox { Width = 135, Location = new Point(425, 12), Font = new Font("Microsoft JhengHei UI", 12F), DropDownStyle=ComboBoxStyle.DropDownList };
                 cboFormat.Items.AddRange(new string[] { "金額", "數量", "碳排(kgCO2e)" });
                 cboFormat.SelectedIndex = 0;
                 pName.Controls.Add(cboFormat);
                 
-                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(575, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 110, Location = new Point(685, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                pName.Controls.Add(new Label { Text = "自訂單位：", AutoSize = true, Location = new Point(580, 15), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(695, 12), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtUnit);
                 
                 flpEditor.Controls.Add(pName);
@@ -847,15 +844,12 @@ namespace Safety_System
 
         private void SaveConfigsToDb()
         {
-            // 🟢 修正 5：改用原生 SQL 直接 DELETE 再 INSERT，確保穩定性與不會丟失其他區塊的資料
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
-                        // 清除資料表所有資料
                         new SQLiteCommand($"DELETE FROM {ConfigTable}", conn, trans).ExecuteNonQuery();
                         
-                        // 重新寫入最新的所有資料
                         foreach(var c in _configs) {
                             var cmd = new SQLiteCommand($"INSERT INTO {ConfigTable} (Section, DisplayName, OutputType, Unit, Formula) VALUES (@s, @d, @o, @u, @f)", conn, trans);
                             cmd.Parameters.AddWithValue("@s", c.Section);
@@ -868,15 +862,12 @@ namespace Safety_System
                         trans.Commit();
                     }
                 }
-                LoadCache(); // 重載確保同步
+                LoadCache(); 
             } catch (Exception ex) { 
                 MessageBox.Show($"儲存配置失敗：{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        // ==========================================
-        // 公式設定的 Excel 匯出與匯入功能
-        // ==========================================
         private void ExportFormulasToExcel()
         {
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "成本統計公式設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
