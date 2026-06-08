@@ -7,6 +7,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using OfficeOpenXml; // 🟢 匯入 EPPlus 處理 Excel
 
 namespace Safety_System
 {
@@ -220,7 +221,7 @@ namespace Safety_System
             tabFormula.BackColor = Color.WhiteSmoke;
             Panel pnlFormula = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
 
-            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與欄位變數替換)", Dock = DockStyle.Top, Height = 450, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與欄位變數替換)", Dock = DockStyle.Top, Height = 420, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             Label lblFDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 45), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaDb = new ComboBox { Location = new Point(150, 43), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -230,10 +231,8 @@ namespace Safety_System
 
             Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", Location = new Point(30, 100), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 🟢 需求1：目標欄位下拉選單間隔 +25px (原先 X 為 300，現改為 325)
             _cboFormulaTargetCol = new ComboBox { Location = new Point(325, 98), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // 🟢 需求2：新增一排數學運算子按鈕 (+ - * / ( ))
             FlowLayoutPanel pnlOps = new FlowLayoutPanel { Location = new Point(200, 145), Width = 500, Height = 40, WrapContents = false };
             string[] ops = { "+", "-", "*", "/", "(", ")" };
             foreach (string op in ops) {
@@ -245,7 +244,7 @@ namespace Safety_System
                 };
                 b.Click += (s, e) => {
                     _rtbFormulaEditor.Focus();
-                    _rtbFormulaEditor.SelectedText = $" {op} "; // 直接在游標處插入
+                    _rtbFormulaEditor.SelectedText = $" {op} "; 
                 };
                 pnlOps.Controls.Add(b);
             }
@@ -267,7 +266,7 @@ namespace Safety_System
                     lb.DoubleClick += (s2, e2) => {
                         if (lb.SelectedItem != null) {
                             _rtbFormulaEditor.Focus();
-                            _rtbFormulaEditor.SelectedText = $"[{lb.SelectedItem}]"; // 🟢 同步優化，在游標處插入變數
+                            _rtbFormulaEditor.SelectedText = $"[{lb.SelectedItem}]"; 
                             fSel.Close();
                         }
                     };
@@ -279,12 +278,28 @@ namespace Safety_System
             Button btnSaveFormula = new Button { Text = "儲存此運算公式", Location = new Point(200, 335), Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveFormula.Click += BtnSaveFormula_Click;
 
-            // 依序將所有控制項加入畫面
             boxFormula.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable, lblFTarget, _cboFormulaTargetCol, pnlOps, lblFormula, _rtbFormulaEditor, btnInsertVar, btnSaveFormula });
+
+            // 🟢 新增：操作清單的頂部按鈕區 (匯出匯入)
+            Panel pnlFormulaAction = new Panel { Dock = DockStyle.Top, Height = 55, Padding = new Padding(10, 0, 10, 10) };
+            
+            Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Dock = DockStyle.Left, Width = 180, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            btnExportFormula.FlatAppearance.BorderSize = 0;
+            btnExportFormula.Click += BtnExportFormula_Click;
+
+            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Dock = DockStyle.Right, Width = 180, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            btnImportFormula.FlatAppearance.BorderSize = 0;
+            btnImportFormula.Click += BtnImportFormula_Click;
+
+            pnlFormulaAction.Controls.Add(btnExportFormula);
+            pnlFormulaAction.Controls.Add(btnImportFormula);
 
             GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單", Dock = DockStyle.Top, Height = 300, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0, 20, 0, 0) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+            
             boxFormulasList.Controls.Add(_flpFormulasList);
+            boxFormulasList.Controls.Add(pnlFormulaAction); // 🟢 加入匯出匯入按鈕
+            pnlFormulaAction.BringToFront();
 
             pnlFormula.Controls.Add(boxFormulasList);
             pnlFormula.Controls.Add(boxFormula);
@@ -546,8 +561,101 @@ namespace Safety_System
         }
 
         // ========================================================
-        // 🟢 公式運算設定的事件處理邏輯
+        // 🟢 公式運算設定的事件處理邏輯 (匯出/匯入)
         // ========================================================
+        private void BtnExportFormula_Click(object sender, EventArgs e)
+        {
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統自動運算公式設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
+            {
+                if (sfd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        DataTable dt = new DataTable();
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
+                        {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], Formula AS [運算公式] FROM ColumnFormulas", conn))
+                            using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                        }
+
+                        using (ExcelPackage p = new ExcelPackage()) 
+                        {
+                            var ws = p.Workbook.Worksheets.Add("自動運算公式設定");
+                            ws.Cells["A1"].LoadFromDataTable(dt, true);
+                            ws.Cells.AutoFitColumns();
+                            p.SaveAs(new FileInfo(sfd.FileName));
+                        }
+                        MessageBox.Show("自動運算公式設定匯出成功！您可以以此檔案作為備份。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void BtnImportFormula_Click(object sender, EventArgs e)
+        {
+            string authPrompt = "匯入公式設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
+            using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的公式設定檔" }) 
+            {
+                if (ofd.ShowDialog() == DialogResult.OK) 
+                {
+                    try 
+                    {
+                        using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) 
+                        {
+                            ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                            if (ws == null || ws.Dimension == null) return;
+
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                conn.Open();
+                                using (var trans = conn.BeginTransaction()) {
+                                    for (int r = 2; r <= ws.Dimension.Rows; r++) 
+                                    {
+                                        string db = ws.Cells[r, 1].Text.Trim();
+                                        string tb = ws.Cells[r, 2].Text.Trim();
+                                        string targetCol = ws.Cells[r, 3].Text.Trim();
+                                        string formula = ws.Cells[r, 4].Text.Trim();
+
+                                        if (string.IsNullOrEmpty(db) || string.IsNullOrEmpty(tb) || string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(formula)) continue;
+
+                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, Formula) 
+                                                       VALUES (@DB, @TB, @TC, @F) 
+                                                       ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F";
+                                        using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                            cmd.Parameters.AddWithValue("@DB", db);
+                                            cmd.Parameters.AddWithValue("@TB", tb);
+                                            cmd.Parameters.AddWithValue("@TC", targetCol);
+                                            cmd.Parameters.AddWithValue("@F", formula);
+                                            cmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                    trans.Commit();
+                                }
+                            }
+                        }
+                        
+                        MessageBox.Show("自動運算公式設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        
+                        if (_cboFormulaDb.SelectedItem != null && _cboFormulaTable.SelectedItem != null) {
+                            string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
+                            string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
+                            RefreshFormulasList(dbName, tableName);
+                        }
+                    } 
+                    catch (Exception ex) 
+                    {
+                        MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
         private void CboFormulaDb_SelectedIndexChanged(object sender, EventArgs e)
         {
             _cboFormulaTable.Items.Clear();
