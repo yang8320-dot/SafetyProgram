@@ -331,33 +331,50 @@ namespace Safety_System
             boxFormula.Controls.Add(flpRow2);
             boxFormula.Controls.Add(flpRow1);
 
-            // 🟢 操作清單的頂部按鈕區 (匯出匯入) - 修改為向左對齊的 FlowLayoutPanel
-            FlowLayoutPanel pnlFormulaAction = new FlowLayoutPanel { 
-                Dock = DockStyle.Top, 
-                AutoSize = true, 
-                Padding = new Padding(10, 0, 10, 10),
+            // =====================================================================
+            // 🟢 替換原本的 pnlFormulaAction 與 boxFormulasList 區塊 (TableLayoutPanel 嚴格排版)
+            // =====================================================================
+            TableLayoutPanel tlpListArea = new TableLayoutPanel {
+                Dock = DockStyle.Top,
+                Height = 400,
+                ColumnCount = 1,
+                RowCount = 2,
+                Margin = new Padding(0, 20, 0, 0)
+            };
+            tlpListArea.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tlpListArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+            // 第一行：操作按鈕區 (匯出/匯入) 集中靠左排列
+            FlowLayoutPanel pnlFormulaAction = new FlowLayoutPanel {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                Padding = new Padding(0, 0, 0, 5),
                 FlowDirection = FlowDirection.LeftToRight
             };
-            
+
             Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Width = 180, Height = 40, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 15, 0) };
             btnExportFormula.FlatAppearance.BorderSize = 0;
             btnExportFormula.Click += BtnExportFormula_Click;
 
-            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Width = 180, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Width = 180, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0) };
             btnImportFormula.FlatAppearance.BorderSize = 0;
             btnImportFormula.Click += BtnImportFormula_Click;
 
             pnlFormulaAction.Controls.Add(btnExportFormula);
             pnlFormulaAction.Controls.Add(btnImportFormula);
 
-            GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單 (全系統)", Dock = DockStyle.Top, Height = 350, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0, 20, 0, 0) };
+            // 第二行：已設定的公式清單 (GroupBox 包裝)
+            GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單 (全系統)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-            
-            boxFormulasList.Controls.Add(_flpFormulasList);
-            boxFormulasList.Controls.Add(pnlFormulaAction); 
-            pnlFormulaAction.BringToFront();
 
-            pnlFormula.Controls.Add(boxFormulasList);
+            boxFormulasList.Controls.Add(_flpFormulasList);
+
+            // 將第一行與第二行加入 TableLayoutPanel
+            tlpListArea.Controls.Add(pnlFormulaAction, 0, 0);
+            tlpListArea.Controls.Add(boxFormulasList, 0, 1);
+
+            // 將整個列表區域加入主面板
+            pnlFormula.Controls.Add(tlpListArea);
             pnlFormula.Controls.Add(boxFormula);
             tabFormula.Controls.Add(pnlFormula);
 
