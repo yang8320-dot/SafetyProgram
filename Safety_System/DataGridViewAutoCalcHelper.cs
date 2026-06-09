@@ -14,7 +14,6 @@ namespace Safety_System
         private string _dbName;
         private string _tableName;
 
-        // 🟢 快取自訂公式：改為 List 結構，支援多區間切換
         private List<ColumnFormulaDef> _customFormulas;
 
         public DataGridViewAutoCalcHelper(DataGridView dgv, string dbName, string tableName)
@@ -23,9 +22,7 @@ namespace Safety_System
             _dbName = dbName;
             _tableName = tableName;
             
-            // 載入自訂換算公式 (支援多區間)
             _customFormulas = DataManager.GetTableFormulas(_dbName, _tableName);
-            
             AttachEvents();
         }
 
@@ -42,7 +39,6 @@ namespace Safety_System
         public void EndBulkUpdate() 
         { 
             _isBulkUpdating = false;
-            // 結束批次更新時重讀公式，確保用到最新設定
             _customFormulas = DataManager.GetTableFormulas(_dbName, _tableName);
         }
 
@@ -60,7 +56,6 @@ namespace Safety_System
             {
                 _isBulkUpdating = true;
                 try {
-                    // 只針對單列重算以提升效能，但時間軸差值依然需要整表重算
                     RecalculateTable(dt, e.RowIndex); 
                 } finally {
                     _isBulkUpdating = false;
@@ -84,7 +79,7 @@ namespace Safety_System
         }
 
         // ============================================================================
-        // 🚀 高效能批次計算核心 (整合：絕對時間序差值 + 浮動單價取價 + 自訂公式換算)
+        // 🚀 高效能批次計算核心 
         // ============================================================================
         private void RecalculateTableInternal(DataTable dt, int specificRowIndex, IProgress<int> progressInt, IProgress<string> progressStr)
         {
@@ -178,7 +173,7 @@ namespace Safety_System
                         }
                     }
 
-                    // --- C. 執行自訂公式換算 (支援多區間判定) ---
+                    // --- C. 執行自訂公式換算 ---
                     if (_customFormulas != null && _customFormulas.Count > 0)
                     {
                         foreach (var formulaDef in _customFormulas)
@@ -188,71 +183,90 @@ namespace Safety_System
                             string sDate = formulaDef.StartDate;
                             string eDate = formulaDef.EndDate;
                             string rawFormula = formulaDef.Formula;
+                            string formulaType = formulaDef.FormulaType; // 數學運算 or 文字組合
 
                             if (!dt.Columns.Contains(targetCol)) continue;
 
-                            // 🟢 檢查目前列的日期是否落在公式指定的區間內
                             if (!string.IsNullOrEmpty(matchCol) && dt.Columns.Contains(matchCol))
                             {
                                 string rowDateStr = row[matchCol]?.ToString().Trim() ?? "";
-                                if (string.IsNullOrEmpty(rowDateStr)) continue; // 日期未填，跳過運算
+                                if (string.IsNullOrEmpty(rowDateStr)) continue; 
                                 if (string.Compare(rowDateStr, sDate) < 0 || string.Compare(rowDateStr, eDate) > 0) continue;
                             }
 
                             string evalFormula = rawFormula;
                             bool canCompute = true;
 
-                            if (evalFormula.Contains("PRICE("))
+                            // 🟢 分支：文字組合 (單純變數替換，不經過 Compute)
+                            if (formulaType == "文字組合")
                             {
-                                DateTime targetDate = DateTime.Today; 
-                                
-                                if (!string.IsNullOrEmpty(matchCol) && dt.Columns.Contains(matchCol)) {
-                                    string dateStr = row[matchCol]?.ToString().Trim() ?? "";
-                                    if (dateStr.Length == 7 && dateStr.Contains("-")) {
-                                        DateTime.TryParse(dateStr + "-01", out targetDate);
-                                    } else {
-                                        DateTime.TryParse(dateStr, out targetDate);
-                                    }
-                                }
-
-                                var priceMatches = priceRegex.Matches(evalFormula);
-                                foreach (Match m in priceMatches) {
-                                    string category = m.Groups["cat"].Value.Trim();
-                                    double unitPrice = DataManager.GetUnitPrice(category, targetDate);
-                                    evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
-                                }
-                            }
-
-                            var fieldMatches = fieldRegex.Matches(evalFormula);
-                            foreach (Match m in fieldMatches)
-                            {
-                                string colName = m.Groups[1].Value;
-                                if (dt.Columns.Contains(colName))
+                                var fieldMatches = fieldRegex.Matches(evalFormula);
+                                foreach (Match m in fieldMatches)
                                 {
-                                    string val = row[colName]?.ToString().Replace(",", "").Trim();
-                                    if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) {
-                                        val = "0"; 
+                                    string colName = m.Groups[1].Value;
+                                    if (dt.Columns.Contains(colName))
+                                    {
+                                        string val = row[colName]?.ToString().Trim() ?? "";
+                                        evalFormula = evalFormula.Replace($"[{colName}]", val);
                                     }
-                                    evalFormula = evalFormula.Replace($"[{colName}]", val);
                                 }
-                                else
-                                {
-                                    canCompute = false; break;
-                                }
+                                row[targetCol] = evalFormula;
                             }
-
-                            if (canCompute)
+                            else 
                             {
-                                try {
-                                    object result = dtMath.Compute(evalFormula, null);
-                                    if (result != DBNull.Value) {
-                                        double dRes = Convert.ToDouble(result);
-                                        row[targetCol] = Math.Round(dRes, 4).ToString("0.####");
+                                // 🟢 分支：數學運算 (原邏輯)
+                                if (evalFormula.Contains("PRICE("))
+                                {
+                                    DateTime targetDate = DateTime.Today; 
+                                    
+                                    if (!string.IsNullOrEmpty(matchCol) && dt.Columns.Contains(matchCol)) {
+                                        string dateStr = row[matchCol]?.ToString().Trim() ?? "";
+                                        if (dateStr.Length == 7 && dateStr.Contains("-")) {
+                                            DateTime.TryParse(dateStr + "-01", out targetDate);
+                                        } else {
+                                            DateTime.TryParse(dateStr, out targetDate);
+                                        }
                                     }
-                                } 
-                                catch {
-                                    if (row[targetCol]?.ToString() != "") {
-                                        row[targetCol] = ""; 
+
+                                    var priceMatches = priceRegex.Matches(evalFormula);
+                                    foreach (Match m in priceMatches) {
+                                        string category = m.Groups["cat"].Value.Trim();
+                                        double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                        evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
+                                    }
+                                }
+
+                                var fieldMatches = fieldRegex.Matches(evalFormula);
+                                foreach (Match m in fieldMatches)
+                                {
+                                    string colName = m.Groups[1].Value;
+                                    if (dt.Columns.Contains(colName))
+                                    {
+                                        string val = row[colName]?.ToString().Replace(",", "").Trim();
+                                        if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) {
+                                            val = "0"; 
+                                        }
+                                        evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                    }
+                                    else
+                                    {
+                                        canCompute = false; break;
+                                    }
+                                }
+
+                                if (canCompute)
+                                {
+                                    try {
+                                        object result = dtMath.Compute(evalFormula, null);
+                                        if (result != DBNull.Value) {
+                                            double dRes = Convert.ToDouble(result);
+                                            row[targetCol] = Math.Round(dRes, 4).ToString("0.####");
+                                        }
+                                    } 
+                                    catch {
+                                        if (row[targetCol]?.ToString() != "") {
+                                            row[targetCol] = ""; 
+                                        }
                                     }
                                 }
                             }
