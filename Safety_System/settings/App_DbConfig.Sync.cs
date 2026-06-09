@@ -19,10 +19,7 @@ namespace Safety_System
             GroupBox boxSync = new GroupBox { Text = "資料同步設定 (來源儲存時自動聚合計算至目標表)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
 
             TableLayoutPanel tlpSync = new TableLayoutPanel {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                ColumnCount = 10,
-                Padding = new Padding(15, 20, 15, 10)
+                Dock = DockStyle.Top, AutoSize = true, ColumnCount = 10, Padding = new Padding(15, 20, 15, 10)
             };
             
             tlpSync.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
