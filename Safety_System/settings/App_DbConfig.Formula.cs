@@ -13,12 +13,15 @@ namespace Safety_System
 {
     public partial class App_DbConfig
     {
+        private Label _lblFStartM, _lblFStartD, _lblFEndM, _lblFEndD;
+
         private void BuildFormulaTab(TabPage tabFormula)
         {
             Panel pnlFormula = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
 
             GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與區間條件判斷)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
+            // 🟢 Row 1: 資料庫與資料表選擇
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFDb = new Label { Text = "選擇資料庫:", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaDb = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(0, 0, 30, 0) };
@@ -30,35 +33,69 @@ namespace Safety_System
 
             flpRow1.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable });
 
+            // 🟢 Row 2: 對應日期欄位 與 起訖時間 (獨立下拉選單)
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
-            Label lblFTarget = new Label { Text = "公式結果寫入至此欄：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboFormulaTargetCol = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            
             Label lblFMatch = new Label { Text = "對應日期欄位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaMatchCol = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblFStart = new Label { Text = "起：", AutoSize = true, Margin = new Padding(10, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
-            _dtpFormulaStart = new DateTimePicker { Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblFStart = new Label { Text = "起：", AutoSize = true, Margin = new Padding(20, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFStartYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblFStartY = new Label { Text = "年", AutoSize = true, Margin = new Padding(2, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFStartMonth = new ComboBox { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _lblFStartM = new Label { Text = "月", AutoSize = true, Margin = new Padding(2, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFStartDay = new ComboBox { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _lblFStartD = new Label { Text = "日", AutoSize = true, Margin = new Padding(2, 5, 10, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            Label lblFEnd = new Label { Text = "迄：", AutoSize = true, Margin = new Padding(10, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
-            _dtpFormulaEnd = new DateTimePicker { Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblTilde = new Label { Text = "~", AutoSize = true, Margin = new Padding(5, 5, 10, 0), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+
+            Label lblFEnd = new Label { Text = "迄：", AutoSize = true, Margin = new Padding(0, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFEndYear = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblFEndY = new Label { Text = "年", AutoSize = true, Margin = new Padding(2, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFEndMonth = new ComboBox { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _lblFEndM = new Label { Text = "月", AutoSize = true, Margin = new Padding(2, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFEndDay = new ComboBox { Width = 60, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _lblFEndD = new Label { Text = "日", AutoSize = true, Margin = new Padding(2, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            InitFormulaDateComboBoxes();
 
             _cboFormulaMatchCol.SelectedIndexChanged += (s, e) => {
-                if (_cboFormulaMatchCol.SelectedItem != null && _cboFormulaMatchCol.SelectedItem.ToString().Contains("月")) {
-                    _dtpFormulaStart.CustomFormat = "yyyy-MM"; _dtpFormulaEnd.CustomFormat = "yyyy-MM";
-                } else {
-                    _dtpFormulaStart.CustomFormat = "yyyy-MM-dd"; _dtpFormulaEnd.CustomFormat = "yyyy-MM-dd";
+                if (_cboFormulaMatchCol.SelectedItem != null) {
+                    string sel = _cboFormulaMatchCol.SelectedItem.ToString();
+                    bool isYear = sel.Contains("年");
+                    bool isMonth = sel.Contains("月");
+                    
+                    _cboFStartMonth.Visible = !isYear; _lblFStartM.Visible = !isYear;
+                    _cboFEndMonth.Visible = !isYear; _lblFEndM.Visible = !isYear;
+                    _cboFStartDay.Visible = (!isYear && !isMonth); _lblFStartD.Visible = (!isYear && !isMonth);
+                    _cboFEndDay.Visible = (!isYear && !isMonth); _lblFEndD.Visible = (!isYear && !isMonth);
                 }
             };
 
-            Button btnClearTime = new Button { Text = "♾️ 無限區間", Width = 110, Height = 32, Margin = new Padding(10, 0, 0, 0), BackColor = Color.LightGray, Cursor = Cursors.Hand };
+            Button btnClearTime = new Button { Text = "♾️ 無限區間", Width = 110, Height = 32, Margin = new Padding(15, 0, 0, 0), BackColor = Color.LightGray, Cursor = Cursors.Hand };
             btnClearTime.Click += (s, e) => {
-                _dtpFormulaStart.Value = new DateTime(1900, 1, 1);
-                _dtpFormulaEnd.Value = new DateTime(2099, 12, 31);
+                _cboFStartYear.SelectedIndex = 0; // 1900
+                _cboFStartMonth.SelectedIndex = 0;
+                _cboFStartDay.SelectedIndex = 0;
+                _cboFEndYear.SelectedIndex = _cboFEndYear.Items.Count - 1; // 2099
+                _cboFEndMonth.SelectedIndex = 11;
+                _cboFEndDay.SelectedIndex = _cboFEndDay.Items.Count - 1;
             };
 
-            flpRow2.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFMatch, _cboFormulaMatchCol, lblFStart, _dtpFormulaStart, lblFEnd, _dtpFormulaEnd, btnClearTime });
+            flpRow2.Controls.AddRange(new Control[] { 
+                lblFMatch, _cboFormulaMatchCol, 
+                lblFStart, _cboFStartYear, lblFStartY, _cboFStartMonth, _lblFStartM, _cboFStartDay, _lblFStartD,
+                lblTilde,
+                lblFEnd, _cboFEndYear, lblFEndY, _cboFEndMonth, _lblFEndM, _cboFEndDay, _lblFEndD,
+                btnClearTime
+            });
 
+            // 🟢 Row 3: 目標欄位
+            FlowLayoutPanel flpRow3 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
+            Label lblFTarget = new Label { Text = "公式結果寫入至此欄：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaTargetCol = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol });
+
+            // 🟢 公式編輯區
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(15, 10, 10, 15) };
 
             Label lblFormula = new Label { 
@@ -74,7 +111,8 @@ namespace Safety_System
                 pnlOps.Controls.Add(b);
             }
 
-            Button btnInsertVar = new Button { Text = "插入欄位變數", Size = new Size(150, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            // 🟢 按鈕加寬 20px (原本 150 -> 170)
+            Button btnInsertVar = new Button { Text = "插入欄位變數", Size = new Size(170, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             btnInsertVar.FlatAppearance.BorderSize = 0;
             btnInsertVar.Click += (s, e) => {
                 using(Form fSel = new Form { Text = "選擇欄位", Size = new Size(300, 400), StartPosition = FormStartPosition.CenterParent }) {
@@ -108,6 +146,7 @@ namespace Safety_System
             flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlOps, _rtbFormulaEditor, btnSaveFormula });
 
             boxFormula.Controls.Add(flpFormulaBlock);
+            boxFormula.Controls.Add(flpRow3);
             boxFormula.Controls.Add(flpRow2);
             boxFormula.Controls.Add(flpRow1);
 
@@ -138,10 +177,74 @@ namespace Safety_System
             pnlFormula.Controls.Add(tlpListArea);
             pnlFormula.Controls.Add(boxFormula);
             tabFormula.Controls.Add(pnlFormula);
-
-            RefreshAllFormulasList();
         }
 
+        // ================= 日期下拉選單管理 =================
+        private void InitFormulaDateComboBoxes()
+        {
+            _cboFStartYear.Items.Add("1900");
+            _cboFEndYear.Items.Add("1900");
+            
+            int currY = DateTime.Today.Year;
+            for (int i = currY - 10; i <= currY + 1; i++) {
+                _cboFStartYear.Items.Add(i.ToString()); _cboFEndYear.Items.Add(i.ToString());
+            }
+            
+            _cboFStartYear.Items.Add("2099");
+            _cboFEndYear.Items.Add("2099");
+
+            for (int i = 1; i <= 12; i++) {
+                string m = i.ToString("D2");
+                _cboFStartMonth.Items.Add(m); _cboFEndMonth.Items.Add(m);
+            }
+
+            _cboFStartYear.SelectedIndexChanged += (s, e) => UpdateFormulaDaysCombo(_cboFStartYear, _cboFStartMonth, _cboFStartDay);
+            _cboFStartMonth.SelectedIndexChanged += (s, e) => UpdateFormulaDaysCombo(_cboFStartYear, _cboFStartMonth, _cboFStartDay);
+            _cboFEndYear.SelectedIndexChanged += (s, e) => UpdateFormulaDaysCombo(_cboFEndYear, _cboFEndMonth, _cboFEndDay);
+            _cboFEndMonth.SelectedIndexChanged += (s, e) => UpdateFormulaDaysCombo(_cboFEndYear, _cboFEndMonth, _cboFEndDay);
+
+            SetFormulaDateStr(DateTime.Today.ToString("yyyy-01-01"), _cboFStartYear, _cboFStartMonth, _cboFStartDay);
+            SetFormulaDateStr(DateTime.Today.ToString("yyyy-12-31"), _cboFEndYear, _cboFEndMonth, _cboFEndDay);
+        }
+
+        private void UpdateFormulaDaysCombo(ComboBox y, ComboBox m, ComboBox d)
+        {
+            if (y.SelectedItem == null || m.SelectedItem == null) return;
+            if (!int.TryParse(y.SelectedItem.ToString(), out int year) || !int.TryParse(m.SelectedItem.ToString(), out int month)) return;
+            
+            int days = DateTime.DaysInMonth(year, month);
+            string currentDay = d.SelectedItem?.ToString();
+            d.Items.Clear();
+            for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
+            
+            if (currentDay != null && d.Items.Contains(currentDay)) d.SelectedItem = currentDay;
+            else d.SelectedIndex = d.Items.Count - 1;
+        }
+
+        private string GetFormulaDateStr(ComboBox y, ComboBox m, ComboBox d)
+        {
+            string year = y.SelectedItem?.ToString() ?? "1900";
+            string month = m.SelectedItem?.ToString() ?? "01";
+            string day = d.SelectedItem?.ToString() ?? "01";
+            
+            if (m.Visible == false) return year; // 只有年
+            if (d.Visible == false) return $"{year}-{month}"; // 年月
+            return $"{year}-{month}-{day}";
+        }
+
+        private void SetFormulaDateStr(string dateStr, ComboBox y, ComboBox m, ComboBox d)
+        {
+            if (string.IsNullOrEmpty(dateStr)) return;
+            var parts = dateStr.Split('-');
+            if (parts.Length >= 1 && y.Items.Contains(parts[0])) y.SelectedItem = parts[0];
+            if (parts.Length >= 2 && m.Items.Contains(parts[1])) m.SelectedItem = parts[1];
+            if (parts.Length >= 3) {
+                UpdateFormulaDaysCombo(y, m, d);
+                if (d.Items.Contains(parts[2])) d.SelectedItem = parts[2];
+            }
+        }
+
+        // ================= 事件邏輯 =================
         private void CboFormulaDb_SelectedIndexChanged(object sender, EventArgs e)
         {
             _cboFormulaTable.Items.Clear();
@@ -189,8 +292,8 @@ namespace Safety_System
             string targetCol = _cboFormulaTargetCol.SelectedItem.ToString();
             string matchCol = _cboFormulaMatchCol.SelectedItem?.ToString() ?? "";
             
-            string sDate = _dtpFormulaStart.Value.ToString(_dtpFormulaStart.CustomFormat == "yyyy-MM" ? "yyyy-MM" : "yyyy-MM-dd");
-            string eDate = _dtpFormulaEnd.Value.ToString(_dtpFormulaEnd.CustomFormat == "yyyy-MM" ? "yyyy-MM" : "yyyy-MM-dd");
+            string sDate = GetFormulaDateStr(_cboFStartYear, _cboFStartMonth, _cboFStartDay);
+            string eDate = GetFormulaDateStr(_cboFEndYear, _cboFEndMonth, _cboFEndDay);
             string formula = _rtbFormulaEditor.Text.Trim();
 
             if (string.IsNullOrEmpty(formula)) {
@@ -437,8 +540,8 @@ namespace Safety_System
                     foreach(ItemMap im in _cboFormulaTable.Items) { if (im.EnName == tb) { _cboFormulaTable.SelectedItem = im; break; } }
                     if (_cboFormulaTargetCol.Items.Contains(targetCol)) _cboFormulaTargetCol.SelectedItem = targetCol;
                     if (_cboFormulaMatchCol.Items.Contains(matchCol)) _cboFormulaMatchCol.SelectedItem = matchCol;
-                    if (DateTime.TryParse(sDate, out DateTime sd)) _dtpFormulaStart.Value = sd;
-                    if (DateTime.TryParse(eDate, out DateTime ed)) _dtpFormulaEnd.Value = ed;
+                    SetFormulaDateStr(sDate, _cboFStartYear, _cboFStartMonth, _cboFStartDay);
+                    SetFormulaDateStr(eDate, _cboFEndYear, _cboFEndMonth, _cboFEndDay);
                     _rtbFormulaEditor.Text = formula;
                 };
 
