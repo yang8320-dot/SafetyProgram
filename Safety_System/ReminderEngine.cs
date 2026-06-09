@@ -17,6 +17,7 @@ namespace Safety_System
         private const string DbName = "SystemConfig";
         private const string RulesTable = "ReminderRules";
         private const string LogsTable = "UserReminderLogs";
+        private const string ToDosTable = "CustomToDos"; // 🟢 新增待辦清單資料表
 
         public class TriggeredReminder
         {
@@ -38,8 +39,14 @@ namespace Safety_System
                     string sql2 = $@"CREATE TABLE IF NOT EXISTS [{LogsTable}] (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT, UserName TEXT, RuleId INTEGER, RecordId INTEGER, NextRemindDate TEXT);";
                     
+                    // 🟢 新增待辦清單結構
+                    string sql3 = $@"CREATE TABLE IF NOT EXISTS [{ToDosTable}] (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, TaskName TEXT, TargetUsers TEXT, DueDate TEXT, 
+                        AdvanceDays INTEGER, Message TEXT, IsActive INTEGER DEFAULT 1);";
+
                     using (var cmd = new SQLiteCommand(sql1, conn)) cmd.ExecuteNonQuery();
                     using (var cmd = new SQLiteCommand(sql2, conn)) cmd.ExecuteNonQuery();
+                    using (var cmd = new SQLiteCommand(sql3, conn)) cmd.ExecuteNonQuery();
                 }
             } catch { }
         }
@@ -57,8 +64,22 @@ namespace Safety_System
             return dt;
         }
 
+        // 🟢 取得所有待辦
+        public static DataTable GetAllToDos()
+        {
+            DataTable dt = new DataTable();
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand($"SELECT * FROM {ToDosTable} ORDER BY IsActive DESC, DueDate ASC", conn))
+                    using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                }
+            } catch { }
+            return dt;
+        }
+
         // ==============================================================
-        // 核心檢查與觸發機制
+        // 核心檢查與觸發機制 (整合 Rules 與 ToDos)
         // ==============================================================
         public static void CheckAndShowReminders()
         {
@@ -70,108 +91,118 @@ namespace Safety_System
                 {
                     string currentUser = Environment.UserName.Trim();
                     string todayStr = DateTime.Today.ToString("yyyy-MM-dd");
-
-                    // 1. 取得當前使用者需要套用的啟用的規則
-                    DataTable activeRules = new DataTable();
-                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
-                        conn.Open();
-                        using (var cmd = new SQLiteCommand($"SELECT * FROM {RulesTable} WHERE IsActive = 1", conn))
-                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(activeRules);
-                    }
-
                     List<TriggeredReminder> triggeredList = new List<TriggeredReminder>();
 
-                    foreach (DataRow rule in activeRules.Rows)
-                    {
-                        string targets = rule["TargetUsers"].ToString().Trim();
-                        bool isTargetUser = false;
-                        
-                        if (targets.Equals("ALL", StringComparison.OrdinalIgnoreCase)) isTargetUser = true;
-                        else {
-                            var users = targets.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(u => u.Trim()).ToList();
-                            if (users.Contains(currentUser, StringComparer.OrdinalIgnoreCase)) isTargetUser = true;
-                        }
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        conn.Open();
 
-                        if (!isTargetUser) continue;
+                        // ---------------------------------------------------------
+                        // 1. 處理資料表掃描規則 (RulesTable)
+                        // ---------------------------------------------------------
+                        DataTable activeRules = new DataTable();
+                        using (var cmd = new SQLiteCommand($"SELECT * FROM {RulesTable} WHERE IsActive = 1", conn))
+                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(activeRules);
 
-                        int ruleId = Convert.ToInt32(rule["Id"]);
-                        string dbName = rule["DbName"].ToString();
-                        string tbName = rule["TableName"].ToString();
-                        string dateCol = rule["DateCol"].ToString();
-                        int advanceDays = Convert.ToInt32(rule["AdvanceDays"]);
-                        string template = rule["MessageTemplate"].ToString();
+                        foreach (DataRow rule in activeRules.Rows)
+                        {
+                            string targets = rule["TargetUsers"].ToString().Trim();
+                            bool isTargetUser = CheckIsTargetUser(targets, currentUser);
+                            if (!isTargetUser) continue;
 
-                        // 2. 去對應資料表撈取資料
-                        DataTable sourceData = null;
-                        try {
-                            // 不傳入時間，撈取全表 (可以優化為透過 SQL 過濾，但考慮到 SQLite 日期格式混亂，在記憶體過濾最安全)
-                            sourceData = DataManager.GetTableData(dbName, tbName, "", "", "");
-                        } catch { continue; }
+                            int ruleId = Convert.ToInt32(rule["Id"]);
+                            string dbName = rule["DbName"].ToString();
+                            string tbName = rule["TableName"].ToString();
+                            string dateCol = rule["DateCol"].ToString();
+                            int advanceDays = Convert.ToInt32(rule["AdvanceDays"]);
+                            string template = rule["MessageTemplate"].ToString();
 
-                        if (sourceData == null || sourceData.Rows.Count == 0 || !sourceData.Columns.Contains(dateCol) || !sourceData.Columns.Contains("Id")) continue;
+                            DataTable sourceData = null;
+                            try { sourceData = DataManager.GetTableData(dbName, tbName, "", "", ""); } catch { continue; }
 
-                        // 3. 抓取使用者的延遲提醒紀錄
-                        Dictionary<int, string> snoozeLogs = new Dictionary<int, string>();
-                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
-                            conn.Open();
-                            using (var cmd = new SQLiteCommand($"SELECT RecordId, NextRemindDate FROM {LogsTable} WHERE UserName=@U AND RuleId=@R", conn)) {
-                                cmd.Parameters.AddWithValue("@U", currentUser);
-                                cmd.Parameters.AddWithValue("@R", ruleId);
-                                using (var reader = cmd.ExecuteReader()) {
-                                    while (reader.Read()) {
-                                        snoozeLogs[Convert.ToInt32(reader["RecordId"])] = reader["NextRemindDate"].ToString();
+                            if (sourceData == null || sourceData.Rows.Count == 0 || !sourceData.Columns.Contains(dateCol) || !sourceData.Columns.Contains("Id")) continue;
+
+                            Dictionary<int, string> snoozeLogs = GetSnoozeLogs(conn, currentUser, ruleId);
+                            Regex fieldRegex = new Regex(@"\[(.*?)\]");
+
+                            foreach (DataRow srcRow in sourceData.Rows)
+                            {
+                                if (srcRow.RowState == DataRowState.Deleted) continue;
+
+                                int recordId = Convert.ToInt32(srcRow["Id"]);
+                                if (snoozeLogs.ContainsKey(recordId)) {
+                                    if (string.Compare(snoozeLogs[recordId], todayStr) > 0) continue; 
+                                }
+
+                                string rawDate = srcRow[dateCol]?.ToString() ?? "";
+                                DateTime? parsedDate = ParseUniversalDate(rawDate);
+                                
+                                if (parsedDate.HasValue)
+                                {
+                                    int daysDiff = (int)(parsedDate.Value.Date - DateTime.Today).TotalDays;
+                                    if (daysDiff <= advanceDays)
+                                    {
+                                        string finalMsg = template;
+                                        var matches = fieldRegex.Matches(template);
+                                        foreach (Match m in matches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (sourceData.Columns.Contains(colName)) {
+                                                finalMsg = finalMsg.Replace(m.Value, srcRow[colName]?.ToString() ?? "");
+                                            }
+                                        }
+
+                                        triggeredList.Add(new TriggeredReminder {
+                                            RuleId = ruleId,
+                                            RecordId = recordId,
+                                            RuleName = rule["RuleName"].ToString(),
+                                            Message = finalMsg,
+                                            DaysLeft = daysDiff
+                                        });
                                     }
                                 }
                             }
                         }
 
-                        // 4. 比對與樣板生成
-                        Regex fieldRegex = new Regex(@"\[(.*?)\]");
+                        // ---------------------------------------------------------
+                        // 2. 處理自訂待辦事項 (CustomToDos) - 統一使用 RuleId = 0
+                        // ---------------------------------------------------------
+                        DataTable activeToDos = new DataTable();
+                        using (var cmd = new SQLiteCommand($"SELECT * FROM {ToDosTable} WHERE IsActive = 1", conn))
+                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(activeToDos);
 
-                        foreach (DataRow srcRow in sourceData.Rows)
+                        Dictionary<int, string> todoSnoozeLogs = GetSnoozeLogs(conn, currentUser, 0); // RuleId=0 專屬 ToDo
+
+                        foreach (DataRow todo in activeToDos.Rows)
                         {
-                            if (srcRow.RowState == DataRowState.Deleted) continue;
+                            string targets = todo["TargetUsers"].ToString().Trim();
+                            if (!CheckIsTargetUser(targets, currentUser)) continue;
 
-                            int recordId = Convert.ToInt32(srcRow["Id"]);
-                            
-                            // 檢查是否被 Snooze (延遲)
-                            if (snoozeLogs.ContainsKey(recordId)) {
-                                string nextDateStr = snoozeLogs[recordId];
-                                if (string.Compare(nextDateStr, todayStr) > 0) continue; // 還沒到下次提醒時間
+                            int todoId = Convert.ToInt32(todo["Id"]);
+                            if (todoSnoozeLogs.ContainsKey(todoId)) {
+                                if (string.Compare(todoSnoozeLogs[todoId], todayStr) > 0) continue; 
                             }
 
-                            string rawDate = srcRow[dateCol]?.ToString() ?? "";
+                            string rawDate = todo["DueDate"]?.ToString() ?? "";
                             DateTime? parsedDate = ParseUniversalDate(rawDate);
-                            
+                            int advanceDays = Convert.ToInt32(todo["AdvanceDays"]);
+
                             if (parsedDate.HasValue)
                             {
                                 int daysDiff = (int)(parsedDate.Value.Date - DateTime.Today).TotalDays;
-                                
-                                // 只要天數小於或等於設定的提前天數，就視為觸發 (過期的負數也會觸發)
                                 if (daysDiff <= advanceDays)
                                 {
-                                    string finalMsg = template;
-                                    var matches = fieldRegex.Matches(template);
-                                    foreach (Match m in matches) {
-                                        string colName = m.Groups[1].Value;
-                                        if (sourceData.Columns.Contains(colName)) {
-                                            finalMsg = finalMsg.Replace(m.Value, srcRow[colName]?.ToString() ?? "");
-                                        }
-                                    }
-
                                     triggeredList.Add(new TriggeredReminder {
-                                        RuleId = ruleId,
-                                        RecordId = recordId,
-                                        RuleName = rule["RuleName"].ToString(),
-                                        Message = finalMsg,
+                                        RuleId = 0,               // 0 代表此為自訂待辦
+                                        RecordId = todoId,        // RecordId 就是待辦事項的 Id
+                                        RuleName = $"[待辦] {todo["TaskName"]}",
+                                        Message = todo["Message"].ToString(),
                                         DaysLeft = daysDiff
                                     });
                                 }
                             }
                         }
-                    }
+                    } // end using conn
 
-                    // 5. 若有觸發提醒，喚起 UI
+                    // 3. 若有觸發提醒，喚起 UI
                     if (triggeredList.Count > 0)
                     {
                         if (Application.OpenForms.Count > 0)
@@ -192,6 +223,28 @@ namespace Safety_System
             });
         }
 
+        private static bool CheckIsTargetUser(string targets, string currentUser)
+        {
+            if (targets.Equals("ALL", StringComparison.OrdinalIgnoreCase)) return true;
+            var users = targets.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(u => u.Trim()).ToList();
+            return users.Contains(currentUser, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<int, string> GetSnoozeLogs(SQLiteConnection conn, string userName, int ruleId)
+        {
+            Dictionary<int, string> logs = new Dictionary<int, string>();
+            using (var cmd = new SQLiteCommand($"SELECT RecordId, NextRemindDate FROM {LogsTable} WHERE UserName=@U AND RuleId=@R", conn)) {
+                cmd.Parameters.AddWithValue("@U", userName);
+                cmd.Parameters.AddWithValue("@R", ruleId);
+                using (var reader = cmd.ExecuteReader()) {
+                    while (reader.Read()) {
+                        logs[Convert.ToInt32(reader["RecordId"])] = reader["NextRemindDate"].ToString();
+                    }
+                }
+            }
+            return logs;
+        }
+
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
             using (Form f = new Form())
@@ -203,14 +256,13 @@ namespace Safety_System
                 f.MaximizeBox = false;
                 f.MinimizeBox = false;
                 f.BackColor = Color.WhiteSmoke;
-                f.TopMost = true; // 強制顯示在最上層
+                f.TopMost = true; 
 
                 Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed, Height = 60 };
                 f.Controls.Add(lblTop);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10), FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                // 儲存每個項目使用者選擇的處理動作
                 Dictionary<TriggeredReminder, ComboBox> actionMap = new Dictionary<TriggeredReminder, ComboBox>();
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
@@ -251,15 +303,14 @@ namespace Safety_System
                             using (var trans = conn.BeginTransaction()) {
                                 foreach (var kvp in actionMap) {
                                     int actionIdx = kvp.Value.SelectedIndex;
-                                    if (actionIdx == 0) continue; // 本次忽略，不寫入資料庫
+                                    if (actionIdx == 0) continue; 
                                     
                                     string nextDate = "";
                                     if (actionIdx == 1) nextDate = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 2) nextDate = DateTime.Today.AddDays(3).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 3) nextDate = DateTime.Today.AddDays(7).ToString("yyyy-MM-dd");
-                                    else if (actionIdx == 4) nextDate = "2099-12-31"; // 永久不提醒
+                                    else if (actionIdx == 4) nextDate = "2099-12-31"; 
 
-                                    // 🟢 修正：移除未使用的變數 sql 警告，直接寫入 cmdIns 的建構子內
                                     using (var cmdDel = new SQLiteCommand("DELETE FROM UserReminderLogs WHERE UserName=@U AND RuleId=@R AND RecordId=@Rec", conn, trans)) {
                                         cmdDel.Parameters.AddWithValue("@U", userName);
                                         cmdDel.Parameters.AddWithValue("@R", kvp.Key.RuleId);
@@ -291,7 +342,6 @@ namespace Safety_System
             }
         }
 
-        // 萬用日期解析器
         private static DateTime? ParseUniversalDate(string dateStr)
         {
             if (string.IsNullOrWhiteSpace(dateStr)) return null;
