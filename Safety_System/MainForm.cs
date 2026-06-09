@@ -332,14 +332,14 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenuRef).ShowDialog(this);
+                    // 🟢 修正 4：_mainMenuRef 誤植修復，改為 _mainMenu
+                    new App_PermissionManager(_mainMenu).ShowDialog(this);
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 🟢 新增：系統智能提醒設定入口
             var reminderSettingItem = new ToolStripMenuItem("系統智能提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
