@@ -1,3 +1,4 @@
+/// FILE: Safety_System/CoreTable/App_CoreTable.Events.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -458,6 +459,15 @@ namespace Safety_System
                 exportWidths[kvp.Key] = (float)kvp.Value;
             }
 
+            // 🟢 取得當前資料表的所有公式設定，提取出目標公式欄位 (TargetCol)
+            var formulas = DataManager.GetTableFormulas(_dbName, _tableName);
+            HashSet<string> formulaCols = new HashSet<string>();
+            if (formulas != null) {
+                foreach (var f in formulas) {
+                    formulaCols.Add(f.TargetCol);
+                }
+            }
+
             DataTable exportDt = new DataTable();
             List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
 
@@ -478,7 +488,8 @@ namespace Safety_System
                 exportDt.Rows.Add(dRow);
             }
 
-            ExcelHelper.ExportToExcelOrCsv(exportDt, _chineseTitle, exportWidths, dropdownData);
+            // 🟢 將公式欄位清單傳入匯出引擎
+            ExcelHelper.ExportToExcelOrCsv(exportDt, _chineseTitle, exportWidths, dropdownData, formulaCols);
         }
 
         private async void BtnImportExcel_Click(object sender, EventArgs e) 
