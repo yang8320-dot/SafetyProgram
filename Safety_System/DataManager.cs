@@ -80,7 +80,6 @@ namespace Safety_System
                                         DeletedTime TEXT);";
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 新增：欄位自動運算公式表
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (
                                         Id INTEGER PRIMARY KEY AUTOINCREMENT, 
                                         DbName TEXT, 
@@ -89,8 +88,44 @@ namespace Safety_System
                                         Formula TEXT,
                                         UNIQUE(DbName, TableName, TargetCol));";
                     cmd.ExecuteNonQuery();
+
+                    // 🟢 動態升級表結構：新增 DateCol (時間對應欄位) 以利取價
+                    var cols = new List<string>();
+                    cmd.CommandText = "PRAGMA table_info([ColumnFormulas])";
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) cols.Add(reader["name"].ToString());
+                    }
+                    if (!cols.Contains("DateCol")) {
+                        cmd.CommandText = "ALTER TABLE [ColumnFormulas] ADD COLUMN [DateCol] TEXT;";
+                        cmd.ExecuteNonQuery();
+                    }
                 }
             }
+        }
+
+        // 🟢 全域單價獲取引擎 (精確對應日期與類別)
+        public static double GetUnitPrice(string category, DateTime date)
+        {
+            double price = 0;
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    // 優先尋找區間內吻合的價格
+                    using (var cmd = new SQLiteCommand("SELECT UnitPrice FROM WaterPrices WHERE Category=@C AND StartDate <= @D AND EndDate >= @D ORDER BY StartDate DESC LIMIT 1", conn)) {
+                        cmd.Parameters.AddWithValue("@C", category);
+                        cmd.Parameters.AddWithValue("@D", date.ToString("yyyy-MM-dd"));
+                        var res = cmd.ExecuteScalar();
+                        if (res != null && res != DBNull.Value) return Convert.ToDouble(res);
+                    }
+                    // 若超出設定區間，則以該類別最新的一筆價格為基準 (Fallback)
+                    using (var cmd = new SQLiteCommand("SELECT UnitPrice FROM WaterPrices WHERE Category=@C ORDER BY EndDate DESC LIMIT 1", conn)) {
+                        cmd.Parameters.AddWithValue("@C", category);
+                        var res = cmd.ExecuteScalar();
+                        if (res != null && res != DBNull.Value) return Convert.ToDouble(res);
+                    }
+                }
+            } catch { }
+            return price;
         }
 
         public static string GetSysSetting(string key, string defaultValue = "")
@@ -147,18 +182,20 @@ namespace Safety_System
         }
 
         // ========================================================
-        // 🟢 欄位自訂公式 API
+        // 🟢 欄位自訂公式 API (已升級加入 DateCol)
         // ========================================================
-        public static Dictionary<string, string> GetTableFormulas(string dbName, string tableName)
+        public static Dictionary<string, (string DateCol, string Formula)> GetTableFormulas(string dbName, string tableName)
         {
-            var dict = new Dictionary<string, string>();
+            var dict = new Dictionary<string, (string DateCol, string Formula)>();
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT TargetCol, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                    using (var cmd = new SQLiteCommand("SELECT TargetCol, DateCol, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
                         cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
                         using (var reader = cmd.ExecuteReader()) {
-                            while (reader.Read()) { dict[reader["TargetCol"].ToString()] = reader["Formula"].ToString(); }
+                            while (reader.Read()) { 
+                                dict[reader["TargetCol"].ToString()] = (reader["DateCol"].ToString(), reader["Formula"].ToString()); 
+                            }
                         }
                     }
                 }
@@ -166,15 +203,15 @@ namespace Safety_System
             return dict;
         }
 
-        public static void SaveTableFormula(string dbName, string tableName, string targetCol, string formula)
+        public static void SaveTableFormula(string dbName, string tableName, string targetCol, string dateCol, string formula)
         {
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    string sql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, Formula) VALUES (@DB, @TB, @TC, @F) ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F";
+                    string sql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, DateCol, Formula) VALUES (@DB, @TB, @TC, @DC, @F) ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F, DateCol=@DC";
                     using (var cmd = new SQLiteCommand(sql, conn)) {
                         cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
-                        cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@F", formula);
+                        cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@DC", dateCol); cmd.Parameters.AddWithValue("@F", formula);
                         cmd.ExecuteNonQuery();
                     }
                 }
