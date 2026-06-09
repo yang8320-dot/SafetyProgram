@@ -259,5 +259,23 @@ namespace Safety_System
                 _cboCol1.SelectedIndex = 0; _cboCol2.SelectedIndex = 0; _cboCol3.SelectedIndex = 0; _cboCol4.SelectedIndex = 0;
             } catch { }
         }
+
+        // 🟢 確保此方法存在於 App_DbConfig 主類別中，因為這是在多個分頁中共用的！
+        private void CboAuditDb_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try {
+                if (_cboAuditTable == null) return;
+                _cboAuditTable.Items.Clear();
+                _cboAuditTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
+
+                if (_cboAuditDb.SelectedItem == null) return;
+                
+                var selectedDb = (ItemMap)_cboAuditDb.SelectedItem;
+                if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
+                    var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
+                    _cboAuditTable.Items.AddRange(tbItems);
+                }
+            } catch { }
+        }
     }
 }
