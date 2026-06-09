@@ -15,9 +15,9 @@ namespace Safety_System
     public static class ExcelHelper
     {
         /// <summary>
-        /// 🟢 升級版：支援動態欄寬設定、下拉選單(含超過255字元防呆處理)的 Excel 匯出
+        /// 🟢 升級版：支援動態欄寬設定、下拉選單(含超過255字元防呆處理)、公式欄位灰色底色的 Excel 匯出
         /// </summary>
-        public static void ExportToExcelOrCsv(DataTable dt, string defaultFileName, Dictionary<string, float> columnWidths = null, Dictionary<string, string[]> dropdownData = null)
+        public static void ExportToExcelOrCsv(DataTable dt, string defaultFileName, Dictionary<string, float> columnWidths = null, Dictionary<string, string[]> dropdownData = null, HashSet<string> formulaColumns = null)
         {
             if (dt == null || dt.Rows.Count == 0)
             {
@@ -118,6 +118,25 @@ namespace Safety_System
                                                 {
                                                     val.Formula.Values.Add(item);
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 4. 🟢 處理公式欄位底色 (標示為系統自動運算，套用灰色底色)
+                                if (formulaColumns != null && formulaColumns.Count > 0)
+                                {
+                                    for (int i = 0; i < dt.Columns.Count; i++)
+                                    {
+                                        if (formulaColumns.Contains(dt.Columns[i].ColumnName))
+                                        {
+                                            // 針對資料列範圍上色 (從 Row 2 開始，不覆蓋表頭)
+                                            if (dt.Rows.Count > 0)
+                                            {
+                                                var colRange = ws.Cells[2, i + 1, dt.Rows.Count + 1, i + 1];
+                                                colRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                                // 使用 WhiteSmoke (接近介面中的灰色) 作為鎖定/自動運算的識別色
+                                                colRange.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.WhiteSmoke); 
                                             }
                                         }
                                     }
