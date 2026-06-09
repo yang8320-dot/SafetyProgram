@@ -14,12 +14,14 @@ namespace Safety_System
     public partial class App_DbConfig
     {
         private Label _lblFStartM, _lblFStartD, _lblFEndM, _lblFEndD;
+        private ComboBox _cboFormulaType; // 🟢 新增公式類型下拉選單
+        private FlowLayoutPanel _pnlOps;  // 用於動態隱藏數學運算符號
 
         private void BuildFormulaTab(TabPage tabFormula)
         {
             Panel pnlFormula = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
 
-            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與區間條件判斷)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與文字組合)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
             // 🟢 Row 1: 資料庫與資料表選擇
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
@@ -33,7 +35,7 @@ namespace Safety_System
 
             flpRow1.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable });
 
-            // 🟢 Row 2: 對應日期欄位 與 起訖時間 (獨立下拉選單)
+            // 🟢 Row 2: 對應日期欄位 與 起訖時間
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFMatch = new Label { Text = "對應日期欄位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaMatchCol = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -61,17 +63,9 @@ namespace Safety_System
             _cboFormulaMatchCol.SelectedIndexChanged += (s, e) => {
                 if (_cboFormulaMatchCol.SelectedItem != null) {
                     string sel = _cboFormulaMatchCol.SelectedItem.ToString();
-                    
-                    bool showMonth = true;
-                    bool showDay = true;
-
-                    if (sel == "年度" || sel.EndsWith("年")) {
-                        showMonth = false; showDay = false;
-                    } 
-                    else if (sel == "年月" || sel == "月份" || sel.EndsWith("月")) {
-                        showMonth = true; showDay = false;
-                    }
-
+                    bool showMonth = true; bool showDay = true;
+                    if (sel == "年度" || sel.EndsWith("年")) { showMonth = false; showDay = false; } 
+                    else if (sel == "年月" || sel == "月份" || sel.EndsWith("月")) { showMonth = true; showDay = false; }
                     _cboFStartMonth.Visible = showMonth; _lblFStartM.Visible = showMonth;
                     _cboFEndMonth.Visible = showMonth; _lblFEndM.Visible = showMonth;
                     _cboFStartDay.Visible = showDay; _lblFStartD.Visible = showDay;
@@ -81,12 +75,8 @@ namespace Safety_System
 
             Button btnClearTime = new Button { Text = "♾️ 無限區間", Width = 110, Height = 32, Margin = new Padding(15, 0, 0, 0), BackColor = Color.LightGray, Cursor = Cursors.Hand };
             btnClearTime.Click += (s, e) => {
-                _cboFStartYear.SelectedIndex = 0; 
-                _cboFStartMonth.SelectedIndex = 0;
-                _cboFStartDay.SelectedIndex = 0;
-                _cboFEndYear.SelectedIndex = _cboFEndYear.Items.Count - 1; 
-                _cboFEndMonth.SelectedIndex = 11;
-                _cboFEndDay.SelectedIndex = _cboFEndDay.Items.Count - 1;
+                _cboFStartYear.SelectedIndex = 0; _cboFStartMonth.SelectedIndex = 0; _cboFStartDay.SelectedIndex = 0;
+                _cboFEndYear.SelectedIndex = _cboFEndYear.Items.Count - 1; _cboFEndMonth.SelectedIndex = 11; _cboFEndDay.SelectedIndex = _cboFEndDay.Items.Count - 1;
             };
 
             flpRow2.Controls.AddRange(new Control[] { 
@@ -97,27 +87,39 @@ namespace Safety_System
                 btnClearTime
             });
 
-            // 🟢 Row 3: 目標欄位 (獨立一行)
+            // 🟢 Row 3: 目標欄位 與 運算模式選擇
             FlowLayoutPanel flpRow3 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFTarget = new Label { Text = "公式結果寫入至此欄：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaTargetCol = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol });
+            Label lblFType = new Label { Text = "公式類別：", AutoSize = true, Margin = new Padding(40, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaType = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+            _cboFormulaType.Items.AddRange(new string[] { "數學運算 (四則與浮動取價)", "文字組合 (多欄位+自訂文字)" });
+            _cboFormulaType.SelectedIndex = 0;
+
+            _cboFormulaType.SelectedIndexChanged += (s, e) => {
+                bool isMath = _cboFormulaType.SelectedIndex == 0;
+                _pnlOps.Visible = isMath; // 如果是文字組合，隱藏四則運算按鈕
+            };
+
+            flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFType, _cboFormulaType });
 
             // 🟢 Row 4: 公式編輯區
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(15, 10, 10, 15) };
 
             Label lblFormula = new Label { 
-                Text = "計算公式 (如：[數量]*[單價])：\n(如需抓取浮動單價，請寫 PRICE(類別名稱)，系統將會以對應日期的最新單價進行運算)", 
+                Text = "編輯公式：(數學運算如：[數量]*[單價]；文字組合如：[廠區] - 第[機台]號)", 
                 AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 10) 
             };
 
-            FlowLayoutPanel pnlOps = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 10) };
+            FlowLayoutPanel pnlActionTools = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 10) };
+            
+            _pnlOps = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
             string[] ops = { "+", "-", "*", "/", "(", ")" };
             foreach (string op in ops) {
                 Button b = new Button { Text = op, Width = 45, Height = 35, Font = new Font("Consolas", 14F, FontStyle.Bold), Cursor = Cursors.Hand, BackColor = Color.WhiteSmoke };
                 b.Click += (s, e) => { _rtbFormulaEditor.Focus(); _rtbFormulaEditor.SelectedText = $" {op} "; };
-                pnlOps.Controls.Add(b);
+                _pnlOps.Controls.Add(b);
             }
 
             Button btnInsertVar = new Button { Text = "插入欄位變數", Size = new Size(170, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
@@ -137,13 +139,16 @@ namespace Safety_System
                     fSel.Controls.Add(lb); fSel.ShowDialog();
                 }
             };
-            pnlOps.Controls.Add(btnInsertVar);
-
+            
             Button btnClearForm = new Button { Text = "✨ 清空編輯區重新設定", Size = new Size(200, 35), BackColor = Color.Gainsboro, ForeColor = Color.Black, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             btnClearForm.Click += (s, e) => {
                 _currentFormulaEditId = 0; _rtbFormulaEditor.Clear(); _cboFormulaTargetCol.SelectedIndex = -1; _cboFormulaMatchCol.SelectedIndex = -1;
+                _cboFormulaType.SelectedIndex = 0;
             };
-            pnlOps.Controls.Add(btnClearForm);
+
+            pnlActionTools.Controls.Add(_pnlOps);
+            pnlActionTools.Controls.Add(btnInsertVar);
+            pnlActionTools.Controls.Add(btnClearForm);
 
             _rtbFormulaEditor = new RichTextBox { Width = 700, Height = 120, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 0, 0, 15) };
 
@@ -151,7 +156,7 @@ namespace Safety_System
             btnSaveFormula.FlatAppearance.BorderSize = 0;
             btnSaveFormula.Click += BtnSaveFormula_Click;
 
-            flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlOps, _rtbFormulaEditor, btnSaveFormula });
+            flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlActionTools, _rtbFormulaEditor, btnSaveFormula });
 
             boxFormula.Controls.Add(flpFormulaBlock);
             boxFormula.Controls.Add(flpRow3);
@@ -162,7 +167,6 @@ namespace Safety_System
             tlpListArea.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlpListArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 🟢 新增：全面更新按鈕
             FlowLayoutPanel pnlFormulaAction = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(0, 0, 0, 5), FlowDirection = FlowDirection.LeftToRight };
 
             Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Width = 160, Height = 40, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 15, 0) };
@@ -177,17 +181,13 @@ namespace Safety_System
             btnRecalculateAll.FlatAppearance.BorderSize = 0;
             btnRecalculateAll.Click += async (s, e) => {
                 if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null) {
-                    MessageBox.Show("請在最上方「選擇資料庫」與「選擇資料表」，系統才知道要重算哪一張表喔！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+                    MessageBox.Show("請在最上方「選擇資料庫」與「選擇資料表」，系統才知道要重算哪一張表喔！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
                 }
-
                 string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
                 string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
-
                 if (string.IsNullOrEmpty(dbName) || string.IsNullOrEmpty(tableName)) return;
 
-                if (MessageBox.Show($"您確定要全面重新計算【{tableName}】的所有歷史資料嗎？\n\n系統將會套用下方清單中屬於該表的所有公式，並將結果回寫至資料庫。", "確認全面更新", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                {
+                if (MessageBox.Show($"您確定要全面重新計算【{tableName}】的所有歷史資料嗎？\n\n系統將會套用下方清單中屬於該表的所有公式，並將結果回寫至資料庫。", "確認全面更新", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
                     await RunBackgroundRecalculation(dbName, tableName);
                 }
             };
@@ -207,25 +207,18 @@ namespace Safety_System
             pnlFormula.Controls.Add(boxFormula);
             tabFormula.Controls.Add(pnlFormula);
 
-            // 當 Tab 切換到公式分頁時，強制重新抓取資料繪製
-            tabFormula.Enter += (s, e) => {
-                RefreshAllFormulasList();
-            };
+            tabFormula.Enter += (s, e) => { RefreshAllFormulasList(); };
         }
 
         // ================= 日期下拉選單管理 =================
         private void InitFormulaDateComboBoxes()
         {
-            _cboFStartYear.Items.Add("1900");
-            _cboFEndYear.Items.Add("1900");
-            
+            _cboFStartYear.Items.Add("1900"); _cboFEndYear.Items.Add("1900");
             int currY = DateTime.Today.Year;
             for (int i = currY - 10; i <= currY + 1; i++) {
                 _cboFStartYear.Items.Add(i.ToString()); _cboFEndYear.Items.Add(i.ToString());
             }
-            
-            _cboFStartYear.Items.Add("2099");
-            _cboFEndYear.Items.Add("2099");
+            _cboFStartYear.Items.Add("2099"); _cboFEndYear.Items.Add("2099");
 
             for (int i = 1; i <= 12; i++) {
                 string m = i.ToString("D2");
@@ -245,12 +238,10 @@ namespace Safety_System
         {
             if (y.SelectedItem == null || m.SelectedItem == null) return;
             if (!int.TryParse(y.SelectedItem.ToString(), out int year) || !int.TryParse(m.SelectedItem.ToString(), out int month)) return;
-            
             int days = DateTime.DaysInMonth(year, month);
             string currentDay = d.SelectedItem?.ToString();
             d.Items.Clear();
             for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
-            
             if (currentDay != null && d.Items.Contains(currentDay)) d.SelectedItem = currentDay;
             else d.SelectedIndex = d.Items.Count - 1;
         }
@@ -260,9 +251,7 @@ namespace Safety_System
             string year = y.SelectedItem?.ToString() ?? "1900";
             string month = m.SelectedItem?.ToString() ?? "01";
             string day = d.SelectedItem?.ToString() ?? "01";
-            
             if (string.IsNullOrEmpty(matchCol)) return $"{year}-{month}-{day}";
-            
             if (matchCol == "年度" || matchCol.EndsWith("年")) return year;
             if (matchCol == "年月" || matchCol == "月份" || matchCol.EndsWith("月")) return $"{year}-{month}";
             return $"{year}-{month}-{day}";
@@ -285,10 +274,8 @@ namespace Safety_System
         {
             _cboFormulaTable.Items.Clear();
             _cboFormulaTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
-            
             if (_cboFormulaDb.SelectedItem == null) return;
             var selectedDb = (ItemMap)_cboFormulaDb.SelectedItem;
-            
             if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
                 var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
                 _cboFormulaTable.Items.AddRange(tbItems);
@@ -300,12 +287,9 @@ namespace Safety_System
             _cboFormulaTargetCol.Items.Clear();
             _cboFormulaMatchCol.Items.Clear();
             _cboFormulaMatchCol.Items.Add(""); 
-            
             if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null) return;
-
             string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
             string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
-
             if (!string.IsNullOrEmpty(dbName) && !string.IsNullOrEmpty(tableName)) {
                 var cols = DataManager.GetColumnNames(dbName, tableName).Where(c => c != "Id").ToArray();
                 _cboFormulaTargetCol.Items.AddRange(cols);
@@ -315,11 +299,8 @@ namespace Safety_System
 
         private async void BtnSaveFormula_Click(object sender, EventArgs e)
         {
-            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
-
             if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null || _cboFormulaTargetCol.SelectedItem == null) {
-                MessageBox.Show("請確認資料庫、資料表與目標欄位皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show("請確認資料庫、資料表與目標欄位皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
             string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
@@ -329,16 +310,15 @@ namespace Safety_System
             
             string sDate = GetFormulaDateStr(_cboFStartYear, _cboFStartMonth, _cboFStartDay, matchCol);
             string eDate = GetFormulaDateStr(_cboFEndYear, _cboFEndMonth, _cboFEndDay, matchCol);
+            string formulaType = _cboFormulaType.SelectedItem.ToString() == "文字組合 (多欄位+自訂文字)" ? "文字組合" : "數學運算";
             string formula = _rtbFormulaEditor.Text.Trim();
 
             if (string.IsNullOrEmpty(formula)) {
-                MessageBox.Show("公式不可為空！若要取消該欄位的公式，請在下方清單點擊刪除。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show("公式不可為空！若要取消該欄位的公式，請在下方清單點擊刪除。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
             if (string.Compare(sDate, eDate) > 0) {
-                MessageBox.Show("【起日】不能大於【迄日】！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show("【起日】不能大於【迄日】！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
             try {
@@ -350,8 +330,7 @@ namespace Safety_System
                         cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@ExId", _currentFormulaEditId); 
                         using (var reader = cmd.ExecuteReader()) {
                             while (reader.Read()) {
-                                string os = reader["StartDate"].ToString();
-                                string oe = reader["EndDate"].ToString();
+                                string os = reader["StartDate"].ToString(); string oe = reader["EndDate"].ToString();
                                 if (string.Compare(sDate, oe) <= 0 && string.Compare(eDate, os) >= 0) {
                                     MessageBox.Show($"此目標欄位在該時間區間內已有設定其他公式！\n重疊的區間：{os} ~ {oe}\n\n為避免資料計算衝突，請強制調整您的時間區間。", "重疊防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                     return;
@@ -361,35 +340,30 @@ namespace Safety_System
                     }
 
                     if (_currentFormulaEditId > 0) {
-                        string updateSql = "UPDATE ColumnFormulas SET MatchCol=@MC, StartDate=@SD, EndDate=@ED, Formula=@F WHERE Id=@Id";
+                        string updateSql = "UPDATE ColumnFormulas SET MatchCol=@MC, StartDate=@SD, EndDate=@ED, FormulaType=@FT, Formula=@F WHERE Id=@Id";
                         using(var cmd = new SQLiteCommand(updateSql, conn)) {
                             cmd.Parameters.AddWithValue("@MC", matchCol); cmd.Parameters.AddWithValue("@SD", sDate);
-                            cmd.Parameters.AddWithValue("@ED", eDate); cmd.Parameters.AddWithValue("@F", formula);
-                            cmd.Parameters.AddWithValue("@Id", _currentFormulaEditId); cmd.ExecuteNonQuery();
+                            cmd.Parameters.AddWithValue("@ED", eDate); cmd.Parameters.AddWithValue("@FT", formulaType);
+                            cmd.Parameters.AddWithValue("@F", formula); cmd.Parameters.AddWithValue("@Id", _currentFormulaEditId);
+                            cmd.ExecuteNonQuery();
                         }
                     } else {
-                        string insertSql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, Formula) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @F)";
+                        string insertSql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @FT, @F)";
                         using(var cmd = new SQLiteCommand(insertSql, conn)) {
                             cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
                             cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@MC", matchCol);
                             cmd.Parameters.AddWithValue("@SD", sDate); cmd.Parameters.AddWithValue("@ED", eDate);
-                            cmd.Parameters.AddWithValue("@F", formula); cmd.ExecuteNonQuery();
+                            cmd.Parameters.AddWithValue("@FT", formulaType); cmd.Parameters.AddWithValue("@F", formula);
+                            cmd.ExecuteNonQuery();
                         }
                     }
                 }
-            } catch (Exception ex) {
-                MessageBox.Show("儲存公式時發生錯誤：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
+            } catch (Exception ex) { MessageBox.Show("儲存公式時發生錯誤：" + ex.Message, "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
 
             MessageBox.Show($"【{targetCol}】 運算公式已成功儲存！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            
-            _currentFormulaEditId = 0;
-            _rtbFormulaEditor.Clear();
-            RefreshAllFormulasList();
+            _currentFormulaEditId = 0; _rtbFormulaEditor.Clear(); RefreshAllFormulasList();
 
-            if (MessageBox.Show($"公式已儲存。\n\n是否要立即在背景重新計算【{tableName}】的所有歷史資料？\n\n(系統將以低記憶體消耗方式逐筆刷新，並自動觸發相關的資料同步)", "背景重算確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-            {
+            if (MessageBox.Show($"公式已儲存。\n\n是否要立即在背景重新計算【{tableName}】的所有歷史資料？\n\n(系統將以低記憶體消耗方式逐筆刷新，並自動觸發相關的資料同步)", "背景重算確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
                 await RunBackgroundRecalculation(dbName, tableName);
             }
         }
@@ -397,7 +371,6 @@ namespace Safety_System
         private async Task RunBackgroundRecalculation(string dbName, string tableName)
         {
             bool hasChanges = false;
-            
             using (ProgressForm progForm = new ProgressForm("重新計算歷史資料中..."))
             {
                 await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr)
@@ -418,12 +391,10 @@ namespace Safety_System
                                 using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtFormulas);
                             }
                         }
-
                         if (dtFormulas.Rows.Count == 0) return;
 
                         System.Text.RegularExpressions.Regex priceRegex = new System.Text.RegularExpressions.Regex(@"PRICE\((?<cat>[^\)]+)\)");
                         System.Text.RegularExpressions.Regex fieldRegex = new System.Text.RegularExpressions.Regex(@"\[(.*?)\]");
-
                         int totalRows = dt.Rows.Count;
 
                         using (DataTable dtMath = new DataTable())
@@ -444,6 +415,7 @@ namespace Safety_System
                                     string mCol = fRow["MatchCol"].ToString();
                                     string sDate = fRow["StartDate"].ToString();
                                     string eDate = fRow["EndDate"].ToString();
+                                    string fType = fRow.Table.Columns.Contains("FormulaType") ? fRow["FormulaType"].ToString() : "數學運算";
                                     string rawFormula = fRow["Formula"].ToString();
 
                                     if (!dt.Columns.Contains(tCol)) continue;
@@ -455,46 +427,60 @@ namespace Safety_System
                                     }
 
                                     string evalFormula = rawFormula;
-                                    bool canCompute = true;
 
-                                    if (evalFormula.Contains("PRICE(")) {
-                                        DateTime targetDate = DateTime.Today;
-                                        if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
-                                            string dateStr = row[mCol]?.ToString().Trim() ?? "";
-                                            if (dateStr.Length == 7 && dateStr.Contains("-")) DateTime.TryParse(dateStr + "-01", out targetDate);
-                                            else DateTime.TryParse(dateStr, out targetDate);
-                                        }
-
-                                        var priceMatches = priceRegex.Matches(evalFormula);
-                                        foreach (System.Text.RegularExpressions.Match m in priceMatches) {
-                                            string category = m.Groups["cat"].Value.Trim();
-                                            double unitPrice = DataManager.GetUnitPrice(category, targetDate);
-                                            evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
-                                        }
-                                    }
-
-                                    var fieldMatches = fieldRegex.Matches(evalFormula);
-                                    foreach (System.Text.RegularExpressions.Match m in fieldMatches) {
-                                        string colName = m.Groups[1].Value;
-                                        if (dt.Columns.Contains(colName)) {
-                                            string val = row[colName]?.ToString().Replace(",", "").Trim();
-                                            if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) val = "0";
-                                            evalFormula = evalFormula.Replace($"[{colName}]", val);
-                                        } else { canCompute = false; break; }
-                                    }
-
-                                    if (canCompute) {
-                                        try {
-                                            object result = dtMath.Compute(evalFormula, null);
-                                            if (result != DBNull.Value) {
-                                                double dRes = Convert.ToDouble(result);
-                                                string strRes = Math.Round(dRes, 4).ToString("0.####");
-                                                if (row[tCol]?.ToString() != strRes) {
-                                                    row[tCol] = strRes; rowChanged = true;
-                                                }
+                                    if (fType == "文字組合") {
+                                        var fieldMatches = fieldRegex.Matches(evalFormula);
+                                        foreach (System.Text.RegularExpressions.Match m in fieldMatches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (dt.Columns.Contains(colName)) {
+                                                string val = row[colName]?.ToString().Trim() ?? "";
+                                                evalFormula = evalFormula.Replace($"[{colName}]", val);
                                             }
-                                        } catch {
-                                            if (row[tCol]?.ToString() != "") { row[tCol] = ""; rowChanged = true; }
+                                        }
+                                        if (row[tCol]?.ToString() != evalFormula) {
+                                            row[tCol] = evalFormula; rowChanged = true;
+                                        }
+                                    } 
+                                    else {
+                                        bool canCompute = true;
+                                        if (evalFormula.Contains("PRICE(")) {
+                                            DateTime targetDate = DateTime.Today;
+                                            if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
+                                                string dateStr = row[mCol]?.ToString().Trim() ?? "";
+                                                if (dateStr.Length == 7 && dateStr.Contains("-")) DateTime.TryParse(dateStr + "-01", out targetDate);
+                                                else DateTime.TryParse(dateStr, out targetDate);
+                                            }
+                                            var priceMatches = priceRegex.Matches(evalFormula);
+                                            foreach (System.Text.RegularExpressions.Match m in priceMatches) {
+                                                string category = m.Groups["cat"].Value.Trim();
+                                                double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                                evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
+                                            }
+                                        }
+
+                                        var fieldMatches = fieldRegex.Matches(evalFormula);
+                                        foreach (System.Text.RegularExpressions.Match m in fieldMatches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (dt.Columns.Contains(colName)) {
+                                                string val = row[colName]?.ToString().Replace(",", "").Trim();
+                                                if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) val = "0";
+                                                evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                            } else { canCompute = false; break; }
+                                        }
+
+                                        if (canCompute) {
+                                            try {
+                                                object result = dtMath.Compute(evalFormula, null);
+                                                if (result != DBNull.Value) {
+                                                    double dRes = Convert.ToDouble(result);
+                                                    string strRes = Math.Round(dRes, 4).ToString("0.####");
+                                                    if (row[tCol]?.ToString() != strRes) {
+                                                        row[tCol] = strRes; rowChanged = true;
+                                                    }
+                                                }
+                                            } catch {
+                                                if (row[tCol]?.ToString() != "") { row[tCol] = ""; rowChanged = true; }
+                                            }
                                         }
                                     }
                                 }
@@ -513,7 +499,6 @@ namespace Safety_System
                     });
                 });
             }
-
             if (hasChanges) MessageBox.Show("歷史資料重新計算與同步已完成！", "背景運算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
             else MessageBox.Show("運算完成，所有歷史資料均為最新，無須更新。", "背景運算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -542,12 +527,13 @@ namespace Safety_System
                 string db = row["DbName"].ToString(); string tb = row["TableName"].ToString();
                 string targetCol = row["TargetCol"].ToString(); string matchCol = row["MatchCol"].ToString();
                 string sDate = row["StartDate"].ToString(); string eDate = row["EndDate"].ToString();
+                string fType = row.Table.Columns.Contains("FormulaType") ? row["FormulaType"].ToString() : "數學運算";
                 string formula = row["Formula"].ToString();
 
                 string dateInfo = string.IsNullOrEmpty(matchCol) ? "" : $" (當 [{matchCol}] 介於 {sDate} ~ {eDate} 時)";
-                string text = $"庫:[{db}] 表:[{tb}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}";
+                string text = $"【{fType}】庫:[{db}] 表:[{tb}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}";
                 
-                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Cursor = Cursors.Hand };
+                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = fType == "文字組合" ? Color.DarkCyan : Color.DarkSlateBlue, Cursor = Cursors.Hand };
                 int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
                 int panelW = Math.Max(_flpFormulasList.ClientSize.Width - 25, reqW);
 
@@ -557,7 +543,6 @@ namespace Safety_System
                 
                 btnDel.Click += (s, ev) => {
                     if (MessageBox.Show($"確定刪除此自動運算公式？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
                             using (var cmd = new SQLiteCommand("DELETE FROM ColumnFormulas WHERE Id=@Id", conn)) {
@@ -577,6 +562,10 @@ namespace Safety_System
                     if (_cboFormulaMatchCol.Items.Contains(matchCol)) _cboFormulaMatchCol.SelectedItem = matchCol;
                     SetFormulaDateStr(sDate, _cboFStartYear, _cboFStartMonth, _cboFStartDay);
                     SetFormulaDateStr(eDate, _cboFEndYear, _cboFEndMonth, _cboFEndDay);
+                    
+                    if (_cboFormulaType.Items.Count > 1) {
+                        _cboFormulaType.SelectedIndex = (fType == "文字組合") ? 1 : 0;
+                    }
                     _rtbFormulaEditor.Text = formula;
                 };
 
@@ -598,7 +587,7 @@ namespace Safety_System
                         DataTable dt = new DataTable();
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
-                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], MatchCol AS [對應日期欄位], StartDate AS [區間起日], EndDate AS [區間迄日], Formula AS [運算公式] FROM ColumnFormulas", conn))
+                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], MatchCol AS [對應日期欄位], StartDate AS [區間起日], EndDate AS [區間迄日], FormulaType AS [公式類型], Formula AS [運算公式] FROM ColumnFormulas", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
 
@@ -616,8 +605,6 @@ namespace Safety_System
 
         private void BtnImportFormula_Click(object sender, EventArgs e)
         {
-            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
-
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的公式設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) {
@@ -635,15 +622,16 @@ namespace Safety_System
                                         string db = ws.Cells[r, 1].Text.Trim(); string tb = ws.Cells[r, 2].Text.Trim();
                                         string targetCol = ws.Cells[r, 3].Text.Trim(); string matchCol = ws.Cells[r, 4].Text.Trim();
                                         string sDate = ws.Cells[r, 5].Text.Trim(); string eDate = ws.Cells[r, 6].Text.Trim();
-                                        string formula = ws.Cells[r, 7].Text.Trim();
+                                        string fType = ws.Cells[r, 7].Text.Trim(); string formula = ws.Cells[r, 8].Text.Trim();
 
                                         if (string.IsNullOrEmpty(db) || string.IsNullOrEmpty(tb) || string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(formula)) continue;
 
-                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, Formula) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @F)";
+                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @FT, @F)";
                                         using (var cmd = new SQLiteCommand(sql, conn, trans)) {
                                             cmd.Parameters.AddWithValue("@DB", db); cmd.Parameters.AddWithValue("@TB", tb);
                                             cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@MC", matchCol);
                                             cmd.Parameters.AddWithValue("@SD", sDate); cmd.Parameters.AddWithValue("@ED", eDate);
+                                            cmd.Parameters.AddWithValue("@FT", string.IsNullOrEmpty(fType) ? "數學運算" : fType);
                                             cmd.Parameters.AddWithValue("@F", formula); cmd.ExecuteNonQuery();
                                         }
                                     }
