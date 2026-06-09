@@ -668,9 +668,6 @@ namespace Safety_System
         }
 
         // =======================================================
-        // 🟢 動態單價試算子視窗 (間距與高度版面完美優化版)
-        // =======================================================
-        // =======================================================
         // 🟢 動態單價試算子視窗 (修復重疊與截斷問題的最終版)
         // =======================================================
         private void OpenDynamicPriceCalculator(DataGridView dgvTarget)
@@ -705,12 +702,12 @@ namespace Safety_System
                 TextBox txtCat = new TextBox { Width = 150, Location = new Point(155, 7), Font = new Font("Microsoft JhengHei UI", 12F) };
                 pnlBase.Controls.Add(txtCat);
 
-                // 修正：萃取資料區間的標籤與輸入框徹底拉開距離
+                // 修正：萃取資料區間的標籤與輸入框拉開距離 (+5px)
                 pnlBase.Controls.Add(new Label { Text = "萃取資料區間：", AutoSize = true, Location = new Point(340, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                DateTimePicker dtpS = new DateTimePicker { Width = 140, Location = new Point(490, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 1, 1) };
+                DateTimePicker dtpS = new DateTimePicker { Width = 140, Location = new Point(495, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 1, 1) };
                 pnlBase.Controls.Add(dtpS);
-                pnlBase.Controls.Add(new Label { Text = "~", AutoSize = true, Location = new Point(645, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                DateTimePicker dtpE = new DateTimePicker { Width = 140, Location = new Point(675, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 12, 31) };
+                pnlBase.Controls.Add(new Label { Text = "~", AutoSize = true, Location = new Point(650, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                DateTimePicker dtpE = new DateTimePicker { Width = 140, Location = new Point(680, 7), Format = DateTimePickerFormat.Short, Font = new Font("Microsoft JhengHei UI", 12F), Value = new DateTime(DateTime.Today.Year - 1, 12, 31) };
                 pnlBase.Controls.Add(dtpE);
 
                 // 公式變數生成器 (容器加寬至 1000，內部元件重新計算)
