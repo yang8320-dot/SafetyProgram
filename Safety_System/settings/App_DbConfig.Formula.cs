@@ -194,7 +194,7 @@ namespace Safety_System
 
             pnlFormulaAction.Controls.Add(btnExportFormula);
             pnlFormulaAction.Controls.Add(btnImportFormula);
-            pnlFormulaAction.Controls.Add(btnRecalculateAll); // 🟢 加入新按鈕
+            pnlFormulaAction.Controls.Add(btnRecalculateAll); 
 
             GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單 (全系統) - 點擊可編輯", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
@@ -315,8 +315,7 @@ namespace Safety_System
 
         private async void BtnSaveFormula_Click(object sender, EventArgs e)
         {
-            string authPrompt = "設定自動運算公式需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return; 
+            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
 
             if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null || _cboFormulaTargetCol.SelectedItem == null) {
                 MessageBox.Show("請確認資料庫、資料表與目標欄位皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -558,17 +557,15 @@ namespace Safety_System
                 
                 btnDel.Click += (s, ev) => {
                     if (MessageBox.Show($"確定刪除此自動運算公式？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        string authPrompt = "刪除運算公式需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                        if (AuthManager.VerifyAdmin(authPrompt)) {
-                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
-                                conn.Open();
-                                using (var cmd = new SQLiteCommand("DELETE FROM ColumnFormulas WHERE Id=@Id", conn)) {
-                                    cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
-                                }
+                        // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand("DELETE FROM ColumnFormulas WHERE Id=@Id", conn)) {
+                                cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
                             }
-                            RefreshAllFormulasList();
-                            _currentFormulaEditId = 0;
                         }
+                        RefreshAllFormulasList();
+                        _currentFormulaEditId = 0;
                     }
                 };
 
@@ -619,8 +616,7 @@ namespace Safety_System
 
         private void BtnImportFormula_Click(object sender, EventArgs e)
         {
-            string authPrompt = "匯入公式設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
 
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的公式設定檔" }) 
             {
