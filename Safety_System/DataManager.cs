@@ -11,6 +11,15 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
+    // 🟢 新增：支援多區間公式的資料模型
+    public class ColumnFormulaDef {
+        public string TargetCol { get; set; }
+        public string MatchCol { get; set; }
+        public string StartDate { get; set; }
+        public string EndDate { get; set; }
+        public string Formula { get; set; }
+    }
+
     public static class DataManager
     {
         private static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -80,44 +89,27 @@ namespace Safety_System
                                         DeletedTime TEXT);";
                     cmd.ExecuteNonQuery();
 
+                    // 確保 v2 表結構存在
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (
-                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                                        DbName TEXT, 
-                                        TableName TEXT, 
-                                        TargetCol TEXT, 
-                                        Formula TEXT,
-                                        UNIQUE(DbName, TableName, TargetCol));";
+                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, 
+                                        TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);";
                     cmd.ExecuteNonQuery();
-
-                    // 🟢 動態升級表結構：新增 DateCol (時間對應欄位) 以利取價
-                    var cols = new List<string>();
-                    cmd.CommandText = "PRAGMA table_info([ColumnFormulas])";
-                    using (var reader = cmd.ExecuteReader()) {
-                        while (reader.Read()) cols.Add(reader["name"].ToString());
-                    }
-                    if (!cols.Contains("DateCol")) {
-                        cmd.CommandText = "ALTER TABLE [ColumnFormulas] ADD COLUMN [DateCol] TEXT;";
-                        cmd.ExecuteNonQuery();
-                    }
                 }
             }
         }
 
-        // 🟢 全域單價獲取引擎 (精確對應日期與類別)
         public static double GetUnitPrice(string category, DateTime date)
         {
             double price = 0;
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    // 優先尋找區間內吻合的價格
                     using (var cmd = new SQLiteCommand("SELECT UnitPrice FROM WaterPrices WHERE Category=@C AND StartDate <= @D AND EndDate >= @D ORDER BY StartDate DESC LIMIT 1", conn)) {
                         cmd.Parameters.AddWithValue("@C", category);
                         cmd.Parameters.AddWithValue("@D", date.ToString("yyyy-MM-dd"));
                         var res = cmd.ExecuteScalar();
                         if (res != null && res != DBNull.Value) return Convert.ToDouble(res);
                     }
-                    // 若超出設定區間，則以該類別最新的一筆價格為基準 (Fallback)
                     using (var cmd = new SQLiteCommand("SELECT UnitPrice FROM WaterPrices WHERE Category=@C ORDER BY EndDate DESC LIMIT 1", conn)) {
                         cmd.Parameters.AddWithValue("@C", category);
                         var res = cmd.ExecuteScalar();
@@ -182,36 +174,44 @@ namespace Safety_System
         }
 
         // ========================================================
-        // 🟢 欄位自訂公式 API (已升級加入 DateCol)
+        // 🟢 欄位自訂公式 API (升級為 List 以支援多區間公式)
         // ========================================================
-        public static Dictionary<string, (string DateCol, string Formula)> GetTableFormulas(string dbName, string tableName)
+        public static List<ColumnFormulaDef> GetTableFormulas(string dbName, string tableName)
         {
-            var dict = new Dictionary<string, (string DateCol, string Formula)>();
+            var list = new List<ColumnFormulaDef>();
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT TargetCol, DateCol, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
-                        cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
+                    using (var cmd = new SQLiteCommand("SELECT TargetCol, MatchCol, StartDate, EndDate, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                        cmd.Parameters.AddWithValue("@DB", dbName); 
+                        cmd.Parameters.AddWithValue("@TB", tableName);
                         using (var reader = cmd.ExecuteReader()) {
                             while (reader.Read()) { 
-                                dict[reader["TargetCol"].ToString()] = (reader["DateCol"].ToString(), reader["Formula"].ToString()); 
+                                list.Add(new ColumnFormulaDef {
+                                    TargetCol = reader["TargetCol"].ToString(),
+                                    MatchCol = reader["MatchCol"].ToString(),
+                                    StartDate = reader["StartDate"].ToString(),
+                                    EndDate = reader["EndDate"].ToString(),
+                                    Formula = reader["Formula"].ToString()
+                                });
                             }
                         }
                     }
                 }
             } catch { }
-            return dict;
+            return list;
         }
 
-        public static void SaveTableFormula(string dbName, string tableName, string targetCol, string dateCol, string formula)
+        public static void SaveTableFormula(string dbName, string tableName, string targetCol, string matchCol, string formula)
         {
+            // 此方法提供給未帶區間的舊呼叫，預設為全區間無限大
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    string sql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, DateCol, Formula) VALUES (@DB, @TB, @TC, @DC, @F) ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F, DateCol=@DC";
+                    string sql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, Formula) VALUES (@DB, @TB, @TC, @MC, '1900-01-01', '2099-12-31', @F)";
                     using (var cmd = new SQLiteCommand(sql, conn)) {
                         cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
-                        cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@DC", dateCol); cmd.Parameters.AddWithValue("@F", formula);
+                        cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@MC", matchCol); cmd.Parameters.AddWithValue("@F", formula);
                         cmd.ExecuteNonQuery();
                     }
                 }
@@ -232,7 +232,6 @@ namespace Safety_System
         }
 
         // ========================================================
-
         public static void SaveGridConfig(string dbName, string tableName, string configType, string colName, string value)
         {
             try {
@@ -412,7 +411,6 @@ namespace Safety_System
                             if (activeKeys.Count > 0) {
                                 List<string> whereClauses = new List<string>();
                                 foreach (var k in activeKeys) {
-                                    // 🟢 替換：安全過濾
                                     string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                     whereClauses.Add($"IFNULL([{k}], '') = IFNULL(@{safeKey}, '')");
                                 }
@@ -421,7 +419,6 @@ namespace Safety_System
 
                                 using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
                                     foreach (var k in activeKeys) {
-                                        // 🟢 替換：安全過濾
                                         string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                         object val = row[k] != DBNull.Value ? (object)row[k].ToString().Trim() : DBNull.Value;
                                         cmdCheck.Parameters.AddWithValue("@" + safeKey, val);
@@ -441,7 +438,6 @@ namespace Safety_System
                                     string sql = $"UPDATE [{tableName}] SET ";
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                                        // 🟢 替換：安全過濾
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                         sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
@@ -458,7 +454,6 @@ namespace Safety_System
                                     List<string> paramNames = new List<string>();
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                                        // 🟢 替換：安全過濾
                                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                         colNames.Add($"[{col.ColumnName}]");
                                         paramNames.Add($"@{safeParamName}");
@@ -505,7 +500,6 @@ namespace Safety_System
                     List<string> sets = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                        // 🟢 替換：安全過濾
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                         sets.Add($"[{col.ColumnName}]=@{safeParamName}");
                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
@@ -524,7 +518,6 @@ namespace Safety_System
                     List<string> v = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                        // 🟢 替換：安全過濾
                         string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                         c.Add($"[{col.ColumnName}]"); 
                         v.Add($"@{safeParamName}");
