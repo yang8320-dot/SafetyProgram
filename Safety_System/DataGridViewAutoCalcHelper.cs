@@ -15,7 +15,8 @@ namespace Safety_System
         private string _tableName;
 
         // 快取自訂公式，避免每次都去 DB 撈
-        private Dictionary<string, string> _customFormulas;
+        // 🟢 修改快取結構，加入 DateCol 的儲存
+        private Dictionary<string, (string DateCol, string Formula)> _customFormulas;
 
         public DataGridViewAutoCalcHelper(DataGridView dgv, string dbName, string tableName)
         {
@@ -23,7 +24,7 @@ namespace Safety_System
             _dbName = dbName;
             _tableName = tableName;
             
-            // 載入自訂換算公式
+            // 載入自訂換算公式 (含時間對應欄位)
             _customFormulas = DataManager.GetTableFormulas(_dbName, _tableName);
             
             AttachEvents();
@@ -69,7 +70,7 @@ namespace Safety_System
         }
 
         // ============================================================================
-        // 🟢 方法多載 (Overloads)：完美相容不同的呼叫場景，解決 CS1503 錯誤
+        // 方法多載 (Overloads)：完美相容不同的呼叫場景，解決 CS1503 錯誤
         // ============================================================================
         
         // 給一般全表重算用 (如刪除列)
@@ -91,7 +92,7 @@ namespace Safety_System
         }
 
         // ============================================================================
-        // 🚀 高效能批次計算核心 (整合：絕對時間序差值 + 自訂公式換算)
+        // 🚀 高效能批次計算核心 (整合：絕對時間序差值 + 浮動單價取價 + 自訂公式換算)
         // ============================================================================
         private void RecalculateTableInternal(DataTable dt, int specificRowIndex, IProgress<int> progressInt, IProgress<string> progressStr)
         {
@@ -136,6 +137,11 @@ namespace Safety_System
             }
 
             int totalRows = validRows.Count;
+            
+            // 預先編譯正則表達式，提升效能
+            Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
+            Regex fieldRegex = new Regex(@"\[(.*?)\]");
+
             using (DataTable dtMath = new DataTable()) // 用於執行公式
             {
                 for (int i = 0; i < totalRows; i++)
@@ -185,21 +191,50 @@ namespace Safety_System
                         }
                     }
 
-                    // --- C. 執行自訂公式換算 ---
+                    // --- C. 執行自訂公式換算 (整合 PRICE 浮動取價) ---
                     if (_customFormulas != null && _customFormulas.Count > 0)
                     {
                         foreach (var kvp in _customFormulas)
                         {
                             string targetCol = kvp.Key;
-                            string rawFormula = kvp.Value;
+                            string dateCol = kvp.Value.DateCol;
+                            string rawFormula = kvp.Value.Formula;
 
                             if (!dt.Columns.Contains(targetCol)) continue;
 
                             string evalFormula = rawFormula;
                             bool canCompute = true;
 
+                            // 🟢 處理 PRICE(類別) 的浮動取價
+                            if (evalFormula.Contains("PRICE("))
+                            {
+                                DateTime targetDate = DateTime.Today; // 預設使用今天
+                                
+                                // 嘗試從指定的 DateCol 中解析出使用者輸入的日期
+                                if (!string.IsNullOrEmpty(dateCol) && dt.Columns.Contains(dateCol)) {
+                                    string dateStr = row[dateCol]?.ToString().Trim() ?? "";
+                                    
+                                    // 支援 年月 (yyyy-MM) 格式的解析 (將其視為當月1號)
+                                    if (dateStr.Length == 7 && dateStr.Contains("-")) {
+                                        DateTime.TryParse(dateStr + "-01", out targetDate);
+                                    } 
+                                    else {
+                                        DateTime.TryParse(dateStr, out targetDate);
+                                    }
+                                }
+
+                                var priceMatches = priceRegex.Matches(evalFormula);
+                                foreach (Match m in priceMatches) {
+                                    string category = m.Groups["cat"].Value.Trim();
+                                    // 向 DataManager 查詢該類別在該日期的單價
+                                    double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                    evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
+                                }
+                            }
+
                             // 找出公式中的 [欄位名稱] 並替換成實際數值
-                            foreach (Match m in Regex.Matches(rawFormula, @"\[(.*?)\]"))
+                            var fieldMatches = fieldRegex.Matches(evalFormula);
+                            foreach (Match m in fieldMatches)
                             {
                                 string colName = m.Groups[1].Value;
                                 if (dt.Columns.Contains(colName))
@@ -228,7 +263,7 @@ namespace Safety_System
                                     }
                                 } 
                                 catch {
-                                    row[targetCol] = ""; // 運算失敗(如除以零)時留空
+                                    row[targetCol] = ""; // 運算失敗(如除以零或格式不對)時留空
                                 }
                             }
                         }
