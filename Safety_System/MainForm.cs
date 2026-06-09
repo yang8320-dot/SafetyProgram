@@ -46,7 +46,7 @@ namespace Safety_System
             
             App_PasswordManager.InitDatabase();
 
-            // 🟢 新增：啟動背景智能提醒引擎 (在登入成功並載入主畫面時觸發檢查)
+            // 🟢 新增：啟動背景智能提醒引擎 (包含新的待辦事項功能)
             ReminderEngine.CheckAndShowReminders();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
