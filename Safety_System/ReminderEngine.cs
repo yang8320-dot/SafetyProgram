@@ -259,11 +259,7 @@ namespace Safety_System
                                     else if (actionIdx == 3) nextDate = DateTime.Today.AddDays(7).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 4) nextDate = "2099-12-31"; // 永久不提醒
 
-                                    string sql = @"INSERT INTO UserReminderLogs (UserName, RuleId, RecordId, NextRemindDate) 
-                                                   VALUES (@U, @R, @Rec, @ND) 
-                                                   ON CONFLICT(UserName, RuleId, RecordId) DO UPDATE SET NextRemindDate=@ND";
-                                    
-                                    // 確保有 Unique Index 支持 UPSERT，若無則先刪再塞
+                                    // 🟢 修正：移除未使用的變數 sql 警告，直接寫入 cmdIns 的建構子內
                                     using (var cmdDel = new SQLiteCommand("DELETE FROM UserReminderLogs WHERE UserName=@U AND RuleId=@R AND RecordId=@Rec", conn, trans)) {
                                         cmdDel.Parameters.AddWithValue("@U", userName);
                                         cmdDel.Parameters.AddWithValue("@R", kvp.Key.RuleId);
