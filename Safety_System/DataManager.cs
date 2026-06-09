@@ -11,12 +11,14 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
-    // 🟢 新增：支援多區間公式的資料模型
+    // 🟢 新增：支援多區間公式與「公式類型(數學/文字)」的資料模型
     public class ColumnFormulaDef {
+        public int Id { get; set; }
         public string TargetCol { get; set; }
         public string MatchCol { get; set; }
         public string StartDate { get; set; }
         public string EndDate { get; set; }
+        public string FormulaType { get; set; } // 🟢 新增屬性：區分「數學運算」或「文字組合」
         public string Formula { get; set; }
     }
 
@@ -45,55 +47,30 @@ namespace Safety_System
 
                 using (var cmd = new SQLiteCommand(conn))
                 {
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS SysSettings (KeyName TEXT PRIMARY KEY, KeyValue TEXT);";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS TableKeys (DbName TEXT, TableName TEXT, Col1 TEXT, Col2 TEXT, Col3 TEXT, Col4 TEXT, PRIMARY KEY(DbName, TableName));";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS GridConfigs (DbName TEXT, TableName TEXT, ConfigType TEXT, ColName TEXT, ColValue TEXT, PRIMARY KEY(DbName, TableName, ConfigType, ColName));";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomStats (Module TEXT, StatName TEXT, Unit TEXT, Formula TEXT, PRIMARY KEY(Module, StatName));";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS SyncRules (
-                                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        SrcDb TEXT, SrcTable TEXT, SrcMatchCol TEXT, SrcSyncCol TEXT,
-                                        TgtDb TEXT, TgtTable TEXT, TgtMatchCol TEXT, TgtSyncCol TEXT,
-                                        SyncType TEXT DEFAULT '單向同步');";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomMenus (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DropdownConfigs (
-                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                                        TableName TEXT, 
-                                        ColName TEXT, 
-                                        ParentColName TEXT, 
-                                        ParentValue TEXT, 
-                                        Options TEXT,
-                                        UNIQUE(TableName, ColName, ParentColName, ParentValue));";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS System_DeleteLogs (
-                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                                        DbName TEXT, 
-                                        TableName TEXT, 
-                                        RecordId INTEGER, 
-                                        DeletedBy TEXT, 
-                                        DeletedTime TEXT);";
-                    cmd.ExecuteNonQuery();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS SysSettings (KeyName TEXT PRIMARY KEY, KeyValue TEXT);"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS TableKeys (DbName TEXT, TableName TEXT, Col1 TEXT, Col2 TEXT, Col3 TEXT, Col4 TEXT, PRIMARY KEY(DbName, TableName));"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS GridConfigs (DbName TEXT, TableName TEXT, ConfigType TEXT, ColName TEXT, ColValue TEXT, PRIMARY KEY(DbName, TableName, ConfigType, ColName));"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomStats (Module TEXT, StatName TEXT, Unit TEXT, Formula TEXT, PRIMARY KEY(Module, StatName));"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS SyncRules (Id INTEGER PRIMARY KEY AUTOINCREMENT, SrcDb TEXT, SrcTable TEXT, SrcMatchCol TEXT, SrcSyncCol TEXT, TgtDb TEXT, TgtTable TEXT, TgtMatchCol TEXT, TgtSyncCol TEXT, SyncType TEXT DEFAULT '單向同步');"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS CustomMenus (Id INTEGER PRIMARY KEY AUTOINCREMENT, [分類] TEXT, [資料庫名] TEXT, [資料表名] TEXT);"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DropdownConfigs (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, ParentColName TEXT, ParentValue TEXT, Options TEXT, UNIQUE(TableName, ColName, ParentColName, ParentValue));"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);"; cmd.ExecuteNonQuery();
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS System_DeleteLogs (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, RecordId INTEGER, DeletedBy TEXT, DeletedTime TEXT);"; cmd.ExecuteNonQuery();
 
                     // 確保 v2 表結構存在
-                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (
-                                        Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, 
-                                        TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);";
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);"; 
                     cmd.ExecuteNonQuery();
+
+                    // 🟢 動態升級表結構：新增 FormulaType
+                    var cols = new List<string>();
+                    cmd.CommandText = "PRAGMA table_info([ColumnFormulas])";
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) cols.Add(reader["name"].ToString());
+                    }
+                    if (!cols.Contains("FormulaType")) {
+                        cmd.CommandText = "ALTER TABLE [ColumnFormulas] ADD COLUMN [FormulaType] TEXT DEFAULT '數學運算';";
+                        cmd.ExecuteNonQuery();
+                    }
                 }
             }
         }
@@ -174,7 +151,7 @@ namespace Safety_System
         }
 
         // ========================================================
-        // 🟢 欄位自訂公式 API (升級為 List 以支援多區間公式)
+        // 🟢 欄位自訂公式 API (含 FormulaType)
         // ========================================================
         public static List<ColumnFormulaDef> GetTableFormulas(string dbName, string tableName)
         {
@@ -182,16 +159,18 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT TargetCol, MatchCol, StartDate, EndDate, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                    using (var cmd = new SQLiteCommand("SELECT Id, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
                         cmd.Parameters.AddWithValue("@DB", dbName); 
                         cmd.Parameters.AddWithValue("@TB", tableName);
                         using (var reader = cmd.ExecuteReader()) {
                             while (reader.Read()) { 
                                 list.Add(new ColumnFormulaDef {
+                                    Id = Convert.ToInt32(reader["Id"]),
                                     TargetCol = reader["TargetCol"].ToString(),
                                     MatchCol = reader["MatchCol"].ToString(),
                                     StartDate = reader["StartDate"].ToString(),
                                     EndDate = reader["EndDate"].ToString(),
+                                    FormulaType = reader["FormulaType"].ToString() == "" ? "數學運算" : reader["FormulaType"].ToString(),
                                     Formula = reader["Formula"].ToString()
                                 });
                             }
@@ -202,29 +181,13 @@ namespace Safety_System
             return list;
         }
 
-        public static void SaveTableFormula(string dbName, string tableName, string targetCol, string matchCol, string formula)
-        {
-            // 此方法提供給未帶區間的舊呼叫，預設為全區間無限大
-            try {
-                using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
-                    conn.Open();
-                    string sql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, Formula) VALUES (@DB, @TB, @TC, @MC, '1900-01-01', '2099-12-31', @F)";
-                    using (var cmd = new SQLiteCommand(sql, conn)) {
-                        cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
-                        cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@MC", matchCol); cmd.Parameters.AddWithValue("@F", formula);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            } catch { }
-        }
-
-        public static void DeleteTableFormula(string dbName, string tableName, string targetCol)
+        public static void DeleteTableFormula(int id)
         {
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("DELETE FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB AND TargetCol=@TC", conn)) {
-                        cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName); cmd.Parameters.AddWithValue("@TC", targetCol);
+                    using (var cmd = new SQLiteCommand("DELETE FROM ColumnFormulas WHERE Id=@Id", conn)) {
+                        cmd.Parameters.AddWithValue("@Id", id);
                         cmd.ExecuteNonQuery();
                     }
                 }
