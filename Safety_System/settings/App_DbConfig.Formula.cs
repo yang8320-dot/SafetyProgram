@@ -94,12 +94,13 @@ namespace Safety_System
             
             Label lblFType = new Label { Text = "公式類別：", AutoSize = true, Margin = new Padding(40, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaType = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
-            _cboFormulaType.Items.AddRange(new string[] { "數學運算 (四則與浮動取價)", "文字組合 (多欄位+自訂文字)" });
+            // 🟢 需求修改：選單文字精簡化
+            _cboFormulaType.Items.AddRange(new string[] { "數學運算", "組合文字" });
             _cboFormulaType.SelectedIndex = 0;
 
             _cboFormulaType.SelectedIndexChanged += (s, e) => {
                 bool isMath = _cboFormulaType.SelectedIndex == 0;
-                _pnlOps.Visible = isMath; // 如果是文字組合，隱藏四則運算按鈕
+                _pnlOps.Visible = isMath; // 如果是組合文字，隱藏四則運算按鈕
             };
 
             flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFType, _cboFormulaType });
@@ -150,7 +151,8 @@ namespace Safety_System
             pnlActionTools.Controls.Add(btnInsertVar);
             pnlActionTools.Controls.Add(btnClearForm);
 
-            _rtbFormulaEditor = new RichTextBox { Width = 700, Height = 120, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 0, 0, 15) };
+            // 🟢 需求修改：寬度由 700 改為 950 (加寬 250px)
+            _rtbFormulaEditor = new RichTextBox { Width = 950, Height = 120, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 0, 0, 15) };
 
             Button btnSaveFormula = new Button { Text = "💾 儲存此運算公式", Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnSaveFormula.FlatAppearance.BorderSize = 0;
@@ -310,7 +312,9 @@ namespace Safety_System
             
             string sDate = GetFormulaDateStr(_cboFStartYear, _cboFStartMonth, _cboFStartDay, matchCol);
             string eDate = GetFormulaDateStr(_cboFEndYear, _cboFEndMonth, _cboFEndDay, matchCol);
-            string formulaType = _cboFormulaType.SelectedItem.ToString() == "文字組合 (多欄位+自訂文字)" ? "文字組合" : "數學運算";
+            
+            // 🟢 相容性保護：UI 上選擇「組合文字」，但寫入資料庫時映射回「文字組合」
+            string formulaType = _cboFormulaType.SelectedItem.ToString() == "組合文字" ? "文字組合" : "數學運算";
             string formula = _rtbFormulaEditor.Text.Trim();
 
             if (string.IsNullOrEmpty(formula)) {
@@ -564,6 +568,7 @@ namespace Safety_System
                     SetFormulaDateStr(eDate, _cboFEndYear, _cboFEndMonth, _cboFEndDay);
                     
                     if (_cboFormulaType.Items.Count > 1) {
+                        // 🟢 相容性對接：將資料庫讀出來的文字重新映射回介面選單
                         _cboFormulaType.SelectedIndex = (fType == "文字組合") ? 1 : 0;
                     }
                     _rtbFormulaEditor.Text = formula;
