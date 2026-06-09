@@ -130,7 +130,8 @@ namespace Safety_System
             this.Controls.Add(tlp);
         }
 
-        private Panel BuildRow(string labelText, Control ctrl1, string hintOrCtrl2)
+        // 🟢 修正 1 & 2：將參數改為 object hintOrCtrl2，解決 CS1503 與 CS8121 型別判斷錯誤
+        private Panel BuildRow(string labelText, Control ctrl1, object hintOrCtrl2)
         {
             Panel p = new Panel { Width = 750, Height = 40, Margin = new Padding(0, 5, 0, 5) };
             Label l = new Label { Text = labelText, Location = new Point(0, 5), AutoSize = true };
@@ -175,7 +176,16 @@ namespace Safety_System
         {
             if (_lbRules.SelectedItem is RuleItem item) {
                 DataTable dt = ReminderEngine.GetAllRules();
-                DataRow row = dt.AsEnumerable().FirstOrDefault(r => Convert.ToInt32(r["Id"]) == item.Id);
+                DataRow row = null;
+                
+                // 🟢 修正 3：移除 AsEnumerable() 依賴，改用 foreach 防止 CS0411 編譯報錯
+                foreach (DataRow r in dt.Rows) {
+                    if (Convert.ToInt32(r["Id"]) == item.Id) {
+                        row = r;
+                        break;
+                    }
+                }
+
                 if (row != null) {
                     _currentEditId = item.Id;
                     _chkIsActive.Checked = Convert.ToInt32(row["IsActive"]) == 1;
