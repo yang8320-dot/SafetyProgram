@@ -21,8 +21,10 @@ namespace Safety_System
         private DataGridView _dgvAudit;
         private CheckBox _chkShowDeletedLogs; 
 
+        // 🟢 公式設定專用下拉選單 (改為年月日獨立 ComboBox)
         private ComboBox _cboFormulaDb, _cboFormulaTable, _cboFormulaTargetCol, _cboFormulaMatchCol;
-        private DateTimePicker _dtpFormulaStart, _dtpFormulaEnd;
+        private ComboBox _cboFStartYear, _cboFStartMonth, _cboFStartDay;
+        private ComboBox _cboFEndYear, _cboFEndMonth, _cboFEndDay;
         private RichTextBox _rtbFormulaEditor;
         private FlowLayoutPanel _flpFormulasList;
         private int _currentFormulaEditId = 0; 
@@ -42,7 +44,6 @@ namespace Safety_System
 
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
-        // ================= 靜態快取字典 =================
         public static Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> GetDbMapCache()
         {
             Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> map = new Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> {
@@ -134,7 +135,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // ================= 核心視窗建置 =================
         public Control GetView()
         {
             _dbMap = GetDbMapCache();
@@ -142,7 +142,6 @@ namespace Safety_System
             Panel mainPanel = new Panel { Dock = DockStyle.Fill };
             TabControl tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), Padding = new Point(15, 8) };
 
-            // 呼叫各 Partial Class 內的 UI 建置方法
             TabPage tabSync = new TabPage("🔄 資料庫同步與聚合") { BackColor = Color.WhiteSmoke };
             BuildSyncTab(tabSync);
 
@@ -197,7 +196,6 @@ namespace Safety_System
             if (_cboFormulaDb.Items.Count > 0) _cboFormulaDb.SelectedIndex = 0;
         }
 
-        // ================= 共用事件邏輯 =================
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e)
         {
             try {
@@ -260,7 +258,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // 🟢 確保此方法存在於 App_DbConfig 主類別中，因為這是在多個分頁中共用的！
         private void CboAuditDb_SelectedIndexChanged(object sender, EventArgs e)
         {
             try {
