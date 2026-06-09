@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -11,7 +12,7 @@ using OfficeOpenXml;
 
 namespace Safety_System
 {
-    public class App_DbConfig
+    public class App_DbConfig : Form
     {
         private TextBox _txtPath;
         private TextBox _txtAttachmentPath;
@@ -25,8 +26,8 @@ namespace Safety_System
         private DataGridView _dgvAudit;
         private CheckBox _chkShowDeletedLogs; 
 
-        // 公式設定專用下拉選單
-        private ComboBox _cboFormulaDb, _cboFormulaTable, _cboFormulaTargetCol;
+        // 🟢 公式設定專用下拉選單 (新增 _cboFormulaDateCol)
+        private ComboBox _cboFormulaDb, _cboFormulaTable, _cboFormulaTargetCol, _cboFormulaDateCol;
         private RichTextBox _rtbFormulaEditor;
         private FlowLayoutPanel _flpFormulasList;
 
@@ -215,7 +216,7 @@ namespace Safety_System
             tabSync.Controls.Add(pnlSync);
 
             // ==========================================
-            // 分頁 2: 欄位自動運算 (公式設定) 🟢 改版排版
+            // 分頁 2: 欄位自動運算 (公式設定) 🟢 改版排版 (含時間對應欄位)
             // ==========================================
             TabPage tabFormula = new TabPage("🧮 欄位自動運算");
             tabFormula.BackColor = Color.WhiteSmoke;
@@ -233,12 +234,15 @@ namespace Safety_System
             
             flpRow1.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable });
 
-            // 🟢 Row 2: 目標欄位
+            // 🟢 Row 2: 目標欄位 與 時間對應欄位 (新增)
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
-            Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", AutoSize = true, Margin = new Padding(15, 5, 25, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaTargetCol = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            flpRow2.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol });
+            Label lblFDate = new Label { Text = "時間對應欄位(取價用)：", AutoSize = true, Margin = new Padding(30, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaDateCol = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            flpRow2.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFDate, _cboFormulaDateCol });
 
             // 🟢 Row 3: 計算公式全新版面設計 (四行式 FlowLayoutPanel)
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { 
@@ -251,7 +255,7 @@ namespace Safety_System
 
             // 第 1 行：標題與說明
             Label lblFormula = new Label { 
-                Text = "計算公式 (如：[數量]*[單價])：", 
+                Text = "計算公式 (如：[數量]*[單價])：\n(如需抓取浮動單價，請寫 PRICE(類別名稱)，並在上方設定對應時間欄位)", 
                 AutoSize = true, 
                 Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                 Margin = new Padding(0, 0, 0, 10) 
@@ -331,9 +335,7 @@ namespace Safety_System
             boxFormula.Controls.Add(flpRow2);
             boxFormula.Controls.Add(flpRow1);
 
-            // =====================================================================
-            // 🟢 替換原本的 pnlFormulaAction 與 boxFormulasList 區塊 (TableLayoutPanel 嚴格排版)
-            // =====================================================================
+            // 🟢 操作清單的頂部按鈕區 (匯出/匯入) - 向左對齊
             TableLayoutPanel tlpListArea = new TableLayoutPanel {
                 Dock = DockStyle.Top,
                 Height = 400,
@@ -344,7 +346,6 @@ namespace Safety_System
             tlpListArea.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlpListArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            // 第一行：操作按鈕區 (匯出/匯入) 集中靠左排列
             FlowLayoutPanel pnlFormulaAction = new FlowLayoutPanel {
                 Dock = DockStyle.Fill,
                 AutoSize = true,
@@ -363,17 +364,14 @@ namespace Safety_System
             pnlFormulaAction.Controls.Add(btnExportFormula);
             pnlFormulaAction.Controls.Add(btnImportFormula);
 
-            // 第二行：已設定的公式清單 (GroupBox 包裝)
             GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單 (全系統)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
 
             boxFormulasList.Controls.Add(_flpFormulasList);
 
-            // 將第一行與第二行加入 TableLayoutPanel
             tlpListArea.Controls.Add(pnlFormulaAction, 0, 0);
             tlpListArea.Controls.Add(boxFormulasList, 0, 1);
 
-            // 將整個列表區域加入主面板
             pnlFormula.Controls.Add(tlpListArea);
             pnlFormula.Controls.Add(boxFormula);
             tabFormula.Controls.Add(pnlFormula);
@@ -656,6 +654,9 @@ namespace Safety_System
         private void CboFormulaTable_SelectedIndexChanged(object sender, EventArgs e)
         {
             _cboFormulaTargetCol.Items.Clear();
+            _cboFormulaDateCol.Items.Clear();
+            _cboFormulaDateCol.Items.Add(""); 
+            
             if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null) return;
 
             string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
@@ -664,6 +665,7 @@ namespace Safety_System
             if (!string.IsNullOrEmpty(dbName) && !string.IsNullOrEmpty(tableName)) {
                 var cols = DataManager.GetColumnNames(dbName, tableName).Where(c => c != "Id").ToArray();
                 _cboFormulaTargetCol.Items.AddRange(cols);
+                _cboFormulaDateCol.Items.AddRange(cols);
             }
         }
 
@@ -680,6 +682,7 @@ namespace Safety_System
             string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
             string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
             string targetCol = _cboFormulaTargetCol.SelectedItem.ToString();
+            string dateCol = _cboFormulaDateCol.SelectedItem?.ToString() ?? "";
             string formula = _rtbFormulaEditor.Text.Trim();
 
             if (string.IsNullOrEmpty(formula)) {
@@ -687,14 +690,18 @@ namespace Safety_System
                 return;
             }
 
-            DataManager.SaveTableFormula(dbName, tableName, targetCol, formula);
+            if (formula.Contains("PRICE(") && string.IsNullOrEmpty(dateCol)) {
+                MessageBox.Show("您的公式中使用了 PRICE 浮動取價語法，請務必在上方選擇【時間對應欄位】！\n系統才能知道要拿哪一天的日期去查價。", "防呆提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            DataManager.SaveTableFormula(dbName, tableName, targetCol, dateCol, formula);
             MessageBox.Show($"【{targetCol}】 運算公式已成功儲存！\n下次在該資料表輸入相關數據時，系統將自動算出結果。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             
             _rtbFormulaEditor.Clear();
             RefreshAllFormulasList();
         }
 
-        // 🟢 改為顯示全系統的公式清單
         private void RefreshAllFormulasList()
         {
             _flpFormulasList.Controls.Clear();
@@ -716,9 +723,12 @@ namespace Safety_System
                 string db = row["DbName"].ToString();
                 string tb = row["TableName"].ToString();
                 string targetCol = row["TargetCol"].ToString();
+                string dateCol = row.Table.Columns.Contains("DateCol") ? row["DateCol"].ToString() : "";
                 string formula = row["Formula"].ToString();
 
-                string text = $"庫:[{db}] 表:[{tb}]  ➡️  目標:[{targetCol}] = {formula}";
+                string dateInfo = string.IsNullOrEmpty(dateCol) ? "" : $" (依[{dateCol}]取價)";
+                string text = $"庫:[{db}] 表:[{tb}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}";
+                
                 Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
                 
                 int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
@@ -759,7 +769,8 @@ namespace Safety_System
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
                         {
                             conn.Open();
-                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], Formula AS [運算公式] FROM ColumnFormulas", conn))
+                            // 🟢 匯出時加入 DateCol
+                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], DateCol AS [時間對應欄位], Formula AS [運算公式] FROM ColumnFormulas", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
 
@@ -804,17 +815,19 @@ namespace Safety_System
                                         string db = ws.Cells[r, 1].Text.Trim();
                                         string tb = ws.Cells[r, 2].Text.Trim();
                                         string targetCol = ws.Cells[r, 3].Text.Trim();
-                                        string formula = ws.Cells[r, 4].Text.Trim();
+                                        string dateCol = ws.Cells[r, 4].Text.Trim();
+                                        string formula = ws.Cells[r, 5].Text.Trim();
 
                                         if (string.IsNullOrEmpty(db) || string.IsNullOrEmpty(tb) || string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(formula)) continue;
 
-                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, Formula) 
-                                                       VALUES (@DB, @TB, @TC, @F) 
-                                                       ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F";
+                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, DateCol, Formula) 
+                                                       VALUES (@DB, @TB, @TC, @DC, @F) 
+                                                       ON CONFLICT(DbName, TableName, TargetCol) DO UPDATE SET Formula=@F, DateCol=@DC";
                                         using (var cmd = new SQLiteCommand(sql, conn, trans)) {
                                             cmd.Parameters.AddWithValue("@DB", db);
                                             cmd.Parameters.AddWithValue("@TB", tb);
                                             cmd.Parameters.AddWithValue("@TC", targetCol);
+                                            cmd.Parameters.AddWithValue("@DC", dateCol);
                                             cmd.Parameters.AddWithValue("@F", formula);
                                             cmd.ExecuteNonQuery();
                                         }
