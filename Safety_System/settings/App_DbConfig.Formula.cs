@@ -81,11 +81,10 @@ namespace Safety_System
 
             Button btnClearTime = new Button { Text = "♾️ 無限區間", Width = 110, Height = 32, Margin = new Padding(15, 0, 0, 0), BackColor = Color.LightGray, Cursor = Cursors.Hand };
             btnClearTime.Click += (s, e) => {
-                _cboFStartYear.SelectedIndex = 0; // 1900
+                _cboFStartYear.SelectedIndex = 0; 
                 _cboFStartMonth.SelectedIndex = 0;
-                // UpdateFormulaDaysCombo 會自動觸發
                 _cboFStartDay.SelectedIndex = 0;
-                _cboFEndYear.SelectedIndex = _cboFEndYear.Items.Count - 1; // 2099
+                _cboFEndYear.SelectedIndex = _cboFEndYear.Items.Count - 1; 
                 _cboFEndMonth.SelectedIndex = 11;
                 _cboFEndDay.SelectedIndex = _cboFEndDay.Items.Count - 1;
             };
@@ -163,18 +162,39 @@ namespace Safety_System
             tlpListArea.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlpListArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
+            // 🟢 新增：全面更新按鈕
             FlowLayoutPanel pnlFormulaAction = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(0, 0, 0, 5), FlowDirection = FlowDirection.LeftToRight };
 
-            Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Width = 180, Height = 40, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 15, 0) };
+            Button btnExportFormula = new Button { Text = "📤 匯出所有公式", Width = 160, Height = 40, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 15, 0) };
             btnExportFormula.FlatAppearance.BorderSize = 0;
             btnExportFormula.Click += BtnExportFormula_Click;
 
-            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Width = 180, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0) };
+            Button btnImportFormula = new Button { Text = "📥 匯入公式設定", Width = 160, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 15, 0) };
             btnImportFormula.FlatAppearance.BorderSize = 0;
             btnImportFormula.Click += BtnImportFormula_Click;
 
+            Button btnRecalculateAll = new Button { Text = "🔄 全面更新歷史數據", Width = 200, Height = 40, BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0) };
+            btnRecalculateAll.FlatAppearance.BorderSize = 0;
+            btnRecalculateAll.Click += async (s, e) => {
+                if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null) {
+                    MessageBox.Show("請在最上方「選擇資料庫」與「選擇資料表」，系統才知道要重算哪一張表喔！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
+                string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
+
+                if (string.IsNullOrEmpty(dbName) || string.IsNullOrEmpty(tableName)) return;
+
+                if (MessageBox.Show($"您確定要全面重新計算【{tableName}】的所有歷史資料嗎？\n\n系統將會套用下方清單中屬於該表的所有公式，並將結果回寫至資料庫。", "確認全面更新", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    await RunBackgroundRecalculation(dbName, tableName);
+                }
+            };
+
             pnlFormulaAction.Controls.Add(btnExportFormula);
             pnlFormulaAction.Controls.Add(btnImportFormula);
+            pnlFormulaAction.Controls.Add(btnRecalculateAll); // 🟢 加入新按鈕
 
             GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單 (全系統) - 點擊可編輯", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
