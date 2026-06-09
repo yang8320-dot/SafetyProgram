@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using OfficeOpenXml; 
 
@@ -26,7 +27,7 @@ namespace Safety_System
         private DataGridView _dgvAudit;
         private CheckBox _chkShowDeletedLogs; 
 
-        // 🟢 公式設定專用下拉選單 (新增 _cboFormulaDateCol)
+        // 公式設定專用下拉選單
         private ComboBox _cboFormulaDb, _cboFormulaTable, _cboFormulaTargetCol, _cboFormulaDateCol;
         private RichTextBox _rtbFormulaEditor;
         private FlowLayoutPanel _flpFormulasList;
@@ -216,7 +217,7 @@ namespace Safety_System
             tabSync.Controls.Add(pnlSync);
 
             // ==========================================
-            // 分頁 2: 欄位自動運算 (公式設定) 🟢 改版排版 (含時間對應欄位)
+            // 分頁 2: 欄位自動運算 (公式設定) 
             // ==========================================
             TabPage tabFormula = new TabPage("🧮 欄位自動運算");
             tabFormula.BackColor = Color.WhiteSmoke;
@@ -224,7 +225,6 @@ namespace Safety_System
 
             GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與欄位變數替換)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
-            // 🟢 Row 1: 資料庫與資料表選擇
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFDb = new Label { Text = "選擇資料庫:", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaDb = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(0, 0, 30, 0) };
@@ -234,7 +234,6 @@ namespace Safety_System
             
             flpRow1.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable });
 
-            // 🟢 Row 2: 目標欄位 與 時間對應欄位 (新增)
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFTarget = new Label { Text = "公式結果將寫入至此目標欄位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaTargetCol = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -244,7 +243,6 @@ namespace Safety_System
 
             flpRow2.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFDate, _cboFormulaDateCol });
 
-            // 🟢 Row 3: 計算公式全新版面設計 (四行式 FlowLayoutPanel)
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { 
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
@@ -253,7 +251,6 @@ namespace Safety_System
                 Padding = new Padding(15, 10, 10, 15) 
             };
 
-            // 第 1 行：標題與說明
             Label lblFormula = new Label { 
                 Text = "計算公式 (如：[數量]*[單價])：\n(如需抓取浮動單價，請寫 PRICE(類別名稱)，並在上方設定對應時間欄位)", 
                 AutoSize = true, 
@@ -261,7 +258,6 @@ namespace Safety_System
                 Margin = new Padding(0, 0, 0, 10) 
             };
 
-            // 第 2 行：運算符號與插入變數
             FlowLayoutPanel pnlOps = new FlowLayoutPanel { 
                 AutoSize = true, 
                 WrapContents = false, 
@@ -306,7 +302,6 @@ namespace Safety_System
             };
             pnlOps.Controls.Add(btnInsertVar);
 
-            // 第 3 行：輸入框
             _rtbFormulaEditor = new RichTextBox { 
                 Width = 700, 
                 Height = 120, 
@@ -315,7 +310,6 @@ namespace Safety_System
                 Margin = new Padding(0, 0, 0, 15) 
             };
 
-            // 第 4 行：儲存按鈕
             Button btnSaveFormula = new Button { 
                 Text = "💾 儲存此運算公式", 
                 Size = new Size(200, 45), 
@@ -330,12 +324,10 @@ namespace Safety_System
 
             flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlOps, _rtbFormulaEditor, btnSaveFormula });
 
-            // 組合 boxFormula
             boxFormula.Controls.Add(flpFormulaBlock);
             boxFormula.Controls.Add(flpRow2);
             boxFormula.Controls.Add(flpRow1);
 
-            // 🟢 操作清單的頂部按鈕區 (匯出/匯入) - 向左對齊
             TableLayoutPanel tlpListArea = new TableLayoutPanel {
                 Dock = DockStyle.Top,
                 Height = 400,
@@ -628,14 +620,13 @@ namespace Safety_System
             if (_cboAuditDb.Items.Count > 0) _cboAuditDb.SelectedIndex = 0;
             if (_cboFormulaDb.Items.Count > 0) _cboFormulaDb.SelectedIndex = 0;
 
-            // 🟢 一進畫面就自動載入所有已設定的公式清單
             RefreshAllFormulasList();
 
             return mainPanel;
         }
 
         // ========================================================
-        // 🟢 公式運算設定的事件處理邏輯
+        // 🟢 公式運算設定的事件處理邏輯 (背景低內存重算)
         // ========================================================
         private void CboFormulaDb_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -669,7 +660,7 @@ namespace Safety_System
             }
         }
 
-        private void BtnSaveFormula_Click(object sender, EventArgs e)
+        private async void BtnSaveFormula_Click(object sender, EventArgs e)
         {
             string authPrompt = "設定自動運算公式需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
             if (!AuthManager.VerifyAdmin(authPrompt)) return; 
@@ -696,10 +687,145 @@ namespace Safety_System
             }
 
             DataManager.SaveTableFormula(dbName, tableName, targetCol, dateCol, formula);
-            MessageBox.Show($"【{targetCol}】 運算公式已成功儲存！\n下次在該資料表輸入相關數據時，系統將自動算出結果。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             
             _rtbFormulaEditor.Clear();
             RefreshAllFormulasList();
+
+            // 🟢 新增：儲存後立即詢問是否執行背景低內存重算
+            if (MessageBox.Show($"公式已儲存。\n\n是否要立即在背景重新計算【{tableName}】的所有歷史資料？\n\n(系統將以低記憶體消耗方式逐筆刷新，並自動觸發相關的資料同步)", "背景重算確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                await RunBackgroundRecalculation(dbName, tableName);
+            }
+        }
+
+        // 🟢 核心重算邏輯：不開啟 DataGridView 介面，直接以 DataTable 處理並回寫，降低記憶體消耗
+        private async Task RunBackgroundRecalculation(string dbName, string tableName)
+        {
+            bool hasChanges = false;
+            
+            using (ProgressForm progForm = new ProgressForm("重新計算歷史資料中..."))
+            {
+                await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr)
+                {
+                    await Task.Run(() =>
+                    {
+                        progStr.Report($"正在讀取資料表：{tableName} ...");
+                        progInt.Report(5);
+                        
+                        DataTable dt = DataManager.GetTableData(dbName, tableName, "", "", "");
+                        if (dt == null || dt.Rows.Count == 0) return;
+
+                        var formulas = DataManager.GetTableFormulas(dbName, tableName);
+                        if (formulas == null || formulas.Count == 0) return;
+
+                        System.Text.RegularExpressions.Regex priceRegex = new System.Text.RegularExpressions.Regex(@"PRICE\((?<cat>[^\)]+)\)");
+                        System.Text.RegularExpressions.Regex fieldRegex = new System.Text.RegularExpressions.Regex(@"\[(.*?)\]");
+
+                        int totalRows = dt.Rows.Count;
+
+                        using (DataTable dtMath = new DataTable())
+                        {
+                            for (int i = 0; i < totalRows; i++)
+                            {
+                                if (i % 50 == 0 || i == totalRows - 1)
+                                {
+                                    progInt.Report(5 + (int)((double)(i + 1) / totalRows * 80)); // 5% ~ 85%
+                                    progStr.Report($"正在計算與更新資料： 第 {i + 1} 筆 / 共 {totalRows} 筆");
+                                }
+
+                                DataRow row = dt.Rows[i];
+                                bool rowChanged = false;
+
+                                foreach (var kvp in formulas)
+                                {
+                                    string tCol = kvp.Key;
+                                    string dCol = kvp.Value.DateCol;
+                                    string rawFormula = kvp.Value.Formula;
+
+                                    if (!dt.Columns.Contains(tCol)) continue;
+
+                                    string evalFormula = rawFormula;
+                                    bool canCompute = true;
+
+                                    if (evalFormula.Contains("PRICE("))
+                                    {
+                                        DateTime targetDate = DateTime.Today;
+                                        if (!string.IsNullOrEmpty(dCol) && dt.Columns.Contains(dCol))
+                                        {
+                                            string dateStr = row[dCol]?.ToString().Trim() ?? "";
+                                            if (dateStr.Length == 7 && dateStr.Contains("-")) DateTime.TryParse(dateStr + "-01", out targetDate);
+                                            else DateTime.TryParse(dateStr, out targetDate);
+                                        }
+
+                                        var priceMatches = priceRegex.Matches(evalFormula);
+                                        foreach (System.Text.RegularExpressions.Match m in priceMatches)
+                                        {
+                                            string category = m.Groups["cat"].Value.Trim();
+                                            double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                            evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
+                                        }
+                                    }
+
+                                    var fieldMatches = fieldRegex.Matches(evalFormula);
+                                    foreach (System.Text.RegularExpressions.Match m in fieldMatches)
+                                    {
+                                        string colName = m.Groups[1].Value;
+                                        if (dt.Columns.Contains(colName))
+                                        {
+                                            string val = row[colName]?.ToString().Replace(",", "").Trim();
+                                            if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) val = "0";
+                                            evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                        }
+                                        else { canCompute = false; break; }
+                                    }
+
+                                    if (canCompute)
+                                    {
+                                        try {
+                                            object result = dtMath.Compute(evalFormula, null);
+                                            if (result != DBNull.Value) {
+                                                double dRes = Convert.ToDouble(result);
+                                                string strRes = Math.Round(dRes, 4).ToString("0.####");
+                                                
+                                                // 只在數值真有改變時才標記，進一步降低資料庫寫入負擔
+                                                if (row[tCol]?.ToString() != strRes) {
+                                                    row[tCol] = strRes;
+                                                    rowChanged = true;
+                                                }
+                                            }
+                                        } catch {
+                                            if (row[tCol]?.ToString() != "") {
+                                                row[tCol] = "";
+                                                rowChanged = true;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // 取消標記未異動的列，讓 GetChanges() 萃取出的資料量最小化
+                                if (!rowChanged) row.AcceptChanges();
+                            }
+                        }
+
+                        progStr.Report("正在將計算結果寫入資料庫並觸發跨表同步...");
+                        progInt.Report(90);
+
+                        DataTable dtChanges = dt.GetChanges();
+                        if (dtChanges != null && dtChanges.Rows.Count > 0)
+                        {
+                            // 使用 BulkSaveTable 將更新結果寫入並自動觸發 SyncRules
+                            DataManager.BulkSaveTable(dbName, tableName, dtChanges, progInt, progStr);
+                            hasChanges = true;
+                        }
+                    });
+                });
+            }
+
+            if (hasChanges) {
+                MessageBox.Show("歷史資料重新計算與同步已完成！", "背景運算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } else {
+                MessageBox.Show("運算完成，所有歷史資料均為最新，無須更新。", "背景運算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
         }
 
         private void RefreshAllFormulasList()
@@ -754,9 +880,6 @@ namespace Safety_System
             }
         }
 
-        // ========================================================
-        // 🟢 公式運算設定的事件處理邏輯 (匯出/匯入)
-        // ========================================================
         private void BtnExportFormula_Click(object sender, EventArgs e)
         {
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統自動運算公式設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
@@ -769,7 +892,6 @@ namespace Safety_System
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
                         {
                             conn.Open();
-                            // 🟢 匯出時加入 DateCol
                             using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], DateCol AS [時間對應欄位], Formula AS [運算公式] FROM ColumnFormulas", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
