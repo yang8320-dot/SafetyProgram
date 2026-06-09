@@ -49,8 +49,7 @@ namespace Safety_System
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
-            string authPrompt = "修改防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return; 
+            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
 
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) {
                 MessageBox.Show("請先選擇資料庫與資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
@@ -119,15 +118,14 @@ namespace Safety_System
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除 [{tb}] 的防重寫設定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                                    if (AuthManager.VerifyAdmin("刪除防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：")) {
-                                        using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
-                                            conn.Open();
-                                            using (var cmd = new SQLiteCommand("DELETE FROM TableKeys WHERE DbName=@DB AND TableName=@TB", conn)) {
-                                                cmd.Parameters.AddWithValue("@DB", db); cmd.Parameters.AddWithValue("@TB", tb); cmd.ExecuteNonQuery();
-                                            }
+                                    // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
+                                    using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
+                                        conn.Open();
+                                        using (var cmd = new SQLiteCommand("DELETE FROM TableKeys WHERE DbName=@DB AND TableName=@TB", conn)) {
+                                            cmd.Parameters.AddWithValue("@DB", db); cmd.Parameters.AddWithValue("@TB", tb); cmd.ExecuteNonQuery();
                                         }
-                                        loadKeys();
                                     }
+                                    loadKeys();
                                 }
                             };
                             p.Controls.Add(lTxt); p.Controls.Add(btnDel); flp.Controls.Add(p);
