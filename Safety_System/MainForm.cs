@@ -46,6 +46,9 @@ namespace Safety_System
             
             App_PasswordManager.InitDatabase();
 
+            // 🟢 新增：啟動背景智能提醒引擎 (在登入成功並載入主畫面時觸發檢查)
+            ReminderEngine.CheckAndShowReminders();
+
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
             BuildMenu();
 
@@ -209,7 +212,6 @@ namespace Safety_System
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(原物料)", () => new App_CoreTable("Waste", "WastePermitMaterial", "廢棄物污許可(原物料)", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(產品)", () => new App_CoreTable("Waste", "WastePermitProduct", "廢棄物污許可(產品)", new DefaultLogic()).GetView()));
             menuWaste.DropDownItems.Add(CreateItem("廢棄物污許可(廢棄物)", () => new App_CoreTable("Waste", "WastePermitWaste", "廢棄物污許可(廢棄物)", new DefaultLogic()).GetView()));
-            // 🟢 新增的【廢棄物清運記錄】按鈕
             menuWaste.DropDownItems.Add(new ToolStripSeparator());
             menuWaste.DropDownItems.Add(CreateItem("廢棄物清運記錄", () => new App_CoreTable("Waste", "WasteDisposalRecord", "廢棄物清運記錄", new DefaultLogic()).GetView()));
 
@@ -330,12 +332,26 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this);
+                    new App_PermissionManager(_mainMenuRef).ShowDialog(this);
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
+
+            // 🟢 新增：系統智能提醒設定入口
+            var reminderSettingItem = new ToolStripMenuItem("系統智能提醒設定");
+            reminderSettingItem.Click += (s, e) => {
+                try {
+                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (AuthManager.VerifyAdmin(prompt)) { new App_ReminderManager().ShowDialog(this); } 
+                } catch (Exception ex) {
+                    MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            menuSettings.DropDownItems.Add(reminderSettingItem);
+
+            menuSettings.DropDownItems.Add(new ToolStripSeparator());
 
             var appLinkSettingItem = new ToolStripMenuItem("應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
