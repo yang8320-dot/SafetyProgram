@@ -165,8 +165,7 @@ namespace Safety_System
 
         private void BtnSaveSync_Click(object sender, EventArgs e)
         {
-            string authPrompt = "新增資料同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
 
             HashSet<string> requiredMenusToUnlock = new HashSet<string>();
             foreach (var r in _syncRows) 
@@ -293,15 +292,14 @@ namespace Safety_System
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除此同步規則？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                                    if (AuthManager.VerifyAdmin("刪除資料同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：")) {
-                                        using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
-                                            conn.Open();
-                                            using (var cmd = new SQLiteCommand("DELETE FROM SyncRules WHERE Id=@Id", conn)) {
-                                                cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
-                                            }
+                                    // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
+                                    using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
+                                        conn.Open();
+                                        using (var cmd = new SQLiteCommand("DELETE FROM SyncRules WHERE Id=@Id", conn)) {
+                                            cmd.Parameters.AddWithValue("@Id", id); cmd.ExecuteNonQuery();
                                         }
-                                        loadRules();
                                     }
+                                    loadRules();
                                 }
                             };
                             p.Controls.Add(lTxt); p.Controls.Add(btnDel); flp.Controls.Add(p);
