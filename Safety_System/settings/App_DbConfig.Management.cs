@@ -32,9 +32,7 @@ namespace Safety_System
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += (s, e) => {
-                string authPrompt = "變更資料庫路徑需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (!AuthManager.VerifyAdmin(authPrompt)) return; 
-
+                // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                 if (System.IO.Directory.Exists(_txtPath.Text)) {
                     DataManager.SetBasePath(_txtPath.Text);
                     MessageBox.Show("DB 路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -63,9 +61,7 @@ namespace Safety_System
             
             Button btnSaveAttachPath = new Button { Text = "儲存附件路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveAttachPath.Click += (s, e) => {
-                string authPrompt = "變更附件存放路徑需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (!AuthManager.VerifyAdmin(authPrompt)) return; 
-
+                // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                 if (System.IO.Directory.Exists(_txtAttachmentPath.Text)) {
                     DataManager.SetAttachmentBasePath(_txtAttachmentPath.Text);
                     MessageBox.Show("附件路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -104,9 +100,7 @@ namespace Safety_System
 
             Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 220), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveBackup.Click += (s, e) => {
-                string authPrompt = "修改備份設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
+                // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                 BackupManager.SaveConfig(_txtBackupPath.Text, (int)_numKeepCount.Value, (int)_numIntervalDays.Value);
                 MessageBox.Show("備份設定已儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
@@ -120,7 +114,7 @@ namespace Safety_System
             boxBackup.Controls.AddRange(new Control[] { lblB1, _txtBackupPath, btnBrowseBackup, lblB2, _numKeepCount, lblB3, lblB4, _numIntervalDays, lblB5, btnSaveBackup, btnManualBackup });
 
             // =====================================
-            // 4. 強制刪除資料表
+            // 4. 強制刪除資料表 (危險操作)
             // =====================================
             GroupBox boxDelete = new GroupBox { Text = "🔥 強制刪除整個資料表 (極度危險操作)", Dock = DockStyle.Top, Height = 230, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.Crimson, Padding = new Padding(15) };
             boxDelete.Margin = new Padding(0, 30, 0, 0);
@@ -167,6 +161,7 @@ namespace Safety_System
                 MessageBox.Show("請先選擇要刪除的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
+            // 🟢 此處保留！因為這是毀滅性操作，必須維持嚴格的密碼保護
             if (!AuthManager.VerifyTableDelete()) return;
 
             try {
