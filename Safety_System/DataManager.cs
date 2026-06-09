@@ -375,7 +375,8 @@ namespace Safety_System
                             if (activeKeys.Count > 0) {
                                 List<string> whereClauses = new List<string>();
                                 foreach (var k in activeKeys) {
-                                    string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                    // 🟢 替換：安全過濾
+                                    string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                     whereClauses.Add($"IFNULL([{k}], '') = IFNULL(@{safeKey}, '')");
                                 }
 
@@ -383,7 +384,8 @@ namespace Safety_System
 
                                 using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
                                     foreach (var k in activeKeys) {
-                                        string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                        // 🟢 替換：安全過濾
+                                        string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                         object val = row[k] != DBNull.Value ? (object)row[k].ToString().Trim() : DBNull.Value;
                                         cmdCheck.Parameters.AddWithValue("@" + safeKey, val);
                                     }
@@ -402,7 +404,8 @@ namespace Safety_System
                                     string sql = $"UPDATE [{tableName}] SET ";
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                        // 🟢 替換：安全過濾
+                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                         sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
                                         cmd.Parameters.AddWithValue("@" + safeParamName, val);
@@ -418,7 +421,8 @@ namespace Safety_System
                                     List<string> paramNames = new List<string>();
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                                        // 🟢 替換：安全過濾
+                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                                         colNames.Add($"[{col.ColumnName}]");
                                         paramNames.Add($"@{safeParamName}");
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
@@ -464,7 +468,8 @@ namespace Safety_System
                     List<string> sets = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                        // 🟢 替換：安全過濾
+                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                         sets.Add($"[{col.ColumnName}]=@{safeParamName}");
                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
                     }
@@ -482,7 +487,8 @@ namespace Safety_System
                     List<string> v = new List<string>();
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "");
+                        // 🟢 替換：安全過濾
+                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
                         c.Add($"[{col.ColumnName}]"); 
                         v.Add($"@{safeParamName}");
                         cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
