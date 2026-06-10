@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using OfficeOpenXml; // 🟢 引入 EPPlus 匯出入功能
 
 namespace Safety_System
 {
@@ -49,8 +50,6 @@ namespace Safety_System
 
         private void BtnSaveKeys_Click(object sender, EventArgs e)
         {
-            // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
-
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) {
                 MessageBox.Show("請先選擇資料庫與資料表！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
@@ -76,16 +75,28 @@ namespace Safety_System
 
         private void BtnShowTableKeysList_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "防重寫設定清單", Size = new Size(900, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.Sizable, MaximizeBox = true, MinimizeBox = false, BackColor = Color.White })
+            using (Form f = new Form { Text = "防重寫設定清單", Size = new Size(900, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.Sizable, MaximizeBox = true, MinimizeBox = false, BackColor = Color.White })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize)); tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F)); 
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-                Label lbl = new Label { Text = "已設定之資料表防重寫規則 (每個資料表僅限一組)：", Dock = DockStyle.Fill, Padding = new Padding(15, 15, 15, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true };
-                tlp.Controls.Add(lbl, 0, 0);
+                // 🟢 需求修正：新增上方選單列，放入標題與匯出/匯入按鈕
+                Panel pnlTop = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 15, 15, 5) };
+                Label lbl = new Label { Text = "已設定之資料表防重寫規則 (每個資料表僅限一組)：", Dock = DockStyle.Left, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, TextAlign = ContentAlignment.MiddleLeft };
+                
+                Button btnExp = new Button { Text = "📤 匯出", Dock = DockStyle.Right, Width = 100, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button btnImp = new Button { Text = "📥 匯入", Dock = DockStyle.Right, Width = 100, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Margin = new Padding(0,0,10,0) };
+                
+                pnlTop.Controls.Add(lbl);
+                pnlTop.Controls.Add(btnImp);
+                pnlTop.Controls.Add(btnExp);
+
+                tlp.Controls.Add(pnlTop, 0, 0);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
-                tlp.Controls.Add(flp, 0, 1); f.Controls.Add(tlp);
+                tlp.Controls.Add(flp, 0, 1); 
+                f.Controls.Add(tlp);
 
                 Action loadKeys = null;
                 loadKeys = () => {
@@ -118,7 +129,6 @@ namespace Safety_System
                             btnDel.FlatAppearance.BorderSize = 0;
                             btnDel.Click += (s, ev) => {
                                 if (MessageBox.Show($"確定刪除 [{tb}] 的防重寫設定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                                    // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                                     using (var conn = new SQLiteConnection($"Data Source={sysDbPath};Version=3;")) {
                                         conn.Open();
                                         using (var cmd = new SQLiteCommand("DELETE FROM TableKeys WHERE DbName=@DB AND TableName=@TB", conn)) {
@@ -131,6 +141,72 @@ namespace Safety_System
                             p.Controls.Add(lTxt); p.Controls.Add(btnDel); flp.Controls.Add(p);
                         }
                     } catch { }
+                };
+
+                // 綁定匯出匯入事件
+                btnExp.Click += (s, e) => {
+                    using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "防重寫設定_" + DateTime.Now.ToString("yyyyMMdd") }) {
+                        if (sfd.ShowDialog() == DialogResult.OK) {
+                            try {
+                                DataTable dt = new DataTable();
+                                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                    conn.Open();
+                                    using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫], TableName AS [資料表], Col1 AS [欄位一], Col2 AS [欄位二], Col3 AS [欄位三], Col4 AS [欄位四] FROM TableKeys", conn))
+                                    using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                                }
+                                using (ExcelPackage p = new ExcelPackage()) {
+                                    var ws = p.Workbook.Worksheets.Add("防重寫規則");
+                                    ws.Cells["A1"].LoadFromDataTable(dt, true);
+                                    ws.Cells.AutoFitColumns();
+                                    p.SaveAs(new FileInfo(sfd.FileName));
+                                }
+                                MessageBox.Show("匯出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            } catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                        }
+                    }
+                };
+
+                btnImp.Click += (s, e) => {
+                    string authPrompt = "匯入防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                    if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
+                    using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) {
+                        if (ofd.ShowDialog() == DialogResult.OK) {
+                            try {
+                                using (ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName))) {
+                                    ExcelWorksheet ws = package.Workbook.Worksheets.FirstOrDefault();
+                                    if (ws == null || ws.Dimension == null) return;
+
+                                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                        conn.Open();
+                                        using (var trans = conn.BeginTransaction()) {
+                                            for (int r = 2; r <= ws.Dimension.Rows; r++) {
+                                                string db = ws.Cells[r, 1].Text.Trim();
+                                                string tb = ws.Cells[r, 2].Text.Trim();
+                                                string c1 = ws.Cells[r, 3].Text.Trim();
+                                                string c2 = ws.Cells[r, 4].Text.Trim();
+                                                string c3 = ws.Cells[r, 5].Text.Trim();
+                                                string c4 = ws.Cells[r, 6].Text.Trim();
+
+                                                if (string.IsNullOrEmpty(db) || string.IsNullOrEmpty(tb)) continue;
+
+                                                string sql = "INSERT INTO TableKeys (DbName, TableName, Col1, Col2, Col3, Col4) VALUES (@DB, @TB, @C1, @C2, @C3, @C4) ON CONFLICT(DbName, TableName) DO UPDATE SET Col1=@C1, Col2=@C2, Col3=@C3, Col4=@C4";
+                                                using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                                    cmd.Parameters.AddWithValue("@DB", db); cmd.Parameters.AddWithValue("@TB", tb);
+                                                    cmd.Parameters.AddWithValue("@C1", c1); cmd.Parameters.AddWithValue("@C2", c2);
+                                                    cmd.Parameters.AddWithValue("@C3", c3); cmd.Parameters.AddWithValue("@C4", c4);
+                                                    cmd.ExecuteNonQuery();
+                                                }
+                                            }
+                                            trans.Commit();
+                                        }
+                                    }
+                                }
+                                MessageBox.Show("防重寫設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                loadKeys(); // 刷新畫面
+                            } catch (Exception ex) { MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                        }
+                    }
                 };
 
                 loadKeys();
