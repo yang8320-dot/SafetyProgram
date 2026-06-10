@@ -69,7 +69,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 強制預先建表，防止首次執行時設定選單抓不到欄位
             foreach (var info in _tableInfos) {
                 if (_schemaMap.ContainsKey(info.TableName)) {
                     DataManager.InitTable(DbName, info.TableName, $"CREATE TABLE IF NOT EXISTS [{info.TableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {_schemaMap[info.TableName]});");
@@ -388,7 +387,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 欄位顯示設定系統
+        // 欄位顯示設定系統 (🚀 完美修復遮擋、強制補入系統隱藏欄位)
         // ==========================================
         private void LoadVisibilitySettings()
         {
@@ -469,6 +468,10 @@ namespace Safety_System
                     string tblName = _tableInfos[lbTables.SelectedIndex].TableName;
                     var cols = DataManager.GetColumnNames(DbName, tblName);
                     
+                    // 🟢 系統審計欄位防呆：就算實體表還沒存過檔產生這兩欄，也強制加進去讓使用者看得到
+                    if (!cols.Contains("最後修改人")) cols.Add("最後修改人");
+                    if (!cols.Contains("修改時間")) cols.Add("修改時間");
+
                     foreach (var c in cols) {
                         if (c == "Id") continue;
                         string key = $"{tblName}_{c}";
