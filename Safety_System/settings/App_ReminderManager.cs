@@ -7,13 +7,14 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using OfficeOpenXml; // 🟢 引入 EPPlus 用於 Excel 匯出匯入
+using OfficeOpenXml;
 
 namespace Safety_System
 {
     public class App_ReminderManager : Form
     {
         // ================= Tab 1: 資料表條件觸發 =================
+        private ComboBox _cboRuleFilter; // 🟢 過濾使用者下拉選單
         private ListBox _lbRules;
         private TextBox _txtRuleName, _txtTargetUsers;
         private ComboBox _cboDb, _cboTable, _cboDateCol;
@@ -23,34 +24,67 @@ namespace Safety_System
         private int _currentEditRuleId = 0;
 
         // ================= Tab 2: 自訂待辦清單 =================
+        private ComboBox _cboToDoFilter; // 🟢 過濾使用者下拉選單
         private ListBox _lbToDos;
         private TextBox _txtToDoName, _txtToDoUsers;
         private DateTimePicker _dtpToDoDate;
         private NumericUpDown _numToDoAdvance;
         private RichTextBox _rtbToDoMessage;
         private CheckBox _chkToDoIsActive;
+        private CheckBox _chkIsRecurring; // 🟢 循環任務開關
+        private ComboBox _cboRecurType;   // 🟢 循環頻率
         private int _currentEditToDoId = 0;
 
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
+        private List<string> _allUsersList = new List<string>(); // 🟢 快取所有的帳號
 
         private class ItemMap {
             public string EnName; public string ChName;
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
+        private class RuleItem {
+            public int Id; public string DisplayText; public string Targets;
+            public override string ToString() => DisplayText;
+        }
+
         public App_ReminderManager()
         {
             ReminderEngine.InitDatabase();
             _dbMap = App_DbConfig.GetDbMapCache();
+            LoadUsersFromDatabase();
             InitializeComponent();
             
             LoadRulesList();
             LoadToDosList();
         }
 
+        private void LoadUsersFromDatabase()
+        {
+            _allUsersList.Clear();
+            _allUsersList.Add("ALL");
+
+            // 加入預設權限者
+            foreach(var u in LicenseManager.DefaultUsers) {
+                if(!_allUsersList.Contains(u)) _allUsersList.Add(u);
+            }
+
+            try {
+                DataTable dt = DataManager.GetTableData("SystemConfig", "AllowedUsers", "", "", "");
+                if (dt != null) {
+                    foreach (DataRow row in dt.Rows) {
+                        string user = row["使用者帳號"].ToString().Trim();
+                        if (!string.IsNullOrEmpty(user) && !_allUsersList.Contains(user)) {
+                            _allUsersList.Add(user);
+                        }
+                    }
+                }
+            } catch { }
+        }
+
         private void InitializeComponent()
         {
-            this.Text = "⏰ 系統智能提醒與待辦設定";
+            this.Text = "⏰ 系統提醒設定"; 
             this.Size = new Size(1100, 680);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -63,7 +97,7 @@ namespace Safety_System
             TabPage tabRules = new TabPage("📊 資料庫條件觸發規則") { BackColor = Color.White };
             BuildRulesTab(tabRules);
 
-            TabPage tabToDos = new TabPage("📝 自訂待辦事項 (單次提醒)") { BackColor = Color.White };
+            TabPage tabToDos = new TabPage("📝 自訂待辦事項 (手動建立任務)") { BackColor = Color.White };
             BuildToDosTab(tabToDos);
 
             tabMain.TabPages.Add(tabRules);
@@ -73,34 +107,99 @@ namespace Safety_System
         }
 
         // =========================================================================
+        // 🟢 多選帳號的通用選擇視窗
+        // =========================================================================
+        private string ShowUserSelectionDialog(string currentSelected)
+        {
+            string result = currentSelected;
+            using (Form f = new Form { Text = "選擇接收對象", Size = new Size(350, 450), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                Label lbl = new Label { Text = "請勾選要收到提醒的帳號：", Dock = DockStyle.Top, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.None };
+                
+                var currentList = currentSelected.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+
+                foreach (var u in _allUsersList) {
+                    clb.Items.Add(u, currentList.Contains(u));
+                }
+
+                // 若勾選 ALL，則自動取消其他人的勾選
+                clb.ItemCheck += (s, e) => {
+                    if (clb.Items[e.Index].ToString() == "ALL" && e.NewValue == CheckState.Checked) {
+                        for (int i = 0; i < clb.Items.Count; i++) {
+                            if (i != e.Index) clb.SetItemChecked(i, false);
+                        }
+                    } else if (clb.Items[e.Index].ToString() != "ALL" && e.NewValue == CheckState.Checked) {
+                        int allIndex = clb.Items.IndexOf("ALL");
+                        if (allIndex >= 0) clb.SetItemChecked(allIndex, false);
+                    }
+                };
+
+                Button btnOk = new Button { Text = "確定", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnOk.Click += (s, e) => {
+                    List<string> selected = new List<string>();
+                    foreach (var item in clb.CheckedItems) selected.Add(item.ToString());
+                    
+                    if (selected.Count == 0) result = "";
+                    else result = string.Join(",", selected);
+                    
+                    f.DialogResult = DialogResult.OK;
+                };
+
+                f.Controls.Add(clb);
+                f.Controls.Add(btnOk);
+                f.Controls.Add(lbl);
+
+                if (f.ShowDialog() == DialogResult.OK) {
+                    return result;
+                }
+            }
+            return currentSelected;
+        }
+
+        // =========================================================================
         // 模組一：資料表條件觸發規則 (Tab 1)
         // =========================================================================
         private void BuildRulesTab(TabPage page)
         {
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 320F));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             // 左側清單與 IO 按鈕
             Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
-            Label l1 = new Label { Text = "已建立的資料表提醒", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 30 };
+            
+            // 🟢 加入過濾選單
+            Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60 };
+            Label lFilter = new Label { Text = "篩選接收對象:", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
+            _cboRuleFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 190, Location = new Point(100, 3) };
+            _cboRuleFilter.Items.Add("全部顯示");
+            foreach (var u in _allUsersList) _cboRuleFilter.Items.Add(u);
+            _cboRuleFilter.SelectedIndex = 0;
+            _cboRuleFilter.SelectedIndexChanged += (s, e) => LoadRulesList();
+
+            Label l1 = new Label { Text = "已建立的資料表提醒清單", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Location = new Point(0, 35), AutoSize = true };
+            pnlFilter.Controls.Add(lFilter);
+            pnlFilter.Controls.Add(_cboRuleFilter);
+            pnlFilter.Controls.Add(l1);
+
             _lbRules = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             _lbRules.SelectedIndexChanged += LbRules_SelectedIndexChanged;
             
             Button btnAdd = new Button { Text = "➕ 新增空白規則", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(0, 10, 0, 0) };
             btnAdd.Click += (s, e) => ClearRuleEditor();
 
-            // 🟢 新增：匯出與匯入 Excel 按鈕 (Rules)
             Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
-            Button btnExpRule = new Button { Text = "📤 匯出", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            Button btnImpRule = new Button { Text = "📥 匯入", Width = 135, Dock = DockStyle.Right, BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            Button btnExpRule = new Button { Text = "📤 匯出", Width = 145, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            Button btnImpRule = new Button { Text = "📥 匯入", Width = 145, Dock = DockStyle.Right, BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
             btnExpRule.Click += BtnExportRule_Click;
             btnImpRule.Click += BtnImportRule_Click;
             pnlIo.Controls.Add(btnExpRule);
             pnlIo.Controls.Add(btnImpRule);
 
             pnlLeft.Controls.Add(_lbRules);
-            pnlLeft.Controls.Add(l1);
+            pnlLeft.Controls.Add(pnlFilter);
             pnlLeft.Controls.Add(pnlIo); 
             pnlLeft.Controls.Add(btnAdd);
 
@@ -113,8 +212,20 @@ namespace Safety_System
             _chkIsActive = new CheckBox { Text = "啟用此提醒規則", Checked = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.ForestGreen, Margin = new Padding(0, 0, 0, 15) };
             
             _txtRuleName = new TextBox { Width = 300 };
-            _txtTargetUsers = new TextBox { Width = 300, Text = "ALL" };
             
+            // 🟢 改為唯讀，只能透過按鈕修改
+            _txtTargetUsers = new TextBox { Width = 230, Text = "ALL", ReadOnly = true, BackColor = Color.WhiteSmoke };
+            Button btnPickUser = new Button { Text = "選擇人員", Width = 80, Height = 30, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+            btnPickUser.Click += (s, e) => {
+                _txtTargetUsers.Text = ShowUserSelectionDialog(_txtTargetUsers.Text);
+            };
+
+            Panel pnlUsers = new Panel { Width = 550, Height = 35 };
+            _txtTargetUsers.Location = new Point(0, 2);
+            btnPickUser.Location = new Point(240, 0);
+            Label lblUserHint = new Label { Text = "點擊按鈕選擇", AutoSize = true, Location = new Point(330, 5), ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 10F) };
+            pnlUsers.Controls.Add(_txtTargetUsers); pnlUsers.Controls.Add(btnPickUser); pnlUsers.Controls.Add(lblUserHint);
+
             _cboDb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboTable = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
             _cboDateCol = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -145,19 +256,20 @@ namespace Safety_System
 
             flp.Controls.Add(_chkIsActive);
             flp.Controls.Add(BuildRow("規則名稱：", _txtRuleName, "如：許可證屆期提醒"));
-            flp.Controls.Add(BuildRow("指定接收對象：", _txtTargetUsers, "輸入登入帳號，多人用半形逗號分隔。全廠通知請填 ALL"));
+            flp.Controls.Add(BuildRow("指定接收對象：", pnlUsers, ""));
             flp.Controls.Add(BuildRow("來源庫與表：", _cboDb, _cboTable));
-            flp.Controls.Add(BuildRow("到期判斷日期欄位：", _cboDateCol, ""));
+            flp.Controls.Add(BuildRow("到期判斷日期：", _cboDateCol, "")); // 🟢 修正：移除「欄位」字眼
             flp.Controls.Add(BuildRow("提前觸發天數：", _numAdvanceDays, "天 (當 日期-今天 ≦ 此天數時觸發)"));
             
             Label lblTmpl = new Label { Text = "訊息顯示樣板 (可使用 [欄位名] 提取該筆資料)：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 5) };
             flp.Controls.Add(lblTmpl);
             flp.Controls.Add(_rtbTemplate);
 
-            Button btnSave = new Button { Text = "💾 儲存規則", Width = 250, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0) };
+            // 🟢 修正：調整按鈕寬高比例，確保顯示不被裁切
+            Button btnSave = new Button { Text = "💾 儲存規則", Width = 220, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0) };
             btnSave.Click += BtnSaveRule_Click;
 
-            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 120, Height = 45, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(20, 20, 0, 0) };
+            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 150, Height = 55, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 20, 0, 0) };
             btnDel.Click += BtnDelRule_Click;
 
             FlowLayoutPanel flpBtns = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
@@ -179,19 +291,32 @@ namespace Safety_System
         private void BuildToDosTab(TabPage page)
         {
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 320F));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             // 左側清單
             Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
-            Label l1 = new Label { Text = "已建立的待辦事項", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 30 };
+            
+            // 🟢 加入過濾選單
+            Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60 };
+            Label lFilter = new Label { Text = "篩選接收對象:", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
+            _cboToDoFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 190, Location = new Point(100, 3) };
+            _cboToDoFilter.Items.Add("全部顯示");
+            foreach (var u in _allUsersList) _cboToDoFilter.Items.Add(u);
+            _cboToDoFilter.SelectedIndex = 0;
+            _cboToDoFilter.SelectedIndexChanged += (s, e) => LoadToDosList();
+
+            Label l1 = new Label { Text = "已建立的待辦事項清單", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Location = new Point(0, 35), AutoSize = true };
+            pnlFilter.Controls.Add(lFilter);
+            pnlFilter.Controls.Add(_cboToDoFilter);
+            pnlFilter.Controls.Add(l1);
+
             _lbToDos = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             _lbToDos.SelectedIndexChanged += LbToDos_SelectedIndexChanged;
             
             Button btnAdd = new Button { Text = "➕ 新增待辦事項", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.Teal, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(0, 10, 0, 0) };
             btnAdd.Click += (s, e) => ClearToDoEditor();
 
-            // 🟢 新增：匯出與匯入 Excel 按鈕 (ToDos)
             Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
             Button btnExpToDo = new Button { Text = "📤 匯出", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
             Button btnImpToDo = new Button { Text = "📥 匯入", Width = 135, Dock = DockStyle.Right, BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
@@ -201,7 +326,7 @@ namespace Safety_System
             pnlIo.Controls.Add(btnImpToDo);
 
             pnlLeft.Controls.Add(_lbToDos);
-            pnlLeft.Controls.Add(l1);
+            pnlLeft.Controls.Add(pnlFilter);
             pnlLeft.Controls.Add(pnlIo);
             pnlLeft.Controls.Add(btnAdd);
 
@@ -214,26 +339,55 @@ namespace Safety_System
             _chkToDoIsActive = new CheckBox { Text = "啟用此待辦事項", Checked = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.ForestGreen, Margin = new Padding(0, 0, 0, 15) };
             
             _txtToDoName = new TextBox { Width = 300 };
-            _txtToDoUsers = new TextBox { Width = 300, Text = "ALL" };
             
+            // 🟢 改為唯讀，只能透過按鈕修改
+            _txtToDoUsers = new TextBox { Width = 230, Text = "ALL", ReadOnly = true, BackColor = Color.WhiteSmoke };
+            Button btnPickUser = new Button { Text = "選擇人員", Width = 80, Height = 30, BackColor = Color.LightGray, Cursor = Cursors.Hand };
+            btnPickUser.Click += (s, e) => {
+                _txtToDoUsers.Text = ShowUserSelectionDialog(_txtToDoUsers.Text);
+            };
+
+            Panel pnlUsers = new Panel { Width = 550, Height = 35 };
+            _txtToDoUsers.Location = new Point(0, 2);
+            btnPickUser.Location = new Point(240, 0);
+            Label lblUserHint = new Label { Text = "點擊按鈕選擇", AutoSize = true, Location = new Point(330, 5), ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 10F) };
+            pnlUsers.Controls.Add(_txtToDoUsers); pnlUsers.Controls.Add(btnPickUser); pnlUsers.Controls.Add(lblUserHint);
+
             _dtpToDoDate = new DateTimePicker { Width = 150, Format = DateTimePickerFormat.Short, Font = new Font("Consolas", 13F) };
             _numToDoAdvance = new NumericUpDown { Width = 80, Minimum = 0, Maximum = 365, Value = 7 };
             _rtbToDoMessage = new RichTextBox { Width = 650, Height = 120, Font = new Font("Microsoft JhengHei UI", 12F), BackColor = Color.LightYellow };
 
+            // 🟢 新增：循環任務控制選項
+            _chkIsRecurring = new CheckBox { Text = "🔄 這是一個循環任務", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+            _cboRecurType = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Visible = false };
+            _cboRecurType.Items.AddRange(new string[] { "每天", "每週", "每月", "每年" });
+            _cboRecurType.SelectedIndex = 2; // 預設每月
+
+            _chkIsRecurring.CheckedChanged += (s, e) => {
+                _cboRecurType.Visible = _chkIsRecurring.Checked;
+            };
+
+            Panel pnlRecur = new Panel { Width = 550, Height = 35 };
+            _chkIsRecurring.Location = new Point(0, 5);
+            _cboRecurType.Location = new Point(200, 2);
+            pnlRecur.Controls.Add(_chkIsRecurring); pnlRecur.Controls.Add(_cboRecurType);
+
             flp.Controls.Add(_chkToDoIsActive);
             flp.Controls.Add(BuildRow("待辦標題：", _txtToDoName, "如：提交第三季環保報告"));
-            flp.Controls.Add(BuildRow("指定接收對象：", _txtToDoUsers, "輸入登入帳號，多人用半形逗號分隔。全廠通知請填 ALL"));
-            flp.Controls.Add(BuildRow("任務到期日：", _dtpToDoDate, "此日期為期限基準"));
+            flp.Controls.Add(BuildRow("指定接收對象：", pnlUsers, ""));
+            flp.Controls.Add(BuildRow("首次到期基準日：", _dtpToDoDate, "")); // 日期更名
+            flp.Controls.Add(BuildRow("任務屬性：", pnlRecur, "設定到期後是否自動推展至下一期")); 
             flp.Controls.Add(BuildRow("提前觸發天數：", _numToDoAdvance, "天 (提早幾天開始在畫面上跳出警告)"));
             
             Label lblTmpl = new Label { Text = "詳細提醒內容 (此段文字將直接顯示給使用者看)：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 5) };
             flp.Controls.Add(lblTmpl);
             flp.Controls.Add(_rtbToDoMessage);
 
-            Button btnSave = new Button { Text = "💾 儲存待辦", Width = 250, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0) };
+            // 🟢 修正：調整按鈕寬高比例，確保顯示不被裁切
+            Button btnSave = new Button { Text = "💾 儲存待辦", Width = 220, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0) };
             btnSave.Click += BtnSaveToDo_Click;
 
-            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 120, Height = 45, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(20, 20, 0, 0) };
+            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 150, Height = 55, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 20, 0, 0) };
             btnDel.Click += BtnDelToDo_Click;
 
             FlowLayoutPanel flpBtns = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
@@ -256,7 +410,7 @@ namespace Safety_System
         {
             Panel p = new Panel { Width = 750, Height = 40, Margin = new Padding(0, 5, 0, 5) };
             Label l = new Label { Text = labelText, Location = new Point(0, 5), AutoSize = true };
-            ctrl1.Location = new Point(170, 2);
+            ctrl1.Location = new Point(140, 2); // 為了對齊往前推
             p.Controls.Add(l); p.Controls.Add(ctrl1);
 
             if (hintOrCtrl2 is string hint && !string.IsNullOrEmpty(hint)) {
@@ -269,19 +423,29 @@ namespace Safety_System
             return p;
         }
 
-        private class RuleItem {
-            public int Id; public string DisplayText;
-            public override string ToString() => DisplayText;
-        }
-
         // --- Tab 1 (資料表規則) 邏輯 ---
         private void LoadRulesList()
         {
             _lbRules.Items.Clear();
             DataTable dt = ReminderEngine.GetAllRules();
+            
+            string filterUser = _cboRuleFilter.SelectedItem?.ToString() ?? "全部顯示";
+
             foreach (DataRow row in dt.Rows) {
+                string targets = row["TargetUsers"].ToString().Trim();
+                
+                // 🟢 根據下拉選單過濾名單
+                if (filterUser != "全部顯示" && !targets.Equals("ALL", StringComparison.OrdinalIgnoreCase)) {
+                    var usersList = targets.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(u => u.Trim()).ToList();
+                    if (!usersList.Contains(filterUser, StringComparer.OrdinalIgnoreCase)) continue;
+                }
+
                 string status = Convert.ToInt32(row["IsActive"]) == 1 ? "🟢" : "⚫";
-                _lbRules.Items.Add(new RuleItem { Id = Convert.ToInt32(row["Id"]), DisplayText = $"{status} {row["RuleName"]}" });
+                _lbRules.Items.Add(new RuleItem { 
+                    Id = Convert.ToInt32(row["Id"]), 
+                    DisplayText = $"{status} {row["RuleName"]}",
+                    Targets = targets
+                });
             }
         }
 
@@ -328,7 +492,6 @@ namespace Safety_System
 
         private void BtnSaveRule_Click(object sender, EventArgs e)
         {
-            // 🟢 不需要 AuthManager，進入此視窗時已做過認證
             if (string.IsNullOrWhiteSpace(_txtRuleName.Text) || _cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDateCol.SelectedItem == null) {
                 MessageBox.Show("請確認規則名稱、資料庫、資料表與日期欄位皆已選擇！"); return;
             }
@@ -358,6 +521,10 @@ namespace Safety_System
                 }
                 MessageBox.Show("資料表規則儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadRulesList();
+                
+                // 🟢 強制觸發引擎背景掃描，確保當天新建能立刻跳出
+                ReminderEngine.CheckAndShowReminders();
+                
             } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
         }
 
@@ -376,7 +543,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 新增：匯出 Rules
         private void BtnExportRule_Click(object sender, EventArgs e)
         {
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統提醒規則(資料表)_" + DateTime.Now.ToString("yyyyMMdd") })
@@ -399,7 +565,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 新增：匯入 Rules
         private void BtnImportRule_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的資料表規則設定檔" })
@@ -463,9 +628,21 @@ namespace Safety_System
         {
             _lbToDos.Items.Clear();
             DataTable dt = ReminderEngine.GetAllToDos();
+            string filterUser = _cboToDoFilter.SelectedItem?.ToString() ?? "全部顯示";
+
             foreach (DataRow row in dt.Rows) {
+                string targets = row["TargetUsers"].ToString().Trim();
+                
+                // 🟢 根據下拉選單過濾名單
+                if (filterUser != "全部顯示" && !targets.Equals("ALL", StringComparison.OrdinalIgnoreCase)) {
+                    var usersList = targets.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(u => u.Trim()).ToList();
+                    if (!usersList.Contains(filterUser, StringComparer.OrdinalIgnoreCase)) continue;
+                }
+
                 string status = Convert.ToInt32(row["IsActive"]) == 1 ? "🟢" : "⚫";
-                _lbToDos.Items.Add(new RuleItem { Id = Convert.ToInt32(row["Id"]), DisplayText = $"{status} {row["TaskName"]}" });
+                string recurMark = (row.Table.Columns.Contains("IsRecurring") && row["IsRecurring"] != DBNull.Value && Convert.ToInt32(row["IsRecurring"]) == 1) ? "🔄" : "";
+                
+                _lbToDos.Items.Add(new RuleItem { Id = Convert.ToInt32(row["Id"]), DisplayText = $"{status}{recurMark} {row["TaskName"]}" });
             }
         }
 
@@ -473,8 +650,9 @@ namespace Safety_System
         {
             _currentEditToDoId = 0;
             _txtToDoName.Clear(); _txtToDoUsers.Text = "ALL";
-            _dtpToDoDate.Value = DateTime.Today.AddDays(7);
+            _dtpToDoDate.Value = DateTime.Today;
             _numToDoAdvance.Value = 7; _rtbToDoMessage.Clear(); _chkToDoIsActive.Checked = true;
+            _chkIsRecurring.Checked = false; _cboRecurType.SelectedIndex = 2; // 預設每月
             _lbToDos.ClearSelected();
         }
 
@@ -498,6 +676,17 @@ namespace Safety_System
 
                     _numToDoAdvance.Value = Convert.ToInt32(row["AdvanceDays"]);
                     _rtbToDoMessage.Text = row["Message"].ToString();
+
+                    if (row.Table.Columns.Contains("IsRecurring") && row["IsRecurring"] != DBNull.Value) {
+                        _chkIsRecurring.Checked = Convert.ToInt32(row["IsRecurring"]) == 1;
+                    } else {
+                        _chkIsRecurring.Checked = false;
+                    }
+
+                    if (row.Table.Columns.Contains("RecurType")) {
+                        string rType = row["RecurType"].ToString();
+                        if (_cboRecurType.Items.Contains(rType)) _cboRecurType.SelectedItem = rType;
+                    }
                 }
             }
         }
@@ -513,9 +702,9 @@ namespace Safety_System
                     conn.Open();
                     string sql;
                     if (_currentEditToDoId == 0) {
-                        sql = "INSERT INTO CustomToDos (TaskName, TargetUsers, DueDate, AdvanceDays, Message, IsActive) VALUES (@TN, @TU, @DD, @AD, @M, @IA)";
+                        sql = "INSERT INTO CustomToDos (TaskName, TargetUsers, DueDate, AdvanceDays, Message, IsActive, IsRecurring, RecurType) VALUES (@TN, @TU, @DD, @AD, @M, @IA, @IR, @RT)";
                     } else {
-                        sql = "UPDATE CustomToDos SET TaskName=@TN, TargetUsers=@TU, DueDate=@DD, AdvanceDays=@AD, Message=@M, IsActive=@IA WHERE Id=@Id";
+                        sql = "UPDATE CustomToDos SET TaskName=@TN, TargetUsers=@TU, DueDate=@DD, AdvanceDays=@AD, Message=@M, IsActive=@IA, IsRecurring=@IR, RecurType=@RT WHERE Id=@Id";
                     }
 
                     using (var cmd = new SQLiteCommand(sql, conn)) {
@@ -525,12 +714,19 @@ namespace Safety_System
                         cmd.Parameters.AddWithValue("@AD", _numToDoAdvance.Value);
                         cmd.Parameters.AddWithValue("@M", _rtbToDoMessage.Text.Trim());
                         cmd.Parameters.AddWithValue("@IA", _chkToDoIsActive.Checked ? 1 : 0);
+                        cmd.Parameters.AddWithValue("@IR", _chkIsRecurring.Checked ? 1 : 0);
+                        cmd.Parameters.AddWithValue("@RT", _cboRecurType.Text);
+                        
                         if (_currentEditToDoId != 0) cmd.Parameters.AddWithValue("@Id", _currentEditToDoId);
                         cmd.ExecuteNonQuery();
                     }
                 }
                 MessageBox.Show("自訂待辦事項儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadToDosList();
+
+                // 🟢 強制觸發引擎背景掃描，確保當天新建能立刻跳出
+                ReminderEngine.CheckAndShowReminders();
+
             } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
         }
 
@@ -549,7 +745,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 新增：匯出 ToDos
         private void BtnExportToDo_Click(object sender, EventArgs e)
         {
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統待辦清單設定_" + DateTime.Now.ToString("yyyyMMdd") })
@@ -572,7 +767,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 新增：匯入 ToDos
         private void BtnImportToDo_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的待辦清單檔" })
@@ -601,8 +795,10 @@ namespace Safety_System
                                         string advDays = headers.ContainsKey("AdvanceDays") ? ws.Cells[r, headers["AdvanceDays"]].Text : "7";
                                         string message = headers.ContainsKey("Message") ? ws.Cells[r, headers["Message"]].Text : "";
                                         string isActive = headers.ContainsKey("IsActive") ? ws.Cells[r, headers["IsActive"]].Text : "1";
+                                        string isRecur = headers.ContainsKey("IsRecurring") ? ws.Cells[r, headers["IsRecurring"]].Text : "0";
+                                        string rType = headers.ContainsKey("RecurType") ? ws.Cells[r, headers["RecurType"]].Text : "";
 
-                                        string sql = "INSERT INTO CustomToDos (TaskName, TargetUsers, DueDate, AdvanceDays, Message, IsActive) VALUES (@TN, @TU, @DD, @AD, @M, @IA)";
+                                        string sql = "INSERT INTO CustomToDos (TaskName, TargetUsers, DueDate, AdvanceDays, Message, IsActive, IsRecurring, RecurType) VALUES (@TN, @TU, @DD, @AD, @M, @IA, @IR, @RT)";
                                         using (var cmd = new SQLiteCommand(sql, conn, trans)) {
                                             cmd.Parameters.AddWithValue("@TN", taskName);
                                             cmd.Parameters.AddWithValue("@TU", targetUsers);
@@ -610,6 +806,8 @@ namespace Safety_System
                                             cmd.Parameters.AddWithValue("@AD", string.IsNullOrEmpty(advDays) ? 7 : int.Parse(advDays));
                                             cmd.Parameters.AddWithValue("@M", message);
                                             cmd.Parameters.AddWithValue("@IA", string.IsNullOrEmpty(isActive) ? 1 : int.Parse(isActive));
+                                            cmd.Parameters.AddWithValue("@IR", string.IsNullOrEmpty(isRecur) ? 0 : int.Parse(isRecur));
+                                            cmd.Parameters.AddWithValue("@RT", rType);
                                             cmd.ExecuteNonQuery();
                                         }
                                     }
