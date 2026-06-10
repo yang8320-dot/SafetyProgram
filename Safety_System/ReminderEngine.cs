@@ -291,7 +291,7 @@ namespace Safety_System
         }
 
         // ==============================================================
-        // 🚀 終極修復版：使用 Master TableLayoutPanel 確保無重疊
+        // 🚀 最穩健排版法：絕對尺寸 + 嚴格的三段 Docking 隔離
         // ==============================================================
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
@@ -311,48 +311,41 @@ namespace Safety_System
                 f.BackColor = Color.WhiteSmoke;
                 f.TopMost = true; 
 
-                // 🟢 建立全視窗的 Master 網格佈局 (TableLayoutPanel)
-                // 這能 100% 保證三層架構絕對不會疊加在一起
-                TableLayoutPanel masterTlp = new TableLayoutPanel {
-                    Dock = DockStyle.Fill,
-                    ColumnCount = 1,
-                    RowCount = 3,
-                    Margin = new Padding(0)
-                };
-                masterTlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-                
-                // 第一層：標題 (自動適應文字高度)
-                masterTlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                // 第二層：滾動清單區 (佔用剩下所有空間 100%)
-                masterTlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-                // 第三層：儲存按鈕區 (絕對高度 70px)
-                masterTlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
+                // 1. 底部面板：儲存按鈕 (絕對安全)
+                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(20, 10, 20, 10), BackColor = Color.White };
+                Button btnSave = new Button { Text = "💾 儲存設定並關閉視窗", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                pnlBottom.Controls.Add(btnSave);
 
-                // 1. 建立頂部標題區塊
-                Label lblTop = new Label { 
-                    Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", 
-                    Dock = DockStyle.Fill, // 填滿網格第一層
-                    Padding = new Padding(15, 15, 15, 15), 
-                    Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
-                    ForeColor = Color.DarkRed,
-                    BackColor = Color.WhiteSmoke
-                };
+                // 2. 頂部面板：標題 (絕對安全，不受下方元件推擠)
+                Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 80, Padding = new Padding(15, 15, 15, 30), BackColor = Color.WhiteSmoke };
+                Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed };
+                pnlTop.Controls.Add(lblTop);
 
-                // 2. 建立中央滾動清單區塊
+                // 3. 中央面板：滾動清單區 (放在最後加入，自動填滿剩餘空間)
                 FlowLayoutPanel flp = new FlowLayoutPanel { 
-                    Dock = DockStyle.Fill, // 填滿網格第二層
+                    Dock = DockStyle.Fill, 
                     AutoScroll = true, 
                     Padding = new Padding(15), 
                     FlowDirection = FlowDirection.TopDown, 
-                    WrapContents = false,
-                    BackColor = Color.WhiteSmoke
+                    WrapContents = false 
                 };
 
-                // 動態寬度適應
+                // 確保寬度自適應
                 flp.Resize += (s, e) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel card) {
-                            card.Width = flp.ClientSize.Width - flp.Padding.Left - flp.Padding.Right - card.Margin.Left - card.Margin.Right;
+                            card.Width = flp.ClientSize.Width - 30; // 扣除 Padding
+                            
+                            // 更新下拉選單的錨點定位
+                            foreach(Control child in card.Controls) {
+                                if (child is Panel bottomPanel) {
+                                    foreach(Control cbo in bottomPanel.Controls) {
+                                        if (cbo is ComboBox) {
+                                            cbo.Left = bottomPanel.Width - cbo.Width - 15;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 };
@@ -361,90 +354,69 @@ namespace Safety_System
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
                 {
-                    // 🟢 卡片主體
+                    // 🟢 卡片主體：固定高度，絕對不會縮水
                     Panel cardPanel = new Panel { 
-                        Width = 720, 
-                        AutoSize = true, 
-                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                        Width = 730, 
+                        Height = 170, // 絕對固定高度！
                         BackColor = Color.White, 
-                        Margin = new Padding(0, 0, 0, 15),
-                        Padding = new Padding(15, 15, 15, 20) 
+                        Margin = new Padding(0, 0, 0, 15)
                     };
                     cardPanel.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, cardPanel.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                    // 卡片內部網格
-                    TableLayoutPanel tlpCard = new TableLayoutPanel {
-                        Dock = DockStyle.Top, 
-                        AutoSize = true,
-                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                        ColumnCount = 1,
-                        RowCount = 3,
-                        Margin = new Padding(0)
+                    // ================= 卡片底部：放下拉選單 =================
+                    Panel pnlCardBottom = new Panel { Dock = DockStyle.Bottom, Height = 45 };
+                    ComboBox cboAction = new ComboBox { 
+                        Width = 260, 
+                        DropDownStyle = ComboBoxStyle.DropDownList, 
+                        Font = new Font("Microsoft JhengHei UI", 11F)
                     };
-                    tlpCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-                    tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                    tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                    tlpCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F)); 
+                    cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
+                    cboAction.SelectedIndex = 0;
+                    cboAction.Location = new Point(cardPanel.Width - cboAction.Width - 15, 5); // 絕對定位，靠右
+                    actionMap[rm] = cboAction;
+                    pnlCardBottom.Controls.Add(cboAction);
 
-                    // ============== 第一列：標籤與規則名稱 ==============
-                    FlowLayoutPanel flpHeader = new FlowLayoutPanel {
-                        AutoSize = true,
-                        WrapContents = false,
-                        Margin = new Padding(0, 0, 0, 10)
-                    };
+                    // ================= 卡片頂部：放標籤與標題 =================
+                    Panel pnlCardTop = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(15, 10, 10, 0) };
                     
                     string statusTag = rm.DaysLeft < 0 ? $"[已逾期 {Math.Abs(rm.DaysLeft)} 天]" : (rm.DaysLeft == 0 ? "[今日到期]" : $"[還有 {rm.DaysLeft} 天]");
                     Color tagColor = rm.DaysLeft < 0 ? Color.Crimson : (rm.DaysLeft <= 7 ? Color.DarkOrange : Color.DarkSlateBlue);
 
-                    Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, AutoSize = true };
-                    Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10, 2, 0, 0) };
+                    Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, Dock = DockStyle.Left, AutoSize = true };
+                    Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Dock = DockStyle.Left, AutoSize = true, Padding = new Padding(10, 2, 0, 0) };
                     
-                    flpHeader.Controls.Add(lblTag);
-                    flpHeader.Controls.Add(lblRule);
-                    tlpCard.Controls.Add(flpHeader, 0, 0);
+                    pnlCardTop.Controls.Add(lblRule); // 後加的在右邊
+                    pnlCardTop.Controls.Add(lblTag);  // 先加的在左邊
 
-                    // ============== 第二列：訊息內容 ==============
-                    Label lblMsg = new Label { 
+                    // ================= 卡片中間：文字框 =================
+                    // 用 TextBox 搭配 Dock.Fill，自動長出垂直捲軸，絕對不會擠破版面
+                    Panel pnlMsgWrapper = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 5, 15, 5) };
+                    TextBox txtMsg = new TextBox { 
                         Text = rm.Message, 
                         Font = new Font("Microsoft JhengHei UI", 12F), 
-                        AutoSize = true, 
                         Dock = DockStyle.Fill, 
-                        Margin = new Padding(5, 0, 0, 15) 
+                        Multiline = true, 
+                        ReadOnly = true,
+                        BackColor = Color.White,
+                        BorderStyle = BorderStyle.None,
+                        ScrollBars = ScrollBars.Vertical
                     };
-                    tlpCard.Controls.Add(lblMsg, 0, 1);
+                    pnlMsgWrapper.Controls.Add(txtMsg);
 
-                    // ============== 第三列：下拉選單 ==============
-                    ComboBox cboAction = new ComboBox { 
-                        Width = 260, 
-                        DropDownStyle = ComboBoxStyle.DropDownList, 
-                        Font = new Font("Microsoft JhengHei UI", 11F), 
-                        Anchor = AnchorStyles.Right, // 鎖死在右側
-                        Margin = new Padding(0, 0, 5, 0)
-                    };
-                    cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
-                    cboAction.SelectedIndex = 0;
-                    actionMap[rm] = cboAction;
-                    
-                    tlpCard.Controls.Add(cboAction, 0, 2);
+                    // 嚴格遵守 Dock 順序
+                    cardPanel.Controls.Add(pnlMsgWrapper);
+                    cardPanel.Controls.Add(pnlCardTop);
+                    cardPanel.Controls.Add(pnlCardBottom);
 
-                    // 組裝
-                    cardPanel.Controls.Add(tlpCard);
                     flp.Controls.Add(cardPanel);
                 }
 
-                // 3. 建立底部面板 (儲存按鈕)
-                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 10, 20, 10), BackColor = Color.White };
-                Button btnSave = new Button { Text = "💾 儲存設定並關閉視窗", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
-                pnlBottom.Controls.Add(btnSave);
+                // 🟢 將三大區塊加入 Form，遵守順序：Bottom -> Top -> Fill
+                f.Controls.Add(flp);
+                f.Controls.Add(pnlTop);
+                f.Controls.Add(pnlBottom);
 
-                // 🟢 依序放入 Master 網格，完全避免重疊
-                masterTlp.Controls.Add(lblTop, 0, 0);     // 放在第 0 列
-                masterTlp.Controls.Add(flp, 0, 1);        // 放在第 1 列
-                masterTlp.Controls.Add(pnlBottom, 0, 2);  // 放在第 2 列
-
-                f.Controls.Add(masterTlp);
-
-                // 🟢 防止焦點亂跳
+                // 強制焦點，防止畫面一開始就往下跳
                 f.Shown += (s, e) => {
                     btnSave.Focus(); 
                 };
