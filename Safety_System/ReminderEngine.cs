@@ -291,7 +291,7 @@ namespace Safety_System
         }
 
         // ==============================================================
-        // 🚀 最終排版修復：使用 TableLayoutPanel 達成完美自適應高度
+        // 🚀 自適應寬度與防止截斷的終極 UI 排版
         // ==============================================================
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
@@ -306,7 +306,7 @@ namespace Safety_System
                 f.Text = "🔔 系統智能提醒";
                 f.Size = new Size(800, 650);
                 f.StartPosition = FormStartPosition.CenterScreen;
-                f.FormBorderStyle = FormBorderStyle.FixedDialog;
+                f.FormBorderStyle = FormBorderStyle.Sizable; // 開啟可改變視窗大小，測試自適應
                 f.MaximizeBox = false;
                 f.MinimizeBox = false;
                 f.BackColor = Color.WhiteSmoke;
@@ -328,25 +328,34 @@ namespace Safety_System
                     FlowDirection = FlowDirection.TopDown, 
                     WrapContents = false 
                 };
+
+                // 🟢 核心：當視窗大小改變或產生捲軸時，動態讓所有卡片寬度填滿剩餘空間
+                flp.Resize += (s, e) => {
+                    foreach (Control c in flp.Controls) {
+                        if (c is Panel card) {
+                            card.Width = flp.ClientSize.Width - flp.Padding.Left - flp.Padding.Right - card.Margin.Left - card.Margin.Right;
+                        }
+                    }
+                };
                 
                 Dictionary<TriggeredReminder, ComboBox> actionMap = new Dictionary<TriggeredReminder, ComboBox>();
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
                 {
-                    // 🟢 卡片主體，開啟 AutoSize 隨內部元件長高
+                    // 🟢 卡片主體
                     Panel cardPanel = new Panel { 
-                        Width = 740, 
+                        Width = 720, // 初始給一個預設寬度，後面 Resize 會覆蓋
                         AutoSize = true, 
                         AutoSizeMode = AutoSizeMode.GrowAndShrink,
                         BackColor = Color.White, 
                         Margin = new Padding(0, 0, 0, 15),
-                        Padding = new Padding(15) // 卡片內邊距
+                        Padding = new Padding(15, 15, 15, 20) // 🟢 底部多留 20px 緩衝，徹底防止裁切
                     };
                     cardPanel.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, cardPanel.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                    // 🟢 使用 TableLayoutPanel 做精確的三列排版 (標題列、訊息列、操作列)
+                    // 🟢 使用 TableLayoutPanel 達成三段式完美排版
                     TableLayoutPanel tlpCard = new TableLayoutPanel {
-                        Width = 710, 
+                        Dock = DockStyle.Top, // 讓它能撐開 Panel
                         AutoSize = true,
                         AutoSizeMode = AutoSizeMode.GrowAndShrink,
                         ColumnCount = 1,
@@ -354,6 +363,10 @@ namespace Safety_System
                         Margin = new Padding(0)
                     };
                     tlpCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                    tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    // 🟢 強制給下拉選單那一行絕對的空間，確保不會因為擠壓被吃掉
+                    tlpCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F)); 
 
                     // ============== 第一列：標籤與規則名稱 ==============
                     FlowLayoutPanel flpHeader = new FlowLayoutPanel {
@@ -373,12 +386,12 @@ namespace Safety_System
                     tlpCard.Controls.Add(flpHeader, 0, 0);
 
                     // ============== 第二列：訊息內容 ==============
-                    // 🟢 恢復使用 Label，並給予 MaximumSize 強制折行，這樣就不會搶焦點導致滾動條亂跳
+                    // 🟢 使用 Dock.Fill 讓文字根據寬度完美換行
                     Label lblMsg = new Label { 
                         Text = rm.Message, 
                         Font = new Font("Microsoft JhengHei UI", 12F), 
                         AutoSize = true, 
-                        MaximumSize = new Size(690, 0), // 寬度達 690px 時自動換行往下長
+                        Dock = DockStyle.Fill, 
                         Margin = new Padding(5, 0, 0, 15) // 與下方的間距
                     };
                     tlpCard.Controls.Add(lblMsg, 0, 1);
@@ -388,7 +401,7 @@ namespace Safety_System
                         Width = 260, 
                         DropDownStyle = ComboBoxStyle.DropDownList, 
                         Font = new Font("Microsoft JhengHei UI", 11F), 
-                        Anchor = AnchorStyles.Right, // 🟢 在 TableLayoutPanel 中強制靠右對齊
+                        Anchor = AnchorStyles.Right, // 🟢 鎖死在右側
                         Margin = new Padding(0, 0, 5, 0)
                     };
                     cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
@@ -397,7 +410,6 @@ namespace Safety_System
                     
                     tlpCard.Controls.Add(cboAction, 0, 2);
 
-                    // 組裝
                     cardPanel.Controls.Add(tlpCard);
                     flp.Controls.Add(cardPanel);
                 }
