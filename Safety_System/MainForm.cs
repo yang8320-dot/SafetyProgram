@@ -265,10 +265,12 @@ namespace Safety_System
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
 
+            // 🟢 新增：ESG 分類下的選單項目
             var menuESG = new ToolStripMenuItem("ESG");
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(new ToolStripSeparator());
             menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_CoreTable("ESG", "ESG_Performance", "ESG績效管理", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("ESG指標管理", () => new App_CoreTable("ESG", "ESG_Indicator", "ESG指標管理", new ESGLogic()).GetView()));
 
             var menuISO = new ToolStripMenuItem("ISO14001");
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
@@ -342,14 +344,13 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this);
+                    new App_PermissionManager(_mainMenuRef).ShowDialog(this);
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 🟢 需求 1：選單文字更換為「系統提醒設定」
             var reminderSettingItem = new ToolStripMenuItem("系統提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
