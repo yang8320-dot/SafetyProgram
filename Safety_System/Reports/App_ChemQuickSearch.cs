@@ -311,7 +311,19 @@ namespace Safety_System
                                     if (col.ColumnName == "Id") continue;
                                     
                                     string dictKey = $"{info.TableName}_{col.ColumnName}";
-                                    if (_columnVisibility.ContainsKey(dictKey) && !_columnVisibility[dictKey]) continue;
+
+                                    // 🟢 終極防呆：強制攔截系統欄位
+                                    bool isAllowedToShow = true;
+                                    if (_columnVisibility.ContainsKey(dictKey)) {
+                                        isAllowedToShow = _columnVisibility[dictKey];
+                                    } else {
+                                        // 若設定檔還沒有紀錄，預設隱藏修改人相關欄位
+                                        if (col.ColumnName == "最後修改人" || col.ColumnName == "修改時間" || col.ColumnName.Contains("時間") || col.ColumnName.Contains("修改人")) {
+                                            isAllowedToShow = false;
+                                        }
+                                    }
+
+                                    if (!isAllowedToShow) continue;
 
                                     bool hasValue = false;
                                     foreach (DataRow row in info.ResultData.Rows) {
@@ -376,7 +388,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 欄位顯示設定系統 (🚀 完美修復遮擋、預設隱藏與權限檢核)
+        // 欄位顯示設定系統
         // ==========================================
         private void LoadVisibilitySettings()
         {
@@ -408,7 +420,6 @@ namespace Safety_System
         {
             using (Form f = new Form { Text = "⚙️ 顯示欄位設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
             {
-                // 🟢 使用 TableLayoutPanel 徹底解決元件遮擋重疊的問題
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -462,7 +473,6 @@ namespace Safety_System
                         if (c == "Id") continue;
                         string key = $"{tblName}_{c}";
                         
-                        // 🟢 需求 2：最後修改人與修改時間預設不勾選
                         bool isChecked = true;
                         if (_columnVisibility.ContainsKey(key)) {
                             isChecked = _columnVisibility[key];
@@ -479,11 +489,10 @@ namespace Safety_System
                 clbCols.ItemCheck += (s, e) => {
                     string colName = clbCols.Items[e.Index].ToString();
 
-                    // 🟢 需求 2：若嘗試勾選審計欄位，強制啟動 Lv3 權限驗證
                     if ((colName == "最後修改人" || colName == "修改時間" || colName.Contains("時間") || colName.Contains("修改人")) && e.NewValue == CheckState.Checked) {
                         if (!AuthManager.VerifyLv3Only("顯示系統修改紀錄需要最高權限\n請輸入【Lv3系統管理者】密碼：")) {
                             e.NewValue = CheckState.Unchecked;
-                            return; // 密碼錯誤，直接擋下並維持未勾選
+                            return; 
                         }
                     }
 
@@ -497,7 +506,6 @@ namespace Safety_System
                     f.DialogResult = DialogResult.OK;
                 };
 
-                // 強制觸發第一筆載入
                 if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
 
                 if (f.ShowDialog() == DialogResult.OK && (!string.IsNullOrEmpty(_txtName.Text) || !string.IsNullOrEmpty(_txtCAS.Text))) {
