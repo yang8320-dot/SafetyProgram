@@ -11,15 +11,17 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
-    // 🟢 新增：支援多區間公式與「公式類型(數學/文字)」的資料模型
+    // 🟢 新增：支援小數點位數與四捨五入模式
     public class ColumnFormulaDef {
         public int Id { get; set; }
         public string TargetCol { get; set; }
         public string MatchCol { get; set; }
         public string StartDate { get; set; }
         public string EndDate { get; set; }
-        public string FormulaType { get; set; } // 🟢 新增屬性：區分「數學運算」或「文字組合」
+        public string FormulaType { get; set; } 
         public string Formula { get; set; }
+        public int DecimalPlaces { get; set; } = 4; // 預設 4 位
+        public string RoundingMode { get; set; } = "四捨五入"; // 預設四捨五入
     }
 
     public static class DataManager
@@ -57,11 +59,10 @@ namespace Safety_System
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);"; cmd.ExecuteNonQuery();
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS System_DeleteLogs (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, RecordId INTEGER, DeletedBy TEXT, DeletedTime TEXT);"; cmd.ExecuteNonQuery();
 
-                    // 確保 v2 表結構存在
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);"; 
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 動態升級表結構：新增 FormulaType
+                    // 🟢 動態升級表結構：新增 FormulaType, DecimalPlaces, RoundingMode，確保舊資料相容
                     var cols = new List<string>();
                     cmd.CommandText = "PRAGMA table_info([ColumnFormulas])";
                     using (var reader = cmd.ExecuteReader()) {
@@ -69,6 +70,14 @@ namespace Safety_System
                     }
                     if (!cols.Contains("FormulaType")) {
                         cmd.CommandText = "ALTER TABLE [ColumnFormulas] ADD COLUMN [FormulaType] TEXT DEFAULT '數學運算';";
+                        cmd.ExecuteNonQuery();
+                    }
+                    if (!cols.Contains("DecimalPlaces")) {
+                        cmd.CommandText = "ALTER TABLE [ColumnFormulas] ADD COLUMN [DecimalPlaces] INTEGER DEFAULT 4;";
+                        cmd.ExecuteNonQuery();
+                    }
+                    if (!cols.Contains("RoundingMode")) {
+                        cmd.CommandText = "ALTER TABLE [ColumnFormulas] ADD COLUMN [RoundingMode] TEXT DEFAULT '四捨五入';";
                         cmd.ExecuteNonQuery();
                     }
                 }
@@ -151,7 +160,7 @@ namespace Safety_System
         }
 
         // ========================================================
-        // 🟢 欄位自訂公式 API (含 FormulaType)
+        // 🟢 欄位自訂公式 API 升級：讀取小數點與進位模式
         // ========================================================
         public static List<ColumnFormulaDef> GetTableFormulas(string dbName, string tableName)
         {
@@ -159,7 +168,7 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT Id, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                    using (var cmd = new SQLiteCommand("SELECT Id, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula, DecimalPlaces, RoundingMode FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
                         cmd.Parameters.AddWithValue("@DB", dbName); 
                         cmd.Parameters.AddWithValue("@TB", tableName);
                         using (var reader = cmd.ExecuteReader()) {
@@ -171,7 +180,9 @@ namespace Safety_System
                                     StartDate = reader["StartDate"].ToString(),
                                     EndDate = reader["EndDate"].ToString(),
                                     FormulaType = reader["FormulaType"].ToString() == "" ? "數學運算" : reader["FormulaType"].ToString(),
-                                    Formula = reader["Formula"].ToString()
+                                    Formula = reader["Formula"].ToString(),
+                                    DecimalPlaces = reader["DecimalPlaces"] == DBNull.Value ? 4 : Convert.ToInt32(reader["DecimalPlaces"]),
+                                    RoundingMode = reader["RoundingMode"].ToString() == "" ? "四捨五入" : reader["RoundingMode"].ToString()
                                 });
                             }
                         }
