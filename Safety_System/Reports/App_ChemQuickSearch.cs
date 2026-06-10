@@ -1,3 +1,4 @@
+/// FILE: Safety_System/Reports/App_ChemQuickSearch.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -24,7 +25,7 @@ namespace Safety_System
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemQuickSearch_Visibility.txt");
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 🟢 加入 12 張表的結構，確保系統未初始化時能預先建表，避免設定欄位時找不到表
+        // 確保系統未初始化時能預先建表，避免設定欄位時找不到表
         private readonly Dictionary<string, string> _schemaMap = new Dictionary<string, string>
         {
             { "EnvTesting", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [中文名稱] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -41,7 +42,6 @@ namespace Safety_System
             { "FactoryHazardous", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [名稱] TEXT, [種類] TEXT, [管制量] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
-        // 🟢 修正：移除硬編碼的 NameSearchCol 與 CasSearchCol，改為動態智慧判斷
         private class ChemTableInfo {
             public string TableName;
             public string Title;
@@ -261,7 +261,6 @@ namespace Safety_System
             _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
-            // 🟢 重構：動態掃描具備的欄位，達成全域智慧防呆檢索
             await Task.Run(() => {
                 foreach (var info in _tableInfos) {
                     try {
@@ -282,11 +281,11 @@ namespace Safety_System
                                 if (nameFilters.Count > 0) {
                                     matchConditions.Add("(" + string.Join(" OR ", nameFilters) + ")");
                                 } else {
-                                    matchConditions.Add("1=0"); // 表格不含任何名稱欄位，過濾失敗
+                                    matchConditions.Add("1=0"); 
                                 }
                             }
 
-                            // 2. CAS Number 檢索 (若表格無 CAS，但有符合的名稱，則放行容錯)
+                            // 2. CAS Number 檢索 
                             if (!string.IsNullOrEmpty(casKey)) {
                                 List<string> casFilters = new List<string>();
                                 string[] possibleCasCols = { "CASNO", "CAS_No", "化學式" };
@@ -299,7 +298,6 @@ namespace Safety_System
                                 if (casFilters.Count > 0) {
                                     matchConditions.Add("(" + string.Join(" OR ", casFilters) + ")");
                                 } else if (string.IsNullOrEmpty(nameKey)) {
-                                    // 只有輸入 CAS，但此表沒 CAS 欄位，所以不可能找到
                                     matchConditions.Add("1=0");
                                 }
                             }
@@ -348,7 +346,7 @@ namespace Safety_System
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 30;
                     info.Dgv.AutoResizeRows(); 
 
-                    // 完美高度修正：加入 50px 的底部緩衝，確保最後一列文字及底線完整顯示
+                    // 完美高度修正：加入 50px 的底部緩衝
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight;
                     foreach(DataGridViewRow r in info.Dgv.Rows) {
                         exactGridHeight += r.Height;
@@ -378,7 +376,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 欄位顯示設定系統
+        // 欄位顯示設定系統 (🚀 完美修復遮擋、預設隱藏與權限檢核)
         // ==========================================
         private void LoadVisibilitySettings()
         {
@@ -408,23 +406,51 @@ namespace Safety_System
 
         private void OpenSettingsDialog()
         {
-            using (Form f = new Form { Text = "⚙️ 顯示欄位設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false }) {
-                
-                Label lblTop = new Label { Text = "請選擇分類並勾選查詢時【允許顯示】的欄位：", Dock = DockStyle.Top, Padding = new Padding(10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.SteelBlue };
-                f.Controls.Add(lblTop);
+            using (Form f = new Form { Text = "⚙️ 顯示欄位設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
+            {
+                // 🟢 使用 TableLayoutPanel 徹底解決元件遮擋重疊的問題
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));
 
-                SplitContainer split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 250, FixedPanel = FixedPanel.Panel1, Padding = new Padding(10) };
-                
+                Label lblTop = new Label { 
+                    Text = "請選擇分類並勾選查詢時【允許顯示】的欄位：", 
+                    Dock = DockStyle.Fill, 
+                    Padding = new Padding(10), 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    ForeColor = Color.SteelBlue, 
+                    AutoSize = true 
+                };
+                tlp.Controls.Add(lblTop, 0, 0);
+
+                SplitContainer split = new SplitContainer { 
+                    Dock = DockStyle.Fill, 
+                    SplitterDistance = 250, 
+                    FixedPanel = FixedPanel.Panel1, 
+                    Padding = new Padding(10) 
+                };
+
                 ListBox lbTables = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F) };
                 foreach (var info in _tableInfos) lbTables.Items.Add(info.Title);
                 split.Panel1.Controls.Add(lbTables);
 
-                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 11F), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle };
+                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle };
                 split.Panel2.Controls.Add(clbCols);
-                f.Controls.Add(split);
+                tlp.Controls.Add(split, 0, 1);
 
-                Button btnSave = new Button { Text = "💾 儲存並關閉", Dock = DockStyle.Bottom, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
-                f.Controls.Add(btnSave);
+                Button btnSave = new Button { 
+                    Text = "💾 儲存並關閉", 
+                    Dock = DockStyle.Fill, 
+                    BackColor = Color.ForestGreen, 
+                    ForeColor = Color.White, 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    Cursor = Cursors.Hand, 
+                    FlatStyle = FlatStyle.Flat 
+                };
+                tlp.Controls.Add(btnSave, 0, 2);
+
+                f.Controls.Add(tlp);
 
                 lbTables.SelectedIndexChanged += (s, e) => {
                     if (lbTables.SelectedIndex < 0) return;
@@ -435,15 +461,34 @@ namespace Safety_System
                     foreach (var c in cols) {
                         if (c == "Id") continue;
                         string key = $"{tblName}_{c}";
-                        bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : true; 
+                        
+                        // 🟢 需求 2：最後修改人與修改時間預設不勾選
+                        bool isChecked = true;
+                        if (_columnVisibility.ContainsKey(key)) {
+                            isChecked = _columnVisibility[key];
+                        } else {
+                            if (c == "最後修改人" || c == "修改時間" || c.Contains("時間") || c.Contains("修改人")) {
+                                isChecked = false;
+                            }
+                        }
+                        
                         clbCols.Items.Add(c, isChecked);
                     }
                 };
 
                 clbCols.ItemCheck += (s, e) => {
+                    string colName = clbCols.Items[e.Index].ToString();
+
+                    // 🟢 需求 2：若嘗試勾選審計欄位，強制啟動 Lv3 權限驗證
+                    if ((colName == "最後修改人" || colName == "修改時間" || colName.Contains("時間") || colName.Contains("修改人")) && e.NewValue == CheckState.Checked) {
+                        if (!AuthManager.VerifyLv3Only("顯示系統修改紀錄需要最高權限\n請輸入【Lv3系統管理者】密碼：")) {
+                            e.NewValue = CheckState.Unchecked;
+                            return; // 密碼錯誤，直接擋下並維持未勾選
+                        }
+                    }
+
                     if (lbTables.SelectedIndex < 0) return;
                     string tblName = _tableInfos[lbTables.SelectedIndex].TableName;
-                    string colName = clbCols.Items[e.Index].ToString();
                     _columnVisibility[$"{tblName}_{colName}"] = e.NewValue == CheckState.Checked;
                 };
 
@@ -452,6 +497,7 @@ namespace Safety_System
                     f.DialogResult = DialogResult.OK;
                 };
 
+                // 強制觸發第一筆載入
                 if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
 
                 if (f.ShowDialog() == DialogResult.OK && (!string.IsNullOrEmpty(_txtName.Text) || !string.IsNullOrEmpty(_txtCAS.Text))) {
