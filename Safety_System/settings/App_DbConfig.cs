@@ -80,7 +80,13 @@ namespace Safety_System
                 })},
                 { "教育訓練", ("教育訓練", new Dictionary<string, string> { { "訓練時數", "教育訓練時數" } })},
                 { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
-                { "ESG", ("ESG", new Dictionary<string, string> { { "ESG_Performance", "ESG績效管理" } })},
+                
+                // 🟢 加入 ESG_Indicator 於 ESG 資料庫類別中
+                { "ESG", ("ESG", new Dictionary<string, string> { 
+                    { "ESG_Performance", "ESG績效管理" },
+                    { "ESG_Indicator", "ESG指標管理" }
+                })},
+
                 { "ISO14001", ("ISO14001", new Dictionary<string, string> { { "TargetManagement", "目標管理" }, { "EnvInfoReceive", "環境資訊接收管制表" }, { "InternalComm", "內文聯絡書管制表" }, { "MailReceive", "郵件收文管制表" }, { "VisitorRecord", "來賓拜訪紀錄表" } })},
                 { "Purchase", ("日常作業", new Dictionary<string, string> { { "PurchaseData", "請購資料" } })},
                 { "Menu1DB", ("選單1", new Dictionary<string, string> { { "WorkItems", "WorkItems" } })},
