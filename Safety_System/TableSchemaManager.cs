@@ -51,10 +51,12 @@ namespace Safety_System
             { "WastePermitMaterial", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [原料代碼] TEXT, [原料名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最大使用量t] TEXT, [月平均使用量t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastePermitProduct", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼名稱] TEXT, [產品代碼] TEXT, [產品名稱] TEXT, [其它原料說明] TEXT, [其他製程說明] TEXT, [月最產出量t] TEXT, [月平均產出t] TEXT, [重量換算值] TEXT, [換算單位] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WastePermitWaste", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼] TEXT, [其他製程說明] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [廢棄物月最大量] TEXT, [廢棄物月平均量] TEXT, [物理性質] TEXT, [有害特性] TEXT, [主要有害成分] TEXT, [貯存地點] TEXT, [貯存設施容施容量] TEXT, [貯存設施密閉性] TEXT, [清除方式] TEXT, [處理方式] TEXT, [中間處理方法] TEXT, [再利用管理方式] TEXT, [最終處置方式] TEXT, [產出廢液製程編號] TEXT, [清除頻率] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            // 🟢 新增：廢棄物清運記錄
             { "WasteDisposalRecord", "[清運日期] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [清運重量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
+            // 🟢 新增：ESG 模組
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ESG_Indicator", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HazardStats", "[年月] TEXT, [單位] TEXT, [品項] TEXT, [品項單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjuryReport", "[年月] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" },
