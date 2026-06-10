@@ -17,7 +17,7 @@ namespace Safety_System
         private const string DbName = "SystemConfig";
         private const string RulesTable = "ReminderRules";
         private const string LogsTable = "UserReminderLogs";
-        private const string ToDosTable = "CustomToDos"; // 🟢 新增待辦清單資料表
+        private const string ToDosTable = "CustomToDos"; 
 
         public class TriggeredReminder
         {
@@ -39,7 +39,6 @@ namespace Safety_System
                     string sql2 = $@"CREATE TABLE IF NOT EXISTS [{LogsTable}] (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT, UserName TEXT, RuleId INTEGER, RecordId INTEGER, NextRemindDate TEXT);";
                     
-                    // 🟢 新增待辦清單結構
                     string sql3 = $@"CREATE TABLE IF NOT EXISTS [{ToDosTable}] (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT, TaskName TEXT, TargetUsers TEXT, DueDate TEXT, 
                         AdvanceDays INTEGER, Message TEXT, IsActive INTEGER DEFAULT 1);";
@@ -47,6 +46,18 @@ namespace Safety_System
                     using (var cmd = new SQLiteCommand(sql1, conn)) cmd.ExecuteNonQuery();
                     using (var cmd = new SQLiteCommand(sql2, conn)) cmd.ExecuteNonQuery();
                     using (var cmd = new SQLiteCommand(sql3, conn)) cmd.ExecuteNonQuery();
+
+                    // 🟢 動態升級表結構：新增循環任務欄位
+                    var cols = new List<string>();
+                    using (var cmd = new SQLiteCommand($"PRAGMA table_info([{ToDosTable}])", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) cols.Add(reader["name"].ToString());
+                    }
+
+                    if (!cols.Contains("IsRecurring")) {
+                        using (var cmd = new SQLiteCommand($"ALTER TABLE [{ToDosTable}] ADD COLUMN IsRecurring INTEGER DEFAULT 0;", conn)) cmd.ExecuteNonQuery();
+                        using (var cmd = new SQLiteCommand($"ALTER TABLE [{ToDosTable}] ADD COLUMN RecurType TEXT;", conn)) cmd.ExecuteNonQuery();
+                    }
                 }
             } catch { }
         }
@@ -64,7 +75,6 @@ namespace Safety_System
             return dt;
         }
 
-        // 🟢 取得所有待辦
         public static DataTable GetAllToDos()
         {
             DataTable dt = new DataTable();
@@ -169,7 +179,7 @@ namespace Safety_System
                         using (var cmd = new SQLiteCommand($"SELECT * FROM {ToDosTable} WHERE IsActive = 1", conn))
                         using (var da = new SQLiteDataAdapter(cmd)) da.Fill(activeToDos);
 
-                        Dictionary<int, string> todoSnoozeLogs = GetSnoozeLogs(conn, currentUser, 0); // RuleId=0 專屬 ToDo
+                        Dictionary<int, string> todoSnoozeLogs = GetSnoozeLogs(conn, currentUser, 0); 
 
                         foreach (DataRow todo in activeToDos.Rows)
                         {
@@ -184,23 +194,37 @@ namespace Safety_System
                             string rawDate = todo["DueDate"]?.ToString() ?? "";
                             DateTime? parsedDate = ParseUniversalDate(rawDate);
                             int advanceDays = Convert.ToInt32(todo["AdvanceDays"]);
+                            
+                            bool isRecurring = todo.Table.Columns.Contains("IsRecurring") && todo["IsRecurring"] != DBNull.Value && Convert.ToInt32(todo["IsRecurring"]) == 1;
+                            string recurType = todo.Table.Columns.Contains("RecurType") ? todo["RecurType"].ToString() : "";
 
                             if (parsedDate.HasValue)
                             {
-                                int daysDiff = (int)(parsedDate.Value.Date - DateTime.Today).TotalDays;
+                                DateTime targetDate = parsedDate.Value.Date;
+
+                                // 🟢 循環任務邏輯：自動計算下一個應觸發的日期
+                                if (isRecurring && !string.IsNullOrEmpty(recurType))
+                                {
+                                    targetDate = CalculateNextRecurringDate(targetDate, recurType);
+                                }
+
+                                int daysDiff = (int)(targetDate - DateTime.Today).TotalDays;
+                                
+                                // 🟢 修復：包含當天建立的情況，只要天數 <= 提前天數，都會觸發
                                 if (daysDiff <= advanceDays)
                                 {
+                                    string recurLabel = isRecurring ? $"[循環任務:{recurType}] " : "";
                                     triggeredList.Add(new TriggeredReminder {
-                                        RuleId = 0,               // 0 代表此為自訂待辦
-                                        RecordId = todoId,        // RecordId 就是待辦事項的 Id
-                                        RuleName = $"[待辦] {todo["TaskName"]}",
+                                        RuleId = 0,               
+                                        RecordId = todoId,        
+                                        RuleName = $"{recurLabel}[待辦] {todo["TaskName"]}",
                                         Message = todo["Message"].ToString(),
                                         DaysLeft = daysDiff
                                     });
                                 }
                             }
                         }
-                    } // end using conn
+                    } 
 
                     // 3. 若有觸發提醒，喚起 UI
                     if (triggeredList.Count > 0)
@@ -221,6 +245,31 @@ namespace Safety_System
                     Console.WriteLine("Reminder Engine Error: " + ex.Message);
                 }
             });
+        }
+
+        // 🟢 計算下一個循環日期
+        private static DateTime CalculateNextRecurringDate(DateTime baseDate, string recurType)
+        {
+            DateTime today = DateTime.Today;
+            DateTime nextDate = baseDate;
+
+            // 只有當 baseDate 已經小於今天時，才需要向未來的循環推移
+            if (nextDate < today)
+            {
+                if (recurType == "每天") {
+                    nextDate = today;
+                }
+                else if (recurType == "每週") {
+                    while (nextDate < today) nextDate = nextDate.AddDays(7);
+                }
+                else if (recurType == "每月") {
+                    while (nextDate < today) nextDate = nextDate.AddMonths(1);
+                }
+                else if (recurType == "每年") {
+                    while (nextDate < today) nextDate = nextDate.AddYears(1);
+                }
+            }
+            return nextDate;
         }
 
         private static bool CheckIsTargetUser(string targets, string currentUser)
@@ -247,6 +296,12 @@ namespace Safety_System
 
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
+            // 檢查是否已經有提醒視窗開著，避免重複彈出
+            foreach (Form openForm in Application.OpenForms)
+            {
+                if (openForm.Text == "🔔 系統智能提醒") return;
+            }
+
             using (Form f = new Form())
             {
                 f.Text = "🔔 系統智能提醒";
