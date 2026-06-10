@@ -79,7 +79,7 @@ namespace Safety_System
         }
 
         // ============================================================================
-        // 🚀 高效能批次計算核心 
+        // 🚀 高效能批次計算核心 (支援小數點與進位模式)
         // ============================================================================
         private void RecalculateTableInternal(DataTable dt, int specificRowIndex, IProgress<int> progressInt, IProgress<string> progressStr)
         {
@@ -183,7 +183,7 @@ namespace Safety_System
                             string sDate = formulaDef.StartDate;
                             string eDate = formulaDef.EndDate;
                             string rawFormula = formulaDef.Formula;
-                            string formulaType = formulaDef.FormulaType; // 數學運算 or 文字組合
+                            string formulaType = formulaDef.FormulaType; 
 
                             if (!dt.Columns.Contains(targetCol)) continue;
 
@@ -197,7 +197,6 @@ namespace Safety_System
                             string evalFormula = rawFormula;
                             bool canCompute = true;
 
-                            // 🟢 分支：文字組合 (單純變數替換，不經過 Compute)
                             if (formulaType == "文字組合")
                             {
                                 var fieldMatches = fieldRegex.Matches(evalFormula);
@@ -214,7 +213,6 @@ namespace Safety_System
                             }
                             else 
                             {
-                                // 🟢 分支：數學運算 (原邏輯)
                                 if (evalFormula.Contains("PRICE("))
                                 {
                                     DateTime targetDate = DateTime.Today; 
@@ -260,12 +258,25 @@ namespace Safety_System
                                         object result = dtMath.Compute(evalFormula, null);
                                         if (result != DBNull.Value) {
                                             double dRes = Convert.ToDouble(result);
-                                            row[targetCol] = Math.Round(dRes, 4).ToString("0.####");
+                                            
+                                            // 🟢 根據設定套用進位與小數點
+                                            double multiplier = Math.Pow(10, formulaDef.DecimalPlaces);
+                                            double adjusted = dRes * multiplier;
+                                            
+                                            if (formulaDef.RoundingMode == "無條件進位") adjusted = Math.Ceiling(adjusted);
+                                            else if (formulaDef.RoundingMode == "無條件捨去") adjusted = Math.Floor(adjusted);
+                                            else adjusted = Math.Round(adjusted); // 預設：四捨五入
+                                            
+                                            dRes = adjusted / multiplier;
+
+                                            // 產出字串，若小數點為 0，則轉為 F0 (沒有小數點)
+                                            string formatStr = formulaDef.DecimalPlaces > 0 ? $"F{formulaDef.DecimalPlaces}" : "F0";
+                                            row[targetCol] = dRes.ToString(formatStr);
                                         }
                                     } 
                                     catch {
                                         if (row[targetCol]?.ToString() != "") {
-                                            row[targetCol] = ""; 
+                                            row[tCol] = ""; 
                                         }
                                     }
                                 }
