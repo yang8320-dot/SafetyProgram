@@ -46,7 +46,7 @@ namespace Safety_System
             
             App_PasswordManager.InitDatabase();
 
-            // 🟢 新增：啟動背景智能提醒引擎 (包含新的待辦事項功能)
+            // 啟動背景智能提醒引擎 (包含新的待辦事項功能)
             ReminderEngine.CheckAndShowReminders();
 
             _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
@@ -332,7 +332,6 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    // 🟢 修正 4：_mainMenuRef 誤植修復，改為 _mainMenu
                     new App_PermissionManager(_mainMenu).ShowDialog(this);
                 }
             };
@@ -340,7 +339,8 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var reminderSettingItem = new ToolStripMenuItem("系統智能提醒設定");
+            // 🟢 需求：將「系統智能提醒設定」更改為「系統提醒設定」
+            var reminderSettingItem = new ToolStripMenuItem("系統提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
