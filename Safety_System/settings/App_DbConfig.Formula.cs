@@ -14,8 +14,11 @@ namespace Safety_System
     public partial class App_DbConfig
     {
         private Label _lblFStartM, _lblFStartD, _lblFEndM, _lblFEndD;
-        private ComboBox _cboFormulaType; // 🟢 新增公式類型下拉選單
-        private FlowLayoutPanel _pnlOps;  // 用於動態隱藏數學運算符號
+        private ComboBox _cboFormulaType; 
+        private NumericUpDown _numDecimals; // 🟢 小數點位數
+        private ComboBox _cboRoundingMode;  // 🟢 捨入模式
+        private FlowLayoutPanel _pnlOps;  
+        private bool _isChangingFormulaDb = false; 
 
         private void BuildFormulaTab(TabPage tabFormula)
         {
@@ -87,23 +90,36 @@ namespace Safety_System
                 btnClearTime
             });
 
-            // 🟢 Row 3: 目標欄位 與 運算模式選擇
+            // 🟢 Row 3: 目標欄位 與 運算模式、小數點位數
             FlowLayoutPanel flpRow3 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFTarget = new Label { Text = "公式結果寫入至此欄：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboFormulaTargetCol = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaTargetCol = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Label lblFType = new Label { Text = "公式類別：", AutoSize = true, Margin = new Padding(40, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboFormulaType = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
-            // 🟢 需求修改：選單文字精簡化
+            Label lblFType = new Label { Text = "公式類別：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboFormulaType = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
             _cboFormulaType.Items.AddRange(new string[] { "數學運算", "組合文字" });
             _cboFormulaType.SelectedIndex = 0;
 
+            // 🟢 新增小數點位數
+            Label lblFDec = new Label { Text = "小數點：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _numDecimals = new NumericUpDown { Width = 50, Minimum = 0, Maximum = 4, Value = 4, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+            // 🟢 新增捨入模式
+            Label lblFRound = new Label { Text = "進位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboRoundingMode = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboRoundingMode.Items.AddRange(new string[] { "四捨五入", "無條件進位", "無條件捨去" });
+            _cboRoundingMode.SelectedIndex = 0;
+
             _cboFormulaType.SelectedIndexChanged += (s, e) => {
                 bool isMath = _cboFormulaType.SelectedIndex == 0;
-                _pnlOps.Visible = isMath; // 如果是組合文字，隱藏四則運算按鈕
+                _pnlOps.Visible = isMath;
+                _numDecimals.Visible = isMath;
+                lblFDec.Visible = isMath;
+                _cboRoundingMode.Visible = isMath;
+                lblFRound.Visible = isMath;
             };
 
-            flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFType, _cboFormulaType });
+            flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFType, _cboFormulaType, lblFDec, _numDecimals, lblFRound, _cboRoundingMode });
 
             // 🟢 Row 4: 公式編輯區
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(15, 10, 10, 15) };
@@ -151,7 +167,6 @@ namespace Safety_System
             pnlActionTools.Controls.Add(btnInsertVar);
             pnlActionTools.Controls.Add(btnClearForm);
 
-            // 🟢 需求修改：寬度由 700 改為 950 (加寬 250px)
             _rtbFormulaEditor = new RichTextBox { Width = 950, Height = 120, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 0, 0, 15) };
 
             Button btnSaveFormula = new Button { Text = "💾 儲存此運算公式", Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
@@ -198,7 +213,7 @@ namespace Safety_System
             pnlFormulaAction.Controls.Add(btnImportFormula);
             pnlFormulaAction.Controls.Add(btnRecalculateAll); 
 
-            GroupBox boxFormulasList = new GroupBox { Text = "已設定的公式清單 (全系統) - 點擊可編輯", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
+            GroupBox boxFormulasList = new GroupBox { Text = "該表目前的公式清單 (點擊可編輯)", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             _flpFormulasList = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
             boxFormulasList.Controls.Add(_flpFormulasList);
 
@@ -274,10 +289,25 @@ namespace Safety_System
         // ================= 事件邏輯 =================
         private void CboFormulaDb_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (_isChangingFormulaDb) return; 
+
             _cboFormulaTable.Items.Clear();
             _cboFormulaTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
             if (_cboFormulaDb.SelectedItem == null) return;
+
             var selectedDb = (ItemMap)_cboFormulaDb.SelectedItem;
+
+            // 🟢 檢查是否為選單 1~4，需密碼解鎖
+            if (selectedDb.EnName.StartsWith("Menu") && selectedDb.EnName.EndsWith("DB")) {
+                string menuName = selectedDb.EnName.Replace("DB", "").Replace("Menu", "選單");
+                if (!AuthManager.VerifyHiddenMenu(menuName)) {
+                    _isChangingFormulaDb = true;
+                    _cboFormulaDb.SelectedIndex = 0; 
+                    _isChangingFormulaDb = false;
+                    return;
+                }
+            }
+
             if (!string.IsNullOrEmpty(selectedDb.EnName) && _dbMap.ContainsKey(selectedDb.EnName)) {
                 var tbItems = _dbMap[selectedDb.EnName].Tables.Select(tbl => new ItemMap { EnName = tbl.Key, ChName = tbl.Value }).ToArray();
                 _cboFormulaTable.Items.AddRange(tbItems);
@@ -292,11 +322,15 @@ namespace Safety_System
             if (_cboFormulaDb.SelectedItem == null || _cboFormulaTable.SelectedItem == null) return;
             string dbName = ((ItemMap)_cboFormulaDb.SelectedItem).EnName;
             string tableName = ((ItemMap)_cboFormulaTable.SelectedItem).EnName;
+
             if (!string.IsNullOrEmpty(dbName) && !string.IsNullOrEmpty(tableName)) {
                 var cols = DataManager.GetColumnNames(dbName, tableName).Where(c => c != "Id").ToArray();
                 _cboFormulaTargetCol.Items.AddRange(cols);
                 _cboFormulaMatchCol.Items.AddRange(cols);
             }
+
+            // 🟢 選擇表格後，更新下方的列表只顯示該表格的公式
+            RefreshAllFormulasList();
         }
 
         private async void BtnSaveFormula_Click(object sender, EventArgs e)
@@ -313,9 +347,11 @@ namespace Safety_System
             string sDate = GetFormulaDateStr(_cboFStartYear, _cboFStartMonth, _cboFStartDay, matchCol);
             string eDate = GetFormulaDateStr(_cboFEndYear, _cboFEndMonth, _cboFEndDay, matchCol);
             
-            // 🟢 相容性保護：UI 上選擇「組合文字」，但寫入資料庫時映射回「文字組合」
-            string formulaType = _cboFormulaType.SelectedItem.ToString() == "組合文字" ? "文字組合" : "數學運算";
+            string formulaType = _cboFormulaType.SelectedItem.ToString();
             string formula = _rtbFormulaEditor.Text.Trim();
+            
+            int decPlaces = (int)_numDecimals.Value;
+            string roundMode = _cboRoundingMode.SelectedItem.ToString();
 
             if (string.IsNullOrEmpty(formula)) {
                 MessageBox.Show("公式不可為空！若要取消該欄位的公式，請在下方清單點擊刪除。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
@@ -344,20 +380,22 @@ namespace Safety_System
                     }
 
                     if (_currentFormulaEditId > 0) {
-                        string updateSql = "UPDATE ColumnFormulas SET MatchCol=@MC, StartDate=@SD, EndDate=@ED, FormulaType=@FT, Formula=@F WHERE Id=@Id";
+                        string updateSql = "UPDATE ColumnFormulas SET MatchCol=@MC, StartDate=@SD, EndDate=@ED, FormulaType=@FT, Formula=@F, DecimalPlaces=@DP, RoundingMode=@RM WHERE Id=@Id";
                         using(var cmd = new SQLiteCommand(updateSql, conn)) {
                             cmd.Parameters.AddWithValue("@MC", matchCol); cmd.Parameters.AddWithValue("@SD", sDate);
                             cmd.Parameters.AddWithValue("@ED", eDate); cmd.Parameters.AddWithValue("@FT", formulaType);
                             cmd.Parameters.AddWithValue("@F", formula); cmd.Parameters.AddWithValue("@Id", _currentFormulaEditId);
+                            cmd.Parameters.AddWithValue("@DP", decPlaces); cmd.Parameters.AddWithValue("@RM", roundMode);
                             cmd.ExecuteNonQuery();
                         }
                     } else {
-                        string insertSql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @FT, @F)";
+                        string insertSql = "INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula, DecimalPlaces, RoundingMode) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @FT, @F, @DP, @RM)";
                         using(var cmd = new SQLiteCommand(insertSql, conn)) {
                             cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
                             cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@MC", matchCol);
                             cmd.Parameters.AddWithValue("@SD", sDate); cmd.Parameters.AddWithValue("@ED", eDate);
                             cmd.Parameters.AddWithValue("@FT", formulaType); cmd.Parameters.AddWithValue("@F", formula);
+                            cmd.Parameters.AddWithValue("@DP", decPlaces); cmd.Parameters.AddWithValue("@RM", roundMode);
                             cmd.ExecuteNonQuery();
                         }
                     }
@@ -421,6 +459,9 @@ namespace Safety_System
                                     string eDate = fRow["EndDate"].ToString();
                                     string fType = fRow.Table.Columns.Contains("FormulaType") ? fRow["FormulaType"].ToString() : "數學運算";
                                     string rawFormula = fRow["Formula"].ToString();
+                                    
+                                    int decPlaces = fRow["DecimalPlaces"] == DBNull.Value ? 4 : Convert.ToInt32(fRow["DecimalPlaces"]);
+                                    string rMode = fRow["RoundingMode"].ToString() == "" ? "四捨五入" : fRow["RoundingMode"].ToString();
 
                                     if (!dt.Columns.Contains(tCol)) continue;
 
@@ -477,7 +518,19 @@ namespace Safety_System
                                                 object result = dtMath.Compute(evalFormula, null);
                                                 if (result != DBNull.Value) {
                                                     double dRes = Convert.ToDouble(result);
-                                                    string strRes = Math.Round(dRes, 4).ToString("0.####");
+                                                    
+                                                    // 🟢 套用新的進位與小數點邏輯
+                                                    double multiplier = Math.Pow(10, decPlaces);
+                                                    double adjusted = dRes * multiplier;
+                                                    
+                                                    if (rMode == "無條件進位") adjusted = Math.Ceiling(adjusted);
+                                                    else if (rMode == "無條件捨去") adjusted = Math.Floor(adjusted);
+                                                    else adjusted = Math.Round(adjusted);
+                                                    
+                                                    dRes = adjusted / multiplier;
+                                                    string formatStr = decPlaces > 0 ? $"F{decPlaces}" : "F0";
+                                                    string strRes = dRes.ToString(formatStr);
+                                                    
                                                     if (row[tCol]?.ToString() != strRes) {
                                                         row[tCol] = strRes; rowChanged = true;
                                                     }
@@ -510,34 +563,56 @@ namespace Safety_System
         private void RefreshAllFormulasList()
         {
             if (_flpFormulasList == null) return;
-            
             _flpFormulasList.Controls.Clear();
+            
+            // 🟢 只提取「當前選擇的資料庫與資料表」的公式
+            string currentDb = _cboFormulaDb.SelectedItem != null ? ((ItemMap)_cboFormulaDb.SelectedItem).EnName : "";
+            string currentTb = _cboFormulaTable.SelectedItem != null ? ((ItemMap)_cboFormulaTable.SelectedItem).EnName : "";
+            
+            if (string.IsNullOrEmpty(currentDb) || string.IsNullOrEmpty(currentTb)) {
+                _flpFormulasList.Controls.Add(new Label { Text = "請先在上方選擇庫與表以檢視公式。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                return;
+            }
+
             DataTable dt = new DataTable();
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT * FROM ColumnFormulas", conn))
-                    using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                    using (var cmd = new SQLiteCommand("SELECT * FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                        cmd.Parameters.AddWithValue("@DB", currentDb);
+                        cmd.Parameters.AddWithValue("@TB", currentTb);
+                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
+                    }
                 }
             } catch { }
 
             if (dt.Rows.Count == 0) {
-                _flpFormulasList.Controls.Add(new Label { Text = "系統目前沒有設定任何自動運算公式。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                _flpFormulasList.Controls.Add(new Label { Text = "該表目前沒有設定任何自動運算公式。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 return;
             }
 
+            string chDbName = _cboFormulaDb.Text;
+            string chTbName = _cboFormulaTable.Text;
+
             foreach (DataRow row in dt.Rows) {
                 int id = Convert.ToInt32(row["Id"]);
-                string db = row["DbName"].ToString(); string tb = row["TableName"].ToString();
-                string targetCol = row["TargetCol"].ToString(); string matchCol = row["MatchCol"].ToString();
-                string sDate = row["StartDate"].ToString(); string eDate = row["EndDate"].ToString();
+                string targetCol = row["TargetCol"].ToString(); 
+                string matchCol = row["MatchCol"].ToString();
+                string sDate = row["StartDate"].ToString(); 
+                string eDate = row["EndDate"].ToString();
                 string fType = row.Table.Columns.Contains("FormulaType") ? row["FormulaType"].ToString() : "數學運算";
                 string formula = row["Formula"].ToString();
+                
+                int decPlaces = row.Table.Columns.Contains("DecimalPlaces") && row["DecimalPlaces"] != DBNull.Value ? Convert.ToInt32(row["DecimalPlaces"]) : 4;
+                string rMode = row.Table.Columns.Contains("RoundingMode") && row["RoundingMode"] != DBNull.Value ? row["RoundingMode"].ToString() : "四捨五入";
 
                 string dateInfo = string.IsNullOrEmpty(matchCol) ? "" : $" (當 [{matchCol}] 介於 {sDate} ~ {eDate} 時)";
-                string text = $"【{fType}】庫:[{db}] 表:[{tb}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}";
+                string roundInfo = fType == "數學運算" ? $" (小數點:{decPlaces}位 | {rMode})" : "";
+
+                // 🟢 呈現為中文表名
+                string text = $"【{fType}】表:[{chTbName}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}{roundInfo}";
                 
-                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = fType == "文字組合" ? Color.DarkCyan : Color.DarkSlateBlue, Cursor = Cursors.Hand };
+                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = fType == "組合文字" ? Color.DarkCyan : Color.DarkSlateBlue, Cursor = Cursors.Hand };
                 int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
                 int panelW = Math.Max(_flpFormulasList.ClientSize.Width - 25, reqW);
 
@@ -560,17 +635,17 @@ namespace Safety_System
 
                 Action loadToEdit = () => {
                     _currentFormulaEditId = id;
-                    foreach(ItemMap im in _cboFormulaDb.Items) { if (im.EnName == db) { _cboFormulaDb.SelectedItem = im; break; } }
-                    foreach(ItemMap im in _cboFormulaTable.Items) { if (im.EnName == tb) { _cboFormulaTable.SelectedItem = im; break; } }
                     if (_cboFormulaTargetCol.Items.Contains(targetCol)) _cboFormulaTargetCol.SelectedItem = targetCol;
                     if (_cboFormulaMatchCol.Items.Contains(matchCol)) _cboFormulaMatchCol.SelectedItem = matchCol;
                     SetFormulaDateStr(sDate, _cboFStartYear, _cboFStartMonth, _cboFStartDay);
                     SetFormulaDateStr(eDate, _cboFEndYear, _cboFEndMonth, _cboFEndDay);
                     
                     if (_cboFormulaType.Items.Count > 1) {
-                        // 🟢 相容性對接：將資料庫讀出來的文字重新映射回介面選單
-                        _cboFormulaType.SelectedIndex = (fType == "文字組合") ? 1 : 0;
+                        _cboFormulaType.SelectedIndex = (fType == "組合文字" || fType == "文字組合") ? 1 : 0;
                     }
+                    _numDecimals.Value = decPlaces;
+                    if (_cboRoundingMode.Items.Contains(rMode)) _cboRoundingMode.SelectedItem = rMode;
+                    
                     _rtbFormulaEditor.Text = formula;
                 };
 
@@ -592,7 +667,7 @@ namespace Safety_System
                         DataTable dt = new DataTable();
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
-                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], MatchCol AS [對應日期欄位], StartDate AS [區間起日], EndDate AS [區間迄日], FormulaType AS [公式類型], Formula AS [運算公式] FROM ColumnFormulas", conn))
+                            using (var cmd = new SQLiteCommand("SELECT DbName AS [資料庫名], TableName AS [資料表名], TargetCol AS [目標欄位], MatchCol AS [對應日期欄位], StartDate AS [區間起日], EndDate AS [區間迄日], FormulaType AS [公式類型], Formula AS [運算公式], DecimalPlaces AS [小數點], RoundingMode AS [進位模式] FROM ColumnFormulas", conn))
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
 
@@ -628,16 +703,22 @@ namespace Safety_System
                                         string targetCol = ws.Cells[r, 3].Text.Trim(); string matchCol = ws.Cells[r, 4].Text.Trim();
                                         string sDate = ws.Cells[r, 5].Text.Trim(); string eDate = ws.Cells[r, 6].Text.Trim();
                                         string fType = ws.Cells[r, 7].Text.Trim(); string formula = ws.Cells[r, 8].Text.Trim();
+                                        string decStr = ws.Cells[r, 9].Text.Trim(); string rMode = ws.Cells[r, 10].Text.Trim();
 
                                         if (string.IsNullOrEmpty(db) || string.IsNullOrEmpty(tb) || string.IsNullOrEmpty(targetCol) || string.IsNullOrEmpty(formula)) continue;
 
-                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @FT, @F)";
+                                        int decPlaces = string.IsNullOrEmpty(decStr) ? 4 : int.Parse(decStr);
+                                        rMode = string.IsNullOrEmpty(rMode) ? "四捨五入" : rMode;
+
+                                        string sql = @"INSERT INTO ColumnFormulas (DbName, TableName, TargetCol, MatchCol, StartDate, EndDate, FormulaType, Formula, DecimalPlaces, RoundingMode) VALUES (@DB, @TB, @TC, @MC, @SD, @ED, @FT, @F, @DP, @RM)";
                                         using (var cmd = new SQLiteCommand(sql, conn, trans)) {
                                             cmd.Parameters.AddWithValue("@DB", db); cmd.Parameters.AddWithValue("@TB", tb);
                                             cmd.Parameters.AddWithValue("@TC", targetCol); cmd.Parameters.AddWithValue("@MC", matchCol);
                                             cmd.Parameters.AddWithValue("@SD", sDate); cmd.Parameters.AddWithValue("@ED", eDate);
                                             cmd.Parameters.AddWithValue("@FT", string.IsNullOrEmpty(fType) ? "數學運算" : fType);
-                                            cmd.Parameters.AddWithValue("@F", formula); cmd.ExecuteNonQuery();
+                                            cmd.Parameters.AddWithValue("@F", formula); 
+                                            cmd.Parameters.AddWithValue("@DP", decPlaces); cmd.Parameters.AddWithValue("@RM", rMode);
+                                            cmd.ExecuteNonQuery();
                                         }
                                     }
                                     trans.Commit();
