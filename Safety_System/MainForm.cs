@@ -63,7 +63,20 @@ namespace Safety_System
             this.Controls.Add(_contentPanel);
             this.Controls.Add(_mainMenu); 
             
+            // 🟢 將首頁載入延後到 Shown 事件，並在此時觸發提醒檢查
+            this.Shown += MainForm_Shown;
+        }
+
+        private void MainForm_Shown(object sender, EventArgs e)
+        {
             LoadWelcomeScreen();
+            
+            // 確保主畫面完全載入並顯示後，才彈出提醒視窗，避免視窗控制代碼尚未建立的問題
+            Task.Delay(500).ContinueWith(_ => {
+                try {
+                    ReminderEngine.CheckAndShowReminders();
+                } catch { }
+            });
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -339,7 +352,7 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 🟢 需求：將「系統智能提醒設定」更改為「系統提醒設定」
+            // 🟢 需求 1：選單文字更換為「系統提醒設定」
             var reminderSettingItem = new ToolStripMenuItem("系統提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
