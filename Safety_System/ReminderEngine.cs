@@ -291,7 +291,8 @@ namespace Safety_System
         }
 
         // ==============================================================
-        // 🚀 最穩健排版法：絕對尺寸 + 嚴格的三段 Docking 隔離
+        // 🚀 終極修復版：使用 Master TableLayoutPanel 確保無重疊
+        // 🚀 新增邏輯：自訂待辦選擇「永久不再提醒」將從資料庫徹底刪除
         // ==============================================================
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
@@ -311,41 +312,47 @@ namespace Safety_System
                 f.BackColor = Color.WhiteSmoke;
                 f.TopMost = true; 
 
-                // 1. 底部面板：儲存按鈕 (絕對安全)
-                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(20, 10, 20, 10), BackColor = Color.White };
-                Button btnSave = new Button { Text = "💾 儲存設定並關閉視窗", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
-                pnlBottom.Controls.Add(btnSave);
+                // 🟢 建立全視窗的 Master 網格佈局 (TableLayoutPanel)
+                TableLayoutPanel masterTlp = new TableLayoutPanel {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 3,
+                    Margin = new Padding(0)
+                };
+                masterTlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                
+                // 第一層：標題 (自動適應文字高度)
+                masterTlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                // 第二層：滾動清單區 (佔用剩下所有空間 100%)
+                masterTlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                // 第三層：儲存按鈕區 (絕對高度 70px)
+                masterTlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
 
-                // 2. 頂部面板：標題 (絕對安全，不受下方元件推擠)
-                Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 80, Padding = new Padding(15, 15, 15, 30), BackColor = Color.WhiteSmoke };
-                Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed };
-                pnlTop.Controls.Add(lblTop);
+                // 1. 建立頂部標題區塊
+                Label lblTop = new Label { 
+                    Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", 
+                    Dock = DockStyle.Fill, 
+                    Padding = new Padding(15, 15, 15, 15), 
+                    Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
+                    ForeColor = Color.DarkRed,
+                    BackColor = Color.WhiteSmoke
+                };
 
-                // 3. 中央面板：滾動清單區 (放在最後加入，自動填滿剩餘空間)
+                // 2. 建立中央滾動清單區塊
                 FlowLayoutPanel flp = new FlowLayoutPanel { 
                     Dock = DockStyle.Fill, 
                     AutoScroll = true, 
                     Padding = new Padding(15), 
                     FlowDirection = FlowDirection.TopDown, 
-                    WrapContents = false 
+                    WrapContents = false,
+                    BackColor = Color.WhiteSmoke
                 };
 
-                // 確保寬度自適應
+                // 動態寬度適應
                 flp.Resize += (s, e) => {
                     foreach (Control c in flp.Controls) {
                         if (c is Panel card) {
-                            card.Width = flp.ClientSize.Width - 30; // 扣除 Padding
-                            
-                            // 更新下拉選單的錨點定位
-                            foreach(Control child in card.Controls) {
-                                if (child is Panel bottomPanel) {
-                                    foreach(Control cbo in bottomPanel.Controls) {
-                                        if (cbo is ComboBox) {
-                                            cbo.Left = bottomPanel.Width - cbo.Width - 15;
-                                        }
-                                    }
-                                }
-                            }
+                            card.Width = flp.ClientSize.Width - flp.Padding.Left - flp.Padding.Right - card.Margin.Left - card.Margin.Right;
                         }
                     }
                 };
@@ -354,74 +361,95 @@ namespace Safety_System
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
                 {
-                    // 🟢 卡片主體：固定高度，絕對不會縮水
+                    // 🟢 卡片主體
                     Panel cardPanel = new Panel { 
-                        Width = 730, 
-                        Height = 170, // 絕對固定高度！
+                        Width = 720, 
+                        AutoSize = true, 
+                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
                         BackColor = Color.White, 
-                        Margin = new Padding(0, 0, 0, 15)
+                        Margin = new Padding(0, 0, 0, 15),
+                        Padding = new Padding(15, 15, 15, 20) 
                     };
                     cardPanel.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, cardPanel.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                    // ================= 卡片底部：放下拉選單 =================
-                    Panel pnlCardBottom = new Panel { Dock = DockStyle.Bottom, Height = 45 };
-                    ComboBox cboAction = new ComboBox { 
-                        Width = 260, 
-                        DropDownStyle = ComboBoxStyle.DropDownList, 
-                        Font = new Font("Microsoft JhengHei UI", 11F)
+                    // 卡片內部網格
+                    TableLayoutPanel tlpCard = new TableLayoutPanel {
+                        Dock = DockStyle.Top, 
+                        AutoSize = true,
+                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                        ColumnCount = 1,
+                        RowCount = 3,
+                        Margin = new Padding(0)
                     };
-                    cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
-                    cboAction.SelectedIndex = 0;
-                    cboAction.Location = new Point(cardPanel.Width - cboAction.Width - 15, 5); // 絕對定位，靠右
-                    actionMap[rm] = cboAction;
-                    pnlCardBottom.Controls.Add(cboAction);
+                    tlpCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                    tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    tlpCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F)); 
 
-                    // ================= 卡片頂部：放標籤與標題 =================
-                    Panel pnlCardTop = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(15, 10, 10, 0) };
+                    // ============== 第一列：標籤與規則名稱 ==============
+                    FlowLayoutPanel flpHeader = new FlowLayoutPanel {
+                        AutoSize = true,
+                        WrapContents = false,
+                        Margin = new Padding(0, 0, 0, 10)
+                    };
                     
                     string statusTag = rm.DaysLeft < 0 ? $"[已逾期 {Math.Abs(rm.DaysLeft)} 天]" : (rm.DaysLeft == 0 ? "[今日到期]" : $"[還有 {rm.DaysLeft} 天]");
                     Color tagColor = rm.DaysLeft < 0 ? Color.Crimson : (rm.DaysLeft <= 7 ? Color.DarkOrange : Color.DarkSlateBlue);
 
-                    Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, Dock = DockStyle.Left, AutoSize = true };
-                    Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Dock = DockStyle.Left, AutoSize = true, Padding = new Padding(10, 2, 0, 0) };
+                    Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, AutoSize = true };
+                    Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10, 2, 0, 0) };
                     
-                    pnlCardTop.Controls.Add(lblRule); // 後加的在右邊
-                    pnlCardTop.Controls.Add(lblTag);  // 先加的在左邊
+                    flpHeader.Controls.Add(lblTag);
+                    flpHeader.Controls.Add(lblRule);
+                    tlpCard.Controls.Add(flpHeader, 0, 0);
 
-                    // ================= 卡片中間：文字框 =================
-                    // 用 TextBox 搭配 Dock.Fill，自動長出垂直捲軸，絕對不會擠破版面
-                    Panel pnlMsgWrapper = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 5, 15, 5) };
-                    TextBox txtMsg = new TextBox { 
+                    // ============== 第二列：訊息內容 ==============
+                    Label lblMsg = new Label { 
                         Text = rm.Message, 
                         Font = new Font("Microsoft JhengHei UI", 12F), 
+                        AutoSize = true, 
                         Dock = DockStyle.Fill, 
-                        Multiline = true, 
-                        ReadOnly = true,
-                        BackColor = Color.White,
-                        BorderStyle = BorderStyle.None,
-                        ScrollBars = ScrollBars.Vertical
+                        Margin = new Padding(5, 0, 0, 15) 
                     };
-                    pnlMsgWrapper.Controls.Add(txtMsg);
+                    tlpCard.Controls.Add(lblMsg, 0, 1);
 
-                    // 嚴格遵守 Dock 順序
-                    cardPanel.Controls.Add(pnlMsgWrapper);
-                    cardPanel.Controls.Add(pnlCardTop);
-                    cardPanel.Controls.Add(pnlCardBottom);
+                    // ============== 第三列：下拉選單 ==============
+                    ComboBox cboAction = new ComboBox { 
+                        Width = 260, 
+                        DropDownStyle = ComboBoxStyle.DropDownList, 
+                        Font = new Font("Microsoft JhengHei UI", 11F), 
+                        Anchor = AnchorStyles.Right, // 鎖死在右側
+                        Margin = new Padding(0, 0, 5, 0)
+                    };
+                    cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
+                    cboAction.SelectedIndex = 0;
+                    actionMap[rm] = cboAction;
+                    
+                    tlpCard.Controls.Add(cboAction, 0, 2);
 
+                    // 組裝
+                    cardPanel.Controls.Add(tlpCard);
                     flp.Controls.Add(cardPanel);
                 }
 
-                // 🟢 將三大區塊加入 Form，遵守順序：Bottom -> Top -> Fill
-                f.Controls.Add(flp);
-                f.Controls.Add(pnlTop);
-                f.Controls.Add(pnlBottom);
+                // 3. 建立底部面板 (儲存按鈕)
+                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 10, 20, 10), BackColor = Color.White };
+                Button btnSave = new Button { Text = "💾 儲存設定並關閉視窗", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                pnlBottom.Controls.Add(btnSave);
 
-                // 強制焦點，防止畫面一開始就往下跳
+                // 🟢 依序放入 Master 網格，完全避免重疊
+                masterTlp.Controls.Add(lblTop, 0, 0);     
+                masterTlp.Controls.Add(flp, 0, 1);        
+                masterTlp.Controls.Add(pnlBottom, 0, 2);  
+
+                f.Controls.Add(masterTlp);
+
+                // 防止焦點亂跳
                 f.Shown += (s, e) => {
                     btnSave.Focus(); 
                 };
 
-                // 儲存邏輯
+                // 🟢 儲存邏輯 (包含自訂待辦事項的刪除邏輯)
                 btnSave.Click += (s, e) => {
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -429,14 +457,33 @@ namespace Safety_System
                             using (var trans = conn.BeginTransaction()) {
                                 foreach (var kvp in actionMap) {
                                     int actionIdx = kvp.Value.SelectedIndex;
-                                    if (actionIdx == 0) continue; 
-                                    
+                                    if (actionIdx == 0) continue; // 本次忽略
+
+                                    // 🟢 核心修改：如果是自訂待辦 (RuleId == 0) 且選擇了永久不再提醒 (actionIdx == 4)
+                                    // 則直接從 CustomToDos 資料庫中把這筆任務刪除！
+                                    if (actionIdx == 4 && kvp.Key.RuleId == 0)
+                                    {
+                                        using (var cmdDelToDo = new SQLiteCommand("DELETE FROM CustomToDos WHERE Id=@Id", conn, trans)) {
+                                            cmdDelToDo.Parameters.AddWithValue("@Id", kvp.Key.RecordId);
+                                            cmdDelToDo.ExecuteNonQuery();
+                                        }
+                                        
+                                        // 順便清理該任務對應的所有延遲日誌，保持 DB 乾淨
+                                        using (var cmdDelLog = new SQLiteCommand("DELETE FROM UserReminderLogs WHERE RuleId=0 AND RecordId=@Rec", conn, trans)) {
+                                            cmdDelLog.Parameters.AddWithValue("@Rec", kvp.Key.RecordId);
+                                            cmdDelLog.ExecuteNonQuery();
+                                        }
+                                        continue; // 這筆資料已經徹底消失，不需要再寫入 2099 年的延遲日誌了
+                                    }
+
+                                    // 其他一般的延遲設定
                                     string nextDate = "";
                                     if (actionIdx == 1) nextDate = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 2) nextDate = DateTime.Today.AddDays(3).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 3) nextDate = DateTime.Today.AddDays(7).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 4) nextDate = "2099-12-31"; 
 
+                                    // 先刪除該使用者針對此項目的舊日誌
                                     using (var cmdDel = new SQLiteCommand("DELETE FROM UserReminderLogs WHERE UserName=@U AND RuleId=@R AND RecordId=@Rec", conn, trans)) {
                                         cmdDel.Parameters.AddWithValue("@U", userName);
                                         cmdDel.Parameters.AddWithValue("@R", kvp.Key.RuleId);
@@ -444,6 +491,7 @@ namespace Safety_System
                                         cmdDel.ExecuteNonQuery();
                                     }
 
+                                    // 寫入新的延遲日期
                                     using (var cmdIns = new SQLiteCommand("INSERT INTO UserReminderLogs (UserName, RuleId, RecordId, NextRemindDate) VALUES (@U, @R, @Rec, @ND)", conn, trans)) {
                                         cmdIns.Parameters.AddWithValue("@U", userName);
                                         cmdIns.Parameters.AddWithValue("@R", kvp.Key.RuleId);
