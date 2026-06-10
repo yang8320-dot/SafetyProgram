@@ -32,7 +32,6 @@ namespace Safety_System
             
             Button btnSavePath = new Button { Text = "儲存路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSavePath.Click += (s, e) => {
-                // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                 if (System.IO.Directory.Exists(_txtPath.Text)) {
                     DataManager.SetBasePath(_txtPath.Text);
                     MessageBox.Show("DB 路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -61,7 +60,6 @@ namespace Safety_System
             
             Button btnSaveAttachPath = new Button { Text = "儲存附件路徑變更", Location = new Point(30, 110), Size = new Size(220, 45), BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveAttachPath.Click += (s, e) => {
-                // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                 if (System.IO.Directory.Exists(_txtAttachmentPath.Text)) {
                     DataManager.SetAttachmentBasePath(_txtAttachmentPath.Text);
                     MessageBox.Show("附件路徑已更新！後續系統存取皆會依此路徑。", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -100,7 +98,6 @@ namespace Safety_System
 
             Button btnSaveBackup = new Button { Text = "儲存備份設定", Location = new Point(30, 220), Size = new Size(220, 45), BackColor = Color.Sienna, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
             btnSaveBackup.Click += (s, e) => {
-                // 🟢 已移除授權檢查 (AuthManager.VerifyAdmin)
                 BackupManager.SaveConfig(_txtBackupPath.Text, (int)_numKeepCount.Value, (int)_numIntervalDays.Value);
                 MessageBox.Show("備份設定已儲存！", "系統提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
@@ -161,7 +158,6 @@ namespace Safety_System
                 MessageBox.Show("請先選擇要刪除的資料庫與資料表！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            // 🟢 此處保留！因為這是毀滅性操作，必須維持嚴格的密碼保護
             if (!AuthManager.VerifyTableDelete()) return;
 
             try {
@@ -179,15 +175,18 @@ namespace Safety_System
 
             GroupBox boxAudit = new GroupBox { Text = "操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 650, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
 
+            // 🟢 需求修正：選擇料庫與下拉選單間距 +10px (140 -> 150)
             Label lblAuditDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
-            _cboAuditDb = new ComboBox { Location = new Point(140, 58), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboAuditDb = new ComboBox { Location = new Point(150, 58), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(350, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
-            _cboAuditTable = new ComboBox { Location = new Point(460, 58), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            // 🟢 需求修正：選擇資料表與下拉選單間距 +10px (原本標籤在350，下拉在460。現在整體往右移，確保間距完美)
+            Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(360, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
+            _cboAuditTable = new ComboBox { Location = new Point(480, 58), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(740, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
+            // 因為前面元件往右移，這裡稍微配合向右調整避免擠在一起
+            _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(760, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
 
-            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(740, 110), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(760, 110), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnSearchAudit.Click += BtnSearchAudit_Click;
 
             _dgvAudit = new DataGridView { 
