@@ -291,7 +291,7 @@ namespace Safety_System
         }
 
         // ==============================================================
-        // 🟢 徹底重構的 UI 生成方法，修復排版變成一條線的 Bug
+        // 🚀 徹底修復排版 Bug：放棄 AutoSize，採用絕對防呆固定高度佈局
         // ==============================================================
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
@@ -312,23 +312,27 @@ namespace Safety_System
                 f.BackColor = Color.WhiteSmoke;
                 f.TopMost = true; 
 
-                // 🟢 1. 建立底部面板 (Dock.Bottom 必須先加入 Form 才能防止遮蓋 Fill 區域)
+                // 1. 建立底部面板
                 Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(20, 10, 20, 10), BackColor = Color.White };
                 Button btnSave = new Button { Text = "💾 儲存設定並關閉視窗", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
                 pnlBottom.Controls.Add(btnSave);
 
-                // 🟢 2. 建立頂部標題區塊
+                // 2. 建立頂部標題區塊
                 Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 15, 30), Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed, Height = 80 };
 
-                // 🟢 3. 建立中央滾動清單區塊 (Dock.Fill)
+                // 3. 建立中央滾動清單區塊
                 FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10), FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
                 Dictionary<TriggeredReminder, ComboBox> actionMap = new Dictionary<TriggeredReminder, ComboBox>();
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
                 {
-                    // 🟢 移除 AutoSize=true 的坑，直接設定寬度並在下方動態計算高度
-                    Panel pnl = new Panel { Width = 740, BackColor = Color.White, Margin = new Padding(0, 0, 0, 10) };
+                    // 🟢 放棄 AutoSize，強行設定卡片的絕對固定尺寸 (高度固定為 110px)
+                    Panel pnl = new Panel { 
+                        Size = new Size(740, 110), 
+                        BackColor = Color.White, 
+                        Margin = new Padding(0, 0, 0, 10) 
+                    };
                     pnl.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnl.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
                     string statusTag = rm.DaysLeft < 0 ? $"[已逾期 {Math.Abs(rm.DaysLeft)} 天]" : (rm.DaysLeft == 0 ? "[今日到期]" : $"[還有 {rm.DaysLeft} 天]");
@@ -337,11 +341,21 @@ namespace Safety_System
                     Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, Location = new Point(15, 15), AutoSize = true };
                     Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Location = new Point(160, 18), AutoSize = true };
                     
-                    // 訊息內文 (限制最大寬度，允許垂直延展)
-                    Label lblMsg = new Label { Text = rm.Message, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(15, 45), MaximumSize = new Size(460, 0), AutoSize = true };
+                    // 🟢 放棄使用 Label，改用唯讀的多行 TextBox，這樣字再多也不會把版面撐破，且會有自己的捲軸
+                    TextBox txtMsg = new TextBox { 
+                        Text = rm.Message, 
+                        Font = new Font("Microsoft JhengHei UI", 11F), 
+                        Location = new Point(15, 45), 
+                        Size = new Size(450, 50), 
+                        Multiline = true, 
+                        ReadOnly = true,
+                        BackColor = Color.White,
+                        BorderStyle = BorderStyle.None,
+                        ScrollBars = ScrollBars.Vertical
+                    };
                     
-                    // 操作下拉選單
-                    ComboBox cboAction = new ComboBox { Width = 235, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(485, 30) };
+                    // 🟢 下拉選單座標固定
+                    ComboBox cboAction = new ComboBox { Width = 235, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(485, 45) };
                     cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
                     cboAction.SelectedIndex = 0;
                     
@@ -349,28 +363,21 @@ namespace Safety_System
 
                     pnl.Controls.Add(lblTag);
                     pnl.Controls.Add(lblRule);
-                    pnl.Controls.Add(lblMsg);
+                    pnl.Controls.Add(txtMsg);
                     pnl.Controls.Add(cboAction);
                     
-                    // 🟢 強制排版讓 Label 取得真實高度
-                    lblMsg.PerformLayout();
-                    
-                    // 🟢 動態計算 Panel 所需的真實高度 (保留底部 20px 緩衝，且不小於 85px)
-                    int requiredHeight = lblMsg.Bottom + 20;
-                    pnl.Height = Math.Max(85, requiredHeight);
-
-                    // 🟢 讓下拉選單垂直置中於 Panel
-                    cboAction.Location = new Point(485, (pnl.Height - cboAction.Height) / 2);
-
                     flp.Controls.Add(pnl);
                 }
 
-                // 🟢 嚴格遵守 WinForms Docking 順序：Bottom -> Top -> Fill
+                // 🟢 嚴格依照 Fill、Bottom、Top 的優先順序加入控制項，並使用 BringToFront 防呆
+                f.Controls.Add(flp);
                 f.Controls.Add(pnlBottom);
                 f.Controls.Add(lblTop);
-                f.Controls.Add(flp);
+                
+                lblTop.BringToFront();
+                pnlBottom.BringToFront();
 
-                // 儲存按鈕邏輯保持不變
+                // 儲存邏輯
                 btnSave.Click += (s, e) => {
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
