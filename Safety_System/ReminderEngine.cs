@@ -47,7 +47,7 @@ namespace Safety_System
                     using (var cmd = new SQLiteCommand(sql2, conn)) cmd.ExecuteNonQuery();
                     using (var cmd = new SQLiteCommand(sql3, conn)) cmd.ExecuteNonQuery();
 
-                    // 🟢 動態升級表結構：新增循環任務欄位
+                    // 動態升級表結構：新增循環任務欄位
                     var cols = new List<string>();
                     using (var cmd = new SQLiteCommand($"PRAGMA table_info([{ToDosTable}])", conn))
                     using (var reader = cmd.ExecuteReader()) {
@@ -202,7 +202,7 @@ namespace Safety_System
                             {
                                 DateTime targetDate = parsedDate.Value.Date;
 
-                                // 🟢 循環任務邏輯：自動計算下一個應觸發的日期
+                                // 循環任務邏輯：自動計算下一個應觸發的日期
                                 if (isRecurring && !string.IsNullOrEmpty(recurType))
                                 {
                                     targetDate = CalculateNextRecurringDate(targetDate, recurType);
@@ -210,7 +210,6 @@ namespace Safety_System
 
                                 int daysDiff = (int)(targetDate - DateTime.Today).TotalDays;
                                 
-                                // 🟢 修復：包含當天建立的情況，只要天數 <= 提前天數，都會觸發
                                 if (daysDiff <= advanceDays)
                                 {
                                     string recurLabel = isRecurring ? $"[循環任務:{recurType}] " : "";
@@ -247,13 +246,11 @@ namespace Safety_System
             });
         }
 
-        // 🟢 計算下一個循環日期
         private static DateTime CalculateNextRecurringDate(DateTime baseDate, string recurType)
         {
             DateTime today = DateTime.Today;
             DateTime nextDate = baseDate;
 
-            // 只有當 baseDate 已經小於今天時，才需要向未來的循環推移
             if (nextDate < today)
             {
                 if (recurType == "每天") {
@@ -331,9 +328,11 @@ namespace Safety_System
                     Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, Location = new Point(10, 15), AutoSize = true };
                     Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Location = new Point(150, 18), AutoSize = true };
                     
-                    Label lblMsg = new Label { Text = rm.Message, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(10, 45), MaximumSize = new Size(500, 0), AutoSize = true };
+                    // 🟢 修正 1：文字最大寬度從 500 縮減到 480，避免與下拉選單重疊
+                    Label lblMsg = new Label { Text = rm.Message, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(10, 45), MaximumSize = new Size(480, 0), AutoSize = true };
                     
-                    ComboBox cboAction = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(530, 40) };
+                    // 🟢 修正 2：下拉選單加寬至 220，並將 X 座標移至 500 (500+220=720，在 740 面板內安全)
+                    ComboBox cboAction = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(500, 40) };
                     cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
                     cboAction.SelectedIndex = 0;
                     
