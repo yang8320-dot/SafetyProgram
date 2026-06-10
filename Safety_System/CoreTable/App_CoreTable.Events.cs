@@ -468,6 +468,13 @@ namespace Safety_System
                 }
             }
 
+            // 🟢 [修正]：將系統自動計算的統計欄位也加入公式欄位集合中，讓匯出的 Excel 自動套用灰底防呆
+            foreach (DataGridViewColumn col in _dgv.Columns) {
+                if (col.Name == "星期" || col.Name.EndsWith("日統計") || col.Name.EndsWith("月統計") || col.Name.EndsWith("年統計")) {
+                    formulaCols.Add(col.Name);
+                }
+            }
+
             DataTable exportDt = new DataTable();
             List<DataGridViewColumn> visCols = new List<DataGridViewColumn>();
 
@@ -488,7 +495,7 @@ namespace Safety_System
                 exportDt.Rows.Add(dRow);
             }
 
-            // 🟢 將公式欄位清單傳入匯出引擎
+            // 🟢 將公式與系統運算欄位清單一起傳入匯出引擎
             ExcelHelper.ExportToExcelOrCsv(exportDt, _chineseTitle, exportWidths, dropdownData, formulaCols);
         }
 
