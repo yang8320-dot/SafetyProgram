@@ -310,7 +310,8 @@ namespace Safety_System
                 f.BackColor = Color.WhiteSmoke;
                 f.TopMost = true; 
 
-                Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Top, Padding = new Padding(15), Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed, Height = 60 };
+                // 🟢 需求 2：增加高度 (60 -> 80) 以及底部 Padding，拉開與列表的距離
+                Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 15, 30), Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed, Height = 80 };
                 f.Controls.Add(lblTop);
 
                 FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10), FlowDirection = FlowDirection.TopDown, WrapContents = false };
@@ -328,11 +329,11 @@ namespace Safety_System
                     Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, Location = new Point(10, 15), AutoSize = true };
                     Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, Location = new Point(150, 18), AutoSize = true };
                     
-                    // 🟢 修正 1：文字最大寬度從 500 縮減到 480，避免與下拉選單重疊
-                    Label lblMsg = new Label { Text = rm.Message, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(10, 45), MaximumSize = new Size(480, 0), AutoSize = true };
+                    // 🟢 配合選單加寬，將文字最大寬度縮小到 460，確保不會重疊
+                    Label lblMsg = new Label { Text = rm.Message, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(10, 45), MaximumSize = new Size(460, 0), AutoSize = true };
                     
-                    // 🟢 修正 2：下拉選單加寬至 220，並將 X 座標移至 500 (500+220=720，在 740 面板內安全)
-                    ComboBox cboAction = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(500, 40) };
+                    // 🟢 需求 1：下拉選單寬度從 220 增加為 235，並將 X 座標退後到 485，讓選單文字有足夠空間顯示
+                    ComboBox cboAction = new ComboBox { Width = 235, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(485, 40) };
                     cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
                     cboAction.SelectedIndex = 0;
                     
