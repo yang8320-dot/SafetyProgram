@@ -275,8 +275,9 @@ namespace Safety_System
                                         }
                                     } 
                                     catch {
+                                        // 🟢 修正：將 tCol 改為 targetCol
                                         if (row[targetCol]?.ToString() != "") {
-                                            row[tCol] = ""; 
+                                            row[targetCol] = ""; 
                                         }
                                     }
                                 }
