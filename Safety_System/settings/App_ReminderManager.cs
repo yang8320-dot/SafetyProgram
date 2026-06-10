@@ -84,7 +84,6 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "⏰ 系統提醒設定"; 
-            // 🟢 介面高度 +50
             this.Size = new Size(1100, 730);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -157,7 +156,7 @@ namespace Safety_System
         private void BuildRulesTab(TabPage page)
         {
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330F)); // 稍微加寬左側清單區
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330F)); 
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
             // 左側清單與 IO 按鈕
@@ -166,8 +165,8 @@ namespace Safety_System
             Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60 };
             Label lFilter = new Label { Text = "篩選接收對象:", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
             
-            // 🟢 下拉選單 X 座標往右推，避免重疊
-            _cboRuleFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, Location = new Point(110, 3) };
+            // 🟢 調整：X 座標從 110 改為 125，拉開距離
+            _cboRuleFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, Location = new Point(125, 3) };
             _cboRuleFilter.Items.Add("全部顯示");
             foreach (var u in _allUsersList) _cboRuleFilter.Items.Add(u);
             _cboRuleFilter.SelectedIndex = 0;
@@ -197,13 +196,11 @@ namespace Safety_System
             pnlLeft.Controls.Add(pnlIo); 
             pnlLeft.Controls.Add(btnAdd);
 
-            // 🟢 右側編輯區加入 AutoScroll，防止高度被裁切
             Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20), AutoScroll = true };
             Label l2 = new Label { Text = "編輯觸發條件與樣板", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.DarkOrange, Dock = DockStyle.Top, Height = 40 };
 
             FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
 
-            // 🟢 加入 AutoSize = true
             _chkIsActive = new CheckBox { Text = "啟用此提醒規則", AutoSize = true, Checked = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.ForestGreen, Margin = new Padding(0, 0, 0, 15) };
             
             _txtRuleName = new TextBox { Width = 300 };
@@ -289,8 +286,8 @@ namespace Safety_System
             Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60 };
             Label lFilter = new Label { Text = "篩選接收對象:", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
             
-            // 🟢 下拉選單 X 座標往右推，避免重疊
-            _cboToDoFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, Location = new Point(110, 3) };
+            // 🟢 調整：X 座標從 110 改為 125，拉開距離
+            _cboToDoFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, Location = new Point(125, 3) };
             _cboToDoFilter.Items.Add("全部顯示");
             foreach (var u in _allUsersList) _cboToDoFilter.Items.Add(u);
             _cboToDoFilter.SelectedIndex = 0;
@@ -320,13 +317,11 @@ namespace Safety_System
             pnlLeft.Controls.Add(pnlIo);
             pnlLeft.Controls.Add(btnAdd);
 
-            // 🟢 右側編輯區加入 AutoScroll
             Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20), AutoScroll = true };
             Label l2 = new Label { Text = "編輯待辦事項內容", Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Top, Height = 40 };
 
             FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
 
-            // 🟢 加入 AutoSize = true
             _chkToDoIsActive = new CheckBox { Text = "啟用此待辦事項", AutoSize = true, Checked = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.ForestGreen, Margin = new Padding(0, 0, 0, 15) };
             
             _txtToDoName = new TextBox { Width = 300 };
@@ -391,15 +386,11 @@ namespace Safety_System
             page.Controls.Add(tlp);
         }
 
-        // =========================================================================
-        // 共用工具與邏輯
-        // =========================================================================
         private Panel BuildRow(string labelText, Control ctrl1, object hintOrCtrl2)
         {
             Panel p = new Panel { Width = 750, Height = 40, Margin = new Padding(0, 5, 0, 5) };
             Label l = new Label { Text = labelText, Location = new Point(0, 5), AutoSize = true };
             
-            // 🟢 控制項 X 座標大幅往右推 35px，解決嚴重重疊問題 (140 -> 175)
             ctrl1.Location = new Point(175, 2); 
             p.Controls.Add(l); p.Controls.Add(ctrl1);
 
@@ -510,7 +501,6 @@ namespace Safety_System
                 MessageBox.Show("資料表規則儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadRulesList();
                 
-                // 🟢 強制觸發引擎背景掃描，確保當天新建能立刻跳出
                 ReminderEngine.CheckAndShowReminders();
                 
             } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
@@ -609,7 +599,6 @@ namespace Safety_System
                 }
             }
         }
-
 
         // --- Tab 2 (自訂待辦清單) 邏輯 ---
         private void LoadToDosList()
@@ -711,7 +700,6 @@ namespace Safety_System
                 MessageBox.Show("自訂待辦事項儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadToDosList();
 
-                // 🟢 強制觸發引擎背景掃描，確保當天新建能立刻跳出
                 ReminderEngine.CheckAndShowReminders();
 
             } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
