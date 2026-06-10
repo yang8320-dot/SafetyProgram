@@ -253,7 +253,6 @@ namespace Safety_System
                 tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F)); 
                 tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-                // 🟢 需求修正：新增上方選單列，放入標題與匯出/匯入按鈕
                 Panel pnlTop = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 15, 15, 5) };
                 Label lbl = new Label { Text = "已啟用之跨表同步規則清單：", Dock = DockStyle.Left, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, TextAlign = ContentAlignment.MiddleLeft };
                 
@@ -316,8 +315,8 @@ namespace Safety_System
                     } catch { }
                 };
 
-                // 綁定匯出匯入事件
-                btnExp.Click += (s, e) => {
+                // 🟢 修正：更改變數名稱避免與外層的 e 衝突
+                btnExp.Click += (senderObj, ev) => {
                     using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "資料同步規則_" + DateTime.Now.ToString("yyyyMMdd") }) {
                         if (sfd.ShowDialog() == DialogResult.OK) {
                             try {
@@ -339,7 +338,8 @@ namespace Safety_System
                     }
                 };
 
-                btnImp.Click += (s, e) => {
+                // 🟢 修正：更改變數名稱避免與外層的 e 衝突，並將 loadKeys() 改為 loadRules()
+                btnImp.Click += (senderObj, ev) => {
                     string authPrompt = "匯入同步設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                     if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -381,7 +381,7 @@ namespace Safety_System
                                     }
                                 }
                                 MessageBox.Show("同步設定已批次匯入並寫入成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                loadKeys(); // 刷新畫面
+                                loadRules(); // 🟢 修正為 loadRules()
                             } catch (Exception ex) { MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                         }
                     }
