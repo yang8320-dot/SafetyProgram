@@ -291,7 +291,7 @@ namespace Safety_System
         }
 
         // ==============================================================
-        // 🚀 終極防呆版排版邏輯：全面改用 Dock 確保元件不會被擠壓
+        // 🚀 最終排版修復：使用 TableLayoutPanel 達成完美自適應高度
         // ==============================================================
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
@@ -318,74 +318,91 @@ namespace Safety_System
                 pnlBottom.Controls.Add(btnSave);
 
                 // 2. 建立頂部標題區塊
-                Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 15, 15), Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed, Height = 60 };
+                Label lblTop = new Label { Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", Dock = DockStyle.Top, Padding = new Padding(15, 15, 15, 30), Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkRed, Height = 80 };
 
                 // 3. 建立中央滾動清單區塊
-                FlowLayoutPanel flp = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+                FlowLayoutPanel flp = new FlowLayoutPanel { 
+                    Dock = DockStyle.Fill, 
+                    AutoScroll = true, 
+                    Padding = new Padding(15), 
+                    FlowDirection = FlowDirection.TopDown, 
+                    WrapContents = false 
+                };
                 
                 Dictionary<TriggeredReminder, ComboBox> actionMap = new Dictionary<TriggeredReminder, ComboBox>();
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
                 {
-                    // 🟢 每一張「卡片」面板
+                    // 🟢 卡片主體，開啟 AutoSize 隨內部元件長高
                     Panel cardPanel = new Panel { 
-                        Width = 730, 
-                        Height = 150, // 絕對高度，保證不會縮成一條線
+                        Width = 740, 
+                        AutoSize = true, 
+                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
                         BackColor = Color.White, 
-                        Margin = new Padding(0, 0, 0, 15)
+                        Margin = new Padding(0, 0, 0, 15),
+                        Padding = new Padding(15) // 卡片內邊距
                     };
                     cardPanel.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, cardPanel.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                    // ================= 卡片頂部 (標籤與標題) =================
-                    Panel pnlCardTop = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 10, 10, 0) };
+                    // 🟢 使用 TableLayoutPanel 做精確的三列排版 (標題列、訊息列、操作列)
+                    TableLayoutPanel tlpCard = new TableLayoutPanel {
+                        Width = 710, 
+                        AutoSize = true,
+                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                        ColumnCount = 1,
+                        RowCount = 3,
+                        Margin = new Padding(0)
+                    };
+                    tlpCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+
+                    // ============== 第一列：標籤與規則名稱 ==============
+                    FlowLayoutPanel flpHeader = new FlowLayoutPanel {
+                        AutoSize = true,
+                        WrapContents = false,
+                        Margin = new Padding(0, 0, 0, 10)
+                    };
                     
                     string statusTag = rm.DaysLeft < 0 ? $"[已逾期 {Math.Abs(rm.DaysLeft)} 天]" : (rm.DaysLeft == 0 ? "[今日到期]" : $"[還有 {rm.DaysLeft} 天]");
                     Color tagColor = rm.DaysLeft < 0 ? Color.Crimson : (rm.DaysLeft <= 7 ? Color.DarkOrange : Color.DarkSlateBlue);
 
-                    Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, Dock = DockStyle.Left, AutoSize = true };
-                    Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 11F), ForeColor = Color.DimGray, Dock = DockStyle.Left, AutoSize = true, Padding = new Padding(10, 2, 0, 0) };
+                    Label lblTag = new Label { Text = statusTag, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = tagColor, AutoSize = true };
+                    Label lblRule = new Label { Text = $"標籤：{rm.RuleName}", Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(10, 2, 0, 0) };
                     
-                    pnlCardTop.Controls.Add(lblRule); // 先加右邊的
-                    pnlCardTop.Controls.Add(lblTag);  // 再加左邊的
+                    flpHeader.Controls.Add(lblTag);
+                    flpHeader.Controls.Add(lblRule);
+                    tlpCard.Controls.Add(flpHeader, 0, 0);
 
-                    // ================= 卡片底部 (下拉選單) =================
-                    Panel pnlCardBottom = new Panel { Dock = DockStyle.Bottom, Height = 45, Padding = new Padding(10, 5, 10, 10) };
-                    
+                    // ============== 第二列：訊息內容 ==============
+                    // 🟢 恢復使用 Label，並給予 MaximumSize 強制折行，這樣就不會搶焦點導致滾動條亂跳
+                    Label lblMsg = new Label { 
+                        Text = rm.Message, 
+                        Font = new Font("Microsoft JhengHei UI", 12F), 
+                        AutoSize = true, 
+                        MaximumSize = new Size(690, 0), // 寬度達 690px 時自動換行往下長
+                        Margin = new Padding(5, 0, 0, 15) // 與下方的間距
+                    };
+                    tlpCard.Controls.Add(lblMsg, 0, 1);
+
+                    // ============== 第三列：下拉選單 ==============
                     ComboBox cboAction = new ComboBox { 
-                        Dock = DockStyle.Right, // 強制靠右
                         Width = 260, 
                         DropDownStyle = ComboBoxStyle.DropDownList, 
-                        Font = new Font("Microsoft JhengHei UI", 11F) 
+                        Font = new Font("Microsoft JhengHei UI", 11F), 
+                        Anchor = AnchorStyles.Right, // 🟢 在 TableLayoutPanel 中強制靠右對齊
+                        Margin = new Padding(0, 0, 5, 0)
                     };
                     cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
                     cboAction.SelectedIndex = 0;
                     actionMap[rm] = cboAction;
                     
-                    pnlCardBottom.Controls.Add(cboAction);
+                    tlpCard.Controls.Add(cboAction, 0, 2);
 
-                    // ================= 卡片中間 (訊息內容) =================
-                    // 使用 TextBox 且設定 Dock.Fill，保證完美填滿剩下的空間
-                    TextBox txtMsg = new TextBox { 
-                        Text = rm.Message, 
-                        Font = new Font("Microsoft JhengHei UI", 12F), 
-                        Dock = DockStyle.Fill, 
-                        Multiline = true, 
-                        ReadOnly = true,
-                        BackColor = Color.White,
-                        BorderStyle = BorderStyle.None,
-                        ScrollBars = ScrollBars.Vertical,
-                        Margin = new Padding(10)
-                    };
-
-                    // 🟢 WinForms 規則：要被 Dock.Fill 的元件必須最後一個加入 Container
-                    cardPanel.Controls.Add(txtMsg);       // 3. Fill
-                    cardPanel.Controls.Add(pnlCardBottom);// 2. Bottom
-                    cardPanel.Controls.Add(pnlCardTop);   // 1. Top
-
+                    // 組裝
+                    cardPanel.Controls.Add(tlpCard);
                     flp.Controls.Add(cardPanel);
                 }
 
-                // 🟢 嚴格遵守 WinForms Docking 順序：Bottom -> Top -> Fill
+                // 嚴格遵守 WinForms Docking 順序：Bottom -> Top -> Fill
                 f.Controls.Add(flp);
                 f.Controls.Add(pnlBottom);
                 f.Controls.Add(lblTop);
@@ -393,7 +410,7 @@ namespace Safety_System
                 lblTop.BringToFront();
                 pnlBottom.BringToFront();
 
-                // 儲存按鈕邏輯保持不變
+                // 儲存邏輯
                 btnSave.Click += (s, e) => {
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
