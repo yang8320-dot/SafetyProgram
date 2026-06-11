@@ -264,7 +264,6 @@ namespace Safety_System
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
 
-            // 🟢 修改：ESG 分類下的選單項目
             var menuESG = new ToolStripMenuItem("ESG");
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(new ToolStripSeparator());
@@ -323,9 +322,13 @@ namespace Safety_System
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
 
+            // 🟢 加入進門前的驗證
             var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
-                new App_MenuManager().ShowDialog(this);
+                string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                if (AuthManager.VerifyAdmin(prompt)) {
+                    new App_MenuManager().ShowDialog(this);
+                }
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
@@ -346,7 +349,6 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    // 🟢 [修復 CS0103] 將 _mainMenuRef 改為 _mainMenu
                     new App_PermissionManager(_mainMenu).ShowDialog(this);
                 }
             };
