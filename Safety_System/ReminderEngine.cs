@@ -291,8 +291,7 @@ namespace Safety_System
         }
 
         // ==============================================================
-        // 🚀 終極修復版：使用 Master TableLayoutPanel 確保無重疊
-        // 🚀 新增邏輯：自訂待辦選擇「永久不再提醒」將從資料庫徹底刪除
+        // 🚀 修復版：修正 WinForms 排版引擎互相衝突導致卡片消失的 Bug
         // ==============================================================
         private static void ShowPopupUI(List<TriggeredReminder> reminders, string userName)
         {
@@ -312,7 +311,6 @@ namespace Safety_System
                 f.BackColor = Color.WhiteSmoke;
                 f.TopMost = true; 
 
-                // 🟢 建立全視窗的 Master 網格佈局 (TableLayoutPanel)
                 TableLayoutPanel masterTlp = new TableLayoutPanel {
                     Dock = DockStyle.Fill,
                     ColumnCount = 1,
@@ -320,15 +318,10 @@ namespace Safety_System
                     Margin = new Padding(0)
                 };
                 masterTlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-                
-                // 第一層：標題 (自動適應文字高度)
                 masterTlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                // 第二層：滾動清單區 (佔用剩下所有空間 100%)
                 masterTlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-                // 第三層：儲存按鈕區 (絕對高度 70px)
                 masterTlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
 
-                // 1. 建立頂部標題區塊
                 Label lblTop = new Label { 
                     Text = $"您共有 {reminders.Count} 筆待處理的系統提醒：", 
                     Dock = DockStyle.Fill, 
@@ -338,7 +331,6 @@ namespace Safety_System
                     BackColor = Color.WhiteSmoke
                 };
 
-                // 2. 建立中央滾動清單區塊
                 FlowLayoutPanel flp = new FlowLayoutPanel { 
                     Dock = DockStyle.Fill, 
                     AutoScroll = true, 
@@ -347,36 +339,24 @@ namespace Safety_System
                     WrapContents = false,
                     BackColor = Color.WhiteSmoke
                 };
-
-                // 動態寬度適應
-                flp.Resize += (s, e) => {
-                    foreach (Control c in flp.Controls) {
-                        if (c is Panel card) {
-                            card.Width = flp.ClientSize.Width - flp.Padding.Left - flp.Padding.Right - card.Margin.Left - card.Margin.Right;
-                        }
-                    }
-                };
                 
                 Dictionary<TriggeredReminder, ComboBox> actionMap = new Dictionary<TriggeredReminder, ComboBox>();
 
                 foreach (var rm in reminders.OrderBy(r => r.DaysLeft))
                 {
-                    // 🟢 卡片主體
+                    // 🟢 取消 AutoSizeMode.GrowAndShrink，改由內部元素撐開
                     Panel cardPanel = new Panel { 
                         Width = 720, 
                         AutoSize = true, 
-                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
                         BackColor = Color.White, 
                         Margin = new Padding(0, 0, 0, 15),
                         Padding = new Padding(15, 15, 15, 20) 
                     };
                     cardPanel.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, cardPanel.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
 
-                    // 卡片內部網格
                     TableLayoutPanel tlpCard = new TableLayoutPanel {
                         Dock = DockStyle.Top, 
                         AutoSize = true,
-                        AutoSizeMode = AutoSizeMode.GrowAndShrink,
                         ColumnCount = 1,
                         RowCount = 3,
                         Margin = new Padding(0)
@@ -386,7 +366,6 @@ namespace Safety_System
                     tlpCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                     tlpCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F)); 
 
-                    // ============== 第一列：標籤與規則名稱 ==============
                     FlowLayoutPanel flpHeader = new FlowLayoutPanel {
                         AutoSize = true,
                         WrapContents = false,
@@ -403,22 +382,22 @@ namespace Safety_System
                     flpHeader.Controls.Add(lblRule);
                     tlpCard.Controls.Add(flpHeader, 0, 0);
 
-                    // ============== 第二列：訊息內容 ==============
+                    // 🟢 核心修復：強制給定 MaximumSize，讓 Label 文字可以正確往下換行，不會導致排版引擎崩潰
                     Label lblMsg = new Label { 
+                        Name = "lblMsg",
                         Text = rm.Message, 
                         Font = new Font("Microsoft JhengHei UI", 12F), 
                         AutoSize = true, 
-                        Dock = DockStyle.Fill, 
+                        MaximumSize = new Size(680, 0), // 設定寬度上限強制換行
                         Margin = new Padding(5, 0, 0, 15) 
                     };
                     tlpCard.Controls.Add(lblMsg, 0, 1);
 
-                    // ============== 第三列：下拉選單 ==============
                     ComboBox cboAction = new ComboBox { 
                         Width = 260, 
                         DropDownStyle = ComboBoxStyle.DropDownList, 
                         Font = new Font("Microsoft JhengHei UI", 11F), 
-                        Anchor = AnchorStyles.Right, // 鎖死在右側
+                        Anchor = AnchorStyles.Right,
                         Margin = new Padding(0, 0, 5, 0)
                     };
                     cboAction.Items.AddRange(new string[] { "本次忽略 (下次開啟再提醒)", "今天不再提醒 (延至明天)", "3 天後再提醒", "7 天後再提醒", "本訊息永久不再提醒" });
@@ -427,29 +406,42 @@ namespace Safety_System
                     
                     tlpCard.Controls.Add(cboAction, 0, 2);
 
-                    // 組裝
                     cardPanel.Controls.Add(tlpCard);
                     flp.Controls.Add(cardPanel);
                 }
 
-                // 3. 建立底部面板 (儲存按鈕)
+                // 🟢 重新撰寫視窗縮放時的同步寬度事件 (避免捲軸出現時卡片被裁切)
+                flp.Resize += (s, e) => {
+                    int targetWidth = flp.ClientSize.Width - 30; // 扣除 padding 以防出現水平捲軸
+                    foreach (Control c in flp.Controls) {
+                        if (c is Panel card) {
+                            card.Width = targetWidth;
+                            if (card.Controls.Count > 0 && card.Controls[0] is TableLayoutPanel tlp) {
+                                tlp.Width = targetWidth - card.Padding.Left - card.Padding.Right;
+                                foreach (Control inner in tlp.Controls) {
+                                    if (inner.Name == "lblMsg") {
+                                        inner.MaximumSize = new Size(tlp.Width - 10, 0);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+
                 Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 10, 20, 10), BackColor = Color.White };
                 Button btnSave = new Button { Text = "💾 儲存設定並關閉視窗", Dock = DockStyle.Fill, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
                 pnlBottom.Controls.Add(btnSave);
 
-                // 🟢 依序放入 Master 網格，完全避免重疊
                 masterTlp.Controls.Add(lblTop, 0, 0);     
                 masterTlp.Controls.Add(flp, 0, 1);        
                 masterTlp.Controls.Add(pnlBottom, 0, 2);  
 
                 f.Controls.Add(masterTlp);
 
-                // 防止焦點亂跳
                 f.Shown += (s, e) => {
                     btnSave.Focus(); 
                 };
 
-                // 🟢 儲存邏輯 (包含自訂待辦事項的刪除邏輯)
                 btnSave.Click += (s, e) => {
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -457,10 +449,8 @@ namespace Safety_System
                             using (var trans = conn.BeginTransaction()) {
                                 foreach (var kvp in actionMap) {
                                     int actionIdx = kvp.Value.SelectedIndex;
-                                    if (actionIdx == 0) continue; // 本次忽略
+                                    if (actionIdx == 0) continue; 
 
-                                    // 🟢 核心修改：如果是自訂待辦 (RuleId == 0) 且選擇了永久不再提醒 (actionIdx == 4)
-                                    // 則直接從 CustomToDos 資料庫中把這筆任務刪除！
                                     if (actionIdx == 4 && kvp.Key.RuleId == 0)
                                     {
                                         using (var cmdDelToDo = new SQLiteCommand("DELETE FROM CustomToDos WHERE Id=@Id", conn, trans)) {
@@ -468,22 +458,19 @@ namespace Safety_System
                                             cmdDelToDo.ExecuteNonQuery();
                                         }
                                         
-                                        // 順便清理該任務對應的所有延遲日誌，保持 DB 乾淨
                                         using (var cmdDelLog = new SQLiteCommand("DELETE FROM UserReminderLogs WHERE RuleId=0 AND RecordId=@Rec", conn, trans)) {
                                             cmdDelLog.Parameters.AddWithValue("@Rec", kvp.Key.RecordId);
                                             cmdDelLog.ExecuteNonQuery();
                                         }
-                                        continue; // 這筆資料已經徹底消失，不需要再寫入 2099 年的延遲日誌了
+                                        continue; 
                                     }
 
-                                    // 其他一般的延遲設定
                                     string nextDate = "";
                                     if (actionIdx == 1) nextDate = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 2) nextDate = DateTime.Today.AddDays(3).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 3) nextDate = DateTime.Today.AddDays(7).ToString("yyyy-MM-dd");
                                     else if (actionIdx == 4) nextDate = "2099-12-31"; 
 
-                                    // 先刪除該使用者針對此項目的舊日誌
                                     using (var cmdDel = new SQLiteCommand("DELETE FROM UserReminderLogs WHERE UserName=@U AND RuleId=@R AND RecordId=@Rec", conn, trans)) {
                                         cmdDel.Parameters.AddWithValue("@U", userName);
                                         cmdDel.Parameters.AddWithValue("@R", kvp.Key.RuleId);
@@ -491,7 +478,6 @@ namespace Safety_System
                                         cmdDel.ExecuteNonQuery();
                                     }
 
-                                    // 寫入新的延遲日期
                                     using (var cmdIns = new SQLiteCommand("INSERT INTO UserReminderLogs (UserName, RuleId, RecordId, NextRemindDate) VALUES (@U, @R, @Rec, @ND)", conn, trans)) {
                                         cmdIns.Parameters.AddWithValue("@U", userName);
                                         cmdIns.Parameters.AddWithValue("@R", kvp.Key.RuleId);
