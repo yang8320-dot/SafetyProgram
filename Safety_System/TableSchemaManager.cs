@@ -53,9 +53,12 @@ namespace Safety_System
             { "WastePermitWaste", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼] TEXT, [其他製程說明] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [廢棄物月最大量] TEXT, [廢棄物月平均量] TEXT, [物理性質] TEXT, [有害特性] TEXT, [主要有害成分] TEXT, [貯存地點] TEXT, [貯存設施容施容量] TEXT, [貯存設施密閉性] TEXT, [清除方式] TEXT, [處理方式] TEXT, [中間處理方法] TEXT, [再利用管理方式] TEXT, [最終處置方式] TEXT, [產出廢液製程編號] TEXT, [清除頻率] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WasteDisposalRecord", "[清運日期] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [清運重量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 新增：ESG 模組
+            // 🟢 修改：ESG 模組架構
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "ESG_Indicator", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ESG_OccupationalSafety", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ESG_HealthHygiene", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ESG_EnvironmentClimate", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "ESG_FireResilience", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HazardStats", "[年月] TEXT, [單位] TEXT, [品項] TEXT, [品項單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -95,7 +98,6 @@ namespace Safety_System
             { "WorkItems", "[日期] TEXT, [執行] TEXT, [問題] TEXT, [改善] TEXT, [追蹤] TEXT, [附件檔案] TEXT, [備註] TEXT" }
         };
 
-        // 🟢 全面移除原本寫死的 Dictionary，改由 DefaultLogic 呼叫 App_DropdownManager 取值
         public static string[] GetDropdownList(string tableName, string columnName)
         {
             return App_DropdownManager.GetOptions(tableName, columnName);
