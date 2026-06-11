@@ -297,13 +297,14 @@ namespace Safety_System
                 Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboParentVals[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15) };
                 
-                FlowLayoutPanel flpOptHeader = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0,0,0,5) };
-                Label lOpt = new Label { Text = "下拉選項(圖文)內容：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,5,0) };
-                Button btnExtract = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+                // 🟢 【修改排版】：將文字與四個按鈕緊密靠左並排
+                FlowLayoutPanel flpOptHeader = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0,0,0,5), WrapContents = false };
+                Label lOpt = new Label { Text = "自訂選項內容：", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,2,0) };
+                
+                Button btnExtract = new Button { Text = "導入", Size = new Size(60, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0) };
                 btnExtract.FlatAppearance.BorderSize = 0;
                 btnExtract.Click += (s, e) => ExtractDataFromDB(currentIndex, false);
 
-                // 🟢 加入上下按鈕
                 Button btnUp = new Button { Text = "↑", Size = new Size(35, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(5, 0, 0, 0) };
                 btnUp.FlatAppearance.BorderSize = 0;
                 btnUp.Click += (s, e) => MoveRowUp(_dgvOptions[currentIndex]);
@@ -317,7 +318,6 @@ namespace Safety_System
                 flpOptHeader.Controls.Add(btnUp);
                 flpOptHeader.Controls.Add(btnDown);
 
-                // 🟢 改造：支援 EditOnEnter, RowHeadersVisible, 並綁定 DragDrop
                 _dgvOptions[i] = new DataGridView { 
                     Dock = DockStyle.Fill, 
                     AllowUserToAddRows = true, 
@@ -603,10 +603,11 @@ namespace Safety_System
             Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
-            FlowLayoutPanel flpMultiOptHeader = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 0, 0, 10) };
-            Label l4 = new Label { Text = "選項內容 (可拖曳列首或微調)：", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 10, 0) };
+            // 🟢 【修改排版】：將文字與三個按鈕緊密靠左並排
+            FlowLayoutPanel flpMultiOptHeader = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 0, 0, 10), WrapContents = false };
+            Label l4 = new Label { Text = "自訂選項內容：", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 2, 0) };
             
-            Button btnExtractMulti = new Button { Text = "導入", Size = new Size(60, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Button btnExtractMulti = new Button { Text = "導入", Size = new Size(60, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0) };
             btnExtractMulti.FlatAppearance.BorderSize = 0;
             btnExtractMulti.Click += (s, e) => ExtractDataFromDB(0, true);
             
@@ -913,10 +914,6 @@ namespace Safety_System
 
         private void BtnClearDb_Click(object sender, EventArgs e) {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的單選下拉與連動設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes) {
-                // 🟢 這是永久刪除整個 DB 設定的毀滅性操作，保留密碼驗證
-                string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
@@ -1181,8 +1178,6 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 取消了這裡的 AuthManager 驗證
-
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
@@ -1246,8 +1241,6 @@ namespace Safety_System
         }
 
         private void BtnExport_Click(object sender, EventArgs e) {
-            // 🟢 匯出無須驗證
-
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統下拉選單設定_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     try {
@@ -1281,8 +1274,6 @@ namespace Safety_System
         }
 
         private void BtnImport_Click(object sender, EventArgs e) {
-            // 🟢 取消了這裡的 AuthManager 驗證
-
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
@@ -1385,8 +1376,6 @@ namespace Safety_System
                 return;
             }
 
-            // 🟢 取消了這裡的 AuthManager 驗證
-
             List<string> optList = new List<string>();
             foreach(DataGridViewRow r in _dgvOptionsMulti.Rows) {
                 if (r.IsNewRow) continue;
@@ -1453,8 +1442,6 @@ namespace Safety_System
 
         private void BtnExportMulti_Click(object sender, EventArgs e)
         {
-            // 🟢 匯出無須驗證
-
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統組合文字(複選)設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
@@ -1498,8 +1485,6 @@ namespace Safety_System
 
         private void BtnImportMulti_Click(object sender, EventArgs e)
         {
-            // 🟢 取消了這裡的 AuthManager 驗證
-
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
@@ -1561,8 +1546,6 @@ namespace Safety_System
             if (tb == null || _cboColMulti.SelectedItem == null) return;
 
             if (MessageBox.Show("確定要刪除此欄位的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                // 🟢 取消了這裡的 AuthManager 驗證
-                
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
@@ -1625,8 +1608,6 @@ namespace Safety_System
                 
                 btnDel.Click += (s, e) => {
                     if (MessageBox.Show($"確定要刪除【{chTbName} - {colName}】的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        // 🟢 取消了這裡的 AuthManager 驗證
-                        
                         try {
                             using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                                 conn.Open();
