@@ -21,7 +21,6 @@ namespace Safety_System
         private DataGridView _dgvAudit;
         private CheckBox _chkShowDeletedLogs; 
 
-        // 🟢 公式設定專用下拉選單 (改為年月日獨立 ComboBox)
         private ComboBox _cboFormulaDb, _cboFormulaTable, _cboFormulaTargetCol, _cboFormulaMatchCol;
         private ComboBox _cboFStartYear, _cboFStartMonth, _cboFStartDay;
         private ComboBox _cboFEndYear, _cboFEndMonth, _cboFEndDay;
@@ -81,10 +80,13 @@ namespace Safety_System
                 { "教育訓練", ("教育訓練", new Dictionary<string, string> { { "訓練時數", "教育訓練時數" } })},
                 { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
                 
-                // 🟢 加入 ESG_Indicator 於 ESG 資料庫類別中
+                // 🟢 修改：將原本的 ESG_Indicator 移除，替換為這 4 個新表
                 { "ESG", ("ESG", new Dictionary<string, string> { 
                     { "ESG_Performance", "ESG績效管理" },
-                    { "ESG_Indicator", "ESG指標管理" }
+                    { "ESG_OccupationalSafety", "職業安全" },
+                    { "ESG_HealthHygiene", "健康衛生" },
+                    { "ESG_EnvironmentClimate", "環境與氣侯" },
+                    { "ESG_FireResilience", "消防與韌性" }
                 })},
 
                 { "ISO14001", ("ISO14001", new Dictionary<string, string> { { "TargetManagement", "目標管理" }, { "EnvInfoReceive", "環境資訊接收管制表" }, { "InternalComm", "內文聯絡書管制表" }, { "MailReceive", "郵件收文管制表" }, { "VisitorRecord", "來賓拜訪紀錄表" } })},
