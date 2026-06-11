@@ -1,4 +1,4 @@
-/// FILE: Safety_System/App_LinkManager.cs ///
+/// FILE: Safety_System/settings/App_LinkManager.cs ///
 using System;
 using System.Data;
 using System.Drawing;
@@ -16,7 +16,6 @@ namespace Safety_System
 
         public App_LinkManager()
         {
-            // 在畫面初始化前，強制確保資料庫與資料表結構存在，防止開啟或新增時崩潰
             string createSql = "CREATE TABLE IF NOT EXISTS [AppLinks] (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);";
             DataManager.InitTable(DbName, TableName, createSql);
 
@@ -61,7 +60,6 @@ namespace Safety_System
             _dgv = new DataGridView {
                 Location = new Point(25, 230), Size = new Size(580, 215), 
                 BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = false, ReadOnly = true,
-                // 🟢 修正：將 Fill 改為 DisplayedCells，文字長度超過視窗時就會自動產生水平捲軸
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells, 
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
@@ -90,7 +88,6 @@ namespace Safety_System
                 _dgv.DataSource = dt;
                 if (_dgv.Columns.Contains("Id")) _dgv.Columns["Id"].Visible = false;
                 
-                // 🟢 微調：確保即使名稱很短，也不會太擠，同時路徑保持自動延展
                 if (_dgv.Columns.Contains("選單名稱")) _dgv.Columns["選單名稱"].MinimumWidth = 150;
 
                 _dgv.ClearSelection();
@@ -110,6 +107,8 @@ namespace Safety_System
                 MessageBox.Show("名稱與路徑不可空白！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            // 🟢 取消了這裡的 AuthManager 驗證
 
             try
             {
@@ -145,6 +144,7 @@ namespace Safety_System
             if (_dgv.SelectedRows.Count == 0) return;
 
             if (MessageBox.Show("確定要刪除選取的連結嗎？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                // 🟢 取消了這裡的 AuthManager 驗證
                 try
                 {
                     int id = Convert.ToInt32(_dgv.SelectedRows[0].Cells["Id"].Value);
