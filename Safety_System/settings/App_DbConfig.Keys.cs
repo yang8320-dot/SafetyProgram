@@ -6,7 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using OfficeOpenXml; // 🟢 引入 EPPlus 匯出入功能
+using OfficeOpenXml; 
 
 namespace Safety_System
 {
@@ -142,7 +142,6 @@ namespace Safety_System
                     } catch { }
                 };
 
-                // 🟢 修正：更改變數名稱避免與外層的 e 衝突
                 btnExp.Click += (senderObj, ev) => {
                     using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "防重寫設定_" + DateTime.Now.ToString("yyyyMMdd") }) {
                         if (sfd.ShowDialog() == DialogResult.OK) {
@@ -165,11 +164,8 @@ namespace Safety_System
                     }
                 };
 
-                // 🟢 修正：更改變數名稱避免與外層的 e 衝突
                 btnImp.Click += (senderObj, ev) => {
-                    string authPrompt = "匯入防重寫設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                    if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
+                    // 🟢 取消了這裡的 AuthManager 驗證
                     using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) {
                         if (ofd.ShowDialog() == DialogResult.OK) {
                             try {
@@ -203,7 +199,7 @@ namespace Safety_System
                                     }
                                 }
                                 MessageBox.Show("防重寫設定已批次匯入並覆寫成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                loadKeys(); // 刷新畫面
+                                loadKeys(); 
                             } catch (Exception ex) { MessageBox.Show("匯入失敗，請確認檔案格式是否正確：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                         }
                     }
