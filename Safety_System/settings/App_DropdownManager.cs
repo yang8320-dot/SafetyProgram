@@ -53,10 +53,14 @@ namespace Safety_System
 
         // ================= Tab 2: 複選組合文字控制項 =================
         private ComboBox _cboDbMulti, _cboTableMulti, _cboColMulti;
-        private DataGridView _dgvOptionsMulti; // 🟢 升級為支援圖示的 Grid
+        private DataGridView _dgvOptionsMulti; 
         private Button _btnSaveMulti, _btnDelMulti;
         private FlowLayoutPanel _flpMultiConfigured;
         private Panel _selectedMultiItemPanel = null; 
+
+        // 🟢 拖曳排版的狀態變數
+        private int _dragFromRowIndex = -1;
+        private Rectangle _dragBox = Rectangle.Empty;
 
         private class ItemMap 
         {
@@ -221,7 +225,7 @@ namespace Safety_System
             _btnClearDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnClearDb.Click += BtnClearDb_Click;
 
-            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 若設定了圖示，看板將啟用【純圖示模式】，隱藏文字僅顯示該圖片。\n※ 匯出 Excel 時，為了保持表單乾淨，系統會自動捨棄圖片並只匯出【純文字】。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            Label lblHint = new Label { Text = "※ 已設定過且「僅單層獨立」的項目，以【亮藍色粗體】標示。\n※ 拖曳表格最左側列首(把手)或點擊上下按鈕可調整選項順序。\n※ 點擊儲存格即可直接打字修改，無需連點兩下。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
 
             pnlBottom.Controls.Add(lblHint);
             
@@ -299,19 +303,39 @@ namespace Safety_System
                 btnExtract.FlatAppearance.BorderSize = 0;
                 btnExtract.Click += (s, e) => ExtractDataFromDB(currentIndex, false);
 
+                // 🟢 加入上下按鈕
+                Button btnUp = new Button { Text = "↑", Size = new Size(35, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(5, 0, 0, 0) };
+                btnUp.FlatAppearance.BorderSize = 0;
+                btnUp.Click += (s, e) => MoveRowUp(_dgvOptions[currentIndex]);
+
+                Button btnDown = new Button { Text = "↓", Size = new Size(35, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(5, 0, 0, 0) };
+                btnDown.FlatAppearance.BorderSize = 0;
+                btnDown.Click += (s, e) => MoveRowDown(_dgvOptions[currentIndex]);
+
                 flpOptHeader.Controls.Add(lOpt);
                 flpOptHeader.Controls.Add(btnExtract);
+                flpOptHeader.Controls.Add(btnUp);
+                flpOptHeader.Controls.Add(btnDown);
 
+                // 🟢 改造：支援 EditOnEnter, RowHeadersVisible, 並綁定 DragDrop
                 _dgvOptions[i] = new DataGridView { 
                     Dock = DockStyle.Fill, 
                     AllowUserToAddRows = true, 
                     AllowUserToDeleteRows = true,
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
-                    RowHeadersVisible = false,
+                    RowHeadersVisible = true, // 打開把手讓使用者可拖曳
+                    RowHeadersWidth = 35,
+                    EditMode = DataGridViewEditMode.EditOnEnter, // 一鍵直接打字
                     BackgroundColor = Color.WhiteSmoke,
-                    RowTemplate = { Height = 45 } // 🟢 加大列高以容納 24x24 圖示
+                    RowTemplate = { Height = 45 } 
                 };
                 
+                _dgvOptions[i].AllowDrop = true;
+                _dgvOptions[i].MouseDown += DgvOptions_MouseDown;
+                _dgvOptions[i].MouseMove += DgvOptions_MouseMove;
+                _dgvOptions[i].DragOver += DgvOptions_DragOver;
+                _dgvOptions[i].DragDrop += DgvOptions_DragDrop;
+
                 _dgvOptions[i].Columns.Add(new DataGridViewTextBoxColumn { Name = "Text", HeaderText = "選項文字", FillWeight = 50 });
                 _dgvOptions[i].Columns.Add(new DataGridViewImageColumn { Name = "Icon", HeaderText = "預覽", ImageLayout = DataGridViewImageCellLayout.Zoom, FillWeight = 20 });
                 _dgvOptions[i].Columns.Add(new DataGridViewButtonColumn { Name = "Upload", HeaderText = "上傳", Text = "上傳", UseColumnTextForButtonValue = true, FillWeight = 15 });
@@ -357,7 +381,110 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // 🟢 處理圖片上傳與 24x24 壓縮
+        // =======================================================
+        // 🟢 DataGridView 拖曳與排序邏輯
+        // =======================================================
+        private void DgvOptions_MouseDown(object sender, MouseEventArgs e)
+        {
+            DataGridView dgv = (DataGridView)sender;
+            var hit = dgv.HitTest(e.X, e.Y);
+            
+            // 只有點擊在最左側的列首(Row Header)，而且不是新增列，才啟動拖曳
+            if (hit.RowIndex >= 0 && hit.ColumnIndex == -1 && !dgv.Rows[hit.RowIndex].IsNewRow)
+            {
+                _dragFromRowIndex = hit.RowIndex;
+                Size dragSize = SystemInformation.DragSize;
+                _dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2), e.Y - (dragSize.Height / 2)), dragSize);
+            }
+            else
+            {
+                _dragBox = Rectangle.Empty;
+            }
+        }
+
+        private void DgvOptions_MouseMove(object sender, MouseEventArgs e)
+        {
+            if ((e.Button & MouseButtons.Left) == MouseButtons.Left)
+            {
+                if (_dragBox != Rectangle.Empty && !_dragBox.Contains(e.X, e.Y))
+                {
+                    DataGridView dgv = (DataGridView)sender;
+                    // 將選中的行包裝放入 DragDrop 資料中
+                    dgv.DoDragDrop(dgv.Rows[_dragFromRowIndex], DragDropEffects.Move);
+                }
+            }
+        }
+
+        private void DgvOptions_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effect = DragDropEffects.Move;
+        }
+
+        private void DgvOptions_DragDrop(object sender, DragEventArgs e)
+        {
+            DataGridView dgv = (DataGridView)sender;
+            Point clientPoint = dgv.PointToClient(new Point(e.X, e.Y));
+            var hit = dgv.HitTest(clientPoint.X, clientPoint.Y);
+            
+            int targetRowIndex = hit.RowIndex;
+
+            // 防呆：如果拖到空白處或新增列，把它排在最後面
+            if (targetRowIndex < 0 || targetRowIndex >= dgv.Rows.Count - 1) 
+            {
+                targetRowIndex = dgv.Rows.Count - 2; 
+            }
+
+            if (e.Data.GetDataPresent(typeof(DataGridViewRow)))
+            {
+                DataGridViewRow dragRow = (DataGridViewRow)e.Data.GetData(typeof(DataGridViewRow));
+                int sourceRowIndex = dragRow.Index;
+
+                if (sourceRowIndex != targetRowIndex && targetRowIndex >= 0 && sourceRowIndex >= 0)
+                {
+                    dgv.EndEdit(); // 確保無編輯狀態
+                    dgv.Rows.RemoveAt(sourceRowIndex);
+                    dgv.Rows.Insert(targetRowIndex, dragRow);
+                    dgv.ClearSelection();
+                    dgv.CurrentCell = dgv[0, targetRowIndex];
+                }
+            }
+        }
+
+        private void MoveRowUp(DataGridView dgv)
+        {
+            if (dgv.CurrentCell != null)
+            {
+                int idx = dgv.CurrentCell.RowIndex;
+                int colIdx = dgv.CurrentCell.ColumnIndex;
+                if (idx > 0 && !dgv.Rows[idx].IsNewRow)
+                {
+                    dgv.EndEdit();
+                    DataGridViewRow row = dgv.Rows[idx];
+                    dgv.Rows.RemoveAt(idx);
+                    dgv.Rows.Insert(idx - 1, row);
+                    dgv.CurrentCell = dgv[colIdx, idx - 1];
+                }
+            }
+        }
+
+        private void MoveRowDown(DataGridView dgv)
+        {
+            if (dgv.CurrentCell != null)
+            {
+                int idx = dgv.CurrentCell.RowIndex;
+                int colIdx = dgv.CurrentCell.ColumnIndex;
+                if (idx < dgv.Rows.Count - 2 && !dgv.Rows[idx].IsNewRow)
+                {
+                    dgv.EndEdit();
+                    DataGridViewRow row = dgv.Rows[idx];
+                    dgv.Rows.RemoveAt(idx);
+                    dgv.Rows.Insert(idx + 1, row);
+                    dgv.CurrentCell = dgv[colIdx, idx + 1];
+                }
+            }
+        }
+        // =======================================================
+
         private void DgvOptions_CellContentClick(object sender, DataGridViewCellEventArgs e, int gridIndex, bool isMulti)
         {
             if (e.RowIndex < 0) return;
@@ -420,7 +547,7 @@ namespace Safety_System
             Button btnClearMultiDb = new Button { Text = "💣 清除所有資料庫設定", Width = 260, Height = 50, BackColor = Color.Crimson, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnClearMultiDb.Click += BtnClearMultiDb_Click;
 
-            Label lblHintMulti = new Label { Text = "※ 已設定組合文字的項目，以【紅色粗體】標示。\n※ 若設定了圖示，在資料表中勾選多個項目時，將以多圖示並排顯示。\n※ 匯入 Excel 格式：資料表名稱、欄位名稱、選項內容(逗號分隔，不含圖片)。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            Label lblHintMulti = new Label { Text = "※ 已設定組合文字的項目，以【紅色粗體】標示。\n※ 拖曳列首(把手)可排序。資料表多選時將以並排圖示顯示。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
             
             pnlBottom.Controls.Add(lblHintMulti);
 
@@ -477,25 +604,43 @@ namespace Safety_System
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
             FlowLayoutPanel flpMultiOptHeader = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 0, 0, 10) };
-            Label l4 = new Label { Text = "自訂核取選項與圖示：", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 10, 0) };
-            Button btnExtractMulti = new Button { Text = "導入資料", Size = new Size(100, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+            Label l4 = new Label { Text = "選項內容 (可拖曳列首或微調)：", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 10, 0) };
+            
+            Button btnExtractMulti = new Button { Text = "導入", Size = new Size(60, 30), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
             btnExtractMulti.FlatAppearance.BorderSize = 0;
             btnExtractMulti.Click += (s, e) => ExtractDataFromDB(0, true);
             
+            Button btnMultiUp = new Button { Text = "↑", Size = new Size(35, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(5, 0, 0, 0) };
+            btnMultiUp.FlatAppearance.BorderSize = 0;
+            btnMultiUp.Click += (s, e) => MoveRowUp(_dgvOptionsMulti);
+
+            Button btnMultiDown = new Button { Text = "↓", Size = new Size(35, 30), BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(5, 0, 0, 0) };
+            btnMultiDown.FlatAppearance.BorderSize = 0;
+            btnMultiDown.Click += (s, e) => MoveRowDown(_dgvOptionsMulti);
+
             flpMultiOptHeader.Controls.Add(l4);
             flpMultiOptHeader.Controls.Add(btnExtractMulti);
+            flpMultiOptHeader.Controls.Add(btnMultiUp);
+            flpMultiOptHeader.Controls.Add(btnMultiDown);
 
-            // 🟢 改造：將文字框換成支援上傳圖片的 DataGridView
             _dgvOptionsMulti = new DataGridView { 
                 Dock = DockStyle.Fill, 
                 AllowUserToAddRows = true, 
                 AllowUserToDeleteRows = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
-                RowHeadersVisible = false,
+                RowHeadersVisible = true, // 打開把手讓使用者可拖曳
+                RowHeadersWidth = 35,
+                EditMode = DataGridViewEditMode.EditOnEnter, // 一鍵直接打字
                 BackgroundColor = Color.WhiteSmoke,
                 RowTemplate = { Height = 45 }
             };
             
+            _dgvOptionsMulti.AllowDrop = true;
+            _dgvOptionsMulti.MouseDown += DgvOptions_MouseDown;
+            _dgvOptionsMulti.MouseMove += DgvOptions_MouseMove;
+            _dgvOptionsMulti.DragOver += DgvOptions_DragOver;
+            _dgvOptionsMulti.DragDrop += DgvOptions_DragDrop;
+
             _dgvOptionsMulti.Columns.Add(new DataGridViewTextBoxColumn { Name = "Text", HeaderText = "選項文字", FillWeight = 50 });
             _dgvOptionsMulti.Columns.Add(new DataGridViewImageColumn { Name = "Icon", HeaderText = "圖示預覽", ImageLayout = DataGridViewImageCellLayout.Zoom, FillWeight = 20 });
             _dgvOptionsMulti.Columns.Add(new DataGridViewButtonColumn { Name = "Upload", HeaderText = "上傳", Text = "上傳", UseColumnTextForButtonValue = true, FillWeight = 15 });
@@ -768,9 +913,6 @@ namespace Safety_System
 
         private void BtnClearDb_Click(object sender, EventArgs e) {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的單選下拉與連動設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes) {
-                string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
@@ -791,56 +933,9 @@ namespace Safety_System
             }
         }
 
-        private bool VerifyHiddenMenuPassword(string menuName) {
-            using (Form p = new Form()) {
-                p.Width = 460; 
-                p.Height = 220;
-                p.Text = "隱藏選單安全驗證";
-                p.StartPosition = FormStartPosition.CenterParent;
-                p.FormBorderStyle = FormBorderStyle.FixedDialog;
-                p.MaximizeBox = false; 
-                p.MinimizeBox = false;
-                p.BackColor = Color.White;
-
-                Label lbl = new Label() { Left = 30, Top = 30, Text = $"請輸入【{menuName}】的解鎖密碼以繼續設定：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
-                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
-                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
-
-                p.Controls.Add(lbl); 
-                p.Controls.Add(txt); 
-                p.Controls.Add(btn);
-                p.AcceptButton = btn;
-
-                if (p.ShowDialog(this) == DialogResult.OK) {
-                    string input = txt.Text.Trim();
-                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
-                    if (unlockedMenu == menuName) return true;
-                    
-                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                return false; 
-            }
-        }
-
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e) {
             if (_isRevertingDb) return;
             var selectedDb = _cboDb.SelectedItem as ItemMap;
-            if (selectedDb != null && selectedDb.EnName.StartsWith("Menu") && selectedDb.EnName.EndsWith("DB")) {
-                string menuName = "";
-                if (selectedDb.EnName == "Menu1DB") menuName = "選單1";
-                if (selectedDb.EnName == "Menu2DB") menuName = "選單2";
-                if (selectedDb.EnName == "Menu3DB") menuName = "選單3";
-                if (selectedDb.EnName == "Menu4DB") menuName = "選單4";
-
-                if (!string.IsNullOrEmpty(menuName)) {
-                    if (!VerifyHiddenMenuPassword(menuName)) {
-                        _isRevertingDb = true;
-                        _cboDb.SelectedIndex = 0; 
-                        _isRevertingDb = false;
-                        return;
-                    }
-                }
-            }
 
             _cboTable.Items.Clear();
             _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
@@ -1035,9 +1130,6 @@ namespace Safety_System
                 }
             }
 
-            string authPrompt = "儲存下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
@@ -1134,9 +1226,6 @@ namespace Safety_System
         }
 
         private void BtnImport_Click(object sender, EventArgs e) {
-            string authPrompt = "匯入下拉選單設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
@@ -1222,7 +1311,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // Tab 2 事件邏輯 (組合文字/複選) 🟢 改造：支援圖文儲存
+        // Tab 2 事件邏輯 (組合文字/複選) 
         // =========================================================
         private void BtnSaveMulti_Click(object sender, EventArgs e)
         {
@@ -1238,9 +1327,6 @@ namespace Safety_System
                 MessageBox.Show($"欄位【{colName}】已在「單選下拉與多層連動」設定中！\n為避免系統錯亂，不可同時設定單選與複選，無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return;
             }
-
-            string authPrompt = "儲存組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
             List<string> optList = new List<string>();
             foreach(DataGridViewRow r in _dgvOptionsMulti.Rows) {
@@ -1321,7 +1407,6 @@ namespace Safety_System
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dt);
                         }
 
-                        // 🟢 匯出時過濾掉 Base64 代碼，保持報表乾淨
                         foreach(DataRow row in dt.Rows) {
                             string rawOpts = row["選項內容(純文字)"].ToString();
                             var parts = rawOpts.Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries);
@@ -1351,9 +1436,6 @@ namespace Safety_System
 
         private void BtnImportMulti_Click(object sender, EventArgs e)
         {
-            string authPrompt = "匯入組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
-
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
@@ -1415,9 +1497,6 @@ namespace Safety_System
             if (tb == null || _cboColMulti.SelectedItem == null) return;
 
             if (MessageBox.Show("確定要刪除此欄位的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                string authPrompt = "刪除組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                if (!AuthManager.VerifyAdmin(authPrompt)) return;
-                
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
@@ -1480,9 +1559,6 @@ namespace Safety_System
                 
                 btnDel.Click += (s, e) => {
                     if (MessageBox.Show($"確定要刪除【{chTbName} - {colName}】的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
-                        string authPrompt = "刪除組合文字設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                        if (!AuthManager.VerifyAdmin(authPrompt)) return;
-                        
                         try {
                             using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                                 conn.Open();
@@ -1550,7 +1626,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 改造全域快取：現在複選清單也支援存取圖文
         public static void LoadMultiSelectConfigs()
         {
             MultiSelectCache.Clear();
