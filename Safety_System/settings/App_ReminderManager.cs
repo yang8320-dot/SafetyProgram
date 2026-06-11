@@ -84,7 +84,8 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "⏰ 系統提醒設定"; 
-            this.Size = new Size(1100, 730);
+            // 🟢 調整視窗尺寸：寬度 +70 (1100->1170)，高度 +50 (730->780)
+            this.Size = new Size(1170, 780);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -165,7 +166,6 @@ namespace Safety_System
             Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60 };
             Label lFilter = new Label { Text = "篩選接收對象:", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
             
-            // 🟢 調整：X 座標從 110 改為 125，拉開距離
             _cboRuleFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, Location = new Point(125, 3) };
             _cboRuleFilter.Items.Add("全部顯示");
             foreach (var u in _allUsersList) _cboRuleFilter.Items.Add(u);
@@ -286,7 +286,6 @@ namespace Safety_System
             Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60 };
             Label lFilter = new Label { Text = "篩選接收對象:", AutoSize = true, Location = new Point(0, 5), Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
             
-            // 🟢 調整：X 座標從 110 改為 125，拉開距離
             _cboToDoFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, Location = new Point(125, 3) };
             _cboToDoFilter.Items.Add("全部顯示");
             foreach (var u in _allUsersList) _cboToDoFilter.Items.Add(u);
@@ -353,7 +352,7 @@ namespace Safety_System
 
             Panel pnlRecur = new Panel { Width = 550, Height = 35 };
             _chkIsRecurring.Location = new Point(0, 5);
-            _cboRecurType.Location = new Point(200, 2);
+            _cboRecurType.Location = new Point(230, 2); 
             pnlRecur.Controls.Add(_chkIsRecurring); pnlRecur.Controls.Add(_cboRecurType);
 
             flp.Controls.Add(_chkToDoIsActive);
