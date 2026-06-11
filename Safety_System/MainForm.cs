@@ -38,21 +38,6 @@ namespace Safety_System
             
             DataManager.LoadConfig();
 
-            // 🟢 自動預設寫入 ESG領域 的下拉選單選項 (如果資料庫裡還沒有設定的話)
-            try {
-                using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
-                    conn.Open();
-                    // 確保資料表存在
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("CREATE TABLE IF NOT EXISTS [DropdownConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, ParentColName TEXT, ParentValue TEXT, Options TEXT, UNIQUE(TableName, ColName, ParentColName, ParentValue));", conn)) {
-                        cmd.ExecuteNonQuery();
-                    }
-                    // 寫入預設選項 (若已存在則忽略不覆蓋，保留使用者未來的自訂彈性)
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("INSERT OR IGNORE INTO DropdownConfigs (TableName, ColName, ParentColName, ParentValue, Options) VALUES ('ESG_Indicator', 'ESG領域', '', '', '職業安全,健康衛生,環境與氣侯,消防與韌性')", conn)) {
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            } catch { }
-
             App_DropdownManager.LoadDropdownConfigs();
             App_DropdownManager.LoadMultiSelectConfigs();
             
@@ -279,12 +264,15 @@ namespace Safety_System
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
             menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
 
-            // 🟢 ESG 分類下的選單項目
+            // 🟢 修改：ESG 分類下的選單項目
             var menuESG = new ToolStripMenuItem("ESG");
             menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(new ToolStripSeparator());
             menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_CoreTable("ESG", "ESG_Performance", "ESG績效管理", new DefaultLogic()).GetView()));
-            menuESG.DropDownItems.Add(CreateItem("ESG指標管理", () => new App_CoreTable("ESG", "ESG_Indicator", "ESG指標管理", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("職業安全", () => new App_CoreTable("ESG", "ESG_OccupationalSafety", "職業安全", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("健康衛生", () => new App_CoreTable("ESG", "ESG_HealthHygiene", "健康衛生", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("環境與氣侯", () => new App_CoreTable("ESG", "ESG_EnvironmentClimate", "環境與氣侯", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("消防與韌性", () => new App_CoreTable("ESG", "ESG_FireResilience", "消防與韌性", new DefaultLogic()).GetView()));
 
             var menuISO = new ToolStripMenuItem("ISO14001");
             menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
@@ -358,7 +346,7 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this);
+                    new App_PermissionManager(_mainMenuRef).ShowDialog(this);
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
