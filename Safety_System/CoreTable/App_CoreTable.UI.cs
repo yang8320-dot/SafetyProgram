@@ -61,7 +61,8 @@ namespace Safety_System
             _btnRead.FlatAppearance.BorderSize = 0;
             
             Label lblLatestCount = new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(15, 8, 5, 0) };
-            _txtLatestCount = new TextBox { Width = 50, Text = "100", Margin = ctrlPad }; 
+            // 🟢 需求修正：寬度從 50 加寬到 75 (+25px)
+            _txtLatestCount = new TextBox { Width = 75, Text = "100", Margin = ctrlPad }; 
             
             Button bLimitRead = new Button { Text = "查詢", Size = new Size(80, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
             bLimitRead.FlatAppearance.BorderSize = 0;
@@ -250,9 +251,10 @@ namespace Safety_System
             pnlStatus.Controls.Add(btnRefresh);
             pnlStatus.Controls.Add(_lblStatus);
 
+            // 🟢 需求修正：允許自動根據內容撐開列高 (AllCells)，確保文字不被截斷
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 原本為 None，改為 AllCells
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
@@ -267,7 +269,6 @@ namespace Safety_System
             _dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             _dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
             
-            // 🟢 在這裡將 _dbName 與 _tableName 傳入 DataGridViewAutoCalcHelper 以綁定公式運算引擎
             _calcHelper = new DataGridViewAutoCalcHelper(_dgv, _dbName, _tableName);
 
             InitContextMenu(bDelRow); 
@@ -378,7 +379,8 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+            // 🟢 需求修正：確保在套用樣式後，依然維持自動調整列高的設定
+            _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells; 
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
