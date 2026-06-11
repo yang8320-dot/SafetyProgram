@@ -15,8 +15,8 @@ namespace Safety_System
     {
         private Label _lblFStartM, _lblFStartD, _lblFEndM, _lblFEndD;
         private ComboBox _cboFormulaType; 
-        private NumericUpDown _numDecimals; // 🟢 小數點位數
-        private ComboBox _cboRoundingMode;  // 🟢 捨入模式
+        private NumericUpDown _numDecimals; 
+        private ComboBox _cboRoundingMode;  
         private FlowLayoutPanel _pnlOps;  
         private bool _isChangingFormulaDb = false; 
 
@@ -26,7 +26,6 @@ namespace Safety_System
 
             GroupBox boxFormula = new GroupBox { Text = "資料表欄位自訂運算 (支援數學運算與文字組合)", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15) };
             
-            // 🟢 Row 1: 資料庫與資料表選擇
             FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFDb = new Label { Text = "選擇資料庫:", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaDb = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Margin = new Padding(0, 0, 30, 0) };
@@ -38,7 +37,6 @@ namespace Safety_System
 
             flpRow1.Controls.AddRange(new Control[] { lblFDb, _cboFormulaDb, lblFTable, _cboFormulaTable });
 
-            // 🟢 Row 2: 對應日期欄位 與 起訖時間
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFMatch = new Label { Text = "對應日期欄位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaMatchCol = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -90,7 +88,6 @@ namespace Safety_System
                 btnClearTime
             });
 
-            // 🟢 Row 3: 目標欄位 與 運算模式、小數點位數
             FlowLayoutPanel flpRow3 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 10, 0, 10) };
             Label lblFTarget = new Label { Text = "公式結果寫入至此欄：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboFormulaTargetCol = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -100,11 +97,9 @@ namespace Safety_System
             _cboFormulaType.Items.AddRange(new string[] { "數學運算", "組合文字" });
             _cboFormulaType.SelectedIndex = 0;
 
-            // 🟢 新增小數點位數
             Label lblFDec = new Label { Text = "小數點：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _numDecimals = new NumericUpDown { Width = 50, Minimum = 0, Maximum = 4, Value = 4, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // 🟢 新增捨入模式
             Label lblFRound = new Label { Text = "進位：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboRoundingMode = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboRoundingMode.Items.AddRange(new string[] { "四捨五入", "無條件進位", "無條件捨去" });
@@ -121,7 +116,6 @@ namespace Safety_System
 
             flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFType, _cboFormulaType, lblFDec, _numDecimals, lblFRound, _cboRoundingMode });
 
-            // 🟢 Row 4: 公式編輯區
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(15, 10, 10, 15) };
 
             Label lblFormula = new Label { 
@@ -227,7 +221,6 @@ namespace Safety_System
             tabFormula.Enter += (s, e) => { RefreshAllFormulasList(); };
         }
 
-        // ================= 日期下拉選單管理 =================
         private void InitFormulaDateComboBoxes()
         {
             _cboFStartYear.Items.Add("1900"); _cboFEndYear.Items.Add("1900");
@@ -286,7 +279,6 @@ namespace Safety_System
             }
         }
 
-        // ================= 事件邏輯 =================
         private void CboFormulaDb_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (_isChangingFormulaDb) return; 
@@ -297,7 +289,6 @@ namespace Safety_System
 
             var selectedDb = (ItemMap)_cboFormulaDb.SelectedItem;
 
-            // 🟢 檢查是否為選單 1~4，需密碼解鎖
             if (selectedDb.EnName.StartsWith("Menu") && selectedDb.EnName.EndsWith("DB")) {
                 string menuName = selectedDb.EnName.Replace("DB", "").Replace("Menu", "選單");
                 if (!AuthManager.VerifyHiddenMenu(menuName)) {
@@ -329,7 +320,6 @@ namespace Safety_System
                 _cboFormulaMatchCol.Items.AddRange(cols);
             }
 
-            // 🟢 選擇表格後，更新下方的列表只顯示該表格的公式
             RefreshAllFormulasList();
         }
 
@@ -519,7 +509,6 @@ namespace Safety_System
                                                 if (result != DBNull.Value) {
                                                     double dRes = Convert.ToDouble(result);
                                                     
-                                                    // 🟢 套用新的進位與小數點邏輯
                                                     double multiplier = Math.Pow(10, decPlaces);
                                                     double adjusted = dRes * multiplier;
                                                     
@@ -565,7 +554,6 @@ namespace Safety_System
             if (_flpFormulasList == null) return;
             _flpFormulasList.Controls.Clear();
             
-            // 🟢 只提取「當前選擇的資料庫與資料表」的公式
             string currentDb = _cboFormulaDb.SelectedItem != null ? ((ItemMap)_cboFormulaDb.SelectedItem).EnName : "";
             string currentTb = _cboFormulaTable.SelectedItem != null ? ((ItemMap)_cboFormulaTable.SelectedItem).EnName : "";
             
@@ -609,7 +597,6 @@ namespace Safety_System
                 string dateInfo = string.IsNullOrEmpty(matchCol) ? "" : $" (當 [{matchCol}] 介於 {sDate} ~ {eDate} 時)";
                 string roundInfo = fType == "數學運算" ? $" (小數點:{decPlaces}位 | {rMode})" : "";
 
-                // 🟢 呈現為中文表名
                 string text = $"【{fType}】表:[{chTbName}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}{roundInfo}";
                 
                 Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = fType == "組合文字" ? Color.DarkCyan : Color.DarkSlateBlue, Cursor = Cursors.Hand };
@@ -685,6 +672,8 @@ namespace Safety_System
 
         private void BtnImportFormula_Click(object sender, EventArgs e)
         {
+            // 🟢 取消了這裡的 AuthManager.VerifyAdmin 驗證
+
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的公式設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) {
