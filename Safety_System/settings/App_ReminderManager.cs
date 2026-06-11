@@ -84,7 +84,6 @@ namespace Safety_System
         private void InitializeComponent()
         {
             this.Text = "⏰ 系統提醒設定"; 
-            // 🟢 調整視窗尺寸：寬度 +70 (1100->1170)，高度 +50 (730->780)
             this.Size = new Size(1170, 780);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -180,12 +179,17 @@ namespace Safety_System
             _lbRules = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             _lbRules.SelectedIndexChanged += LbRules_SelectedIndexChanged;
             
-            Button btnAdd = new Button { Text = "➕ 新增空白規則", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(0, 10, 0, 0) };
+            // 🟢 更改文字，讓使用者理解這顆按鈕的作用
+            Button btnAdd = new Button { Text = "✨ 清空畫面建立新規則", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.LightSlateGray, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(0, 5, 0, 0), FlatStyle = FlatStyle.Flat };
+            btnAdd.FlatAppearance.BorderSize = 0;
             btnAdd.Click += (s, e) => ClearRuleEditor();
 
-            Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
-            Button btnExpRule = new Button { Text = "📤 匯出", Width = 145, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            Button btnImpRule = new Button { Text = "📥 匯入", Width = 145, Dock = DockStyle.Right, BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 10, 0, 5) };
+            Button btnExpRule = new Button { Text = "📤 匯出", Width = 145, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+            btnExpRule.FlatAppearance.BorderSize = 0;
+            Button btnImpRule = new Button { Text = "📥 匯入", Width = 145, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+            btnImpRule.FlatAppearance.BorderSize = 0;
+            
             btnExpRule.Click += BtnExportRule_Click;
             btnImpRule.Click += BtnImportRule_Click;
             pnlIo.Controls.Add(btnExpRule);
@@ -255,10 +259,12 @@ namespace Safety_System
             flp.Controls.Add(lblTmpl);
             flp.Controls.Add(_rtbTemplate);
 
-            Button btnSave = new Button { Text = "💾 儲存規則", Width = 220, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0) };
+            Button btnSave = new Button { Text = "💾 儲存規則", Width = 220, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0), FlatStyle = FlatStyle.Flat };
+            btnSave.FlatAppearance.BorderSize = 0;
             btnSave.Click += BtnSaveRule_Click;
 
-            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 150, Height = 55, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 20, 0, 0) };
+            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 150, Height = 55, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 20, 0, 0), FlatStyle = FlatStyle.Flat };
+            btnDel.FlatAppearance.BorderSize = 0;
             btnDel.Click += BtnDelRule_Click;
 
             FlowLayoutPanel flpBtns = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
@@ -300,12 +306,17 @@ namespace Safety_System
             _lbToDos = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
             _lbToDos.SelectedIndexChanged += LbToDos_SelectedIndexChanged;
             
-            Button btnAdd = new Button { Text = "➕ 新增待辦事項", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.Teal, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(0, 10, 0, 0) };
+            // 🟢 更改文字，讓使用者理解這顆按鈕的作用
+            Button btnAdd = new Button { Text = "✨ 清空畫面建立新待辦", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.LightSlateGray, ForeColor = Color.White, Cursor = Cursors.Hand, Margin = new Padding(0, 5, 0, 0), FlatStyle = FlatStyle.Flat };
+            btnAdd.FlatAppearance.BorderSize = 0;
             btnAdd.Click += (s, e) => ClearToDoEditor();
 
-            Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 15, 0, 5) };
-            Button btnExpToDo = new Button { Text = "📤 匯出", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-            Button btnImpToDo = new Button { Text = "📥 匯入", Width = 135, Dock = DockStyle.Right, BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            Panel pnlIo = new Panel { Dock = DockStyle.Bottom, Height = 55, Padding = new Padding(0, 10, 0, 5) };
+            Button btnExpToDo = new Button { Text = "📤 匯出", Width = 135, Dock = DockStyle.Left, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+            btnExpToDo.FlatAppearance.BorderSize = 0;
+            Button btnImpToDo = new Button { Text = "📥 匯入", Width = 135, Dock = DockStyle.Right, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+            btnImpToDo.FlatAppearance.BorderSize = 0;
+            
             btnExpToDo.Click += BtnExportToDo_Click;
             btnImpToDo.Click += BtnImportToDo_Click;
             pnlIo.Controls.Add(btnExpToDo);
@@ -366,10 +377,12 @@ namespace Safety_System
             flp.Controls.Add(lblTmpl);
             flp.Controls.Add(_rtbToDoMessage);
 
-            Button btnSave = new Button { Text = "💾 儲存待辦", Width = 220, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0) };
+            Button btnSave = new Button { Text = "💾 儲存待辦", Width = 220, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(0, 20, 0, 0), FlatStyle = FlatStyle.Flat };
+            btnSave.FlatAppearance.BorderSize = 0;
             btnSave.Click += BtnSaveToDo_Click;
 
-            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 150, Height = 55, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 20, 0, 0) };
+            Button btnDel = new Button { Text = "🗑️ 刪除", Width = 150, Height = 55, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(15, 20, 0, 0), FlatStyle = FlatStyle.Flat };
+            btnDel.FlatAppearance.BorderSize = 0;
             btnDel.Click += BtnDelToDo_Click;
 
             FlowLayoutPanel flpBtns = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
