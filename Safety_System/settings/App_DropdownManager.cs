@@ -913,6 +913,10 @@ namespace Safety_System
 
         private void BtnClearDb_Click(object sender, EventArgs e) {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的單選下拉與連動設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes) {
+                // 🟢 這是永久刪除整個 DB 設定的毀滅性操作，保留密碼驗證
+                string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
+                if (!AuthManager.VerifyAdmin(authPrompt)) return;
+
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
@@ -933,9 +937,56 @@ namespace Safety_System
             }
         }
 
+        private bool VerifyHiddenMenuPassword(string menuName) {
+            using (Form p = new Form()) {
+                p.Width = 460; 
+                p.Height = 220;
+                p.Text = "隱藏選單安全驗證";
+                p.StartPosition = FormStartPosition.CenterParent;
+                p.FormBorderStyle = FormBorderStyle.FixedDialog;
+                p.MaximizeBox = false; 
+                p.MinimizeBox = false;
+                p.BackColor = Color.White;
+
+                Label lbl = new Label() { Left = 30, Top = 30, Text = $"請輸入【{menuName}】的解鎖密碼以繼續設定：", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                TextBox txt = new TextBox { PasswordChar = '*', Width = 250, Left = 30, Top = 70, Font = new Font("Microsoft JhengHei UI", 14F) };
+                Button btn = new Button { Text = "確認驗證", DialogResult = DialogResult.OK, Left = 160, Top = 120, Width = 120, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                p.Controls.Add(lbl); 
+                p.Controls.Add(txt); 
+                p.Controls.Add(btn);
+                p.AcceptButton = btn;
+
+                if (p.ShowDialog(this) == DialogResult.OK) {
+                    string input = txt.Text.Trim();
+                    string unlockedMenu = App_PasswordManager.CheckUnlockMenu(input);
+                    if (unlockedMenu == menuName) return true;
+                    
+                    MessageBox.Show($"【{menuName}】密碼錯誤！", "驗證失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return false; 
+            }
+        }
+
         private void CboDb_SelectedIndexChanged(object sender, EventArgs e) {
             if (_isRevertingDb) return;
             var selectedDb = _cboDb.SelectedItem as ItemMap;
+            if (selectedDb != null && selectedDb.EnName.StartsWith("Menu") && selectedDb.EnName.EndsWith("DB")) {
+                string menuName = "";
+                if (selectedDb.EnName == "Menu1DB") menuName = "選單1";
+                if (selectedDb.EnName == "Menu2DB") menuName = "選單2";
+                if (selectedDb.EnName == "Menu3DB") menuName = "選單3";
+                if (selectedDb.EnName == "Menu4DB") menuName = "選單4";
+
+                if (!string.IsNullOrEmpty(menuName)) {
+                    if (!VerifyHiddenMenuPassword(menuName)) {
+                        _isRevertingDb = true;
+                        _cboDb.SelectedIndex = 0; 
+                        _isRevertingDb = false;
+                        return;
+                    }
+                }
+            }
 
             _cboTable.Items.Clear();
             _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
@@ -1130,6 +1181,8 @@ namespace Safety_System
                 }
             }
 
+            // 🟢 取消了這裡的 AuthManager 驗證
+
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
@@ -1193,6 +1246,8 @@ namespace Safety_System
         }
 
         private void BtnExport_Click(object sender, EventArgs e) {
+            // 🟢 匯出無須驗證
+
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統下拉選單設定_" + DateTime.Now.ToString("yyyyMMdd") }) {
                 if (sfd.ShowDialog() == DialogResult.OK) {
                     try {
@@ -1226,6 +1281,8 @@ namespace Safety_System
         }
 
         private void BtnImport_Click(object sender, EventArgs e) {
+            // 🟢 取消了這裡的 AuthManager 驗證
+
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) {
                 if (ofd.ShowDialog() == DialogResult.OK) {
                     try {
@@ -1328,6 +1385,8 @@ namespace Safety_System
                 return;
             }
 
+            // 🟢 取消了這裡的 AuthManager 驗證
+
             List<string> optList = new List<string>();
             foreach(DataGridViewRow r in _dgvOptionsMulti.Rows) {
                 if (r.IsNewRow) continue;
@@ -1364,6 +1423,7 @@ namespace Safety_System
         {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的組合文字(複選)設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
             {
+                // 🟢 這是永久刪除整個 DB 設定的毀滅性操作，保留密碼驗證
                 string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
@@ -1393,6 +1453,8 @@ namespace Safety_System
 
         private void BtnExportMulti_Click(object sender, EventArgs e)
         {
+            // 🟢 匯出無須驗證
+
             using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "系統組合文字(複選)設定_" + DateTime.Now.ToString("yyyyMMdd") }) 
             {
                 if (sfd.ShowDialog() == DialogResult.OK) 
@@ -1436,6 +1498,8 @@ namespace Safety_System
 
         private void BtnImportMulti_Click(object sender, EventArgs e)
         {
+            // 🟢 取消了這裡的 AuthManager 驗證
+
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) 
@@ -1497,6 +1561,8 @@ namespace Safety_System
             if (tb == null || _cboColMulti.SelectedItem == null) return;
 
             if (MessageBox.Show("確定要刪除此欄位的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                // 🟢 取消了這裡的 AuthManager 驗證
+                
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
@@ -1559,6 +1625,8 @@ namespace Safety_System
                 
                 btnDel.Click += (s, e) => {
                     if (MessageBox.Show($"確定要刪除【{chTbName} - {colName}】的組合文字設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        // 🟢 取消了這裡的 AuthManager 驗證
+                        
                         try {
                             using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                                 conn.Open();
