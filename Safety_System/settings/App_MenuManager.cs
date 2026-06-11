@@ -106,8 +106,7 @@ namespace Safety_System
                 if (!AuthManager.VerifyHiddenMenu(category)) return;
             }
 
-            string authPrompt = "新增自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+            // 🟢 取消了這裡的 AuthManager.VerifyAdmin 驗證
 
             string targetDb = _categoryToDbMap[category];
             DataTable dt = DataManager.GetTableData("SystemConfig", "CustomMenus", "", "", "");
@@ -273,8 +272,7 @@ namespace Safety_System
 
         private void ExecuteRename(int id, string dbName, string oldTableName)
         {
-            string authPrompt = "更名自訂選單需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-            if (!AuthManager.VerifyAdmin(authPrompt)) return;
+            // 🟢 取消了這裡的 AuthManager.VerifyAdmin 驗證
 
             string newName = ShowInputBox($"請輸入【{oldTableName}】的新名稱：", "重新命名選單", oldTableName);
             if (string.IsNullOrWhiteSpace(newName) || newName == oldTableName) return;
@@ -312,6 +310,7 @@ namespace Safety_System
 
         private void ExecuteDelete(int id, string dbName, string tableName)
         {
+            // 🟢 刪除整張資料庫表是毀滅性操作，這個驗證保留
             if (!AuthManager.VerifyTableDelete()) return;
 
             if (MessageBox.Show($"您確定要永久刪除選單【{tableName}】及其所有資料嗎？\n(此操作無法復原)", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
