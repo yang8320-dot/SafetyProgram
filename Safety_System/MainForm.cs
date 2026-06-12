@@ -238,6 +238,7 @@ namespace Safety_System
 
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("檢測報告分析評估表", () => new App_TestReportEvaluation().GetView()));
             menuTest.DropDownItems.Add(new ToolStripSeparator());
             menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_CoreTable("TestData", "EnvMonitor", "環境監測", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_CoreTable("TestData", "WastewaterPeriodic", "廢水定申檢", new DefaultLogic()).GetView()));
@@ -349,7 +350,7 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this);
+                    new App_PermissionManager(_mainMenuRef).ShowDialog(this);
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
