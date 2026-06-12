@@ -59,7 +59,7 @@ namespace Safety_System
             public string ColName { get; set; }
             public string FilterValue { get; set; } 
             public string AggType { get; set; } 
-            public string ColName2 { get; set; } = ""; // 支援日期相減的起日欄位
+            public string ColName2 { get; set; } = ""; // 保持結構相容
             public string RefColName { get; set; } = ""; // 參照資料欄 (用於過濾條件)
         }
 
@@ -535,31 +535,16 @@ namespace Safety_System
 
                             if (match)
                             {
+                                // 🟢 移除加總與日期相減的計算，只保留 COUNT/AVG/MAX/MIN
                                 if (src.AggType == "COUNT")
                                 {
                                     countVal++;
                                 }
-                                else if (src.AggType == "SUM" || src.AggType == "AVG" || src.AggType == "MAX" || src.AggType == "MIN")
+                                else if (src.AggType == "AVG" || src.AggType == "MAX" || src.AggType == "MIN")
                                 {
                                     if (src.ColName != "Id (無條件計數)" && dt.Columns.Contains(src.ColName)) {
                                         string valStr = r[src.ColName]?.ToString()?.Trim() ?? "";
                                         if (double.TryParse(valStr.Replace(",", ""), out double v)) gatheredValues.Add(v);
-                                    }
-                                }
-                                else if (src.AggType.StartsWith("DIFF"))
-                                {
-                                    if (dt.Columns.Contains(src.ColName) && dt.Columns.Contains(src.ColName2)) {
-                                        string endStr = r[src.ColName]?.ToString()?.Trim() ?? "";
-                                        string startStr = r[src.ColName2]?.ToString()?.Trim() ?? "";
-                                        
-                                        DateTime? endD = ParseUniversalDate(endStr);
-                                        DateTime? startD = ParseUniversalDate(startStr);
-                                        
-                                        if (endD.HasValue && startD.HasValue)
-                                        {
-                                            double days = (endD.Value.Date - startD.Value.Date).TotalDays;
-                                            if (days >= 0) gatheredValues.Add(days);
-                                        }
                                     }
                                 }
                             }
@@ -570,8 +555,7 @@ namespace Safety_System
 
                 double finalVal = 0;
                 if (primaryAgg == "COUNT") finalVal = countVal;
-                else if (primaryAgg == "SUM" || primaryAgg == "DIFF_SUM") finalVal = gatheredValues.Sum();
-                else if (primaryAgg == "AVG" || primaryAgg == "DIFF_AVG") finalVal = gatheredValues.Any() ? Math.Round(gatheredValues.Average(), 2) : 0;
+                else if (primaryAgg == "AVG") finalVal = gatheredValues.Any() ? Math.Round(gatheredValues.Average(), 2) : 0;
                 else if (primaryAgg == "MAX") finalVal = gatheredValues.Any() ? gatheredValues.Max() : 0;
                 else if (primaryAgg == "MIN") finalVal = gatheredValues.Any() ? gatheredValues.Min() : 0;
 
@@ -650,7 +634,7 @@ namespace Safety_System
 
         private void BtnSetting_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1450, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
@@ -670,7 +654,7 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
                 
-                Panel pName = new Panel { Width = 1100, Height = 45 };
+                Panel pName = new Panel { Width = 950, Height = 45 };
                 pName.Controls.Add(new Label { Text = "顯示名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 250, Location = new Point(115, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
@@ -685,14 +669,14 @@ namespace Safety_System
                 
                 flpEditor.Controls.Add(pName);
 
-                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 1150, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 980, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    // 面板加寬以容納新欄位
-                    Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                    // 面板重新縮減排版以符合移除後的數量
+                    Panel pRow = new Panel { Width = 950, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
                     int ly = 10;
@@ -700,14 +684,12 @@ namespace Safety_System
 
                     // 重新排列欄位坐標
                     int x0 = 10, w0 = 35;   // 刪除按鈕
-                    int x1 = 50, w1 = 110;  // 資料庫
-                    int x2 = 165, w2 = 130; // 資料表
-                    int x3 = 300, w3 = 130; // 參照資料欄
-                    int x4 = 435, w4 = 150; // 選項過濾條件
-                    int x5 = 590, w5 = 130; // 計算欄位
-                    int x6 = 725, w6 = 100; // 運算方式
-                    int x7 = 830, w7 = 110; // 主欄位迄
-                    int x8 = 945, w8 = 110; // 次欄位起
+                    int x1 = 50, w1 = 130;  // 資料庫
+                    int x2 = 185, w2 = 160; // 資料表
+                    int x3 = 350, w3 = 160; // 參照資料欄
+                    int x4 = 515, w4 = 170; // 選項過濾條件
+                    int x5 = 690, w5 = 160; // 計算欄位
+                    int x6 = 855, w6 = 80;  // 運算方式
 
                     Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     btnRemove.FlatAppearance.BorderSize = 0;
@@ -719,12 +701,6 @@ namespace Safety_System
                     ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     ComboBox cbCol = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     ComboBox cbAgg = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
-                    Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
-                    ComboBox cbColEnd = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
-                    
-                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x8, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
-                    ComboBox cbColStart = new ComboBox { Location = new Point(x8, cy), Width = w8, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
 
                     pRow.Controls.AddRange(new Control[] {
                         btnRemove,
@@ -733,9 +709,7 @@ namespace Safety_System
                         new Label { Text = "參照資料欄", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbRefCol,
                         new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
                         new Label { Text = "計算欄位", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
-                        new Label { Text = "運算方式", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
-                        lblColEnd, cbColEnd,
-                        lblColStart, cbColStart
+                        new Label { Text = "運算方式", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg
                     });
 
                     btnRemove.Click += (s, ev) => flpSourcesContainer.Controls.Remove(pRow);
@@ -754,8 +728,6 @@ namespace Safety_System
                     cbTb.SelectedIndexChanged += (s, ev) => {
                         cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
                         cbRefCol.Items.Clear(); cbRefCol.Items.Add(""); 
-                        cbColEnd.Items.Clear(); cbColEnd.Items.Add("");
-                        cbColStart.Items.Clear(); cbColStart.Items.Add("");
                         
                         var selDb = cbDb.SelectedItem as ItemMap;
                         var selTb = cbTb.SelectedItem as ItemMap;
@@ -764,21 +736,11 @@ namespace Safety_System
                             foreach (var c in cols) {
                                 cbCol.Items.Add(c);
                                 cbRefCol.Items.Add(c); 
-                                cbColEnd.Items.Add(c);
-                                cbColStart.Items.Add(c);
                             }
                         }
                     };
 
-                    cbAgg.SelectedIndexChanged += (s, ev) => {
-                        bool isDiff = cbAgg.Text.Contains("相減");
-                        lblColEnd.Visible = isDiff;
-                        cbColEnd.Visible = isDiff;
-                        lblColStart.Visible = isDiff;
-                        cbColStart.Visible = isDiff;
-                    };
-
-                    // 🟢 連動改由 RefCol 驅動，且動態從資料庫撈取唯一值
+                    // 連動改由 RefCol 驅動，且動態從資料庫撈取唯一值
                     cbRefCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); 
                         cbFilter.Items.Add("非空值 (有輸入即算)");
@@ -808,7 +770,7 @@ namespace Safety_System
                                 }
                             }
 
-                            // 🟢 核心修復：主動從資料庫撈取不重複的值填入，以防該欄位未設定在下拉選單中
+                            // 主動從資料庫撈取不重複的值填入，以防該欄位未設定在下拉選單中
                             try {
                                 DataTable dtDist = DataManager.GetTableData(dbName, tbName, "", "", "");
                                 if (dtDist != null && dtDist.Columns.Contains(refColStr)) {
@@ -827,7 +789,8 @@ namespace Safety_System
                         cbFilter.SelectedIndex = 0;
                     };
 
-                    cbAgg.Items.AddRange(new string[] { "計數", "加總", "平均值", "最大值", "最小值", "日期相減(總天數)" });
+                    // 🟢 僅保留 計數, 平均值, 最大值, 最小值
+                    cbAgg.Items.AddRange(new string[] { "計數", "平均值", "最大值", "最小值" });
 
                     if (def != null) {
                         foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
@@ -838,12 +801,7 @@ namespace Safety_System
                             cbRefCol.SelectedItem = def.RefColName;
                         }
 
-                        if (!string.IsNullOrEmpty(def.ColName2)) {
-                            cbColEnd.Text = def.ColName;
-                            cbColStart.Text = def.ColName2;
-                        }
-
-                        // 🟢 確保 FilterValue 被正確載入
+                        // 確保 FilterValue 被正確載入
                         if (!string.IsNullOrEmpty(def.FilterValue)) {
                             if (!cbFilter.Items.Contains(def.FilterValue)) cbFilter.Items.Add(def.FilterValue);
                             cbFilter.Text = def.FilterValue;
@@ -852,11 +810,9 @@ namespace Safety_System
                         }
                         
                         if (def.AggType == "COUNT") cbAgg.Text = "計數";
-                        else if (def.AggType == "SUM") cbAgg.Text = "加總";
                         else if (def.AggType == "AVG") cbAgg.Text = "平均值";
                         else if (def.AggType == "MAX") cbAgg.Text = "最大值";
                         else if (def.AggType == "MIN") cbAgg.Text = "最小值";
-                        else if (def.AggType == "DIFF_SUM") cbAgg.Text = "日期相減(總天數)";
                         else cbAgg.Text = "平均值"; 
                     } else {
                         cbAgg.Text = "平均值";
@@ -868,7 +824,7 @@ namespace Safety_System
 
                 btnAddSource.Click += (s, ev) => addSourceRow(null);
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 900, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 950, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
 
                 pnlRight.Controls.Add(flpEditor);
                 pnlRight.Controls.Add(l2);
@@ -928,8 +884,6 @@ namespace Safety_System
                             var cbFilter = pRow.Controls[8] as ComboBox;
                             var cbCol = pRow.Controls[10] as ComboBox; 
                             var cbAgg = pRow.Controls[12] as ComboBox;
-                            var cbColEnd = pRow.Controls[14] as ComboBox;
-                            var cbColStart = pRow.Controls[16] as ComboBox;
 
                             var selDb = cbDb.SelectedItem as ItemMap;
                             var selTb = cbTb.SelectedItem as ItemMap;
@@ -939,12 +893,8 @@ namespace Safety_System
                                 
                                 string aggTypeDb = "COUNT";
                                 string dbColToSave = cbCol.Text;
-                                string dbCol2ToSave = "";
 
-                                if (cbAgg.Text == "加總") {
-                                    aggTypeDb = "SUM";
-                                }
-                                else if (cbAgg.Text == "平均值") {
+                                if (cbAgg.Text == "平均值") {
                                     aggTypeDb = "AVG";
                                 }
                                 else if (cbAgg.Text == "最大值") {
@@ -953,11 +903,6 @@ namespace Safety_System
                                 else if (cbAgg.Text == "最小值") {
                                     aggTypeDb = "MIN";
                                 }
-                                else if (cbAgg.Text == "日期相減(總天數)") {
-                                    aggTypeDb = "DIFF_SUM";
-                                    dbColToSave = cbColEnd.Text;
-                                    dbCol2ToSave = cbColStart.Text;
-                                }
                                 
                                 newCfg.Sources.Add(new DataSourceDef { 
                                     DbName = selDb.EnName, 
@@ -965,7 +910,7 @@ namespace Safety_System
                                     ColName = dbColToSave, 
                                     FilterValue = filterVal, 
                                     AggType = aggTypeDb,
-                                    ColName2 = dbCol2ToSave,
+                                    ColName2 = "", 
                                     RefColName = cbRefCol.Text
                                 });
                             }
