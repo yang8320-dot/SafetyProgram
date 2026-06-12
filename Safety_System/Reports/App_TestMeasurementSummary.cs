@@ -70,7 +70,8 @@ namespace Safety_System
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = false, 
                 ReadOnly = true, 
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None, // 🟢 關閉自動填充，改用絕對比例
+                // 🟢 開啟自動填滿，後續配合 FillWeight 避免左右捲軸產生
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
                 RowHeadersVisible = false, 
                 Font = new Font("Microsoft JhengHei UI", 11F),
                 Margin = new Padding(0, 0, 0, 0), 
@@ -229,26 +230,25 @@ namespace Safety_System
 
                 _dgvResult.DataSource = _dtResult;
 
-                // 🟢 強制套用 25 等分比例寬度
+                // 🟢 完美比例設定：調整欄距避免橫向捲軸
                 if (_dgvResult.Columns.Count > 0) 
                 {
-                    int totalGridWidth = _dgvResult.ClientSize.Width;
-                    // 如果畫面還沒完全生成導致寬度太小，給定一個合理的基準寬度
-                    if (totalGridWidth < 500) totalGridWidth = 1400; 
-
-                    float unitWidth = totalGridWidth / 25f;
-
-                    _dgvResult.Columns["量測項目"].Width = (int)(unitWidth * 5);
-                    _dgvResult.Columns["檢測點"].Width = (int)(unitWidth * 3);
-                    _dgvResult.Columns["管制標準"].Width = (int)(unitWidth * 2);
-
-                    for (int m = 1; m <= 12; m++) {
-                        _dgvResult.Columns[$"{m}月"].Width = (int)unitWidth;
+                    foreach (DataGridViewColumn col in _dgvResult.Columns) {
+                        // 調降系統預設的 MinimumWidth，確保小視窗下欄位也能按比例壓縮
+                        col.MinimumWidth = 20; 
                     }
 
-                    _dgvResult.Columns["最大值"].Width = (int)unitWidth;
-                    _dgvResult.Columns["最小值"].Width = (int)unitWidth;
-                    _dgvResult.Columns["平均值"].Width = (int)unitWidth;
+                    _dgvResult.Columns["量測項目"].FillWeight = 16f;
+                    _dgvResult.Columns["檢測點"].FillWeight = 12f;
+                    _dgvResult.Columns["管制標準"].FillWeight = 12f;
+
+                    for (int m = 1; m <= 12; m++) {
+                        _dgvResult.Columns[$"{m}月"].FillWeight = 4f;
+                    }
+
+                    _dgvResult.Columns["最大值"].FillWeight = 4f;
+                    _dgvResult.Columns["最小值"].FillWeight = 4f;
+                    _dgvResult.Columns["平均值"].FillWeight = 4f;
                 }
 
                 _dgvResult.ClearSelection();
@@ -259,7 +259,7 @@ namespace Safety_System
             } 
             finally 
             {
-                // 🟢 修復：確保即使發生錯誤也會正確解除漏斗等待狀態
+                // 確保游標恢復正常
                 if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
@@ -330,21 +330,17 @@ namespace Safety_System
                         g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                         y += 40;
 
-                        // 2. 雙層表頭繪製
+                        // 2. 雙層表頭繪製 (🟢 完美百分比配比設定)
                         float rowH = 35f;
                         float[] colWidths = new float[_dtResult.Columns.Count];
                         
-                        // 🟢 完美套用 25 等分比例寬度設定
-                        float unitWidth = w / 25f;
+                        colWidths[0] = w * 0.16f; // 量測項目 16%
+                        colWidths[1] = w * 0.12f; // 檢測點   12%
+                        colWidths[2] = w * 0.12f; // 管制標準 12%
                         
-                        colWidths[0] = unitWidth * 5f; // 量測項目
-                        colWidths[1] = unitWidth * 3f; // 檢測點
-                        colWidths[2] = unitWidth * 2f; // 管制標準
-                        
-                        for (int i = 3; i <= 14; i++) colWidths[i] = unitWidth; // 1~12月
-                        colWidths[15] = unitWidth; // 最大值
-                        colWidths[16] = unitWidth; // 最小值
-                        colWidths[17] = unitWidth; // 平均值
+                        for (int i = 3; i <= 17; i++) {
+                            colWidths[i] = w * 0.04f; // 1~12月 + 最大 + 最小 + 平均，共15格，每格4%
+                        }
 
                         // 第一層表頭
                         float currX = x;
@@ -357,8 +353,8 @@ namespace Safety_System
                             currX += colWidths[i];
                         }
                         
-                        // 右側群組標題「XX 年度」
-                        float monthGroupWidth = unitWidth * 15f; 
+                        // 右側群組標題「XX 年度」 (佔 15 格寬度 = 60%)
+                        float monthGroupWidth = w * 0.60f;
                         RectangleF rYearTitle = new RectangleF(currX, y, monthGroupWidth, rowH);
                         g.FillRectangle(Brushes.LightGray, rYearTitle);
                         g.DrawRectangle(Pens.Black, Rectangle.Round(rYearTitle));
