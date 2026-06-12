@@ -6,6 +6,7 @@ using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 
@@ -16,8 +17,14 @@ namespace Safety_System
         // 框1: 操作區控制項
         private ComboBox _cboDb;
         private ComboBox _cboTable;
-        private ComboBox _cboDate;
-        private ComboBox _cboPoint;
+        
+        // 🟢 升級為多選控制項
+        private TextBox _txtDateMulti;
+        private Button _btnPickDate;
+        private TextBox _txtPointMulti;
+        private Button _btnPickPoint;
+        private List<string> _availableDates = new List<string>();
+        private List<string> _availablePoints = new List<string>();
         
         // 框2: 表單區控制項
         private DateTimePicker _dtpEvalDate;
@@ -31,7 +38,6 @@ namespace Safety_System
         private const string EvalDbName = "TestData";
         private const string EvalTableName = "TestReportEvaluations";
         
-        // 目前載入的紀錄 ID (0代表新增)
         private int _currentId = 0;
 
         private class ItemMap {
@@ -41,7 +47,6 @@ namespace Safety_System
 
         public Control GetView()
         {
-            // 初始化評估紀錄表
             string schema = TableSchemaManager.SchemaMap.ContainsKey(EvalTableName) ? TableSchemaManager.SchemaMap[EvalTableName] : "[資料庫] TEXT, [資料表] TEXT, [測定日期] TEXT, [檢測名稱] TEXT, [評估日期] TEXT, [符合度] TEXT, [測定用途] TEXT, [分析與結果說明] TEXT, [最後修改人] TEXT, [修改時間] TEXT";
             DataManager.InitTable(EvalDbName, EvalTableName, $"CREATE TABLE IF NOT EXISTS [{EvalTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
 
@@ -53,12 +58,25 @@ namespace Safety_System
             // ==========================================
             GroupBox box1 = new GroupBox { Text = "⚙️ 檢測資料載入與操作區", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0,0,0,20) };
             
-            FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,5,0,10) };
-            _cboDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboTable = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboDate = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboPoint = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            FlowLayoutPanel flpRow1 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,5,0,10), WrapContents = false };
+            _cboDb = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboTable = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
+            // 🟢 多選日期 UI 組合
+            Panel pnlDate = new Panel { Width = 180, Height = 35, Margin = new Padding(0) };
+            _txtDateMulti = new TextBox { Width = 145, ReadOnly = true, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 2), BackColor = Color.White };
+            _btnPickDate = new Button { Text = "▼", Width = 35, Height = 30, Location = new Point(145, 0), Cursor = Cursors.Hand, BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnPickDate.FlatAppearance.BorderSize = 0;
+            pnlDate.Controls.Add(_txtDateMulti); pnlDate.Controls.Add(_btnPickDate);
+
+            // 🟢 多選測點 UI 組合
+            Panel pnlPoint = new Panel { Width = 230, Height = 35, Margin = new Padding(0) };
+            _txtPointMulti = new TextBox { Width = 195, ReadOnly = true, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 2), BackColor = Color.White };
+            _btnPickPoint = new Button { Text = "▼", Width = 35, Height = 30, Location = new Point(195, 0), Cursor = Cursors.Hand, BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
+            _btnPickPoint.FlatAppearance.BorderSize = 0;
+            pnlPoint.Controls.Add(_txtPointMulti); pnlPoint.Controls.Add(_btnPickPoint);
+            
+            // 🟢 修正：按鈕寬度 +20px (120 -> 140)
             Button btnLoadData = new Button { Text = "📥 載入數據", Size = new Size(140, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnLoadData.FlatAppearance.BorderSize = 0;
             btnLoadData.Click += BtnLoadData_Click;
@@ -66,8 +84,8 @@ namespace Safety_System
             flpRow1.Controls.AddRange(new Control[] {
                 new Label { Text = "資料庫:", AutoSize = true, Margin = new Padding(10,5,5,0) }, _cboDb,
                 new Label { Text = "資料表:", AutoSize = true, Margin = new Padding(15,5,5,0) }, _cboTable,
-                new Label { Text = "測定日期:", AutoSize = true, Margin = new Padding(15,5,5,0) }, _cboDate,
-                new Label { Text = "檢測名稱(點):", AutoSize = true, Margin = new Padding(15,5,5,0) }, _cboPoint,
+                new Label { Text = "測定日期(可複選):", AutoSize = true, Margin = new Padding(15,5,5,0) }, pnlDate,
+                new Label { Text = "檢測點(可複選):", AutoSize = true, Margin = new Padding(15,5,5,0) }, pnlPoint,
                 new Panel { Width=10, Height=1 }, btnLoadData
             });
 
@@ -137,10 +155,10 @@ namespace Safety_System
             tlpForm.Controls.Add(_txtTestPurpose, 1, 3);
             tlpForm.SetColumnSpan(_txtTestPurpose, 3);
 
-            // 列表 
+            // 🟢 修正：高度改為 450
             _dgvItems = new DataGridView {
                 Dock = DockStyle.Top, 
-                Height = 350, 
+                Height = 450, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = false, 
                 ReadOnly = false, 
@@ -169,8 +187,9 @@ namespace Safety_System
             _dgvItems.Columns.Add("本次測值", "本次測值");
             _dgvItems.Columns.Add("備註", "備註");
 
+            // 🟢 修正：設定除 Checkbox 與 備註 外皆為唯讀
             foreach (DataGridViewColumn col in _dgvItems.Columns) {
-                if (col.Name != "匯出") col.ReadOnly = true;
+                if (col.Name != "匯出" && col.Name != "備註") col.ReadOnly = true;
             }
 
             Panel pnlAnalysis = new Panel { Dock = DockStyle.Top, Height = 220, Padding = new Padding(0, 10, 0, 0) };
@@ -207,18 +226,56 @@ namespace Safety_System
             return new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), BackColor = Color.WhiteSmoke };
         }
 
+        // =======================================================
+        // 🟢 多選彈窗實作
+        // =======================================================
+        private string ShowMultiSelectDialog(string title, List<string> sourceList, string currentSelected)
+        {
+            if (sourceList == null || sourceList.Count == 0) return currentSelected;
+
+            using (Form f = new Form { Text = title, Size = new Size(320, 450), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
+            {
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.None, Padding = new Padding(5) };
+                
+                var selList = currentSelected.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+                
+                foreach(var item in sourceList) {
+                    clb.Items.Add(item, selList.Contains(item));
+                }
+                
+                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 50 };
+                Button btnOk = new Button { Text = "✔ 確認", Dock = DockStyle.Fill, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnOk.Click += (s, e) => { f.DialogResult = DialogResult.OK; };
+                pnlBottom.Controls.Add(btnOk);
+
+                f.Controls.Add(clb);
+                f.Controls.Add(pnlBottom);
+                
+                if (f.ShowDialog() == DialogResult.OK) {
+                    List<string> result = new List<string>();
+                    foreach(var item in clb.CheckedItems) result.Add(item.ToString());
+                    return string.Join(", ", result);
+                }
+            }
+            return currentSelected;
+        }
+
         private void InitDropdowns()
         {
             var dbMap = App_DbConfig.GetDbMapCache();
 
             _cboDb.SelectedIndexChanged += (s, e) => {
                 _cboTable.Items.Clear();
-                _cboDate.Items.Clear();
-                _cboPoint.Items.Clear();
+                _txtDateMulti.Clear();
+                _txtPointMulti.Clear();
+                _availableDates.Clear();
+                _availablePoints.Clear();
+
                 if (_cboDb.SelectedItem == null) return;
                 
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 
+                // 🟢 修正：第一個顯示空白欄
                 _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
 
                 if (dbMap.ContainsKey(dbName)) {
@@ -233,8 +290,11 @@ namespace Safety_System
             };
 
             _cboTable.SelectedIndexChanged += (s, e) => {
-                _cboDate.Items.Clear();
-                _cboPoint.Items.Clear();
+                _txtDateMulti.Clear();
+                _txtPointMulti.Clear();
+                _availableDates.Clear();
+                _availablePoints.Clear();
+
                 if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) return;
                 
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
@@ -245,35 +305,36 @@ namespace Safety_System
                 try {
                     DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
                     string dateCol = GetDateColumnName(dt);
-                    string pointCol = GetPointColumnName(dt);
                     
-                    if (!string.IsNullOrEmpty(dateCol) && !string.IsNullOrEmpty(pointCol)) {
+                    if (!string.IsNullOrEmpty(dateCol)) {
                         var dates = new HashSet<string>();
                         foreach (DataRow r in dt.Rows) {
                             if (r[dateCol] != DBNull.Value && !string.IsNullOrEmpty(r[dateCol].ToString())) {
                                 dates.Add(r[dateCol].ToString());
                             }
                         }
-                        var sortedDates = new List<string>(dates);
-                        sortedDates.Sort();
-                        sortedDates.Reverse(); 
-                        foreach(var d in sortedDates) _cboDate.Items.Add(d);
+                        _availableDates = new List<string>(dates);
+                        _availableDates.Sort();
+                        _availableDates.Reverse(); 
                     }
                 } catch { }
-
-                if (_cboDate.Items.Count > 0) _cboDate.SelectedIndex = 0;
             };
 
-            _cboDate.SelectedIndexChanged += (s, e) => {
-                _cboPoint.Items.Clear();
-                if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null) return;
+            // 🟢 多選日期觸發
+            _btnPickDate.Click += (s, e) => {
+                if (_availableDates.Count == 0) { MessageBox.Show("請先選擇資料表，或該表尚無日期紀錄。"); return; }
                 
+                _txtDateMulti.Text = ShowMultiSelectDialog("選擇測定日期 (可複選)", _availableDates, _txtDateMulti.Text);
+                
+                // 選完日期後，動態更新可用的檢測點
+                _availablePoints.Clear();
+                _txtPointMulti.Clear();
+
+                if (string.IsNullOrEmpty(_txtDateMulti.Text)) return;
+
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
-                
-                if (string.IsNullOrEmpty(tbName)) return;
-
-                string dateStr = _cboDate.SelectedItem.ToString();
+                string[] selectedDates = _txtDateMulti.Text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
 
                 try {
                     DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
@@ -283,15 +344,20 @@ namespace Safety_System
                     if (!string.IsNullOrEmpty(dateCol) && !string.IsNullOrEmpty(pointCol)) {
                         var points = new HashSet<string>();
                         foreach (DataRow r in dt.Rows) {
-                            if (r[dateCol].ToString() == dateStr && r[pointCol] != DBNull.Value && !string.IsNullOrEmpty(r[pointCol].ToString())) {
+                            string rDate = r[dateCol].ToString();
+                            if (selectedDates.Contains(rDate) && r[pointCol] != DBNull.Value && !string.IsNullOrEmpty(r[pointCol].ToString())) {
                                 points.Add(r[pointCol].ToString());
                             }
                         }
-                        foreach(var p in points) _cboPoint.Items.Add(p);
+                        _availablePoints = new List<string>(points);
                     }
                 } catch { }
+            };
 
-                if (_cboPoint.Items.Count > 0) _cboPoint.SelectedIndex = 0;
+            // 🟢 多選測點觸發
+            _btnPickPoint.Click += (s, e) => {
+                if (_availablePoints.Count == 0) { MessageBox.Show("請先選擇測定日期，或該日期無測點紀錄。"); return; }
+                _txtPointMulti.Text = ShowMultiSelectDialog("選擇檢測名稱 (可複選)", _availablePoints, _txtPointMulti.Text);
             };
 
             _cboDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
@@ -334,7 +400,7 @@ namespace Safety_System
 
         private void BtnLoadData_Click(object sender, EventArgs e)
         {
-            if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null || _cboPoint.SelectedItem == null) {
+            if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || string.IsNullOrEmpty(_txtDateMulti.Text) || string.IsNullOrEmpty(_txtPointMulti.Text)) {
                 MessageBox.Show("請確認資料庫、資料表、日期與檢測名稱(點)皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
@@ -350,11 +416,11 @@ namespace Safety_System
             _txtTestPurpose.Clear();
             _rtbAnalysis.Clear();
 
-            string dateStr = _cboDate.SelectedItem.ToString();
-            string pointName = _cboPoint.SelectedItem.ToString();
+            string[] selectedDates = _txtDateMulti.Text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
+            string[] selectedPoints = _txtPointMulti.Text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
 
-            _txtTestDate.Text = dateStr;
-            _txtTestName.Text = pointName;
+            _txtTestDate.Text = string.Join(", ", selectedDates);
+            _txtTestName.Text = string.Join(", ", selectedPoints);
             _dgvItems.Rows.Clear();
 
             try {
@@ -368,8 +434,13 @@ namespace Safety_System
                 if (string.IsNullOrEmpty(dateCol) || string.IsNullOrEmpty(pointCol)) return;
 
                 DataView dv = new DataView(dt);
-                dv.RowFilter = $"[{dateCol}] = '{dateStr}' AND [{pointCol}] = '{pointName}'";
+                
+                // 🟢 動態組裝 IN 語法以支援多選
+                string dateFilter = string.Join(" OR ", selectedDates.Select(d => $"[{dateCol}] = '{d}'"));
+                string pointFilter = string.Join(" OR ", selectedPoints.Select(p => $"[{pointCol}] = '{p}'"));
+                dv.RowFilter = $"({dateFilter}) AND ({pointFilter})";
 
+                // 🟢 智慧判定「測定用途」
                 foreach (DataRowView drv in dv) {
                     if (drv.Row.Table.Columns.Contains("測定用途") && !string.IsNullOrEmpty(drv["測定用途"].ToString())) {
                         _txtTestPurpose.Text = drv["測定用途"].ToString();
@@ -392,8 +463,12 @@ namespace Safety_System
                     string prevVal = "N/A";
                     
                     if (!string.IsNullOrEmpty(item)) {
+                        // 找最近一次的測值 (日期必須小於當下這筆紀錄的日期)
+                        string rDate = drv[dateCol].ToString();
+                        string rPoint = drv[pointCol].ToString();
+
                         DataView dvPrev = new DataView(dt);
-                        dvPrev.RowFilter = $"[{pointCol}] = '{pointName}' AND [{itemCol}] = '{item}' AND [{dateCol}] < '{dateStr}'";
+                        dvPrev.RowFilter = $"[{pointCol}] = '{rPoint}' AND [{itemCol}] = '{item}' AND [{dateCol}] < '{rDate}'";
                         dvPrev.Sort = $"[{dateCol}] DESC";
                         if (dvPrev.Count > 0 && dvPrev[0].Row.Table.Columns.Contains("檢測數據")) {
                             prevVal = dvPrev[0]["檢測數據"].ToString();
@@ -472,7 +547,7 @@ namespace Safety_System
                 Label lblDb = new Label { Text = "篩選資料庫：", AutoSize = true, Location = new Point(15, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
                 ComboBox cbFilterDb = new ComboBox { Location = new Point(125, 15), Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
                 
-                // 🟢 修正：選單間距 +30
+                // 🟢 修正：選單間距 +30 (X=330, 485)
                 Label lblTb = new Label { Text = "篩選資料表：", AutoSize = true, Location = new Point(330, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
                 ComboBox cbFilterTb = new ComboBox { Location = new Point(440, 15), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
@@ -483,7 +558,7 @@ namespace Safety_System
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                     BorderStyle = BorderStyle.None,
-                    // 🟢 修正：標題自動調整高度與允許換行
+                    // 🟢 修正：標題列自動換行與調高
                     ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
                 };
                 
@@ -491,7 +566,7 @@ namespace Safety_System
                 dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.LightGray;
                 dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
                 dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
-                dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True; // 允許換行
+                dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
 
                 DataView dvHistory = new DataView(dt);
@@ -560,8 +635,9 @@ namespace Safety_System
                             if (item.EnName == tbName) { _cboTable.SelectedItem = item; break; }
                         }
 
-                        _cboDate.Items.Clear(); _cboDate.Items.Add(tDate); _cboDate.SelectedIndex = 0;
-                        _cboPoint.Items.Clear(); _cboPoint.Items.Add(tName); _cboPoint.SelectedIndex = 0;
+                        // 🟢 還原多選字串
+                        _txtDateMulti.Text = tDate;
+                        _txtPointMulti.Text = tName;
 
                         BtnLoadData_Click(null, null);
 
@@ -600,7 +676,7 @@ namespace Safety_System
                 MessageBox.Show("請先載入報告內容！"); return;
             }
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"檢測報告分析評估表_{_txtTestName.Text}_{DateTime.Now:yyyyMMdd}" })
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"檢測報告分析評估表_{DateTime.Now:yyyyMMdd}" })
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
