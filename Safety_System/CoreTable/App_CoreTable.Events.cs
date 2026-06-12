@@ -28,7 +28,7 @@ namespace Safety_System
             _dgv.KeyPress += new KeyPressEventHandler(Dgv_KeyPress);
             _dgv.EditingControlShowing += new DataGridViewEditingControlShowingEventHandler(Dgv_EditingControlShowing);
             
-            // 🟢 核心攔截：儲存格自訂繪製 (純圖示處理)
+            // 核心攔截：儲存格自訂繪製 (純圖示處理)
             _dgv.CellPainting += new DataGridViewCellPaintingEventHandler(Dgv_CellPainting);
             
             _dgv.DataError += delegate(object s, DataGridViewDataErrorEventArgs e) { e.ThrowException = false; };
@@ -459,7 +459,6 @@ namespace Safety_System
                 exportWidths[kvp.Key] = (float)kvp.Value;
             }
 
-            // 🟢 取得當前資料表的所有公式設定，提取出目標公式欄位 (TargetCol)
             var formulas = DataManager.GetTableFormulas(_dbName, _tableName);
             HashSet<string> formulaCols = new HashSet<string>();
             if (formulas != null) {
@@ -468,7 +467,6 @@ namespace Safety_System
                 }
             }
 
-            // 🟢 [修正]：將系統自動計算的統計欄位也加入公式欄位集合中，讓匯出的 Excel 自動套用灰底防呆
             foreach (DataGridViewColumn col in _dgv.Columns) {
                 if (col.Name == "星期" || col.Name.EndsWith("日統計") || col.Name.EndsWith("月統計") || col.Name.EndsWith("年統計")) {
                     formulaCols.Add(col.Name);
@@ -495,7 +493,6 @@ namespace Safety_System
                 exportDt.Rows.Add(dRow);
             }
 
-            // 🟢 將公式與系統運算欄位清單一起傳入匯出引擎
             ExcelHelper.ExportToExcelOrCsv(exportDt, _chineseTitle, exportWidths, dropdownData, formulaCols);
         }
 
@@ -683,6 +680,9 @@ namespace Safety_System
             }
         }
 
+        // ========================================================================
+        // 🟢 核心重構：智慧欄位對齊貼上 (Smart Column Alignment Paste)
+        // ========================================================================
         private async void Dgv_KeyDown(object sender, KeyEventArgs e) 
         {
             if (e.Control && e.KeyCode == Keys.S) { 
@@ -710,6 +710,7 @@ namespace Safety_System
                     }
                 }
             }
+            // 🟢 Ctrl+V 貼上邏輯優化
             else if (e.Control && e.KeyCode == Keys.V) {
                 string text = Clipboard.GetText(); 
                 if (string.IsNullOrEmpty(text)) return;
@@ -717,34 +718,56 @@ namespace Safety_System
                 string[] splitChars = new string[] { "\r\n", "\r", "\n" };
                 string[] lines = text.Split(splitChars, StringSplitOptions.RemoveEmptyEntries);
                 
-                int r = 0;
-                int c = 0;
-                if (_dgv.CurrentCell != null) {
-                    r = _dgv.CurrentCell.RowIndex;
-                    c = _dgv.CurrentCell.ColumnIndex;
-                }
+                if (_dgv.CurrentCell == null) return;
+
+                int startRowIdx = _dgv.CurrentCell.RowIndex;
+                int startColIdx = _dgv.CurrentCell.ColumnIndex;
+
+                // 1. 取得畫面上「真正可見」的欄位清單，並且依照使用者的拖曳排序 (DisplayIndex)
+                var visibleCols = _dgv.Columns.Cast<DataGridViewColumn>()
+                    .Where(col => col.Visible)
+                    .OrderBy(col => col.DisplayIndex)
+                    .ToList();
+
+                // 2. 尋找使用者目前點擊的儲存格，在「可見欄位清單」中排在第幾個位置
+                int visibleStartColIndex = visibleCols.FindIndex(c => c.Index == startColIdx);
+                if (visibleStartColIndex == -1) return; // 理論上不會發生，因為點到的應該是可見的
                 
                 DataTable boundDt = (DataTable)_dgv.DataSource;
                 DataTable workingDt = boundDt.Copy();
-
-                List<int> readOnlyCols = new List<int>();
-                for (int i = 0; i < _dgv.Columns.Count; i++) {
-                    if (_dgv.Columns[i].ReadOnly) readOnlyCols.Add(i);
-                }
 
                 _isBulkUpdating = true; 
 
                 using (ProgressForm progForm = new ProgressForm("貼上資料與運算中...")) {
                     await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr) {
-                        progStr.Report("正在解析貼上的資料...");
+                        progStr.Report("正在解析貼上的資料 (智慧對齊欄位)...");
                         
+                        int r = startRowIdx;
+
                         foreach (string line in lines) {
-                            if (r >= workingDt.Rows.Count) workingDt.Rows.Add(workingDt.NewRow());
+                            // 如果貼上的列數超過現有的列數，自動產生新列
+                            if (r >= workingDt.Rows.Count) {
+                                workingDt.Rows.Add(workingDt.NewRow());
+                            }
+
                             string[] cells = line.Split('\t');
-                            for (int i = 0; i < cells.Length; i++) { 
-                                if (c + i < workingDt.Columns.Count && !readOnlyCols.Contains(c + i)) { 
-                                    workingDt.Rows[r][c + i] = cells[i].Trim().Trim('"'); 
-                                } 
+                            int currentVisibleColIdx = visibleStartColIndex;
+
+                            // 依照順序逐一填入「可見」的欄位
+                            for (int i = 0; i < cells.Length; i++) {
+                                // 如果剪貼簿的欄位數已經超過畫面上剩餘的可見欄位，就直接截斷不貼
+                                if (currentVisibleColIdx >= visibleCols.Count) break; 
+
+                                DataGridViewColumn dgvCol = visibleCols[currentVisibleColIdx];
+                                string colName = dgvCol.Name;
+
+                                // 🟢 嚴格防呆：只允許填入非唯讀、且不是 Id 和 附件檔案 的欄位
+                                // (Id 被擋下，意味著如果是新列，Id就會維持空白，存檔時會自動產生新的，解決重複覆蓋問題)
+                                if (!dgvCol.ReadOnly && colName != "Id" && colName != "附件檔案" && workingDt.Columns.Contains(colName)) {
+                                    workingDt.Rows[r][colName] = cells[i].Trim().Trim('"');
+                                }
+
+                                currentVisibleColIdx++;
                             }
                             r++;
                         }
@@ -758,6 +781,7 @@ namespace Safety_System
                     });
                 }
 
+                // 更新畫面
                 _dgv.Visible = false;
                 UnfreezeAllColumns();
                 _isApplyingWidths = true;
@@ -808,9 +832,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================================================
-        // 🟢 核心重繪引擎：支援【純圖示模式】與【多重並排圖示】
-        // =========================================================================================
         private void Dgv_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
@@ -869,19 +890,17 @@ namespace Safety_System
 
                 if (hasAnyIcon)
                 {
-                    // 🟢 核心修正：精確繪製背景與邊框，完全排除文字的渲染
                     e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.Focus | DataGridViewPaintParts.SelectionBackground);
 
                     int startX = rect.X + 6;
                     int imgY = rect.Y + (rect.Height - imgSize) / 2;
 
-                    // 若是多張圖片(複選)，則水平並排畫出
                     foreach(var img in iconsToDraw) {
                         e.Graphics.DrawImage(img, startX, imgY, imgSize, imgSize);
                         startX += imgSize + 4; 
                     }
                     
-                    e.Handled = true; // 告知系統已處理，不要再畫文字
+                    e.Handled = true; 
                 }
             }
         }
@@ -898,9 +917,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================================================
-        // 🟢 複選 (多選) 設定視窗：支援「核取方塊 + 圖示 + 文字」
-        // =========================================================================================
         private void TriggerMultiSelectDialog(int rowIndex, int colIndex)
         {
             if (rowIndex < 0 || colIndex < 0 || rowIndex >= _dgv.Rows.Count) return;
@@ -916,14 +932,13 @@ namespace Safety_System
                 using (Form fMulti = new Form())
                 {
                     fMulti.Text = $"複選組合：{colName}";
-                    fMulti.Size = new Size(380, 500); // 稍微加寬以容納圖片
+                    fMulti.Size = new Size(380, 500); 
                     fMulti.StartPosition = FormStartPosition.CenterParent;
                     fMulti.FormBorderStyle = FormBorderStyle.FixedDialog;
                     fMulti.MaximizeBox = false;
                     fMulti.MinimizeBox = false;
                     fMulti.BackColor = Color.White;
 
-                    // 🟢 升級為 DataGridView 以支援圖文並排
                     DataGridView dgvMulti = new DataGridView {
                         Dock = DockStyle.Fill,
                         BackgroundColor = Color.White,
@@ -938,7 +953,7 @@ namespace Safety_System
                         AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                         Font = new Font("Microsoft JhengHei UI", 12F)
                     };
-                    dgvMulti.RowTemplate.Height = 40; // 給圖示空間
+                    dgvMulti.RowTemplate.Height = 40; 
 
                     DataGridViewCheckBoxColumn chkCol = new DataGridViewCheckBoxColumn { Name = "Check", Width = 40, AutoSizeMode = DataGridViewAutoSizeColumnMode.None };
                     DataGridViewImageColumn imgCol = new DataGridViewImageColumn { Name = "Icon", Width = 40, AutoSizeMode = DataGridViewAutoSizeColumnMode.None, ImageLayout = DataGridViewImageCellLayout.Zoom };
@@ -955,12 +970,11 @@ namespace Safety_System
                         int rIdx = dgvMulti.Rows.Add();
                         bool isChecked = currentSelected.Contains(opt.Text);
                         dgvMulti.Rows[rIdx].Cells["Check"].Value = isChecked;
-                        dgvMulti.Rows[rIdx].Cells["Icon"].Value = opt.GetImage() ?? new Bitmap(1, 1); // 沒圖給空圖佔位
+                        dgvMulti.Rows[rIdx].Cells["Icon"].Value = opt.GetImage() ?? new Bitmap(1, 1); 
                         dgvMulti.Rows[rIdx].Cells["Text"].Value = opt.Text;
-                        dgvMulti.Rows[rIdx].Tag = opt.Text; // 儲存真實文字
+                        dgvMulti.Rows[rIdx].Tag = opt.Text; 
                     }
 
-                    // 點擊行就切換 CheckBox
                     dgvMulti.CellClick += (s, ev) => {
                         if (ev.RowIndex >= 0) {
                             bool current = Convert.ToBoolean(dgvMulti.Rows[ev.RowIndex].Cells["Check"].Value);
@@ -1053,9 +1067,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================================================
-        // 🟢 自製單選下拉選單視窗 (支援 24x24 大圖示並排，隱藏文字)
-        // =========================================================================================
         private void ShowCustomDropdown(int rowIndex, int colIndex)
         {
             string colName = _dgv.Columns[colIndex].Name;
@@ -1095,19 +1106,18 @@ namespace Safety_System
             ListBox listBox = new ListBox {
                 IntegralHeight = false,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 36, // 🟢 加大列高給 24x24 的圖示
+                ItemHeight = 36, 
                 Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.FixedSingle
             };
 
             Rectangle cellRect = _dgv.GetCellDisplayRectangle(colIndex, rowIndex, false);
             
-            // 🟢 核心修正：動態計算 ListBox 內容的最大寬度，防止 ToolStripDropDown 自動縮放導致文字被切斷
             int maxTextWidth = 180;
             using (Graphics g = _dgv.CreateGraphics()) {
                 foreach (var item in uniqueItems) {
                     int w = (int)g.MeasureString(item.Text, listBox.Font).Width;
-                    if (w + 60 > maxTextWidth) maxTextWidth = w + 60; // 60 是預留給圖示與 padding 的寬度
+                    if (w + 60 > maxTextWidth) maxTextWidth = w + 60; 
                 }
             }
 
@@ -1126,16 +1136,15 @@ namespace Safety_System
                 Brush textBrush = ((e.State & DrawItemState.Selected) == DrawItemState.Selected) ? Brushes.White : Brushes.Black;
                 
                 int imgSize = 24; 
-                int textOffset = 8; // 預設沒有圖片時文字靠左的距離
+                int textOffset = 8; 
 
                 Image img = item.GetImage();
                 if (img != null) {
                     int imgY = e.Bounds.Y + (e.Bounds.Height - imgSize) / 2;
                     e.Graphics.DrawImage(img, e.Bounds.X + 8, imgY, imgSize, imgSize);
-                    textOffset = 40; // 有圖片時，文字向右平移避開圖片
+                    textOffset = 40; 
                 }
 
-                // 🟢 彈出清單必須同時畫出文字與圖片，讓使用者可以辨識
                 e.Graphics.DrawString(item.Text, listBox.Font, textBrush, new PointF(e.Bounds.X + textOffset, e.Bounds.Y + 8));
                 e.DrawFocusRectangle();
             };
@@ -1164,7 +1173,6 @@ namespace Safety_System
             host.Margin = Padding.Empty;
             host.Padding = Padding.Empty;
             
-            // 🟢 強制關閉 AutoSize 並手動指定 Size，避免寬度被系統壓縮
             host.AutoSize = false;
             host.Size = new Size(finalWidth, finalHeight);
             
