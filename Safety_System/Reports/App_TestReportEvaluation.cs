@@ -59,7 +59,8 @@ namespace Safety_System
             _cboDate = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboPoint = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            Button btnLoadData = new Button { Text = "📥 載入數據", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            // 🟢 修正：按鍵寬度 +20px (從 120 改為 140)
+            Button btnLoadData = new Button { Text = "📥 載入數據", Size = new Size(140, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnLoadData.FlatAppearance.BorderSize = 0;
             btnLoadData.Click += BtnLoadData_Click;
 
@@ -73,7 +74,7 @@ namespace Safety_System
 
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,5,0,0) };
             
-            // 🟢 修正：統一按鈕尺寸為 140x40，並對齊 Margin 解決遮擋與下移問題
+            // 🟢 修正：按鈕寬度統一，移除 Word 導出按鈕
             Button btnHistory = new Button { Text = "📂 讀取報告", Size = new Size(140, 40), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 10, 0) };
             btnHistory.FlatAppearance.BorderSize = 0;
             btnHistory.Click += BtnHistory_Click;
@@ -82,15 +83,11 @@ namespace Safety_System
             btnSave.FlatAppearance.BorderSize = 0;
             btnSave.Click += BtnSave_Click;
 
-            Button btnWord = new Button { Text = "📝 導出 Word", Size = new Size(140, 40), BackColor = Color.RoyalBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 10, 0) };
-            btnWord.FlatAppearance.BorderSize = 0;
-            btnWord.Click += BtnWord_Click;
-
             Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 10, 0) };
             btnPdf.FlatAppearance.BorderSize = 0;
             btnPdf.Click += BtnPdf_Click;
 
-            flpRow2.Controls.AddRange(new Control[] { btnHistory, btnSave, btnWord, btnPdf });
+            flpRow2.Controls.AddRange(new Control[] { btnHistory, btnSave, btnPdf });
 
             box1.Controls.Add(flpRow2);
             box1.Controls.Add(flpRow1);
@@ -142,13 +139,13 @@ namespace Safety_System
             tlpForm.Controls.Add(_txtTestPurpose, 1, 3);
             tlpForm.SetColumnSpan(_txtTestPurpose, 3);
 
-            // 列表 (🟢 高度修改為 350)
+            // 列表 
             _dgvItems = new DataGridView {
                 Dock = DockStyle.Top, 
                 Height = 350, 
                 BackgroundColor = Color.White, 
                 AllowUserToAddRows = false, 
-                ReadOnly = false, // 🟢 允許編輯 (為了 CheckBox)
+                ReadOnly = false, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
                 RowHeadersVisible = false, 
                 Font = new Font("Microsoft JhengHei UI", 11F),
@@ -164,7 +161,6 @@ namespace Safety_System
             _dgvItems.ColumnHeadersHeight = 40;
             _dgvItems.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             
-            // 🟢 新增 Checkbox 欄位提供勾選匯出功能
             DataGridViewCheckBoxColumn chkCol = new DataGridViewCheckBoxColumn { Name = "匯出", HeaderText = "匯出", Width = 60, AutoSizeMode = DataGridViewAutoSizeColumnMode.None };
             _dgvItems.Columns.Add(chkCol);
 
@@ -175,19 +171,17 @@ namespace Safety_System
             _dgvItems.Columns.Add("本次測值", "本次測值");
             _dgvItems.Columns.Add("備註", "備註");
 
-            // 設定除 Checkbox 外皆為唯讀
             foreach (DataGridViewColumn col in _dgvItems.Columns) {
                 if (col.Name != "匯出") col.ReadOnly = true;
             }
 
-            // 🟢 修改排版，確保 RichTextBox 邊框明顯，且不會覆蓋標籤
             Panel pnlAnalysis = new Panel { Dock = DockStyle.Top, Height = 220, Padding = new Padding(0, 10, 0, 0) };
             Label lblAnalysis = new Label { Text = "分析與結果說明：", Dock = DockStyle.Top, Height = 30, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
             _rtbAnalysis = new RichTextBox { 
                 Dock = DockStyle.Fill, 
                 BorderStyle = BorderStyle.FixedSingle, 
                 Font = new Font("Microsoft JhengHei UI", 12F), 
-                BackColor = Color.LightYellow // 給一個顯眼的背景色，讓使用者清楚這是一個輸入框
+                BackColor = Color.LightYellow 
             };
             
             pnlAnalysis.Controls.Add(_rtbAnalysis);
@@ -215,6 +209,9 @@ namespace Safety_System
             return new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), BackColor = Color.WhiteSmoke };
         }
 
+        // =======================================================
+        // 智慧型連動下拉選單
+        // =======================================================
         private void InitDropdowns()
         {
             var dbMap = App_DbConfig.GetDbMapCache();
@@ -226,6 +223,10 @@ namespace Safety_System
                 if (_cboDb.SelectedItem == null) return;
                 
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
+                
+                // 🟢 修正：第一個顯示空白欄
+                _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
+
                 if (dbMap.ContainsKey(dbName)) {
                     foreach (var tb in dbMap[dbName].Tables) {
                         if (tb.Key != EvalTableName) { 
@@ -233,6 +234,7 @@ namespace Safety_System
                         }
                     }
                 }
+                
                 if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
             };
 
@@ -244,6 +246,8 @@ namespace Safety_System
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
                 
+                if (string.IsNullOrEmpty(tbName)) return; // 選擇空白時防呆
+
                 try {
                     DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
                     string dateCol = GetDateColumnName(dt);
@@ -272,6 +276,9 @@ namespace Safety_System
                 
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
+                
+                if (string.IsNullOrEmpty(tbName)) return;
+
                 string dateStr = _cboDate.SelectedItem.ToString();
 
                 try {
@@ -337,14 +344,18 @@ namespace Safety_System
                 MessageBox.Show("請確認資料庫、資料表、日期與檢測名稱(點)皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
+            string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
+            string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
+            if (string.IsNullOrEmpty(tbName)) {
+                MessageBox.Show("資料表不得為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            }
+
             _currentId = 0; 
             _dtpEvalDate.Value = DateTime.Today;
             _cboCompliance.SelectedIndex = 0;
             _txtTestPurpose.Clear();
             _rtbAnalysis.Clear();
 
-            string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
-            string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
             string dateStr = _cboDate.SelectedItem.ToString();
             string pointName = _cboPoint.SelectedItem.ToString();
 
@@ -365,6 +376,18 @@ namespace Safety_System
                 DataView dv = new DataView(dt);
                 dv.RowFilter = $"[{dateCol}] = '{dateStr}' AND [{pointCol}] = '{pointName}'";
 
+                // 🟢 修正：智慧判定「測定用途」並將第一筆有資料的文字填入輸入框
+                foreach (DataRowView drv in dv) {
+                    if (drv.Row.Table.Columns.Contains("測定用途") && !string.IsNullOrEmpty(drv["測定用途"].ToString())) {
+                        _txtTestPurpose.Text = drv["測定用途"].ToString();
+                        break;
+                    }
+                    else if (drv.Row.Table.Columns.Contains("用途") && !string.IsNullOrEmpty(drv["用途"].ToString())) {
+                        _txtTestPurpose.Text = drv["用途"].ToString();
+                        break;
+                    }
+                }
+
                 foreach (DataRowView drv in dv) 
                 {
                     string item = !string.IsNullOrEmpty(itemCol) ? drv[itemCol].ToString() : "";
@@ -384,7 +407,6 @@ namespace Safety_System
                         }
                     }
 
-                    // 🟢 載入時預設打勾 true
                     _dgvItems.Rows.Add(true, item, limit, method, prevVal, currVal, note);
                 }
             } 
@@ -445,23 +467,93 @@ namespace Safety_System
             }
         }
 
+        // =======================================================
+        // 🟢 修正：讀取歷史報告視窗，加入資料庫與資料表下拉過濾
+        // =======================================================
         private void BtnHistory_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "📂 歷史評估報告查詢", Size = new Size(1100, 600), StartPosition = FormStartPosition.CenterParent })
+            using (Form f = new Form { Text = "📂 歷史評估報告查詢", Size = new Size(1100, 650), StartPosition = FormStartPosition.CenterParent, BackColor = Color.WhiteSmoke })
             {
                 DataTable dt = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 if (dt != null && dt.Columns.Contains("Id")) dt.Columns["Id"].ReadOnly = true;
 
+                // 建立上方過濾區塊
+                Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60, Padding = new Padding(10) };
+                
+                Label lblDb = new Label { Text = "篩選資料庫：", AutoSize = true, Location = new Point(15, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                ComboBox cbFilterDb = new ComboBox { Location = new Point(125, 15), Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                
+                Label lblTb = new Label { Text = "篩選資料表：", AutoSize = true, Location = new Point(300, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                ComboBox cbFilterTb = new ComboBox { Location = new Point(410, 15), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+
+                pnlFilter.Controls.AddRange(new Control[] { lblDb, cbFilterDb, lblTb, cbFilterTb });
+
                 DataGridView dgv = new DataGridView { 
-                    Dock = DockStyle.Fill, BackgroundColor = Color.WhiteSmoke, AllowUserToAddRows = false, ReadOnly = true,
+                    Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = false, ReadOnly = true,
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    BorderStyle = BorderStyle.None
                 };
-                dgv.DataSource = dt;
+                
+                dgv.EnableHeadersVisualStyles = false;
+                dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.LightGray;
+                dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
+                dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+                dgv.ColumnHeadersHeight = 35;
+                dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
+
+                DataView dvHistory = new DataView(dt);
+                dgv.DataSource = dvHistory;
                 if (dgv.Columns.Contains("Id")) dgv.Columns["Id"].Visible = false;
 
-                Button btnLoad = new Button { Text = "✔️ 載入選定報告", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-                Button btnDel = new Button { Text = "❌ 刪除選定報告", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                // 載入資料庫選項
+                cbFilterDb.Items.Add("==全部==");
+                var dbMap = App_DbConfig.GetDbMapCache();
+                foreach (var kvp in dbMap) {
+                    cbFilterDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                }
+                cbFilterDb.SelectedIndex = 0;
+
+                // 過濾邏輯
+                Action applyFilter = () => {
+                    List<string> filters = new List<string>();
+                    if (cbFilterDb.SelectedIndex > 0) {
+                        string dbEn = ((ItemMap)cbFilterDb.SelectedItem).EnName;
+                        filters.Add($"[資料庫] = '{dbEn}'");
+                    }
+                    if (cbFilterTb.SelectedIndex > 0) {
+                        string tbEn = ((ItemMap)cbFilterTb.SelectedItem).EnName;
+                        filters.Add($"[資料表] = '{tbEn}'");
+                    }
+                    dvHistory.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "";
+                };
+
+                cbFilterDb.SelectedIndexChanged += (s, ev) => {
+                    cbFilterTb.Items.Clear();
+                    cbFilterTb.Items.Add("==全部==");
+                    if (cbFilterDb.SelectedIndex > 0) {
+                        string dbEn = ((ItemMap)cbFilterDb.SelectedItem).EnName;
+                        if (dbMap.ContainsKey(dbEn)) {
+                            foreach (var tb in dbMap[dbEn].Tables) {
+                                cbFilterTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            }
+                        }
+                    }
+                    cbFilterTb.SelectedIndex = 0;
+                    applyFilter();
+                };
+
+                cbFilterTb.SelectedIndexChanged += (s, ev) => applyFilter();
+
+                // 底部按鈕
+                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
+                Button btnLoad = new Button { Text = "✔️ 載入選定報告", Dock = DockStyle.Right, Width = 160, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnLoad.FlatAppearance.BorderSize = 0;
+                Button btnDel = new Button { Text = "❌ 刪除報告", Dock = DockStyle.Left, Width = 140, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnDel.FlatAppearance.BorderSize = 0;
+
+                pnlBottom.Controls.Add(btnDel);
+                pnlBottom.Controls.Add(btnLoad);
 
                 btnLoad.Click += (s, ev) => {
                     if (dgv.SelectedRows.Count > 0) {
@@ -495,29 +587,23 @@ namespace Safety_System
                 };
 
                 btnDel.Click += (s, ev) => {
-                    if (dgv.SelectedRows.Count > 0 && MessageBox.Show("確定刪除此評估報告？", "確認", MessageBoxButtons.YesNo) == DialogResult.Yes) {
+                    if (dgv.SelectedRows.Count > 0 && MessageBox.Show("確定刪除此評估報告？\n(刪除後不可復原)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                         int id = Convert.ToInt32(dgv.SelectedRows[0].Cells["Id"].Value);
                         DataManager.DeleteRecord(EvalDbName, EvalTableName, id);
-                        dgv.DataSource = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
+                        dt = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
+                        dvHistory.Table = dt;
+                        applyFilter();
                     }
                 };
 
                 dgv.CellDoubleClick += (s, ev) => btnLoad.PerformClick();
 
                 f.Controls.Add(dgv);
-                f.Controls.Add(btnLoad);
-                f.Controls.Add(btnDel);
+                f.Controls.Add(pnlFilter);
+                f.Controls.Add(pnlBottom);
                 f.ShowDialog();
             }
         }
-
-        // ====================================================================
-        // 🟢 PDF 導出系統 (完美套用台玻標準模版)
-        // ====================================================================
-        // 用來追蹤分頁列印的變數
-        private int _pdfPrintRowIndex = 0;
-        private int _pdfPrintPageNumber = 1;
-        private bool _pdfPrintedFormInfo = false;
 
         private void BtnPdf_Click(object sender, EventArgs e)
         {
@@ -552,6 +638,11 @@ namespace Safety_System
             }
         }
 
+        // 用來追蹤分頁列印的變數
+        private int _pdfPrintRowIndex = 0;
+        private int _pdfPrintPageNumber = 1;
+        private bool _pdfPrintedFormInfo = false;
+
         private void DrawReportPage(object sender, PrintPageEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -572,7 +663,7 @@ namespace Safety_System
             StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
             StringFormat sfTopLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
 
-            // ================= 1. 大標題與簽核 (每頁都有) =================
+            // 1. 大標題與簽核 (每頁都有)
             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fMainTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
             y += 40;
             g.DrawString("檢測報告分析評估表", fSubTitle, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
@@ -583,7 +674,7 @@ namespace Safety_System
 
             float rowH = 35;
             
-            // ================= 2. 檢測基本資料 (只在第一頁畫) =================
+            // 2. 檢測基本資料 (只在第一頁畫)
             if (!_pdfPrintedFormInfo)
             {
                 float labelW = 120;
@@ -621,12 +712,11 @@ namespace Safety_System
                 _pdfPrintedFormInfo = true;
             }
 
-            // ================= 3. 資料清單 =================
+            // 3. 資料清單
             float[] colWidths = { w * 0.15f, w * 0.15f, w * 0.25f, w * 0.15f, w * 0.15f, w * 0.15f };
             float currX = x;
 
-            // 畫 Grid 標題列
-            for (int i = 1; i < _dgvItems.Columns.Count; i++) { // 從 index 1 開始，跳過 CheckBox
+            for (int i = 1; i < _dgvItems.Columns.Count; i++) { 
                 RectangleF rHead = new RectangleF(currX, y, colWidths[i - 1], rowH);
                 g.FillRectangle(Brushes.LightGray, rHead);
                 g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
@@ -635,12 +725,10 @@ namespace Safety_System
             }
             y += rowH;
 
-            // 畫 Grid 內容列
             while (_pdfPrintRowIndex < _dgvItems.Rows.Count) 
             {
                 DataGridViewRow dgvRow = _dgvItems.Rows[_pdfPrintRowIndex];
                 
-                // 🟢 檢查勾選狀態，若沒勾則跳過此列
                 if (!Convert.ToBoolean(dgvRow.Cells["匯出"].Value)) {
                     _pdfPrintRowIndex++;
                     continue;
@@ -654,9 +742,7 @@ namespace Safety_System
                     if (sz.Height + 10 > maxH) maxH = sz.Height + 10;
                 }
 
-                // 檢查是否超出底線 (預留分析說明的空間約 100px 以及頁碼 30px)
                 if (y + maxH > e.MarginBounds.Bottom - 130) {
-                    // 本頁畫不下了，直接分頁
                     g.DrawString($"第 {_pdfPrintPageNumber} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
                     _pdfPrintPageNumber++;
                     e.HasMorePages = true;
@@ -674,10 +760,9 @@ namespace Safety_System
                 _pdfPrintRowIndex++;
             }
 
-            // ================= 4. 分析與結果說明 =================
+            // 4. 分析與結果說明
             float remainingH = e.MarginBounds.Bottom - 30 - y;
             if (remainingH < 80) {
-                // 如果底部空間太小，就把分析說明擠到下一頁
                 g.DrawString($"第 {_pdfPrintPageNumber} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
                 _pdfPrintPageNumber++;
                 e.HasMorePages = true;
@@ -688,81 +773,11 @@ namespace Safety_System
             g.DrawRectangle(Pens.Black, Rectangle.Round(rAnalysis));
             g.DrawString("分析與結果說明：\n\n" + _rtbAnalysis.Text, fHeader, Brushes.Black, new RectangleF(x + 10, y + 10, w - 20, remainingH - 20), sfTopLeft);
 
-            // ================= 5. 底部代碼與頁碼 =================
+            // 5. 底部代碼與頁碼
             g.DrawString("8-ES-B11-01", fGridBody, Brushes.Black, x, e.MarginBounds.Bottom - 20);
             g.DrawString($"第 {_pdfPrintPageNumber} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
             e.HasMorePages = false;
-        }
-
-        // ====================================================================
-        // 🟢 Word 導出系統 (使用 HTML，精準對齊 PDF 排版，加入勾選過濾)
-        // ====================================================================
-        private void BtnWord_Click(object sender, EventArgs e)
-        {
-            if (string.IsNullOrEmpty(_txtTestDate.Text)) {
-                MessageBox.Show("請先載入報告內容！"); return;
-            }
-
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Word 檔案 (*.docx)|*.docx", FileName = $"檢測報告分析評估表_{_txtTestName.Text}_{DateTime.Now:yyyyMMdd}" })
-            {
-                if (sfd.ShowDialog() == DialogResult.OK)
-                {
-                    try {
-                        StringBuilder sb = new StringBuilder();
-                        sb.AppendLine("<html><head><meta charset='utf-8'><style>");
-                        sb.AppendLine("body { font-family: '微軟正黑體', '標楷體', sans-serif; }");
-                        sb.AppendLine("table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }");
-                        sb.AppendLine("th, td { border: 1px solid black; padding: 8px; text-align: center; }");
-                        sb.AppendLine(".info-table td { text-align: left; }");
-                        sb.AppendLine("</style></head><body>");
-                        
-                        // 模擬 PDF 的頂部排版
-                        sb.AppendLine("<h2 style='text-align:center; margin-bottom:5px;'>台灣玻璃工業股份有限公司 - 彰濱廠</h2>");
-                        sb.AppendLine("<h3 style='text-align:center; margin-top:0px;'>檢測報告分析評估表</h3>");
-                        sb.AppendLine("<p style='text-align:center;'>廠主管：______________&nbsp;&nbsp;&nbsp;&nbsp;經/副理：______________&nbsp;&nbsp;&nbsp;&nbsp;課/股長：______________&nbsp;&nbsp;&nbsp;&nbsp;制表：______________</p>");
-                        
-                        sb.AppendLine("<hr style='margin-bottom:20px;' />");
-
-                        sb.AppendLine("<table class='info-table'>");
-                        sb.AppendLine($"<tr><td width='20%' style='background-color:#F5F5F5;'><b>評估日期：</b></td><td width='30%'>{_dtpEvalDate.Value:yyyy/MM/dd}</td><td width='20%' style='background-color:#F5F5F5;'><b>符合度：</b></td><td width='30%'>{_cboCompliance.Text}</td></tr>");
-                        sb.AppendLine($"<tr><td style='background-color:#F5F5F5;'><b>測定日期：</b></td><td colspan='3'>{_txtTestDate.Text}</td></tr>");
-                        sb.AppendLine($"<tr><td style='background-color:#F5F5F5;'><b>檢測名稱：</b></td><td colspan='3'>{_txtTestName.Text}</td></tr>");
-                        sb.AppendLine($"<tr><td style='background-color:#F5F5F5;'><b>測定用途：</b></td><td colspan='3'>{_txtTestPurpose.Text}</td></tr>");
-                        sb.AppendLine("</table>");
-
-                        sb.AppendLine("<table>");
-                        sb.AppendLine("<tr style='background-color:#D3D3D3;'><th>項目</th><th>管制值</th><th>測定方法</th><th>前次測值</th><th>本次測值</th><th>備註</th></tr>");
-                        
-                        // 🟢 檢查 CheckBox 狀態，只匯出有勾選的列
-                        foreach (DataGridViewRow row in _dgvItems.Rows) {
-                            if (!Convert.ToBoolean(row.Cells["匯出"].Value)) continue;
-
-                            sb.AppendLine("<tr>");
-                            for (int i = 1; i < _dgvItems.Columns.Count; i++) { // 跳過索引 0 的 checkbox
-                                sb.AppendLine($"<td>{(row.Cells[i].Value ?? "")}</td>");
-                            }
-                            sb.AppendLine("</tr>");
-                        }
-                        sb.AppendLine("</table>");
-
-                        sb.AppendLine("<div style='border: 1px solid black; padding: 10px; min-height: 200px;'>");
-                        sb.AppendLine("<b>分析與結果說明：</b><br/>");
-                        string analysis = _rtbAnalysis.Text.Replace("\n", "<br/>");
-                        sb.AppendLine(analysis);
-                        sb.AppendLine("</div>");
-
-                        sb.AppendLine("<p style='text-align:left; margin-top:20px;'>8-ES-B11-01</p>");
-                        
-                        sb.AppendLine("</body></html>");
-
-                        File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
-                        MessageBox.Show("Word 導出成功！\n(備註：此檔案為 HTML 封裝，若開啟時 Word 提示檔案格式問題，請點擊「是」即可正常檢視與編輯。)", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    } catch (Exception ex) {
-                        MessageBox.Show("Word 導出失敗：" + ex.Message, "錯誤");
-                    }
-                }
-            }
         }
     }
 }
