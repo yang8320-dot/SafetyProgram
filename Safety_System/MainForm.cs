@@ -236,9 +236,14 @@ namespace Safety_System
             menuFire.DropDownItems.Add(CreateItem("消防設備巡檢", () => new App_CoreTable("Fire", "FireEquip", "消防設備巡檢", new DefaultLogic()).GetView()));
             menuFire.DropDownItems.Add(CreateItem("各單位消防自主檢查表", () => new App_CoreTable("Fire", "FireSelfInspection", "各單位消防自主檢查表", new DefaultLogic()).GetView()));
 
+            // ==========================================
+            // 🟢 檢測數據選單註冊區域
+            // ==========================================
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("檢測數據看版", () => new App_TestDashboard().GetView()));
+            menuTest.DropDownItems.Add(CreateItem("量測項目一覽表", () => new App_TestMeasurementSummary().GetView())); // 🟢 新增
             menuTest.DropDownItems.Add(CreateItem("檢測報告分析評估表", () => new App_TestReportEvaluation().GetView()));
+            
             menuTest.DropDownItems.Add(new ToolStripSeparator());
             menuTest.DropDownItems.Add(CreateItem("環境監測", () => new App_CoreTable("TestData", "EnvMonitor", "環境監測", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("廢水定申檢", () => new App_CoreTable("TestData", "WastewaterPeriodic", "廢水定申檢", new DefaultLogic()).GetView()));
@@ -349,7 +354,7 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this); // 🟢 已修正此處，將 _mainMenuRef 改為 _mainMenu
+                    new App_PermissionManager(_mainMenu).ShowDialog(this); 
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
