@@ -18,10 +18,8 @@ namespace Safety_System
         private ComboBox _cboDb;
         private ComboBox _cboTable;
         
-        // 🟢 測定日期改回單選 ComboBox
+        // 升級為多選控制項
         private ComboBox _cboDate;
-        
-        // 檢測點保留多選控制項
         private TextBox _txtPointMulti;
         private Button _btnPickPoint;
         private List<string> _availablePoints = new List<string>();
@@ -52,8 +50,26 @@ namespace Safety_System
             string schema = TableSchemaManager.SchemaMap.ContainsKey(EvalTableName) ? TableSchemaManager.SchemaMap[EvalTableName] : "[資料庫] TEXT, [資料表] TEXT, [測定日期] TEXT, [檢測名稱] TEXT, [評估日期] TEXT, [符合度] TEXT, [測定用途] TEXT, [分析與結果說明] TEXT, [最後修改人] TEXT, [修改時間] TEXT";
             DataManager.InitTable(EvalDbName, EvalTableName, $"CREATE TABLE IF NOT EXISTS [{EvalTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
 
-            string detailSchema = "[主表Id] INTEGER, [項目] TEXT, [是否匯出] TEXT, [備註] TEXT";
+            // 🟢 加入 SourceId 欄位，精準綁定原始資料列
+            string detailSchema = "[主表Id] INTEGER, [SourceId] INTEGER, [項目] TEXT, [是否匯出] TEXT, [備註] TEXT";
             DataManager.InitTable(EvalDbName, EvalDetailTableName, $"CREATE TABLE IF NOT EXISTS [{EvalDetailTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {detailSchema});");
+
+            // 🟢 結構升級防呆：確保舊資料表被補上 SourceId 欄位
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={Path.Combine(DataManager.BasePath, EvalDbName + ".sqlite")};Version=3;")) {
+                    conn.Open();
+                    var cols = new List<string>();
+                    using (var cmd = new SQLiteCommand($"PRAGMA table_info([{EvalDetailTableName}])", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) cols.Add(reader["name"].ToString());
+                    }
+                    if (!cols.Contains("SourceId")) {
+                        using (var cmd = new SQLiteCommand($"ALTER TABLE [{EvalDetailTableName}] ADD COLUMN [SourceId] INTEGER DEFAULT 0;", conn)) {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+            } catch {}
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
@@ -67,7 +83,6 @@ namespace Safety_System
             _cboDb = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboTable = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 🟢 日期改為單選下拉選單
             _cboDate = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             // 多選測點 UI 組合
@@ -186,6 +201,10 @@ namespace Safety_System
             _dgvItems.Columns.Add("前次測值", "前次測值");
             _dgvItems.Columns.Add("本次測值", "本次測值");
             _dgvItems.Columns.Add("備註", "備註");
+            
+            // 🟢 加入隱藏的 SourceId 欄位，用來精準定位備註
+            _dgvItems.Columns.Add("SourceId", "SourceId");
+            _dgvItems.Columns["SourceId"].Visible = false;
 
             foreach (DataGridViewColumn col in _dgvItems.Columns) {
                 if (col.Name != "匯出" && col.Name != "備註") col.ReadOnly = true;
@@ -319,7 +338,6 @@ namespace Safety_System
                 if (_cboDate.Items.Count > 0) _cboDate.SelectedIndex = 0;
             };
 
-            // 🟢 單選日期觸發：選擇日期後，撈出對應的檢測點清單
             _cboDate.SelectedIndexChanged += (s, e) => {
                 _availablePoints.Clear();
                 _txtPointMulti.Clear();
@@ -347,7 +365,6 @@ namespace Safety_System
                 } catch { }
             };
 
-            // 多選測點觸發
             _btnPickPoint.Click += (s, e) => {
                 _currentId = 0; 
                 if (_availablePoints.Count == 0) { MessageBox.Show("請先選擇測定日期，或該日期無測點紀錄。"); return; }
@@ -392,6 +409,9 @@ namespace Safety_System
             return "";
         }
 
+        // =======================================================
+        // 🟢 載入數據：利用 SourceId 準確還原每一列的備註
+        // =======================================================
         private void BtnLoadData_Click(object sender, EventArgs e)
         {
             if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null || string.IsNullOrEmpty(_txtPointMulti.Text)) {
@@ -429,8 +449,6 @@ namespace Safety_System
                 if (string.IsNullOrEmpty(dateCol) || string.IsNullOrEmpty(pointCol)) return;
 
                 DataView dv = new DataView(dt);
-                
-                // 🟢 組合過濾條件 (單選日期 + 多選測點)
                 string pointFilter = string.Join(" OR ", selectedPoints.Select(p => $"[{pointCol}] = '{p}'"));
                 dv.RowFilter = $"[{dateCol}] = '{dateStr}' AND ({pointFilter})";
 
@@ -455,6 +473,9 @@ namespace Safety_System
 
                 foreach (DataRowView drv in dv) 
                 {
+                    // 🟢 取得原始資料列的 Id 當作對應金鑰
+                    int sourceId = drv.Row.Table.Columns.Contains("Id") ? Convert.ToInt32(drv["Id"]) : 0;
+                    
                     string item = !string.IsNullOrEmpty(itemCol) ? drv[itemCol].ToString() : "";
                     string limit = drv.Row.Table.Columns.Contains("管制值") ? drv["管制值"].ToString() : "";
                     string method = drv.Row.Table.Columns.Contains("測定方法") ? drv["測定方法"].ToString() : "";
@@ -476,9 +497,11 @@ namespace Safety_System
                         }
                     }
 
+                    // 🟢 使用 SourceId 精準還原備註
                     if (_currentId > 0 && dtDetailsHistory != null) {
                         DataView dvHistoryDetail = new DataView(dtDetailsHistory);
-                        dvHistoryDetail.RowFilter = $"[主表Id] = {_currentId} AND [項目] = '{item}'";
+                        // 防呆相容：如果舊資料沒有 SourceId(0)，則退回使用項目名稱比對
+                        dvHistoryDetail.RowFilter = $"[主表Id] = {_currentId} AND ([SourceId] = {sourceId} OR ([SourceId] = 0 AND [項目] = '{item}'))";
                         if (dvHistoryDetail.Count > 0) {
                             isChecked = dvHistoryDetail[0]["是否匯出"].ToString() == "1";
                             string savedNote = dvHistoryDetail[0]["備註"].ToString();
@@ -486,7 +509,7 @@ namespace Safety_System
                         }
                     }
 
-                    _dgvItems.Rows.Add(isChecked, item, limit, method, prevVal, currVal, note);
+                    _dgvItems.Rows.Add(isChecked, item, limit, method, prevVal, currVal, note, sourceId);
                 }
             } 
             catch (Exception ex) {
@@ -494,13 +517,16 @@ namespace Safety_System
             }
         }
 
+        // =======================================================
+        // 🟢 儲存資料：將 SourceId 一併寫入資料庫
+        // =======================================================
         private void BtnSave_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(_txtTestDate.Text) || string.IsNullOrEmpty(_txtTestName.Text)) {
                 MessageBox.Show("請先載入檢測數據後再進行存檔！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            _dgvItems.EndEdit(); // 確保 DataGridView 的編輯狀態已確認
+            _dgvItems.EndEdit(); 
 
             string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
@@ -554,10 +580,12 @@ namespace Safety_System
                                 cmdDel.ExecuteNonQuery();
                             }
 
-                            string insertSql = $"INSERT INTO [{EvalDetailTableName}] ([主表Id], [項目], [是否匯出], [備註]) VALUES (@Id, @Item, @Exp, @Note)";
+                            // 🟢 寫入時包含 SourceId
+                            string insertSql = $"INSERT INTO [{EvalDetailTableName}] ([主表Id], [SourceId], [項目], [是否匯出], [備註]) VALUES (@Id, @SrcId, @Item, @Exp, @Note)";
                             foreach (DataGridViewRow row in _dgvItems.Rows) {
                                 using (var cmdIns = new SQLiteCommand(insertSql, conn, trans)) {
                                     cmdIns.Parameters.AddWithValue("@Id", _currentId);
+                                    cmdIns.Parameters.AddWithValue("@SrcId", Convert.ToInt32(row.Cells["SourceId"].Value ?? 0));
                                     cmdIns.Parameters.AddWithValue("@Item", row.Cells["項目"].Value?.ToString() ?? "");
                                     cmdIns.Parameters.AddWithValue("@Exp", Convert.ToBoolean(row.Cells["匯出"].Value) ? "1" : "0");
                                     cmdIns.Parameters.AddWithValue("@Note", row.Cells["備註"].Value?.ToString() ?? "");
@@ -690,16 +718,15 @@ namespace Safety_System
                             if (item.EnName == tbName) { _cboTable.SelectedItem = item; break; }
                         }
 
-                        // 🟢 恢復還原單選日期的值
                         _cboDate.Items.Clear();
                         _cboDate.Items.Add(tDate);
                         _cboDate.SelectedIndex = 0;
 
                         _txtPointMulti.Text = tName;
 
+                        _currentId = Convert.ToInt32(row.Cells["Id"].Value);
                         BtnLoadData_Click(null, null);
 
-                        _currentId = Convert.ToInt32(row.Cells["Id"].Value);
                         if (DateTime.TryParse(row.Cells["評估日期"].Value.ToString(), out DateTime dtVal)) _dtpEvalDate.Value = dtVal;
                         _cboCompliance.SelectedItem = row.Cells["符合度"].Value.ToString();
                         _txtTestPurpose.Text = row.Cells["測定用途"].Value.ToString();
@@ -844,7 +871,7 @@ namespace Safety_System
             float[] colWidths = { w * 0.15f, w * 0.15f, w * 0.25f, w * 0.15f, w * 0.15f, w * 0.15f };
             float currX = x;
 
-            for (int i = 1; i < _dgvItems.Columns.Count; i++) { 
+            for (int i = 1; i < _dgvItems.Columns.Count - 1; i++) { // 🟢 減去 SourceId
                 RectangleF rHead = new RectangleF(currX, y, colWidths[i - 1], rowH);
                 g.FillRectangle(Brushes.LightGray, rHead);
                 g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
@@ -864,7 +891,7 @@ namespace Safety_System
 
                 currX = x;
                 float maxH = rowH;
-                for (int i = 1; i < _dgvItems.Columns.Count; i++) {
+                for (int i = 1; i < _dgvItems.Columns.Count - 1; i++) { // 🟢 減去 SourceId
                     string val = dgvRow.Cells[i].Value?.ToString() ?? "";
                     SizeF sz = g.MeasureString(val, fGridBody, (int)colWidths[i - 1], sfCenter);
                     if (sz.Height + 10 > maxH) maxH = sz.Height + 10;
@@ -877,7 +904,7 @@ namespace Safety_System
                     return;
                 }
 
-                for (int i = 1; i < _dgvItems.Columns.Count; i++) {
+                for (int i = 1; i < _dgvItems.Columns.Count - 1; i++) { // 🟢 減去 SourceId
                     RectangleF rCell = new RectangleF(currX, y, colWidths[i - 1], maxH);
                     g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
                     string val = dgvRow.Cells[i].Value?.ToString() ?? "";
