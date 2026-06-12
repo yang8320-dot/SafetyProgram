@@ -269,6 +269,10 @@ namespace Safety_System
                     _dtResult.Rows.Add(row);
                 }
 
+                // 🟢 修正 1：資料載入完成後，強制依「量測項目(筆劃)」進行排序，確保畫面預設整齊
+                _dtResult.DefaultView.Sort = "量測項目 ASC, 檢測點 ASC";
+                _dtResult = _dtResult.DefaultView.ToTable();
+
                 // 重新綁定並計算寬度
                 _dgvResult.DataSource = _dtResult;
                 ApplyGridColumnWeights();
@@ -286,7 +290,8 @@ namespace Safety_System
 
         private void BtnPdf_Click(object sender, EventArgs e)
         {
-            if (_dtResult == null || _dtResult.Rows.Count == 0) {
+            // 🟢 修正 2：改為判斷畫面的 DGV 是否有資料，而非底層 Table，確保與 UI 同步
+            if (_dgvResult == null || _dgvResult.Rows.Count == 0) {
                 MessageBox.Show("目前沒有數據可供導出，請先執行查詢。"); return;
             }
 
@@ -352,7 +357,7 @@ namespace Safety_System
 
                         // 2. 雙層表頭繪製 (🟢 完美套用 11, 7, 7, 5 * 15 比例)
                         float rowH = 35f;
-                        float[] colWidths = new float[_dtResult.Columns.Count];
+                        float[] colWidths = new float[_dgvResult.Columns.Count];
                         
                         float unitWidth = w / 100f;
                         
@@ -370,7 +375,7 @@ namespace Safety_System
                             RectangleF rHead = new RectangleF(currX, y, colWidths[i], rowH * 2);
                             g.FillRectangle(Brushes.LightGray, rHead);
                             g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
-                            g.DrawString(_dtResult.Columns[i].ColumnName, fGridTitle, Brushes.Black, rHead, sfCenter);
+                            g.DrawString(_dgvResult.Columns[i].HeaderText, fGridTitle, Brushes.Black, rHead, sfCenter);
                             currX += colWidths[i];
                         }
                         
@@ -384,20 +389,20 @@ namespace Safety_System
                         // 第二層表頭 (1~12月, 最大, 最小, 平均)
                         float subY = y + rowH;
                         float subX = currX;
-                        for (int i = 3; i < _dtResult.Columns.Count; i++) {
+                        for (int i = 3; i < _dgvResult.Columns.Count; i++) {
                             RectangleF rSubHead = new RectangleF(subX, subY, colWidths[i], rowH);
                             g.FillRectangle(Brushes.LightGray, rSubHead);
                             g.DrawRectangle(Pens.Black, Rectangle.Round(rSubHead));
-                            g.DrawString(_dtResult.Columns[i].ColumnName, fGridHead, Brushes.Black, rSubHead, sfCenter);
+                            g.DrawString(_dgvResult.Columns[i].HeaderText, fGridHead, Brushes.Black, rSubHead, sfCenter);
                             subX += colWidths[i];
                         }
                         
                         y += rowH * 2;
 
-                        // 3. 資料清單
-                        while (currentRowIndex < _dtResult.Rows.Count) 
+                        // 3. 資料清單 (🟢 修正 3：直接讀取 DataGridView 的 Rows，確保完全對應畫面的排序狀態)
+                        while (currentRowIndex < _dgvResult.Rows.Count) 
                         {
-                            DataRow row = _dtResult.Rows[currentRowIndex];
+                            DataGridViewRow row = _dgvResult.Rows[currentRowIndex];
                             
                             if (y + rowH > ev.MarginBounds.Bottom - 30) {
                                 g.DrawString("8-ES-B11-02 環境量測項目績效一覽表", fFooter, Brushes.Black, x, ev.MarginBounds.Bottom - 15);
@@ -408,10 +413,10 @@ namespace Safety_System
                             }
 
                             currX = x;
-                            for (int i = 0; i < _dtResult.Columns.Count; i++) {
+                            for (int i = 0; i < _dgvResult.Columns.Count; i++) {
                                 RectangleF rCell = new RectangleF(currX, y, colWidths[i], rowH);
                                 g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
-                                string val = row[i]?.ToString() ?? "";
+                                string val = row.Cells[i].Value?.ToString() ?? "";
                                 g.DrawString(val, fGridBody, Brushes.Black, rCell, sfCenter);
                                 currX += colWidths[i];
                             }
@@ -423,7 +428,7 @@ namespace Safety_System
                         while (y + rowH <= ev.MarginBounds.Bottom - 30)
                         {
                             currX = x;
-                            for (int i = 0; i < _dtResult.Columns.Count; i++) {
+                            for (int i = 0; i < _dgvResult.Columns.Count; i++) {
                                 RectangleF rCell = new RectangleF(currX, y, colWidths[i], rowH);
                                 g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
                                 currX += colWidths[i];
@@ -440,7 +445,7 @@ namespace Safety_System
 
                     try {
                         pd.Print();
-                        MessageBox.Show("PDF 導出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("PDF 導出成功！\n匯出內容已完全同步目前的視窗排序狀態。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         MessageBox.Show("PDF 導出失敗：" + ex.Message, "錯誤");
                     }
