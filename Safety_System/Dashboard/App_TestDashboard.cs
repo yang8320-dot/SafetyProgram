@@ -60,6 +60,7 @@ namespace Safety_System
             public string FilterValue { get; set; } 
             public string AggType { get; set; } 
             public string ColName2 { get; set; } = ""; // 支援日期相減的起日欄位
+            public string RefColName { get; set; } = ""; // 🟢 參照資料欄 (用於過濾條件)
         }
 
         public Control GetView()
@@ -309,15 +310,17 @@ namespace Safety_System
                         DataTable dtMonthly = new DataTable();
                         dtMonthly.Columns.Add("年度", typeof(string));
                         for (int i = 1; i <= 12; i++) dtMonthly.Columns.Add($"{i}月", typeof(double));
-                        dtMonthly.Columns.Add("年度總計", typeof(double));
+                        
+                        // 🟢 替換為最大、最小、平均
+                        dtMonthly.Columns.Add("最大值", typeof(double));
+                        dtMonthly.Columns.Add("最小值", typeof(double));
+                        dtMonthly.Columns.Add("平均值", typeof(double));
 
                         foreach (int y in years)
                         {
                             DataRow row = dtMonthly.NewRow();
                             row["年度"] = y.ToString() + "年";
-                            double yearlyTotal = 0;
-                            List<double> yearlyAvgList = new List<double>();
-                            string primaryAgg = cfg.Sources.FirstOrDefault()?.AggType ?? "COUNT";
+                            List<double> yearlyValidValues = new List<double>();
 
                             for (int m = 1; m <= 12; m++)
                             {
@@ -329,22 +332,15 @@ namespace Safety_System
                                 
                                 row[$"{m}月"] = mVal;
                                 
-                                if (primaryAgg == "SUM" || primaryAgg == "COUNT" || primaryAgg == "DIFF_SUM") {
-                                    yearlyTotal += mVal;
-                                } else {
-                                    if (mVal != 0) yearlyAvgList.Add(mVal); 
+                                if (mVal != 0) {
+                                    yearlyValidValues.Add(mVal); 
                                 }
                             }
                             
-                            if (primaryAgg == "SUM" || primaryAgg == "COUNT" || primaryAgg == "DIFF_SUM") {
-                                row["年度總計"] = yearlyTotal;
-                            } else if (primaryAgg == "AVG" || primaryAgg == "DIFF_AVG") {
-                                row["年度總計"] = yearlyAvgList.Any() ? yearlyAvgList.Average() : 0;
-                            } else if (primaryAgg == "MAX") {
-                                row["年度總計"] = yearlyAvgList.Any() ? yearlyAvgList.Max() : 0;
-                            } else if (primaryAgg == "MIN") {
-                                row["年度總計"] = yearlyAvgList.Any() ? yearlyAvgList.Min() : 0;
-                            }
+                            // 🟢 計算最大、最小、平均
+                            row["最大值"] = yearlyValidValues.Any() ? yearlyValidValues.Max() : 0;
+                            row["最小值"] = yearlyValidValues.Any() ? yearlyValidValues.Min() : 0;
+                            row["平均值"] = yearlyValidValues.Any() ? Math.Round(yearlyValidValues.Average(), 2) : 0;
 
                             dtMonthly.Rows.Add(row);
                         }
@@ -425,10 +421,14 @@ namespace Safety_System
                             dgv.Columns["年度"].Width = 100;
                         }
                         
-                        if (dgv.Columns.Contains("年度總計")) {
-                            dgv.Columns["年度總計"].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
-                            dgv.Columns["年度總計"].DefaultCellStyle.BackColor = Color.LightYellow;
-                            dgv.Columns["年度總計"].DefaultCellStyle.Format = format;
+                        // 🟢 針對新欄位的渲染邏輯
+                        string[] statCols = { "最大值", "最小值", "平均值" };
+                        foreach(var sc in statCols) {
+                            if (dgv.Columns.Contains(sc)) {
+                                dgv.Columns[sc].DefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+                                dgv.Columns[sc].DefaultCellStyle.BackColor = Color.LightYellow;
+                                dgv.Columns[sc].DefaultCellStyle.Format = format;
+                            }
                         }
                         
                         for (int i = 1; i <= 12; i++) {
@@ -437,6 +437,17 @@ namespace Safety_System
                                 dgv.Columns[monthCol].DefaultCellStyle.Format = format;
                             }
                         }
+
+                        // 🟢 新增：事件觸發，遇到 0 則字體變成灰色
+                        dgv.CellFormatting += (s, ev) => {
+                            if (ev.Value != null && ev.RowIndex >= 0 && ev.ColumnIndex > 0) { // 跳過年度欄位
+                                if (double.TryParse(ev.Value.ToString(), out double val)) {
+                                    if (val == 0) {
+                                        ev.CellStyle.ForeColor = Color.LightGray;
+                                    }
+                                }
+                            }
+                        };
                         
                         dgv.ClearSelection();
 
@@ -501,15 +512,18 @@ namespace Safety_System
 
                         string filterTarget = string.IsNullOrEmpty(src.FilterValue) || src.FilterValue == "非空值 (有輸入即算)" ? "" : src.FilterValue.Trim();
 
+                        // 🟢 判斷要被當作篩選對象的欄位 (如果參照欄位存在就用參照，否則用計算欄位)
+                        string filterColName = !string.IsNullOrEmpty(src.RefColName) ? src.RefColName : src.ColName;
+
                         foreach (DataRow r in dt.Rows)
                         {
                             if (r.RowState == DataRowState.Deleted) continue;
                             
                             bool match = false;
                             
-                            if (!string.IsNullOrEmpty(src.ColName) && src.ColName != "Id (無條件計數)" && dt.Columns.Contains(src.ColName))
+                            if (!string.IsNullOrEmpty(filterColName) && filterColName != "Id (無條件計數)" && dt.Columns.Contains(filterColName))
                             {
-                                string filterValStr = r[src.ColName]?.ToString()?.Trim() ?? "";
+                                string filterValStr = r[filterColName]?.ToString()?.Trim() ?? "";
                                 if (string.IsNullOrEmpty(filterTarget)) {
                                     match = !string.IsNullOrEmpty(filterValStr);
                                 } else {
@@ -524,27 +538,32 @@ namespace Safety_System
 
                             if (match)
                             {
+                                // 🟢 計算時，依然是針對原本設定的計算欄位 (ColName)
                                 if (src.AggType == "COUNT")
                                 {
                                     countVal++;
                                 }
                                 else if (src.AggType == "SUM" || src.AggType == "AVG" || src.AggType == "MAX" || src.AggType == "MIN")
                                 {
-                                    string valStr = r[src.ColName]?.ToString()?.Trim() ?? "";
-                                    if (double.TryParse(valStr.Replace(",", ""), out double v)) gatheredValues.Add(v);
+                                    if (src.ColName != "Id (無條件計數)" && dt.Columns.Contains(src.ColName)) {
+                                        string valStr = r[src.ColName]?.ToString()?.Trim() ?? "";
+                                        if (double.TryParse(valStr.Replace(",", ""), out double v)) gatheredValues.Add(v);
+                                    }
                                 }
                                 else if (src.AggType.StartsWith("DIFF"))
                                 {
-                                    string endStr = r[src.ColName]?.ToString()?.Trim() ?? "";
-                                    string startStr = r[src.ColName2]?.ToString()?.Trim() ?? "";
-                                    
-                                    DateTime? endD = ParseUniversalDate(endStr);
-                                    DateTime? startD = ParseUniversalDate(startStr);
-                                    
-                                    if (endD.HasValue && startD.HasValue)
-                                    {
-                                        double days = (endD.Value.Date - startD.Value.Date).TotalDays;
-                                        if (days >= 0) gatheredValues.Add(days);
+                                    if (dt.Columns.Contains(src.ColName) && dt.Columns.Contains(src.ColName2)) {
+                                        string endStr = r[src.ColName]?.ToString()?.Trim() ?? "";
+                                        string startStr = r[src.ColName2]?.ToString()?.Trim() ?? "";
+                                        
+                                        DateTime? endD = ParseUniversalDate(endStr);
+                                        DateTime? startD = ParseUniversalDate(startStr);
+                                        
+                                        if (endD.HasValue && startD.HasValue)
+                                        {
+                                            double days = (endD.Value.Date - startD.Value.Date).TotalDays;
+                                            if (days >= 0) gatheredValues.Add(days);
+                                        }
                                     }
                                 }
                             }
@@ -598,7 +617,9 @@ namespace Safety_System
                                 {
                                     string filter = srcParts.Length > 4 ? srcParts[4] : "";
                                     string col2 = srcParts.Length > 5 ? srcParts[5] : ""; 
-                                    cfg.Sources.Add(new DataSourceDef { DbName = srcParts[0], TableName = srcParts[1], ColName = srcParts[2], AggType = srcParts[3], FilterValue = filter, ColName2 = col2 });
+                                    // 🟢 支援舊版相容讀取
+                                    string refCol = srcParts.Length > 6 ? srcParts[6] : "";
+                                    cfg.Sources.Add(new DataSourceDef { DbName = srcParts[0], TableName = srcParts[1], ColName = srcParts[2], AggType = srcParts[3], FilterValue = filter, ColName2 = col2, RefColName = refCol });
                                 }
                             }
                             _configs.Add(cfg);
@@ -621,7 +642,8 @@ namespace Safety_System
                     string line = $"{cfg.DisplayName}|{cfg.Unit}";
                     foreach (var src in cfg.Sources)
                     {
-                        line += $"|{src.DbName};{src.TableName};{src.ColName};{src.AggType};{src.FilterValue};{src.ColName2}";
+                        // 🟢 將 RefColName 加入儲存格式
+                        line += $"|{src.DbName};{src.TableName};{src.ColName};{src.AggType};{src.FilterValue};{src.ColName2};{src.RefColName}";
                     }
                     lines.Add(line);
                 }
@@ -673,43 +695,49 @@ namespace Safety_System
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
+                    // 🟢 面板加寬以容納新欄位
                     Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
                     int ly = 10;
                     int cy = 35;
 
+                    // 🟢 重新排列欄位坐標
                     int x0 = 10, w0 = 35;   // 刪除按鈕
-                    int x1 = 55, w1 = 110;  // 資料庫
-                    int x2 = 175, w2 = 140; // 資料表
-                    int x3 = 325, w3 = 145; // 計算欄位
-                    int x4 = 480, w4 = 155; // 選項過濾條件
-                    int x5 = 645, w5 = 145; // 運算方式
-                    int x6 = 800, w6 = 140; // 迄日
-                    int x7 = 950, w7 = 120; // 起日
+                    int x1 = 50, w1 = 110;  // 資料庫
+                    int x2 = 165, w2 = 130; // 資料表
+                    int x3 = 300, w3 = 130; // 參照資料欄 (新)
+                    int x4 = 435, w4 = 150; // 選項過濾條件
+                    int x5 = 590, w5 = 130; // 計算欄位
+                    int x6 = 725, w6 = 100; // 運算方式
+                    int x7 = 830, w7 = 110; // 主欄位迄
+                    int x8 = 945, w8 = 110; // 次欄位起
 
                     Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                     btnRemove.FlatAppearance.BorderSize = 0;
 
                     ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    
+                    ComboBox cbRefCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) }; // 🟢 新增
                     ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbAgg = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbCol = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                    ComboBox cbAgg = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                     
-                    Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
-                    ComboBox cbColEnd = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
+                    Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
+                    ComboBox cbColEnd = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
                     
-                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
-                    ComboBox cbColStart = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
+                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x8, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
+                    ComboBox cbColStart = new ComboBox { Location = new Point(x8, cy), Width = w8, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
 
                     pRow.Controls.AddRange(new Control[] {
                         btnRemove,
                         new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
                         new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
-                        new Label { Text = "計算欄位", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
+                        new Label { Text = "參照資料欄", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbRefCol, // 🟢 新增
                         new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
-                        new Label { Text = "運算方式", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
+                        new Label { Text = "計算欄位", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
+                        new Label { Text = "運算方式", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
                         lblColEnd, cbColEnd,
                         lblColStart, cbColStart
                     });
@@ -729,6 +757,7 @@ namespace Safety_System
 
                     cbTb.SelectedIndexChanged += (s, ev) => {
                         cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
+                        cbRefCol.Items.Clear(); cbRefCol.Items.Add(""); // 🟢 新增
                         cbColEnd.Items.Clear(); cbColEnd.Items.Add("");
                         cbColStart.Items.Clear(); cbColStart.Items.Add("");
                         
@@ -738,6 +767,7 @@ namespace Safety_System
                             var cols = DataManager.GetColumnNames(selDb.EnName, selTb.EnName).Where(c => c != "Id");
                             foreach (var c in cols) {
                                 cbCol.Items.Add(c);
+                                cbRefCol.Items.Add(c); // 🟢 新增
                                 cbColEnd.Items.Add(c);
                                 cbColStart.Items.Add(c);
                             }
@@ -752,18 +782,18 @@ namespace Safety_System
                         cbColStart.Visible = isDiff;
                     };
 
-                    cbCol.SelectedIndexChanged += (s, ev) => {
+                    // 🟢 連動改由 RefCol 驅動
+                    cbRefCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); 
                         cbFilter.Items.Add("非空值 (有輸入即算)");
                         var selDb = cbDb.SelectedItem as ItemMap;
                         var selTb = cbTb.SelectedItem as ItemMap;
-                        string col = cbCol.Text;
+                        string refColStr = cbRefCol.Text;
                         
-                        if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && col != "Id (無條件計數)") {
+                        if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && !string.IsNullOrEmpty(refColStr)) {
                             string tbName = selTb.EnName;
                             
-                            string multiKey = $"{tbName}|{col}";
-                            // 🟢 [修復 Error CS1061 & CS1503]
+                            string multiKey = $"{tbName}|{refColStr}";
                             if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
                                 foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
                                     if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
@@ -772,7 +802,7 @@ namespace Safety_System
                                 }
                             }
                             
-                            string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, col);
+                            string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, refColStr);
                             if (dropOpts != null && dropOpts.Length > 0) {
                                 foreach (var opt in dropOpts) {
                                     if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
@@ -791,6 +821,10 @@ namespace Safety_System
                         foreach(ItemMap im in cbTb.Items) if(im.EnName == def.TableName) { cbTb.SelectedItem = im; break; }
                         
                         cbCol.Text = def.ColName;
+                        if (!string.IsNullOrEmpty(def.RefColName) && cbRefCol.Items.Contains(def.RefColName)) {
+                            cbRefCol.Text = def.RefColName;
+                        }
+
                         if (!string.IsNullOrEmpty(def.ColName2)) {
                             cbColEnd.Text = def.ColName;
                             cbColStart.Text = def.ColName2;
@@ -876,11 +910,12 @@ namespace Safety_System
                         if (ctrl is Panel pRow) {
                             var cbDb = pRow.Controls[2] as ComboBox;
                             var cbTb = pRow.Controls[4] as ComboBox;
-                            var cbCol = pRow.Controls[6] as ComboBox;
+                            var cbRefCol = pRow.Controls[6] as ComboBox; // 🟢 參照資料欄
                             var cbFilter = pRow.Controls[8] as ComboBox;
-                            var cbAgg = pRow.Controls[10] as ComboBox;
-                            var cbColEnd = pRow.Controls[12] as ComboBox;
-                            var cbColStart = pRow.Controls[14] as ComboBox;
+                            var cbCol = pRow.Controls[10] as ComboBox; // 🟢 計算欄位
+                            var cbAgg = pRow.Controls[12] as ComboBox;
+                            var cbColEnd = pRow.Controls[14] as ComboBox;
+                            var cbColStart = pRow.Controls[16] as ComboBox;
 
                             var selDb = cbDb.SelectedItem as ItemMap;
                             var selTb = cbTb.SelectedItem as ItemMap;
@@ -916,7 +951,8 @@ namespace Safety_System
                                     ColName = dbColToSave, 
                                     FilterValue = filterVal, 
                                     AggType = aggTypeDb,
-                                    ColName2 = dbCol2ToSave
+                                    ColName2 = dbCol2ToSave,
+                                    RefColName = cbRefCol.Text // 🟢 寫入設定檔
                                 });
                             }
                         }
