@@ -53,7 +53,7 @@ namespace Safety_System
             { "WastePermitWaste", "[許可字號] TEXT, [許可效期] TEXT, [製程代碼] TEXT, [其他製程說明] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [廢棄物月最大量] TEXT, [廢棄物月平均量] TEXT, [物理性質] TEXT, [有害特性] TEXT, [主要有害成分] TEXT, [貯存地點] TEXT, [貯存設施容施容量] TEXT, [貯存設施密閉性] TEXT, [清除方式] TEXT, [處理方式] TEXT, [中間處理方法] TEXT, [再利用管理方式] TEXT, [最終處置方式] TEXT, [產出廢液製程編號] TEXT, [清除頻率] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WasteDisposalRecord", "[清運日期] TEXT, [廢棄物代碼] TEXT, [廢棄物名稱] TEXT, [清運重量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 
-            // 🟢 修改：ESG 模組架構
+            // ESG 模組架構
             { "ESG_Performance", "[年月] TEXT, [單位] TEXT, [項目] TEXT, [說明] TEXT, [預計執行週期] TEXT, [預估可節省或改善之數據] TEXT, [費用TWD] TEXT, [回應窗口] TEXT, [績效追蹤1] TEXT, [績效追蹤2] TEXT, [統計至12月底之實際數據含計算式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "ESG_OccupationalSafety", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "ESG_HealthHygiene", "[年度] TEXT, [部門] TEXT, [國際指標] TEXT, [ESG領域] TEXT, [指標分類] TEXT, [預防投入/預期改善] TEXT, [指標名稱] TEXT, [實際數據呈現] TEXT, [計算公式] TEXT, [附件檔案] TEXT, [備註] TEXT" },
@@ -104,6 +104,8 @@ namespace Safety_System
             { "WaterMeterCalibration", "[日期] TEXT, [時間] TEXT, [水錶名稱] TEXT, [水錶位置] TEXT, [管徑] TEXT, [現場流量計讀值] TEXT, [檢驗單位讀值] TEXT, [器差值] TEXT, [設定參數K值] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 			//其它檢測
             { "OtherTests", "[日期] TEXT, [時間] TEXT, [檢測點] TEXT, [檢測項目] TEXT, [檢測數據] TEXT, [管制值] TEXT, [測定方法] TEXT, [檢驗機構] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            // 檢測報告分析評估表
+            { "TestReportEvaluations", "[資料庫] TEXT, [資料表] TEXT, [測定日期] TEXT, [檢測名稱] TEXT, [評估日期] TEXT, [符合度] TEXT, [測定用途] TEXT, [分析與結果說明] TEXT, [最後修改人] TEXT, [修改時間] TEXT" },
 			
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
