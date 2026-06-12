@@ -323,7 +323,6 @@ namespace Safety_System
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
 
-            // 🟢 加入進門前的驗證
             var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
                 string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -350,7 +349,7 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenuRef).ShowDialog(this);
+                    new App_PermissionManager(_mainMenu).ShowDialog(this); // 🟢 已修正此處，將 _mainMenuRef 改為 _mainMenu
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
