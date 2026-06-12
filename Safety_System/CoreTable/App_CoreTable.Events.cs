@@ -710,7 +710,7 @@ namespace Safety_System
                     }
                 }
             }
-            // 🟢 Ctrl+V 貼上邏輯優化
+            // 🟢 Ctrl+V 貼上邏輯優化：解決資料錯位與重複問題
             else if (e.Control && e.KeyCode == Keys.V) {
                 string text = Clipboard.GetText(); 
                 if (string.IsNullOrEmpty(text)) return;
@@ -718,10 +718,7 @@ namespace Safety_System
                 string[] splitChars = new string[] { "\r\n", "\r", "\n" };
                 string[] lines = text.Split(splitChars, StringSplitOptions.RemoveEmptyEntries);
                 
-                if (_dgv.CurrentCell == null) return;
-
-                int startRowIdx = _dgv.CurrentCell.RowIndex;
-                int startColIdx = _dgv.CurrentCell.ColumnIndex;
+                if (_dgv.CurrentCell == null && _dgv.SelectedRows.Count == 0) return;
 
                 // 1. 取得畫面上「真正可見」的欄位清單，並且依照使用者的拖曳排序 (DisplayIndex)
                 var visibleCols = _dgv.Columns.Cast<DataGridViewColumn>()
@@ -729,10 +726,29 @@ namespace Safety_System
                     .OrderBy(col => col.DisplayIndex)
                     .ToList();
 
-                // 2. 尋找使用者目前點擊的儲存格，在「可見欄位清單」中排在第幾個位置
-                int visibleStartColIndex = visibleCols.FindIndex(c => c.Index == startColIdx);
-                if (visibleStartColIndex == -1) return; // 理論上不會發生，因為點到的應該是可見的
-                
+                if (visibleCols.Count == 0) return;
+
+                int startRowIdx = 0;
+                int visibleStartColIndex = 0;
+
+                // 🟢 智慧對齊判斷：
+                // 如果使用者是點擊「最左側把手」選取整列 (SelectedRows.Count > 0)，
+                // 則強制從第一個可見欄位 (Index 0) 開始貼上，避免錯位！
+                if (_dgv.SelectedRows.Count > 0)
+                {
+                    // 找出選取範圍中最上面的一列
+                    startRowIdx = _dgv.SelectedRows.Cast<DataGridViewRow>().Min(r => r.Index);
+                    visibleStartColIndex = 0; 
+                }
+                else
+                {
+                    // 單一或局部儲存格選取模式，尊重當下 CurrentCell 的位置
+                    startRowIdx = _dgv.CurrentCell.RowIndex;
+                    int startColIdx = _dgv.CurrentCell.ColumnIndex;
+                    visibleStartColIndex = visibleCols.FindIndex(c => c.Index == startColIdx);
+                    if (visibleStartColIndex == -1) return;
+                }
+
                 DataTable boundDt = (DataTable)_dgv.DataSource;
                 DataTable workingDt = boundDt.Copy();
 
