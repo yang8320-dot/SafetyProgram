@@ -73,19 +73,20 @@ namespace Safety_System
 
             FlowLayoutPanel flpRow2 = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,5,0,0) };
             
-            Button btnHistory = new Button { Text = "📂 讀取歷史評估報告", Size = new Size(200, 40), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10,0,20,0) };
+            // 🟢 修正：統一按鈕尺寸為 140x40，並對齊 Margin 解決遮擋與下移問題
+            Button btnHistory = new Button { Text = "📂 讀取報告", Size = new Size(140, 40), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 10, 0) };
             btnHistory.FlatAppearance.BorderSize = 0;
             btnHistory.Click += BtnHistory_Click;
 
-            Button btnSave = new Button { Text = "💾 存檔 / 覆蓋", Size = new Size(160, 40), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0,0,10,0) };
+            Button btnSave = new Button { Text = "💾 存檔 / 覆蓋", Size = new Size(140, 40), BackColor = Color.ForestGreen, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 10, 0) };
             btnSave.FlatAppearance.BorderSize = 0;
             btnSave.Click += BtnSave_Click;
 
-            Button btnWord = new Button { Text = "📝 導出 Word", Size = new Size(140, 40), BackColor = Color.RoyalBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0,0,10,0) };
+            Button btnWord = new Button { Text = "📝 導出 Word", Size = new Size(140, 40), BackColor = Color.RoyalBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 10, 0) };
             btnWord.FlatAppearance.BorderSize = 0;
             btnWord.Click += BtnWord_Click;
 
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 40), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 10, 0) };
             btnPdf.FlatAppearance.BorderSize = 0;
             btnPdf.Click += BtnPdf_Click;
 
@@ -141,11 +142,19 @@ namespace Safety_System
             tlpForm.Controls.Add(_txtTestPurpose, 1, 3);
             tlpForm.SetColumnSpan(_txtTestPurpose, 3);
 
-            // 列表
+            // 列表 (🟢 高度修改為 350)
             _dgvItems = new DataGridView {
-                Dock = DockStyle.Top, Height = 250, BackgroundColor = Color.White, AllowUserToAddRows = false, ReadOnly = true,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
-                Margin = new Padding(0, 0, 0, 0), CellBorderStyle = DataGridViewCellBorderStyle.Single, GridColor = Color.Black
+                Dock = DockStyle.Top, 
+                Height = 350, 
+                BackgroundColor = Color.White, 
+                AllowUserToAddRows = false, 
+                ReadOnly = false, // 🟢 允許編輯 (為了 CheckBox)
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
+                RowHeadersVisible = false, 
+                Font = new Font("Microsoft JhengHei UI", 11F),
+                Margin = new Padding(0, 0, 0, 0), 
+                CellBorderStyle = DataGridViewCellBorderStyle.Single, 
+                GridColor = Color.Black
             };
             _dgvItems.EnableHeadersVisualStyles = false;
             _dgvItems.ColumnHeadersDefaultCellStyle.BackColor = Color.LightGray;
@@ -155,6 +164,10 @@ namespace Safety_System
             _dgvItems.ColumnHeadersHeight = 40;
             _dgvItems.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             
+            // 🟢 新增 Checkbox 欄位提供勾選匯出功能
+            DataGridViewCheckBoxColumn chkCol = new DataGridViewCheckBoxColumn { Name = "匯出", HeaderText = "匯出", Width = 60, AutoSizeMode = DataGridViewAutoSizeColumnMode.None };
+            _dgvItems.Columns.Add(chkCol);
+
             _dgvItems.Columns.Add("項目", "項目");
             _dgvItems.Columns.Add("管制值", "管制值");
             _dgvItems.Columns.Add("測定方法", "測定方法");
@@ -162,11 +175,23 @@ namespace Safety_System
             _dgvItems.Columns.Add("本次測值", "本次測值");
             _dgvItems.Columns.Add("備註", "備註");
 
-            // 分析與說明
-            Panel pnlAnalysis = new Panel { Dock = DockStyle.Top, Height = 200, BorderStyle = BorderStyle.FixedSingle };
-            pnlAnalysis.Controls.Add(new Label { Text = "分析與結果說明：", Dock = DockStyle.Top, Height = 30, Padding = new Padding(5), Font = new Font("Microsoft JhengHei UI", 11F) });
-            _rtbAnalysis = new RichTextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5) };
+            // 設定除 Checkbox 外皆為唯讀
+            foreach (DataGridViewColumn col in _dgvItems.Columns) {
+                if (col.Name != "匯出") col.ReadOnly = true;
+            }
+
+            // 🟢 修改排版，確保 RichTextBox 邊框明顯，且不會覆蓋標籤
+            Panel pnlAnalysis = new Panel { Dock = DockStyle.Top, Height = 220, Padding = new Padding(0, 10, 0, 0) };
+            Label lblAnalysis = new Label { Text = "分析與結果說明：", Dock = DockStyle.Top, Height = 30, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+            _rtbAnalysis = new RichTextBox { 
+                Dock = DockStyle.Fill, 
+                BorderStyle = BorderStyle.FixedSingle, 
+                Font = new Font("Microsoft JhengHei UI", 12F), 
+                BackColor = Color.LightYellow // 給一個顯眼的背景色，讓使用者清楚這是一個輸入框
+            };
+            
             pnlAnalysis.Controls.Add(_rtbAnalysis);
+            pnlAnalysis.Controls.Add(lblAnalysis);
 
             Label lblFooter = new Label { Text = "8-ES-B11-01", Dock = DockStyle.Bottom, Height = 30, TextAlign = ContentAlignment.BottomLeft, Font = new Font("Microsoft JhengHei UI", 10F) };
 
@@ -190,14 +215,10 @@ namespace Safety_System
             return new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), BackColor = Color.WhiteSmoke };
         }
 
-        // =======================================================
-        // 🟢 智慧型連動下拉選單，動態判定欄位名稱
-        // =======================================================
         private void InitDropdowns()
         {
             var dbMap = App_DbConfig.GetDbMapCache();
 
-            // 1. 綁定資料庫變更事件
             _cboDb.SelectedIndexChanged += (s, e) => {
                 _cboTable.Items.Clear();
                 _cboDate.Items.Clear();
@@ -207,7 +228,7 @@ namespace Safety_System
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 if (dbMap.ContainsKey(dbName)) {
                     foreach (var tb in dbMap[dbName].Tables) {
-                        if (tb.Key != EvalTableName) { // 排除評估表本身
+                        if (tb.Key != EvalTableName) { 
                             _cboTable.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                         }
                     }
@@ -215,7 +236,6 @@ namespace Safety_System
                 if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
             };
 
-            // 2. 綁定資料表變更事件
             _cboTable.SelectedIndexChanged += (s, e) => {
                 _cboDate.Items.Clear();
                 _cboPoint.Items.Clear();
@@ -246,7 +266,6 @@ namespace Safety_System
                 if (_cboDate.Items.Count > 0) _cboDate.SelectedIndex = 0;
             };
 
-            // 3. 綁定日期變更事件
             _cboDate.SelectedIndexChanged += (s, e) => {
                 _cboPoint.Items.Clear();
                 if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null) return;
@@ -274,13 +293,11 @@ namespace Safety_System
                 if (_cboPoint.Items.Count > 0) _cboPoint.SelectedIndex = 0;
             };
 
-            // 4. 載入資料庫並觸發第一層
             _cboDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
             foreach (var kvp in dbMap) {
                 _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
             }
 
-            // 自動定位到「TestData (檢測數據)」作為預設
             int idx = 0;
             for (int i = 0; i < _cboDb.Items.Count; i++) {
                 if (((ItemMap)_cboDb.Items[i]).EnName == "TestData") { idx = i; break; }
@@ -288,9 +305,6 @@ namespace Safety_System
             if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = idx;
         }
 
-        // =======================================================
-        // 🟢 智慧抓取欄位名稱輔助函式
-        // =======================================================
         private string GetDateColumnName(DataTable dt)
         {
             if (dt.Columns.Contains("日期")) return "日期";
@@ -361,7 +375,6 @@ namespace Safety_System
 
                     string prevVal = "N/A";
                     
-                    // 尋找前次測值
                     if (!string.IsNullOrEmpty(item)) {
                         DataView dvPrev = new DataView(dt);
                         dvPrev.RowFilter = $"[{pointCol}] = '{pointName}' AND [{itemCol}] = '{item}' AND [{dateCol}] < '{dateStr}'";
@@ -371,7 +384,8 @@ namespace Safety_System
                         }
                     }
 
-                    _dgvItems.Rows.Add(item, limit, method, prevVal, currVal, note);
+                    // 🟢 載入時預設打勾 true
+                    _dgvItems.Rows.Add(true, item, limit, method, prevVal, currVal, note);
                 }
             } 
             catch (Exception ex) {
@@ -391,7 +405,6 @@ namespace Safety_System
             DataTable dtEval = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
             DataRow targetRow = null;
 
-            // 尋找是否已有紀錄
             foreach (DataRow r in dtEval.Rows) {
                 if (r.RowState != DataRowState.Deleted &&
                     r["資料庫"].ToString() == dbName &&
@@ -421,7 +434,6 @@ namespace Safety_System
             if (DataManager.BulkSaveTable(EvalDbName, EvalTableName, dtEval)) {
                 MessageBox.Show("評估報告儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
-                // 重新抓取 ID
                 DataTable dtCheck = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 foreach (DataRow r in dtCheck.Rows) {
                     if (r["資料庫"].ToString() == dbName && r["資料表"].ToString() == tbName && r["測定日期"].ToString() == _txtTestDate.Text && r["檢測名稱"].ToString() == _txtTestName.Text) {
@@ -459,7 +471,6 @@ namespace Safety_System
                         string tDate = row.Cells["測定日期"].Value.ToString();
                         string tName = row.Cells["檢測名稱"].Value.ToString();
 
-                        // 智慧連動復原選項
                         foreach (ItemMap item in _cboDb.Items) {
                             if (item.EnName == dbName) { _cboDb.SelectedItem = item; break; }
                         }
@@ -500,6 +511,14 @@ namespace Safety_System
             }
         }
 
+        // ====================================================================
+        // 🟢 PDF 導出系統 (完美套用台玻標準模版)
+        // ====================================================================
+        // 用來追蹤分頁列印的變數
+        private int _pdfPrintRowIndex = 0;
+        private int _pdfPrintPageNumber = 1;
+        private bool _pdfPrintedFormInfo = false;
+
         private void BtnPdf_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(_txtTestDate.Text)) {
@@ -510,6 +529,10 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
+                    _pdfPrintRowIndex = 0;
+                    _pdfPrintPageNumber = 1;
+                    _pdfPrintedFormInfo = false;
+
                     PrintDocument pd = new PrintDocument();
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
@@ -529,18 +552,163 @@ namespace Safety_System
             }
         }
 
+        private void DrawReportPage(object sender, PrintPageEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            float x = e.MarginBounds.Left;
+            float y = e.MarginBounds.Top;
+            float w = e.MarginBounds.Width;
+
+            Font fMainTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
+            Font fSubTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
+            Font fSign = new Font("Microsoft JhengHei UI", 12F);
+            Font fDate = new Font("Microsoft JhengHei UI", 11F);
+            
+            Font fHeader = new Font("Microsoft JhengHei UI", 12F);
+            Font fGridHead = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+            Font fGridBody = new Font("Microsoft JhengHei UI", 11F);
+
+            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+            StringFormat sfTopLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+
+            // ================= 1. 大標題與簽核 (每頁都有) =================
+            g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fMainTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
+            y += 40;
+            g.DrawString("檢測報告分析評估表", fSubTitle, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
+            y += 40;
+            string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
+            g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
+            y += 40;
+
+            float rowH = 35;
+            
+            // ================= 2. 檢測基本資料 (只在第一頁畫) =================
+            if (!_pdfPrintedFormInfo)
+            {
+                float labelW = 120;
+                float valW1 = (w - labelW * 2) / 2;
+                
+                RectangleF r1 = new RectangleF(x, y, labelW, rowH);
+                RectangleF r2 = new RectangleF(x + labelW, y, valW1, rowH);
+                RectangleF r3 = new RectangleF(x + labelW + valW1, y, labelW, rowH);
+                RectangleF r4 = new RectangleF(x + labelW * 2 + valW1, y, valW1, rowH);
+                
+                g.FillRectangle(Brushes.WhiteSmoke, r1); g.DrawRectangle(Pens.Black, Rectangle.Round(r1)); g.DrawString("評估日期：", fHeader, Brushes.Black, r1, sfCenter);
+                g.DrawRectangle(Pens.Black, Rectangle.Round(r2)); g.DrawString("  " + _dtpEvalDate.Value.ToString("yyyy/MM/dd"), fHeader, Brushes.Black, r2, sfLeft);
+                g.FillRectangle(Brushes.WhiteSmoke, r3); g.DrawRectangle(Pens.Black, Rectangle.Round(r3)); g.DrawString("符合度：", fHeader, Brushes.Black, r3, sfCenter);
+                g.DrawRectangle(Pens.Black, Rectangle.Round(r4)); g.DrawString("  " + _cboCompliance.Text, fHeader, Brushes.Black, r4, sfLeft);
+                y += rowH;
+
+                RectangleF rDateL = new RectangleF(x, y, labelW, rowH);
+                RectangleF rDateV = new RectangleF(x + labelW, y, w - labelW, rowH);
+                g.FillRectangle(Brushes.WhiteSmoke, rDateL); g.DrawRectangle(Pens.Black, Rectangle.Round(rDateL)); g.DrawString("測定日期：", fHeader, Brushes.Black, rDateL, sfCenter);
+                g.DrawRectangle(Pens.Black, Rectangle.Round(rDateV)); g.DrawString("  " + _txtTestDate.Text, fHeader, Brushes.Black, rDateV, sfLeft);
+                y += rowH;
+
+                RectangleF rNameL = new RectangleF(x, y, labelW, rowH);
+                RectangleF rNameV = new RectangleF(x + labelW, y, w - labelW, rowH);
+                g.FillRectangle(Brushes.WhiteSmoke, rNameL); g.DrawRectangle(Pens.Black, Rectangle.Round(rNameL)); g.DrawString("檢測名稱：", fHeader, Brushes.Black, rNameL, sfCenter);
+                g.DrawRectangle(Pens.Black, Rectangle.Round(rNameV)); g.DrawString("  " + _txtTestName.Text, fHeader, Brushes.Black, rNameV, sfLeft);
+                y += rowH;
+
+                RectangleF rPurpL = new RectangleF(x, y, labelW, rowH);
+                RectangleF rPurpV = new RectangleF(x + labelW, y, w - labelW, rowH);
+                g.FillRectangle(Brushes.WhiteSmoke, rPurpL); g.DrawRectangle(Pens.Black, Rectangle.Round(rPurpL)); g.DrawString("測定用途：", fHeader, Brushes.Black, rPurpL, sfCenter);
+                g.DrawRectangle(Pens.Black, Rectangle.Round(rPurpV)); g.DrawString("  " + _txtTestPurpose.Text, fHeader, Brushes.Black, rPurpV, sfLeft);
+                y += rowH;
+
+                _pdfPrintedFormInfo = true;
+            }
+
+            // ================= 3. 資料清單 =================
+            float[] colWidths = { w * 0.15f, w * 0.15f, w * 0.25f, w * 0.15f, w * 0.15f, w * 0.15f };
+            float currX = x;
+
+            // 畫 Grid 標題列
+            for (int i = 1; i < _dgvItems.Columns.Count; i++) { // 從 index 1 開始，跳過 CheckBox
+                RectangleF rHead = new RectangleF(currX, y, colWidths[i - 1], rowH);
+                g.FillRectangle(Brushes.LightGray, rHead);
+                g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
+                g.DrawString(_dgvItems.Columns[i].HeaderText, fGridHead, Brushes.Black, rHead, sfCenter);
+                currX += colWidths[i - 1];
+            }
+            y += rowH;
+
+            // 畫 Grid 內容列
+            while (_pdfPrintRowIndex < _dgvItems.Rows.Count) 
+            {
+                DataGridViewRow dgvRow = _dgvItems.Rows[_pdfPrintRowIndex];
+                
+                // 🟢 檢查勾選狀態，若沒勾則跳過此列
+                if (!Convert.ToBoolean(dgvRow.Cells["匯出"].Value)) {
+                    _pdfPrintRowIndex++;
+                    continue;
+                }
+
+                currX = x;
+                float maxH = rowH;
+                for (int i = 1; i < _dgvItems.Columns.Count; i++) {
+                    string val = dgvRow.Cells[i].Value?.ToString() ?? "";
+                    SizeF sz = g.MeasureString(val, fGridBody, (int)colWidths[i - 1], sfCenter);
+                    if (sz.Height + 10 > maxH) maxH = sz.Height + 10;
+                }
+
+                // 檢查是否超出底線 (預留分析說明的空間約 100px 以及頁碼 30px)
+                if (y + maxH > e.MarginBounds.Bottom - 130) {
+                    // 本頁畫不下了，直接分頁
+                    g.DrawString($"第 {_pdfPrintPageNumber} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
+                    _pdfPrintPageNumber++;
+                    e.HasMorePages = true;
+                    return;
+                }
+
+                for (int i = 1; i < _dgvItems.Columns.Count; i++) {
+                    RectangleF rCell = new RectangleF(currX, y, colWidths[i - 1], maxH);
+                    g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
+                    string val = dgvRow.Cells[i].Value?.ToString() ?? "";
+                    g.DrawString(val, fGridBody, Brushes.Black, rCell, sfCenter);
+                    currX += colWidths[i - 1];
+                }
+                y += maxH;
+                _pdfPrintRowIndex++;
+            }
+
+            // ================= 4. 分析與結果說明 =================
+            float remainingH = e.MarginBounds.Bottom - 30 - y;
+            if (remainingH < 80) {
+                // 如果底部空間太小，就把分析說明擠到下一頁
+                g.DrawString($"第 {_pdfPrintPageNumber} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
+                _pdfPrintPageNumber++;
+                e.HasMorePages = true;
+                return;
+            }
+
+            RectangleF rAnalysis = new RectangleF(x, y, w, remainingH);
+            g.DrawRectangle(Pens.Black, Rectangle.Round(rAnalysis));
+            g.DrawString("分析與結果說明：\n\n" + _rtbAnalysis.Text, fHeader, Brushes.Black, new RectangleF(x + 10, y + 10, w - 20, remainingH - 20), sfTopLeft);
+
+            // ================= 5. 底部代碼與頁碼 =================
+            g.DrawString("8-ES-B11-01", fGridBody, Brushes.Black, x, e.MarginBounds.Bottom - 20);
+            g.DrawString($"第 {_pdfPrintPageNumber} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
+
+            e.HasMorePages = false;
+        }
+
+        // ====================================================================
+        // 🟢 Word 導出系統 (使用 HTML，精準對齊 PDF 排版，加入勾選過濾)
+        // ====================================================================
         private void BtnWord_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(_txtTestDate.Text)) {
                 MessageBox.Show("請先載入報告內容！"); return;
             }
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Word 檔案 (*.doc)|*.doc", FileName = $"檢測報告分析評估表_{_txtTestName.Text}_{DateTime.Now:yyyyMMdd}" })
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Word 檔案 (*.docx)|*.docx", FileName = $"檢測報告分析評估表_{_txtTestName.Text}_{DateTime.Now:yyyyMMdd}" })
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     try {
-                        // 使用 HTML 格式封裝成 .doc，Word 可以完美原生開啟與編輯
                         StringBuilder sb = new StringBuilder();
                         sb.AppendLine("<html><head><meta charset='utf-8'><style>");
                         sb.AppendLine("body { font-family: '微軟正黑體', '標楷體', sans-serif; }");
@@ -549,20 +717,29 @@ namespace Safety_System
                         sb.AppendLine(".info-table td { text-align: left; }");
                         sb.AppendLine("</style></head><body>");
                         
-                        sb.AppendLine("<h1 style='text-align:center;'>檢測報告分析評估表</h1>");
+                        // 模擬 PDF 的頂部排版
+                        sb.AppendLine("<h2 style='text-align:center; margin-bottom:5px;'>台灣玻璃工業股份有限公司 - 彰濱廠</h2>");
+                        sb.AppendLine("<h3 style='text-align:center; margin-top:0px;'>檢測報告分析評估表</h3>");
+                        sb.AppendLine("<p style='text-align:center;'>廠主管：______________&nbsp;&nbsp;&nbsp;&nbsp;經/副理：______________&nbsp;&nbsp;&nbsp;&nbsp;課/股長：______________&nbsp;&nbsp;&nbsp;&nbsp;制表：______________</p>");
+                        
+                        sb.AppendLine("<hr style='margin-bottom:20px;' />");
 
                         sb.AppendLine("<table class='info-table'>");
-                        sb.AppendLine($"<tr><td width='20%'><b>評估日期：</b></td><td width='30%'>{_dtpEvalDate.Value:yyyy/MM/dd}</td><td width='20%'><b>符合度：</b></td><td width='30%'>{_cboCompliance.Text}</td></tr>");
-                        sb.AppendLine($"<tr><td><b>測定日期：</b></td><td colspan='3'>{_txtTestDate.Text}</td></tr>");
-                        sb.AppendLine($"<tr><td><b>檢測名稱：</b></td><td colspan='3'>{_txtTestName.Text}</td></tr>");
-                        sb.AppendLine($"<tr><td><b>測定用途：</b></td><td colspan='3'>{_txtTestPurpose.Text}</td></tr>");
+                        sb.AppendLine($"<tr><td width='20%' style='background-color:#F5F5F5;'><b>評估日期：</b></td><td width='30%'>{_dtpEvalDate.Value:yyyy/MM/dd}</td><td width='20%' style='background-color:#F5F5F5;'><b>符合度：</b></td><td width='30%'>{_cboCompliance.Text}</td></tr>");
+                        sb.AppendLine($"<tr><td style='background-color:#F5F5F5;'><b>測定日期：</b></td><td colspan='3'>{_txtTestDate.Text}</td></tr>");
+                        sb.AppendLine($"<tr><td style='background-color:#F5F5F5;'><b>檢測名稱：</b></td><td colspan='3'>{_txtTestName.Text}</td></tr>");
+                        sb.AppendLine($"<tr><td style='background-color:#F5F5F5;'><b>測定用途：</b></td><td colspan='3'>{_txtTestPurpose.Text}</td></tr>");
                         sb.AppendLine("</table>");
 
                         sb.AppendLine("<table>");
-                        sb.AppendLine("<tr style='background-color:#E0E0E0;'><th>項目</th><th>管制值</th><th>測定方法</th><th>前次測值</th><th>本次測值</th><th>備註</th></tr>");
+                        sb.AppendLine("<tr style='background-color:#D3D3D3;'><th>項目</th><th>管制值</th><th>測定方法</th><th>前次測值</th><th>本次測值</th><th>備註</th></tr>");
+                        
+                        // 🟢 檢查 CheckBox 狀態，只匯出有勾選的列
                         foreach (DataGridViewRow row in _dgvItems.Rows) {
+                            if (!Convert.ToBoolean(row.Cells["匯出"].Value)) continue;
+
                             sb.AppendLine("<tr>");
-                            for (int i = 0; i < _dgvItems.Columns.Count; i++) {
+                            for (int i = 1; i < _dgvItems.Columns.Count; i++) { // 跳過索引 0 的 checkbox
                                 sb.AppendLine($"<td>{(row.Cells[i].Value ?? "")}</td>");
                             }
                             sb.AppendLine("</tr>");
@@ -580,110 +757,12 @@ namespace Safety_System
                         sb.AppendLine("</body></html>");
 
                         File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
-                        MessageBox.Show("Word (HTML) 導出成功！\n可直接使用 Microsoft Word 開啟該檔案。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("Word 導出成功！\n(備註：此檔案為 HTML 封裝，若開啟時 Word 提示檔案格式問題，請點擊「是」即可正常檢視與編輯。)", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         MessageBox.Show("Word 導出失敗：" + ex.Message, "錯誤");
                     }
                 }
             }
-        }
-
-        private void DrawReportPage(object sender, PrintPageEventArgs e)
-        {
-            Graphics g = e.Graphics;
-            float x = e.MarginBounds.Left;
-            float y = e.MarginBounds.Top;
-            float w = e.MarginBounds.Width;
-
-            Font fTitle = new Font("DFKai-SB", 22F, FontStyle.Bold); 
-            Font fHeader = new Font("DFKai-SB", 14F);
-            Font fGridHead = new Font("DFKai-SB", 12F, FontStyle.Bold);
-            Font fGridBody = new Font("DFKai-SB", 12F);
-
-            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-            StringFormat sfTopLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
-
-            // 1. 大標題
-            g.DrawString("檢測報告分析評估表", fTitle, Brushes.Black, new RectangleF(x, y, w, 40), sfCenter);
-            y += 60;
-
-            float rowH = 40;
-            float labelW = 120;
-            float valW1 = (w - labelW * 2) / 2;
-            
-            // 2. 基本資料表頭
-            RectangleF r1 = new RectangleF(x, y, labelW, rowH);
-            RectangleF r2 = new RectangleF(x + labelW, y, valW1, rowH);
-            RectangleF r3 = new RectangleF(x + labelW + valW1, y, labelW, rowH);
-            RectangleF r4 = new RectangleF(x + labelW * 2 + valW1, y, valW1, rowH);
-            
-            g.DrawRectangle(Pens.Black, Rectangle.Round(r1)); g.DrawString("評估日期：", fHeader, Brushes.Black, r1, sfCenter);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(r2)); g.DrawString("  " + _dtpEvalDate.Value.ToString("yyyy/MM/dd"), fHeader, Brushes.Black, r2, sfLeft);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(r3)); g.DrawString("符合度：", fHeader, Brushes.Black, r3, sfCenter);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(r4)); g.DrawString("  " + _cboCompliance.Text, fHeader, Brushes.Black, r4, sfLeft);
-            y += rowH;
-
-            RectangleF rDateL = new RectangleF(x, y, labelW, rowH);
-            RectangleF rDateV = new RectangleF(x + labelW, y, w - labelW, rowH);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rDateL)); g.DrawString("測定日期：", fHeader, Brushes.Black, rDateL, sfCenter);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rDateV)); g.DrawString("  " + _txtTestDate.Text, fHeader, Brushes.Black, rDateV, sfLeft);
-            y += rowH;
-
-            RectangleF rNameL = new RectangleF(x, y, labelW, rowH);
-            RectangleF rNameV = new RectangleF(x + labelW, y, w - labelW, rowH);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rNameL)); g.DrawString("檢測名稱：", fHeader, Brushes.Black, rNameL, sfCenter);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rNameV)); g.DrawString("  " + _txtTestName.Text, fHeader, Brushes.Black, rNameV, sfLeft);
-            y += rowH;
-
-            RectangleF rPurpL = new RectangleF(x, y, labelW, rowH);
-            RectangleF rPurpV = new RectangleF(x + labelW, y, w - labelW, rowH);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rPurpL)); g.DrawString("測定用途：", fHeader, Brushes.Black, rPurpL, sfCenter);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rPurpV)); g.DrawString("  " + _txtTestPurpose.Text, fHeader, Brushes.Black, rPurpV, sfLeft);
-            y += rowH;
-
-            // 3. Grid
-            float[] colWidths = { w * 0.15f, w * 0.15f, w * 0.25f, w * 0.15f, w * 0.15f, w * 0.15f };
-            float currX = x;
-
-            for (int i = 0; i < _dgvItems.Columns.Count; i++) {
-                RectangleF rHead = new RectangleF(currX, y, colWidths[i], rowH);
-                g.FillRectangle(Brushes.LightGray, rHead);
-                g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
-                g.DrawString(_dgvItems.Columns[i].HeaderText, fGridHead, Brushes.Black, rHead, sfCenter);
-                currX += colWidths[i];
-            }
-            y += rowH;
-
-            foreach (DataGridViewRow dgvRow in _dgvItems.Rows) {
-                currX = x;
-                float maxH = rowH;
-                for (int i = 0; i < _dgvItems.Columns.Count; i++) {
-                    string val = dgvRow.Cells[i].Value?.ToString() ?? "";
-                    SizeF sz = g.MeasureString(val, fGridBody, (int)colWidths[i], sfCenter);
-                    if (sz.Height + 10 > maxH) maxH = sz.Height + 10;
-                }
-
-                for (int i = 0; i < _dgvItems.Columns.Count; i++) {
-                    RectangleF rCell = new RectangleF(currX, y, colWidths[i], maxH);
-                    g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
-                    string val = dgvRow.Cells[i].Value?.ToString() ?? "";
-                    g.DrawString(val, fGridBody, Brushes.Black, rCell, sfCenter);
-                    currX += colWidths[i];
-                }
-                y += maxH;
-            }
-
-            // 4. 分析與結果說明
-            float remainingH = e.MarginBounds.Bottom - 30 - y;
-            RectangleF rAnalysis = new RectangleF(x, y, w, remainingH);
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rAnalysis));
-            g.DrawString("分析與結果說明：\n\n" + _rtbAnalysis.Text, fHeader, Brushes.Black, new RectangleF(x + 10, y + 10, w - 20, remainingH - 20), sfTopLeft);
-
-            // 5. 底部代碼
-            g.DrawString("8-ES-B11-01", fGridBody, Brushes.Black, x, e.MarginBounds.Bottom - 20);
-
-            e.HasMorePages = false;
         }
     }
 }
