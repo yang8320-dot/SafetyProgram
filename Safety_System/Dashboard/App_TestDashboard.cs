@@ -535,7 +535,6 @@ namespace Safety_System
 
                             if (match)
                             {
-                                // 🟢 移除加總與日期相減的計算，只保留 COUNT/AVG/MAX/MIN
                                 if (src.AggType == "COUNT")
                                 {
                                     countVal++;
@@ -597,7 +596,6 @@ namespace Safety_System
                                 {
                                     string filter = srcParts.Length > 4 ? srcParts[4] : "";
                                     string col2 = srcParts.Length > 5 ? srcParts[5] : ""; 
-                                    // 支援舊版相容讀取
                                     string refCol = srcParts.Length > 6 ? srcParts[6] : "";
                                     cfg.Sources.Add(new DataSourceDef { DbName = srcParts[0], TableName = srcParts[1], ColName = srcParts[2], AggType = srcParts[3], FilterValue = filter, ColName2 = col2, RefColName = refCol });
                                 }
@@ -622,7 +620,6 @@ namespace Safety_System
                     string line = $"{cfg.DisplayName}|{cfg.Unit}";
                     foreach (var src in cfg.Sources)
                     {
-                        // 將 RefColName 加入儲存格式
                         line += $"|{src.DbName};{src.TableName};{src.ColName};{src.AggType};{src.FilterValue};{src.ColName2};{src.RefColName}";
                     }
                     lines.Add(line);
@@ -660,7 +657,7 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
 
                 pName.Controls.Add(new Label { Text = "單位：", AutoSize = true, Location = new Point(385, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) }); 
-                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(465, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "mg/L" }; // 檢測數據預設為 mg/L
+                TextBox txtUnit = new TextBox { Width = 100, Location = new Point(465, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "mg/L" };
                 pName.Controls.Add(txtUnit);
                 
                 Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(595, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
@@ -675,14 +672,13 @@ namespace Safety_System
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    // 面板重新縮減排版以符合移除後的數量
+                    // 🟢 縮減後的寬度分配
                     Panel pRow = new Panel { Width = 950, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
                     int ly = 10;
                     int cy = 35;
 
-                    // 重新排列欄位坐標
                     int x0 = 10, w0 = 35;   // 刪除按鈕
                     int x1 = 50, w1 = 130;  // 資料庫
                     int x2 = 185, w2 = 160; // 資料表
@@ -740,7 +736,7 @@ namespace Safety_System
                         }
                     };
 
-                    // 連動改由 RefCol 驅動，且動態從資料庫撈取唯一值
+                    // 🟢 連動改由 RefCol 驅動，且動態從資料庫撈取唯一值 (使用 Cast<DataRow>)
                     cbRefCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); 
                         cbFilter.Items.Add("非空值 (有輸入即算)");
@@ -770,11 +766,10 @@ namespace Safety_System
                                 }
                             }
 
-                            // 主動從資料庫撈取不重複的值填入，以防該欄位未設定在下拉選單中
                             try {
                                 DataTable dtDist = DataManager.GetTableData(dbName, tbName, "", "", "");
                                 if (dtDist != null && dtDist.Columns.Contains(refColStr)) {
-                                    var distinctVals = dtDist.AsEnumerable()
+                                    var distinctVals = dtDist.Rows.Cast<DataRow>()
                                                              .Select(r => r[refColStr]?.ToString().Trim())
                                                              .Where(str => !string.IsNullOrEmpty(str))
                                                              .Distinct();
@@ -789,7 +784,6 @@ namespace Safety_System
                         cbFilter.SelectedIndex = 0;
                     };
 
-                    // 🟢 僅保留 計數, 平均值, 最大值, 最小值
                     cbAgg.Items.AddRange(new string[] { "計數", "平均值", "最大值", "最小值" });
 
                     if (def != null) {
@@ -801,7 +795,6 @@ namespace Safety_System
                             cbRefCol.SelectedItem = def.RefColName;
                         }
 
-                        // 確保 FilterValue 被正確載入
                         if (!string.IsNullOrEmpty(def.FilterValue)) {
                             if (!cbFilter.Items.Contains(def.FilterValue)) cbFilter.Items.Add(def.FilterValue);
                             cbFilter.Text = def.FilterValue;
