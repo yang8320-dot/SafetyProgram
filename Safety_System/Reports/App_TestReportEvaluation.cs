@@ -18,7 +18,7 @@ namespace Safety_System
         private ComboBox _cboDb;
         private ComboBox _cboTable;
         
-        // 🟢 升級為多選控制項
+        // 多選控制項
         private TextBox _txtDateMulti;
         private Button _btnPickDate;
         private TextBox _txtPointMulti;
@@ -37,6 +37,8 @@ namespace Safety_System
 
         private const string EvalDbName = "TestData";
         private const string EvalTableName = "TestReportEvaluations";
+        // 🟢 新增：專門記錄每一列「備註」與「勾選」的明細表名稱
+        private const string EvalDetailTableName = "TestReportEvaluationDetails";
         
         private int _currentId = 0;
 
@@ -47,8 +49,13 @@ namespace Safety_System
 
         public Control GetView()
         {
+            // 初始化評估紀錄主表與明細表
             string schema = TableSchemaManager.SchemaMap.ContainsKey(EvalTableName) ? TableSchemaManager.SchemaMap[EvalTableName] : "[資料庫] TEXT, [資料表] TEXT, [測定日期] TEXT, [檢測名稱] TEXT, [評估日期] TEXT, [符合度] TEXT, [測定用途] TEXT, [分析與結果說明] TEXT, [最後修改人] TEXT, [修改時間] TEXT";
             DataManager.InitTable(EvalDbName, EvalTableName, $"CREATE TABLE IF NOT EXISTS [{EvalTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
+
+            // 🟢 新增明細表，綁定主表 Id，並記錄每一列的項目名稱、勾選狀態與備註
+            string detailSchema = "[主表Id] INTEGER, [項目] TEXT, [是否匯出] TEXT, [備註] TEXT";
+            DataManager.InitTable(EvalDbName, EvalDetailTableName, $"CREATE TABLE IF NOT EXISTS [{EvalDetailTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {detailSchema});");
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
@@ -62,21 +69,20 @@ namespace Safety_System
             _cboDb = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboTable = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 🟢 多選日期 UI 組合
+            // 多選日期 UI 組合
             Panel pnlDate = new Panel { Width = 180, Height = 35, Margin = new Padding(0) };
             _txtDateMulti = new TextBox { Width = 145, ReadOnly = true, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 2), BackColor = Color.White };
             _btnPickDate = new Button { Text = "▼", Width = 35, Height = 30, Location = new Point(145, 0), Cursor = Cursors.Hand, BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnPickDate.FlatAppearance.BorderSize = 0;
             pnlDate.Controls.Add(_txtDateMulti); pnlDate.Controls.Add(_btnPickDate);
 
-            // 🟢 多選測點 UI 組合
+            // 多選測點 UI 組合
             Panel pnlPoint = new Panel { Width = 230, Height = 35, Margin = new Padding(0) };
             _txtPointMulti = new TextBox { Width = 195, ReadOnly = true, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 2), BackColor = Color.White };
             _btnPickPoint = new Button { Text = "▼", Width = 35, Height = 30, Location = new Point(195, 0), Cursor = Cursors.Hand, BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
             _btnPickPoint.FlatAppearance.BorderSize = 0;
             pnlPoint.Controls.Add(_txtPointMulti); pnlPoint.Controls.Add(_btnPickPoint);
             
-            // 🟢 修正：按鈕寬度 +20px (120 -> 140)
             Button btnLoadData = new Button { Text = "📥 載入數據", Size = new Size(140, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnLoadData.FlatAppearance.BorderSize = 0;
             btnLoadData.Click += BtnLoadData_Click;
@@ -155,7 +161,7 @@ namespace Safety_System
             tlpForm.Controls.Add(_txtTestPurpose, 1, 3);
             tlpForm.SetColumnSpan(_txtTestPurpose, 3);
 
-            // 🟢 修正：高度改為 450
+            // 列表 
             _dgvItems = new DataGridView {
                 Dock = DockStyle.Top, 
                 Height = 450, 
@@ -187,7 +193,7 @@ namespace Safety_System
             _dgvItems.Columns.Add("本次測值", "本次測值");
             _dgvItems.Columns.Add("備註", "備註");
 
-            // 🟢 修正：設定除 Checkbox 與 備註 外皆為唯讀
+            // 🟢 只允許 Checkbox 與 備註 進行編輯
             foreach (DataGridViewColumn col in _dgvItems.Columns) {
                 if (col.Name != "匯出" && col.Name != "備註") col.ReadOnly = true;
             }
@@ -227,7 +233,7 @@ namespace Safety_System
         }
 
         // =======================================================
-        // 🟢 多選彈窗實作
+        // 多選彈窗實作
         // =======================================================
         private string ShowMultiSelectDialog(string title, List<string> sourceList, string currentSelected)
         {
@@ -275,12 +281,11 @@ namespace Safety_System
                 
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 
-                // 🟢 修正：第一個顯示空白欄
                 _cboTable.Items.Add(new ItemMap { EnName = "", ChName = "" });
 
                 if (dbMap.ContainsKey(dbName)) {
                     foreach (var tb in dbMap[dbName].Tables) {
-                        if (tb.Key != EvalTableName) { 
+                        if (tb.Key != EvalTableName && tb.Key != EvalDetailTableName) { 
                             _cboTable.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                         }
                     }
@@ -320,13 +325,12 @@ namespace Safety_System
                 } catch { }
             };
 
-            // 🟢 多選日期觸發
+            // 多選日期觸發
             _btnPickDate.Click += (s, e) => {
                 if (_availableDates.Count == 0) { MessageBox.Show("請先選擇資料表，或該表尚無日期紀錄。"); return; }
                 
                 _txtDateMulti.Text = ShowMultiSelectDialog("選擇測定日期 (可複選)", _availableDates, _txtDateMulti.Text);
                 
-                // 選完日期後，動態更新可用的檢測點
                 _availablePoints.Clear();
                 _txtPointMulti.Clear();
 
@@ -354,7 +358,7 @@ namespace Safety_System
                 } catch { }
             };
 
-            // 🟢 多選測點觸發
+            // 多選測點觸發
             _btnPickPoint.Click += (s, e) => {
                 if (_availablePoints.Count == 0) { MessageBox.Show("請先選擇測定日期，或該日期無測點紀錄。"); return; }
                 _txtPointMulti.Text = ShowMultiSelectDialog("選擇檢測名稱 (可複選)", _availablePoints, _txtPointMulti.Text);
@@ -410,7 +414,6 @@ namespace Safety_System
                 MessageBox.Show("資料表不得為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            _currentId = 0; 
             _dtpEvalDate.Value = DateTime.Today;
             _cboCompliance.SelectedIndex = 0;
             _txtTestPurpose.Clear();
@@ -434,13 +437,10 @@ namespace Safety_System
                 if (string.IsNullOrEmpty(dateCol) || string.IsNullOrEmpty(pointCol)) return;
 
                 DataView dv = new DataView(dt);
-                
-                // 🟢 動態組裝 IN 語法以支援多選
                 string dateFilter = string.Join(" OR ", selectedDates.Select(d => $"[{dateCol}] = '{d}'"));
                 string pointFilter = string.Join(" OR ", selectedPoints.Select(p => $"[{pointCol}] = '{p}'"));
                 dv.RowFilter = $"({dateFilter}) AND ({pointFilter})";
 
-                // 🟢 智慧判定「測定用途」
                 foreach (DataRowView drv in dv) {
                     if (drv.Row.Table.Columns.Contains("測定用途") && !string.IsNullOrEmpty(drv["測定用途"].ToString())) {
                         _txtTestPurpose.Text = drv["測定用途"].ToString();
@@ -452,6 +452,12 @@ namespace Safety_System
                     }
                 }
 
+                // 🟢 嘗試從資料庫讀取是否已經有歷史的備註與勾選狀態
+                DataTable dtDetailsHistory = null;
+                if (_currentId > 0) {
+                    dtDetailsHistory = DataManager.GetTableData(EvalDbName, EvalDetailTableName, "", "", "");
+                }
+
                 foreach (DataRowView drv in dv) 
                 {
                     string item = !string.IsNullOrEmpty(itemCol) ? drv[itemCol].ToString() : "";
@@ -459,11 +465,11 @@ namespace Safety_System
                     string method = drv.Row.Table.Columns.Contains("測定方法") ? drv["測定方法"].ToString() : "";
                     string currVal = drv.Row.Table.Columns.Contains("檢測數據") ? drv["檢測數據"].ToString() : "";
                     string note = drv.Row.Table.Columns.Contains("備註") ? drv["備註"].ToString() : "";
+                    bool isChecked = true; 
 
                     string prevVal = "N/A";
                     
                     if (!string.IsNullOrEmpty(item)) {
-                        // 找最近一次的測值 (日期必須小於當下這筆紀錄的日期)
                         string rDate = drv[dateCol].ToString();
                         string rPoint = drv[pointCol].ToString();
 
@@ -475,7 +481,18 @@ namespace Safety_System
                         }
                     }
 
-                    _dgvItems.Rows.Add(true, item, limit, method, prevVal, currVal, note);
+                    // 🟢 如果存在舊的歷史明細，優先使用歷史的備註與勾選狀態覆蓋
+                    if (_currentId > 0 && dtDetailsHistory != null) {
+                        DataView dvHistoryDetail = new DataView(dtDetailsHistory);
+                        dvHistoryDetail.RowFilter = $"[主表Id] = {_currentId} AND [項目] = '{item}'";
+                        if (dvHistoryDetail.Count > 0) {
+                            isChecked = dvHistoryDetail[0]["是否匯出"].ToString() == "1";
+                            string savedNote = dvHistoryDetail[0]["備註"].ToString();
+                            if (!string.IsNullOrEmpty(savedNote)) note = savedNote;
+                        }
+                    }
+
+                    _dgvItems.Rows.Add(isChecked, item, limit, method, prevVal, currVal, note);
                 }
             } 
             catch (Exception ex) {
@@ -488,6 +505,8 @@ namespace Safety_System
             if (string.IsNullOrEmpty(_txtTestDate.Text) || string.IsNullOrEmpty(_txtTestName.Text)) {
                 MessageBox.Show("請先載入檢測數據後再進行存檔！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
+
+            _dgvItems.EndEdit(); // 確保 DataGridView 的編輯狀態已確認
 
             string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
@@ -522,13 +541,42 @@ namespace Safety_System
             targetRow["分析與結果說明"] = _rtbAnalysis.Text;
 
             if (DataManager.BulkSaveTable(EvalDbName, EvalTableName, dtEval)) {
-                MessageBox.Show("評估報告儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
+                // 🟢 取得儲存後的主表 ID
                 DataTable dtCheck = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 foreach (DataRow r in dtCheck.Rows) {
                     if (r["資料庫"].ToString() == dbName && r["資料表"].ToString() == tbName && r["測定日期"].ToString() == _txtTestDate.Text && r["檢測名稱"].ToString() == _txtTestName.Text) {
                         _currentId = Convert.ToInt32(r["Id"]); break;
                     }
+                }
+
+                // 🟢 將表格中的勾選狀態與備註，寫入明細表 (先刪舊的，再新增)
+                try {
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        conn.Open();
+                        using (var trans = conn.BeginTransaction()) {
+                            
+                            using (var cmdDel = new SQLiteCommand($"DELETE FROM [{EvalDetailTableName}] WHERE [主表Id] = @Id", conn, trans)) {
+                                cmdDel.Parameters.AddWithValue("@Id", _currentId);
+                                cmdDel.ExecuteNonQuery();
+                            }
+
+                            string insertSql = $"INSERT INTO [{EvalDetailTableName}] ([主表Id], [項目], [是否匯出], [備註]) VALUES (@Id, @Item, @Exp, @Note)";
+                            foreach (DataGridViewRow row in _dgvItems.Rows) {
+                                using (var cmdIns = new SQLiteCommand(insertSql, conn, trans)) {
+                                    cmdIns.Parameters.AddWithValue("@Id", _currentId);
+                                    cmdIns.Parameters.AddWithValue("@Item", row.Cells["項目"].Value?.ToString() ?? "");
+                                    cmdIns.Parameters.AddWithValue("@Exp", Convert.ToBoolean(row.Cells["匯出"].Value) ? "1" : "0");
+                                    cmdIns.Parameters.AddWithValue("@Note", row.Cells["備註"].Value?.ToString() ?? "");
+                                    cmdIns.ExecuteNonQuery();
+                                }
+                            }
+                            trans.Commit();
+                        }
+                    }
+                    MessageBox.Show("評估報告與備註明細儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } catch (Exception ex) {
+                    MessageBox.Show("明細儲存失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             } else {
                 MessageBox.Show("儲存失敗！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -542,14 +590,23 @@ namespace Safety_System
                 DataTable dt = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 if (dt != null && dt.Columns.Contains("Id")) dt.Columns["Id"].ReadOnly = true;
 
-                Panel pnlFilter = new Panel { Dock = DockStyle.Top, Height = 60, Padding = new Padding(10) };
-                
+                TableLayoutPanel tlpHistory = new TableLayoutPanel {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 3,
+                    Margin = new Padding(0),
+                    Padding = new Padding(0)
+                };
+                tlpHistory.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));  
+                tlpHistory.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  
+                tlpHistory.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));  
+
+                Panel pnlFilter = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
                 Label lblDb = new Label { Text = "篩選資料庫：", AutoSize = true, Location = new Point(15, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
                 ComboBox cbFilterDb = new ComboBox { Location = new Point(125, 15), Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
                 
-                // 🟢 修正：選單間距 +30 (X=330, 485)
-                Label lblTb = new Label { Text = "篩選資料表：", AutoSize = true, Location = new Point(330, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
-                ComboBox cbFilterTb = new ComboBox { Location = new Point(440, 15), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+                Label lblTb = new Label { Text = "篩選資料表：", AutoSize = true, Location = new Point(300, 18), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+                ComboBox cbFilterTb = new ComboBox { Location = new Point(410, 15), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
                 pnlFilter.Controls.AddRange(new Control[] { lblDb, cbFilterDb, lblTb, cbFilterTb });
 
@@ -558,7 +615,6 @@ namespace Safety_System
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect, RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 11F),
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                     BorderStyle = BorderStyle.None,
-                    // 🟢 修正：標題列自動換行與調高
                     ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
                 };
                 
@@ -572,6 +628,21 @@ namespace Safety_System
                 DataView dvHistory = new DataView(dt);
                 dgv.DataSource = dvHistory;
                 if (dgv.Columns.Contains("Id")) dgv.Columns["Id"].Visible = false;
+
+                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+                Button btnLoad = new Button { Text = "✔️ 載入選定報告", Dock = DockStyle.Right, Width = 160, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnLoad.FlatAppearance.BorderSize = 0;
+                Button btnDel = new Button { Text = "❌ 刪除報告", Dock = DockStyle.Left, Width = 140, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnDel.FlatAppearance.BorderSize = 0;
+
+                pnlBottom.Controls.Add(btnDel);
+                pnlBottom.Controls.Add(btnLoad);
+
+                tlpHistory.Controls.Add(pnlFilter, 0, 0);
+                tlpHistory.Controls.Add(dgv, 0, 1);
+                tlpHistory.Controls.Add(pnlBottom, 0, 2);
+
+                f.Controls.Add(tlpHistory);
 
                 cbFilterDb.Items.Add("==全部==");
                 var dbMap = App_DbConfig.GetDbMapCache();
@@ -610,15 +681,6 @@ namespace Safety_System
 
                 cbFilterTb.SelectedIndexChanged += (s, ev) => applyFilter();
 
-                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
-                Button btnLoad = new Button { Text = "✔️ 載入選定報告", Dock = DockStyle.Right, Width = 160, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-                btnLoad.FlatAppearance.BorderSize = 0;
-                Button btnDel = new Button { Text = "❌ 刪除報告", Dock = DockStyle.Left, Width = 140, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-                btnDel.FlatAppearance.BorderSize = 0;
-
-                pnlBottom.Controls.Add(btnDel);
-                pnlBottom.Controls.Add(btnLoad);
-
                 btnLoad.Click += (s, ev) => {
                     if (dgv.SelectedRows.Count > 0) {
                         var row = dgv.SelectedRows[0];
@@ -626,6 +688,8 @@ namespace Safety_System
                         string tbName = row.Cells["資料表"].Value.ToString();
                         string tDate = row.Cells["測定日期"].Value.ToString();
                         string tName = row.Cells["檢測名稱"].Value.ToString();
+                        
+                        _currentId = Convert.ToInt32(row.Cells["Id"].Value);
 
                         foreach (ItemMap item in _cboDb.Items) {
                             if (item.EnName == dbName) { _cboDb.SelectedItem = item; break; }
@@ -635,13 +699,11 @@ namespace Safety_System
                             if (item.EnName == tbName) { _cboTable.SelectedItem = item; break; }
                         }
 
-                        // 🟢 還原多選字串
                         _txtDateMulti.Text = tDate;
                         _txtPointMulti.Text = tName;
 
                         BtnLoadData_Click(null, null);
 
-                        _currentId = Convert.ToInt32(row.Cells["Id"].Value);
                         if (DateTime.TryParse(row.Cells["評估日期"].Value.ToString(), out DateTime dtVal)) _dtpEvalDate.Value = dtVal;
                         _cboCompliance.SelectedItem = row.Cells["符合度"].Value.ToString();
                         _txtTestPurpose.Text = row.Cells["測定用途"].Value.ToString();
@@ -655,6 +717,18 @@ namespace Safety_System
                     if (dgv.SelectedRows.Count > 0 && MessageBox.Show("確定刪除此評估報告？\n(刪除後不可復原)", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                         int id = Convert.ToInt32(dgv.SelectedRows[0].Cells["Id"].Value);
                         DataManager.DeleteRecord(EvalDbName, EvalTableName, id);
+                        
+                        // 同步刪除明細表
+                        try {
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                conn.Open();
+                                using (var cmdDel = new SQLiteCommand($"DELETE FROM [{EvalDetailTableName}] WHERE [主表Id] = @Id", conn)) {
+                                    cmdDel.Parameters.AddWithValue("@Id", id);
+                                    cmdDel.ExecuteNonQuery();
+                                }
+                            }
+                        } catch { }
+
                         dt = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                         dvHistory.Table = dt;
                         applyFilter();
@@ -663,9 +737,6 @@ namespace Safety_System
 
                 dgv.CellDoubleClick += (s, ev) => btnLoad.PerformClick();
 
-                f.Controls.Add(dgv);
-                f.Controls.Add(pnlFilter);
-                f.Controls.Add(pnlBottom);
                 f.ShowDialog();
             }
         }
