@@ -18,12 +18,12 @@ namespace Safety_System
         private ComboBox _cboDb;
         private ComboBox _cboTable;
         
-        // 多選控制項
-        private TextBox _txtDateMulti;
-        private Button _btnPickDate;
+        // 🟢 測定日期改回單選 ComboBox
+        private ComboBox _cboDate;
+        
+        // 檢測點保留多選控制項
         private TextBox _txtPointMulti;
         private Button _btnPickPoint;
-        private List<string> _availableDates = new List<string>();
         private List<string> _availablePoints = new List<string>();
         
         // 框2: 表單區控制項
@@ -37,8 +37,7 @@ namespace Safety_System
 
         private const string EvalDbName = "TestData";
         private const string EvalTableName = "TestReportEvaluations";
-        // 🟢 新增：專門記錄每一列「備註」與「勾選」的明細表名稱
-        private const string EvalDetailTableName = "TestReportEvaluationDetails";
+        private const string EvalDetailTableName = "TestReportEvaluationDetails"; 
         
         private int _currentId = 0;
 
@@ -53,7 +52,6 @@ namespace Safety_System
             string schema = TableSchemaManager.SchemaMap.ContainsKey(EvalTableName) ? TableSchemaManager.SchemaMap[EvalTableName] : "[資料庫] TEXT, [資料表] TEXT, [測定日期] TEXT, [檢測名稱] TEXT, [評估日期] TEXT, [符合度] TEXT, [測定用途] TEXT, [分析與結果說明] TEXT, [最後修改人] TEXT, [修改時間] TEXT";
             DataManager.InitTable(EvalDbName, EvalTableName, $"CREATE TABLE IF NOT EXISTS [{EvalTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
 
-            // 🟢 新增明細表，綁定主表 Id，並記錄每一列的項目名稱、勾選狀態與備註
             string detailSchema = "[主表Id] INTEGER, [項目] TEXT, [是否匯出] TEXT, [備註] TEXT";
             DataManager.InitTable(EvalDbName, EvalDetailTableName, $"CREATE TABLE IF NOT EXISTS [{EvalDetailTableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {detailSchema});");
 
@@ -69,12 +67,8 @@ namespace Safety_System
             _cboDb = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             _cboTable = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 多選日期 UI 組合
-            Panel pnlDate = new Panel { Width = 180, Height = 35, Margin = new Padding(0) };
-            _txtDateMulti = new TextBox { Width = 145, ReadOnly = true, Font = new Font("Microsoft JhengHei UI", 12F), Location = new Point(0, 2), BackColor = Color.White };
-            _btnPickDate = new Button { Text = "▼", Width = 35, Height = 30, Location = new Point(145, 0), Cursor = Cursors.Hand, BackColor = Color.LightGray, FlatStyle = FlatStyle.Flat };
-            _btnPickDate.FlatAppearance.BorderSize = 0;
-            pnlDate.Controls.Add(_txtDateMulti); pnlDate.Controls.Add(_btnPickDate);
+            // 🟢 日期改為單選下拉選單
+            _cboDate = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
             // 多選測點 UI 組合
             Panel pnlPoint = new Panel { Width = 230, Height = 35, Margin = new Padding(0) };
@@ -90,7 +84,7 @@ namespace Safety_System
             flpRow1.Controls.AddRange(new Control[] {
                 new Label { Text = "資料庫:", AutoSize = true, Margin = new Padding(10,5,5,0) }, _cboDb,
                 new Label { Text = "資料表:", AutoSize = true, Margin = new Padding(15,5,5,0) }, _cboTable,
-                new Label { Text = "測定日期(可複選):", AutoSize = true, Margin = new Padding(15,5,5,0) }, pnlDate,
+                new Label { Text = "測定日期(單選):", AutoSize = true, Margin = new Padding(15,5,5,0) }, _cboDate,
                 new Label { Text = "檢測點(可複選):", AutoSize = true, Margin = new Padding(15,5,5,0) }, pnlPoint,
                 new Panel { Width=10, Height=1 }, btnLoadData
             });
@@ -193,7 +187,6 @@ namespace Safety_System
             _dgvItems.Columns.Add("本次測值", "本次測值");
             _dgvItems.Columns.Add("備註", "備註");
 
-            // 🟢 只允許 Checkbox 與 備註 進行編輯
             foreach (DataGridViewColumn col in _dgvItems.Columns) {
                 if (col.Name != "匯出" && col.Name != "備註") col.ReadOnly = true;
             }
@@ -272,9 +265,8 @@ namespace Safety_System
 
             _cboDb.SelectedIndexChanged += (s, e) => {
                 _cboTable.Items.Clear();
-                _txtDateMulti.Clear();
+                _cboDate.Items.Clear();
                 _txtPointMulti.Clear();
-                _availableDates.Clear();
                 _availablePoints.Clear();
 
                 if (_cboDb.SelectedItem == null) return;
@@ -295,9 +287,8 @@ namespace Safety_System
             };
 
             _cboTable.SelectedIndexChanged += (s, e) => {
-                _txtDateMulti.Clear();
+                _cboDate.Items.Clear();
                 _txtPointMulti.Clear();
-                _availableDates.Clear();
                 _availablePoints.Clear();
 
                 if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) return;
@@ -318,27 +309,26 @@ namespace Safety_System
                                 dates.Add(r[dateCol].ToString());
                             }
                         }
-                        _availableDates = new List<string>(dates);
-                        _availableDates.Sort();
-                        _availableDates.Reverse(); 
+                        var sortedDates = new List<string>(dates);
+                        sortedDates.Sort();
+                        sortedDates.Reverse(); 
+                        foreach(var d in sortedDates) _cboDate.Items.Add(d);
                     }
                 } catch { }
+
+                if (_cboDate.Items.Count > 0) _cboDate.SelectedIndex = 0;
             };
 
-            // 多選日期觸發
-            _btnPickDate.Click += (s, e) => {
-                if (_availableDates.Count == 0) { MessageBox.Show("請先選擇資料表，或該表尚無日期紀錄。"); return; }
-                
-                _txtDateMulti.Text = ShowMultiSelectDialog("選擇測定日期 (可複選)", _availableDates, _txtDateMulti.Text);
-                
+            // 🟢 單選日期觸發：選擇日期後，撈出對應的檢測點清單
+            _cboDate.SelectedIndexChanged += (s, e) => {
                 _availablePoints.Clear();
                 _txtPointMulti.Clear();
 
-                if (string.IsNullOrEmpty(_txtDateMulti.Text)) return;
+                if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null) return;
 
                 string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
-                string[] selectedDates = _txtDateMulti.Text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
+                string dateStr = _cboDate.SelectedItem.ToString();
 
                 try {
                     DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
@@ -348,8 +338,7 @@ namespace Safety_System
                     if (!string.IsNullOrEmpty(dateCol) && !string.IsNullOrEmpty(pointCol)) {
                         var points = new HashSet<string>();
                         foreach (DataRow r in dt.Rows) {
-                            string rDate = r[dateCol].ToString();
-                            if (selectedDates.Contains(rDate) && r[pointCol] != DBNull.Value && !string.IsNullOrEmpty(r[pointCol].ToString())) {
+                            if (r[dateCol].ToString() == dateStr && r[pointCol] != DBNull.Value && !string.IsNullOrEmpty(r[pointCol].ToString())) {
                                 points.Add(r[pointCol].ToString());
                             }
                         }
@@ -360,6 +349,7 @@ namespace Safety_System
 
             // 多選測點觸發
             _btnPickPoint.Click += (s, e) => {
+                _currentId = 0; 
                 if (_availablePoints.Count == 0) { MessageBox.Show("請先選擇測定日期，或該日期無測點紀錄。"); return; }
                 _txtPointMulti.Text = ShowMultiSelectDialog("選擇檢測名稱 (可複選)", _availablePoints, _txtPointMulti.Text);
             };
@@ -404,7 +394,7 @@ namespace Safety_System
 
         private void BtnLoadData_Click(object sender, EventArgs e)
         {
-            if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || string.IsNullOrEmpty(_txtDateMulti.Text) || string.IsNullOrEmpty(_txtPointMulti.Text)) {
+            if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null || string.IsNullOrEmpty(_txtPointMulti.Text)) {
                 MessageBox.Show("請確認資料庫、資料表、日期與檢測名稱(點)皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
@@ -414,15 +404,17 @@ namespace Safety_System
                 MessageBox.Show("資料表不得為空！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            _dtpEvalDate.Value = DateTime.Today;
-            _cboCompliance.SelectedIndex = 0;
-            _txtTestPurpose.Clear();
-            _rtbAnalysis.Clear();
+            if (_currentId == 0) {
+                _dtpEvalDate.Value = DateTime.Today;
+                _cboCompliance.SelectedIndex = 0;
+                _txtTestPurpose.Clear();
+                _rtbAnalysis.Clear();
+            }
 
-            string[] selectedDates = _txtDateMulti.Text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
+            string dateStr = _cboDate.SelectedItem.ToString();
             string[] selectedPoints = _txtPointMulti.Text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
 
-            _txtTestDate.Text = string.Join(", ", selectedDates);
+            _txtTestDate.Text = dateStr;
             _txtTestName.Text = string.Join(", ", selectedPoints);
             _dgvItems.Rows.Clear();
 
@@ -437,22 +429,25 @@ namespace Safety_System
                 if (string.IsNullOrEmpty(dateCol) || string.IsNullOrEmpty(pointCol)) return;
 
                 DataView dv = new DataView(dt);
-                string dateFilter = string.Join(" OR ", selectedDates.Select(d => $"[{dateCol}] = '{d}'"));
+                
+                // 🟢 組合過濾條件 (單選日期 + 多選測點)
                 string pointFilter = string.Join(" OR ", selectedPoints.Select(p => $"[{pointCol}] = '{p}'"));
-                dv.RowFilter = $"({dateFilter}) AND ({pointFilter})";
+                dv.RowFilter = $"[{dateCol}] = '{dateStr}' AND ({pointFilter})";
 
-                foreach (DataRowView drv in dv) {
-                    if (drv.Row.Table.Columns.Contains("測定用途") && !string.IsNullOrEmpty(drv["測定用途"].ToString())) {
-                        _txtTestPurpose.Text = drv["測定用途"].ToString();
-                        break;
-                    }
-                    else if (drv.Row.Table.Columns.Contains("用途") && !string.IsNullOrEmpty(drv["用途"].ToString())) {
-                        _txtTestPurpose.Text = drv["用途"].ToString();
-                        break;
+                // 自動帶入測定用途
+                if (_currentId == 0) {
+                    foreach (DataRowView drv in dv) {
+                        if (drv.Row.Table.Columns.Contains("測定用途") && !string.IsNullOrEmpty(drv["測定用途"].ToString())) {
+                            _txtTestPurpose.Text = drv["測定用途"].ToString();
+                            break;
+                        }
+                        else if (drv.Row.Table.Columns.Contains("用途") && !string.IsNullOrEmpty(drv["用途"].ToString())) {
+                            _txtTestPurpose.Text = drv["用途"].ToString();
+                            break;
+                        }
                     }
                 }
 
-                // 🟢 嘗試從資料庫讀取是否已經有歷史的備註與勾選狀態
                 DataTable dtDetailsHistory = null;
                 if (_currentId > 0) {
                     dtDetailsHistory = DataManager.GetTableData(EvalDbName, EvalDetailTableName, "", "", "");
@@ -481,7 +476,6 @@ namespace Safety_System
                         }
                     }
 
-                    // 🟢 如果存在舊的歷史明細，優先使用歷史的備註與勾選狀態覆蓋
                     if (_currentId > 0 && dtDetailsHistory != null) {
                         DataView dvHistoryDetail = new DataView(dtDetailsHistory);
                         dvHistoryDetail.RowFilter = $"[主表Id] = {_currentId} AND [項目] = '{item}'";
@@ -542,7 +536,6 @@ namespace Safety_System
 
             if (DataManager.BulkSaveTable(EvalDbName, EvalTableName, dtEval)) {
                 
-                // 🟢 取得儲存後的主表 ID
                 DataTable dtCheck = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 foreach (DataRow r in dtCheck.Rows) {
                     if (r["資料庫"].ToString() == dbName && r["資料表"].ToString() == tbName && r["測定日期"].ToString() == _txtTestDate.Text && r["檢測名稱"].ToString() == _txtTestName.Text) {
@@ -550,9 +543,9 @@ namespace Safety_System
                     }
                 }
 
-                // 🟢 將表格中的勾選狀態與備註，寫入明細表 (先刪舊的，再新增)
                 try {
-                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    string dbPath = Path.Combine(DataManager.BasePath, EvalDbName + ".sqlite");
+                    using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;")) {
                         conn.Open();
                         using (var trans = conn.BeginTransaction()) {
                             
@@ -688,8 +681,6 @@ namespace Safety_System
                         string tbName = row.Cells["資料表"].Value.ToString();
                         string tDate = row.Cells["測定日期"].Value.ToString();
                         string tName = row.Cells["檢測名稱"].Value.ToString();
-                        
-                        _currentId = Convert.ToInt32(row.Cells["Id"].Value);
 
                         foreach (ItemMap item in _cboDb.Items) {
                             if (item.EnName == dbName) { _cboDb.SelectedItem = item; break; }
@@ -699,11 +690,16 @@ namespace Safety_System
                             if (item.EnName == tbName) { _cboTable.SelectedItem = item; break; }
                         }
 
-                        _txtDateMulti.Text = tDate;
+                        // 🟢 恢復還原單選日期的值
+                        _cboDate.Items.Clear();
+                        _cboDate.Items.Add(tDate);
+                        _cboDate.SelectedIndex = 0;
+
                         _txtPointMulti.Text = tName;
 
                         BtnLoadData_Click(null, null);
 
+                        _currentId = Convert.ToInt32(row.Cells["Id"].Value);
                         if (DateTime.TryParse(row.Cells["評估日期"].Value.ToString(), out DateTime dtVal)) _dtpEvalDate.Value = dtVal;
                         _cboCompliance.SelectedItem = row.Cells["符合度"].Value.ToString();
                         _txtTestPurpose.Text = row.Cells["測定用途"].Value.ToString();
@@ -718,9 +714,9 @@ namespace Safety_System
                         int id = Convert.ToInt32(dgv.SelectedRows[0].Cells["Id"].Value);
                         DataManager.DeleteRecord(EvalDbName, EvalTableName, id);
                         
-                        // 同步刪除明細表
                         try {
-                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            string dbPath = Path.Combine(DataManager.BasePath, EvalDbName + ".sqlite");
+                            using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;")) {
                                 conn.Open();
                                 using (var cmdDel = new SQLiteCommand($"DELETE FROM [{EvalDetailTableName}] WHERE [主表Id] = @Id", conn)) {
                                     cmdDel.Parameters.AddWithValue("@Id", id);
