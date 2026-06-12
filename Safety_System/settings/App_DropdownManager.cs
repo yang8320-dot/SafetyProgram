@@ -46,6 +46,8 @@ namespace Safety_System
         private Dictionary<string, bool> _configuredDbs = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredTables = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredCols = new Dictionary<string, bool>();
+        // 🟢 新增：用於記錄連動下拉選單的「層級 (1~4層)」
+        private Dictionary<string, int> _configuredColLevels = new Dictionary<string, int>();
 
         private bool _isRevertingDb = false;
         private bool _isRevertingCol = false;
@@ -133,6 +135,11 @@ namespace Safety_System
             _configuredDbs.Clear();
             _configuredTables.Clear();
             _configuredCols.Clear();
+            _configuredColLevels.Clear();
+
+            Dictionary<string, string> parentMap = new Dictionary<string, string>();
+            HashSet<string> allConfigured = new HashSet<string>();
+
             try 
             {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) 
@@ -150,24 +157,45 @@ namespace Safety_System
                             string col = reader["ColName"].ToString();
                             string pCol = reader["ParentColName"].ToString();
 
-                            bool isLinked = !string.IsNullOrEmpty(pCol);
-
-                            if (!_configuredTables.ContainsKey(tb)) _configuredTables[tb] = false;
-                            if (isLinked) _configuredTables[tb] = true;
-
                             string colKey = $"{tb}_{col}";
-                            if (!_configuredCols.ContainsKey(colKey)) _configuredCols[colKey] = false;
-                            if (isLinked) _configuredCols[colKey] = true;
+                            allConfigured.Add(colKey);
+                            _configuredTables[tb] = false; 
 
-                            if (isLinked) 
+                            if (!string.IsNullOrEmpty(pCol)) 
                             {
                                 string pColKey = $"{tb}_{pCol}";
-                                _configuredCols[pColKey] = true; 
+                                parentMap[colKey] = pColKey;
+                                allConfigured.Add(pColKey);
                             }
                         }
                     }
                 }
                 
+                // 🟢 計算層級與連動狀態
+                foreach (string colKey in allConfigured) 
+                {
+                    bool isLinked = parentMap.ContainsKey(colKey) || parentMap.Values.Contains(colKey);
+                    _configuredCols[colKey] = isLinked;
+
+                    string tb = colKey.Split('_')[0];
+                    if (isLinked) 
+                    {
+                        _configuredTables[tb] = true;
+                        
+                        int level = 1;
+                        string curr = colKey;
+                        int safeguard = 0;
+                        // 往上追朔父層，計算自己在第幾層
+                        while (parentMap.ContainsKey(curr)) 
+                        {
+                            level++;
+                            curr = parentMap[curr];
+                            if (safeguard++ > 10) break;
+                        }
+                        _configuredColLevels[colKey] = level;
+                    }
+                }
+
                 if (_dbMap != null) 
                 {
                     foreach(var kvp in _dbMap) 
@@ -297,7 +325,6 @@ namespace Safety_System
                 Label lParent = new Label { Text = "觸發條件 (父層選擇值)：", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,0,0,5) };
                 _cboParentVals[i] = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0,0,0,15) };
                 
-                // 🟢 【修改排版】：將文字與四個按鈕緊密靠左並排
                 FlowLayoutPanel flpOptHeader = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0,0,0,5), WrapContents = false };
                 Label lOpt = new Label { Text = "自訂選項內容：", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0,5,2,0) };
                 
@@ -323,9 +350,9 @@ namespace Safety_System
                     AllowUserToAddRows = true, 
                     AllowUserToDeleteRows = true,
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
-                    RowHeadersVisible = true, // 打開把手讓使用者可拖曳
+                    RowHeadersVisible = true, 
                     RowHeadersWidth = 35,
-                    EditMode = DataGridViewEditMode.EditOnEnter, // 一鍵直接打字
+                    EditMode = DataGridViewEditMode.EditOnEnter, 
                     BackgroundColor = Color.WhiteSmoke,
                     RowTemplate = { Height = 45 } 
                 };
@@ -389,7 +416,6 @@ namespace Safety_System
             DataGridView dgv = (DataGridView)sender;
             var hit = dgv.HitTest(e.X, e.Y);
             
-            // 只有點擊在最左側的列首(Row Header)，而且不是新增列，才啟動拖曳
             if (hit.RowIndex >= 0 && hit.ColumnIndex == -1 && !dgv.Rows[hit.RowIndex].IsNewRow)
             {
                 _dragFromRowIndex = hit.RowIndex;
@@ -409,7 +435,6 @@ namespace Safety_System
                 if (_dragBox != Rectangle.Empty && !_dragBox.Contains(e.X, e.Y))
                 {
                     DataGridView dgv = (DataGridView)sender;
-                    // 將選中的行包裝放入 DragDrop 資料中
                     dgv.DoDragDrop(dgv.Rows[_dragFromRowIndex], DragDropEffects.Move);
                 }
             }
@@ -428,7 +453,6 @@ namespace Safety_System
             
             int targetRowIndex = hit.RowIndex;
 
-            // 防呆：如果拖到空白處或新增列，把它排在最後面
             if (targetRowIndex < 0 || targetRowIndex >= dgv.Rows.Count - 1) 
             {
                 targetRowIndex = dgv.Rows.Count - 2; 
@@ -441,7 +465,7 @@ namespace Safety_System
 
                 if (sourceRowIndex != targetRowIndex && targetRowIndex >= 0 && sourceRowIndex >= 0)
                 {
-                    dgv.EndEdit(); // 確保無編輯狀態
+                    dgv.EndEdit(); 
                     dgv.Rows.RemoveAt(sourceRowIndex);
                     dgv.Rows.Insert(targetRowIndex, dragRow);
                     dgv.ClearSelection();
@@ -500,7 +524,6 @@ namespace Safety_System
                         {
                             using (Image img = Image.FromFile(ofd.FileName))
                             {
-                                // 🟢 強制縮放為 24x24 確保高畫質
                                 using (Bitmap bmp = new Bitmap(24, 24))
                                 {
                                     using (Graphics g = Graphics.FromImage(bmp))
@@ -603,7 +626,6 @@ namespace Safety_System
             Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
             pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
             
-            // 🟢 【修改排版】：將文字與三個按鈕緊密靠左並排
             FlowLayoutPanel flpMultiOptHeader = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 0, 0, 10), WrapContents = false };
             Label l4 = new Label { Text = "自訂選項內容：", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, AutoSize = true, Margin = new Padding(0, 5, 2, 0) };
             
@@ -629,9 +651,9 @@ namespace Safety_System
                 AllowUserToAddRows = true, 
                 AllowUserToDeleteRows = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
-                RowHeadersVisible = true, // 打開把手讓使用者可拖曳
+                RowHeadersVisible = true, 
                 RowHeadersWidth = 35,
-                EditMode = DataGridViewEditMode.EditOnEnter, // 一鍵直接打字
+                EditMode = DataGridViewEditMode.EditOnEnter, 
                 BackgroundColor = Color.WhiteSmoke,
                 RowTemplate = { Height = 45 }
             };
@@ -789,6 +811,7 @@ namespace Safety_System
             DrawComboBoxItem(_cboTable, e, isConfig, isLinked, false);
         }
 
+        // 🟢 修改點：支援讀取 level，並傳入繪圖引擎
         private void CboCols_DrawItem(object sender, DrawItemEventArgs e, int colIndex) {
             if (e.Index < 0) return;
             string colName = _cboCols[colIndex].Items[e.Index].ToString();
@@ -797,24 +820,35 @@ namespace Safety_System
             bool isConfig = false;
             bool isLinked = false;
             bool isOtherConfig = false; 
+            int level = 0;
             
             string key = $"{tbName}_{colName}";
             if (!string.IsNullOrEmpty(colName) && _configuredCols.ContainsKey(key)) {
-                isConfig = true; isLinked = _configuredCols[key];
+                isConfig = true; 
+                isLinked = _configuredCols[key];
+                if (_configuredColLevels.ContainsKey(key)) {
+                    level = _configuredColLevels[key];
+                }
             } else if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
                 if (MultiSelectCache.ContainsKey($"{tbName}|{colName}")) {
                     isOtherConfig = true;
                 }
             }
-            DrawComboBoxItem(_cboCols[colIndex], e, isConfig, isLinked, isOtherConfig);
+            DrawComboBoxItem(_cboCols[colIndex], e, isConfig, isLinked, isOtherConfig, level);
         }
 
-        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked, bool isOtherConfigured) {
+        // 🟢 修改點：加入 level 參數，並在 isLinked 狀態下動態附加 (第 X 層)
+        private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked, bool isOtherConfigured, int level = 0) {
             if (e.Index < 0) return;
 
             Brush bgBrush = Brushes.White;
             Brush textBrush = Brushes.Black;
             Font currentFont = e.Font;
+            
+            string displayText = cbo.Items[e.Index].ToString();
+            if (isLinked && level > 0) {
+                displayText += $" (第{level}層)";
+            }
 
             if ((e.State & DrawItemState.Selected) == DrawItemState.Selected) {
                 bgBrush = SystemBrushes.Highlight;
@@ -832,7 +866,7 @@ namespace Safety_System
             }
             
             e.Graphics.FillRectangle(bgBrush, e.Bounds);
-            e.Graphics.DrawString(cbo.Items[e.Index].ToString(), currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
+            e.Graphics.DrawString(displayText, currentFont, textBrush, new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width, e.Bounds.Height));
             e.DrawFocusRectangle();
         }
 
@@ -1412,7 +1446,6 @@ namespace Safety_System
         {
             if (MessageBox.Show("【極度危險】\n您確定要永久刪除資料庫中「所有」的組合文字(複選)設定嗎？\n此操作無法復原！", "永久刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Stop) == DialogResult.Yes)
             {
-                // 🟢 這是永久刪除整個 DB 設定的毀滅性操作，保留密碼驗證
                 string authPrompt = "清除設定資料需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (!AuthManager.VerifyAdmin(authPrompt)) return;
 
