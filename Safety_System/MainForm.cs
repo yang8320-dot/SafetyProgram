@@ -258,37 +258,37 @@ namespace Safety_System
             menuTest.DropDownItems.Add(CreateItem("G31 其它檢測數據", () => new App_CoreTable("TestData", "OtherTests", "其它檢測數據", new DefaultLogic()).GetView()));
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
-            menuEdu.DropDownItems.Add(CreateItem("教育訓練看板", () => new App_EduDashboard().GetView()));
+            menuEdu.DropDownItems.Add(CreateItem("H11 教育訓練看板", () => new App_EduDashboard().GetView()));
             menuEdu.DropDownItems.Add(new ToolStripSeparator());
-            menuEdu.DropDownItems.Add(CreateItem("訓練時數", () => new App_CoreTable("教育訓練", "訓練時數", "教育訓練時數", new DefaultLogic()).GetView()));
+            menuEdu.DropDownItems.Add(CreateItem("H21 訓練時數", () => new App_CoreTable("教育訓練", "訓練時數", "教育訓練時數", new DefaultLogic()).GetView()));
 
             var menuLaw = new ToolStripMenuItem("法規");
-            menuLaw.DropDownItems.Add(CreateItem("法規看板", () => new App_LawDashboard().GetView()));
+            menuLaw.DropDownItems.Add(CreateItem("I11 法規看板", () => new App_LawDashboard().GetView()));
             menuLaw.DropDownItems.Add(new ToolStripSeparator());
-            menuLaw.DropDownItems.Add(CreateLawItem("法規", "環保法規"));
-            menuLaw.DropDownItems.Add(CreateLawItem("法規", "職安衛法規"));
-            menuLaw.DropDownItems.Add(CreateLawItem("法規", "消防法規"));
-            menuLaw.DropDownItems.Add(CreateLawItem("法規", "其它法規"));
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "I21 環保法規"));
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "I22 職安衛法規"));
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "I23 消防法規"));
+            menuLaw.DropDownItems.Add(CreateLawItem("法規", "I24 其它法規"));
 
             var menuESG = new ToolStripMenuItem("ESG");
-            menuESG.DropDownItems.Add(CreateItem("ESG看板", () => new App_ESGDashboard().GetView())); 
+            menuESG.DropDownItems.Add(CreateItem("J11 ESG看板", () => new App_ESGDashboard().GetView())); 
             menuESG.DropDownItems.Add(new ToolStripSeparator());
-            menuESG.DropDownItems.Add(CreateItem("ESG績效管理", () => new App_CoreTable("ESG", "ESG_Performance", "ESG績效管理", new DefaultLogic()).GetView()));
-            menuESG.DropDownItems.Add(CreateItem("職業安全", () => new App_CoreTable("ESG", "ESG_OccupationalSafety", "職業安全", new DefaultLogic()).GetView()));
-            menuESG.DropDownItems.Add(CreateItem("健康衛生", () => new App_CoreTable("ESG", "ESG_HealthHygiene", "健康衛生", new DefaultLogic()).GetView()));
-            menuESG.DropDownItems.Add(CreateItem("環境與氣侯", () => new App_CoreTable("ESG", "ESG_EnvironmentClimate", "環境與氣侯", new DefaultLogic()).GetView()));
-            menuESG.DropDownItems.Add(CreateItem("消防與韌性", () => new App_CoreTable("ESG", "ESG_FireResilience", "消防與韌性", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("J21 ESG績效管理", () => new App_CoreTable("ESG", "ESG_Performance", "ESG績效管理", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("J22 職業安全", () => new App_CoreTable("ESG", "ESG_OccupationalSafety", "職業安全", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("J23 健康衛生", () => new App_CoreTable("ESG", "ESG_HealthHygiene", "健康衛生", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("J24 環境與氣侯", () => new App_CoreTable("ESG", "ESG_EnvironmentClimate", "環境與氣侯", new DefaultLogic()).GetView()));
+            menuESG.DropDownItems.Add(CreateItem("J25 消防與韌性", () => new App_CoreTable("ESG", "ESG_FireResilience", "消防與韌性", new DefaultLogic()).GetView()));
 
             var menuISO = new ToolStripMenuItem("ISO14001");
-            menuISO.DropDownItems.Add(CreateItem("ISO看板", () => new App_ISODashboard().GetView()));
+            menuISO.DropDownItems.Add(CreateItem("K11 ISO看板", () => new App_ISODashboard().GetView()));
             menuISO.DropDownItems.Add(new ToolStripSeparator());
-            menuISO.DropDownItems.Add(CreateItem("目標管理", () => new App_CoreTable("ISO14001", "TargetManagement", "目標管理", new DefaultLogic()).GetView()));
+            menuISO.DropDownItems.Add(CreateItem("K21 目標管理", () => new App_CoreTable("ISO14001", "TargetManagement", "目標管理", new DefaultLogic()).GetView()));
             
             var menuISOComm = new ToolStripMenuItem("環境溝通");
-            menuISOComm.DropDownItems.Add(CreateItem("環境資訊接收管制表", () => new App_CoreTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表", new DefaultLogic()).GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("內文聯絡書管制表", () => new App_CoreTable("ISO14001", "InternalComm", "內文聯絡書管制表", new DefaultLogic()).GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("郵件收文管制表", () => new App_CoreTable("ISO14001", "MailReceive", "郵件收文管制表", new DefaultLogic()).GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("J21 環境資訊接收管制表", () => new App_CoreTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("J22 內文聯絡書管制表", () => new App_CoreTable("ISO14001", "InternalComm", "內文聯絡書管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("J23 郵件收文管制表", () => new App_CoreTable("ISO14001", "MailReceive", "郵件收文管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("J24 來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
             menuISO.DropDownItems.Add(menuISOComm);
 
             var menuApp = new ToolStripMenuItem("應用");
