@@ -285,10 +285,10 @@ namespace Safety_System
             menuISO.DropDownItems.Add(CreateItem("K21 目標管理", () => new App_CoreTable("ISO14001", "TargetManagement", "目標管理", new DefaultLogic()).GetView()));
             
             var menuISOComm = new ToolStripMenuItem("環境溝通");
-            menuISOComm.DropDownItems.Add(CreateItem("J21 環境資訊接收管制表", () => new App_CoreTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表", new DefaultLogic()).GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("J22 內文聯絡書管制表", () => new App_CoreTable("ISO14001", "InternalComm", "內文聯絡書管制表", new DefaultLogic()).GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("J23 郵件收文管制表", () => new App_CoreTable("ISO14001", "MailReceive", "郵件收文管制表", new DefaultLogic()).GetView()));
-            menuISOComm.DropDownItems.Add(CreateItem("J24 來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("K31 環境資訊接收管制表", () => new App_CoreTable("ISO14001", "EnvInfoReceive", "環境資訊接收管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("K32 內文聯絡書管制表", () => new App_CoreTable("ISO14001", "InternalComm", "內文聯絡書管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("K33 郵件收文管制表", () => new App_CoreTable("ISO14001", "MailReceive", "郵件收文管制表", new DefaultLogic()).GetView()));
+            menuISOComm.DropDownItems.Add(CreateItem("K34 來賓拜訪紀錄表", () => new App_CoreTable("ISO14001", "VisitorRecord", "來賓拜訪紀錄表", new DefaultLogic()).GetView()));
             menuISO.DropDownItems.Add(menuISOComm);
 
             var menuApp = new ToolStripMenuItem("應用");
