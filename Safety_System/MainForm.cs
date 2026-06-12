@@ -313,7 +313,7 @@ namespace Safety_System
 
             var menuSettings = new ToolStripMenuItem("設定");
 
-            var dbConfigItem = new ToolStripMenuItem("資料庫設定");
+            var dbConfigItem = new ToolStripMenuItem("Z11 資料庫設定");
             dbConfigItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -324,11 +324,11 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(dbConfigItem);
 
-            var restoreDbItem = new ToolStripMenuItem("資料庫還原");
+            var restoreDbItem = new ToolStripMenuItem("Z12 資料庫還原");
             restoreDbItem.Click += (s, e) => ShowDatabaseRestoreDialog();
             menuSettings.DropDownItems.Add(restoreDbItem);
 
-            var menuManagerItem = new ToolStripMenuItem("選單管理 (自訂擴充)");
+            var menuManagerItem = new ToolStripMenuItem("Z13 選單管理 (自訂擴充)");
             menuManagerItem.Click += (s, e) => {
                 string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
                 if (AuthManager.VerifyAdmin(prompt)) {
@@ -337,7 +337,7 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
-            var dropdownItem = new ToolStripMenuItem("下拉選單與連動設定");
+            var dropdownItem = new ToolStripMenuItem("Z14 下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -350,7 +350,7 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var permissionItem = new ToolStripMenuItem("權限設定");
+            var permissionItem = new ToolStripMenuItem("Z15 權限設定");
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
@@ -361,7 +361,7 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var reminderSettingItem = new ToolStripMenuItem("系統提醒設定");
+            var reminderSettingItem = new ToolStripMenuItem("Z16 系統提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -374,7 +374,7 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator());
 
-            var appLinkSettingItem = new ToolStripMenuItem("應用連結設定");
+            var appLinkSettingItem = new ToolStripMenuItem("Z17 應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
                 try {
                     string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -390,7 +390,7 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var cleanupItem = new ToolStripMenuItem("附件檔案空間清理");
+            var cleanupItem = new ToolStripMenuItem("Z18 附件檔案空間清理");
             cleanupItem.Click += (s, e) => {
                 try {
                     string prompt = "執行空間清理需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
@@ -403,7 +403,7 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            var flowChartItem = new ToolStripMenuItem("系統流程圖");
+            var flowChartItem = new ToolStripMenuItem("Z19 系統流程圖");
             flowChartItem.Click += (s, e) => {
                 try {
                     ForceEndCurrentEdit(); 
@@ -414,16 +414,16 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(flowChartItem);
 
-            var instructionItem = CreateItem("操作說明", () => new App_Instruction().GetView());
+            var instructionItem = CreateItem("Z20 操作說明", () => new App_Instruction().GetView());
             menuSettings.DropDownItems.Add(instructionItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
             
-            var unlockMenuItem = new ToolStripMenuItem("開啟個人隱藏選單");
+            var unlockMenuItem = new ToolStripMenuItem("Z21 開啟個人隱藏選單");
             unlockMenuItem.Click += UnlockMenu_Click;
             menuSettings.DropDownItems.Add(unlockMenuItem);
 
-            var pwdMgmtItem = new ToolStripMenuItem("變更個人選單密碼");
+            var pwdMgmtItem = new ToolStripMenuItem("Z22 變更個人選單密碼");
             pwdMgmtItem.Click += (s, e) => {
                 new App_PasswordManager().ShowDialog(this);
             };
