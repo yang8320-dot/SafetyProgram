@@ -190,34 +190,50 @@ namespace Safety_System
             return new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), BackColor = Color.WhiteSmoke };
         }
 
+        // =======================================================
+        // 🟢 智慧型連動下拉選單，動態判定欄位名稱
+        // =======================================================
         private void InitDropdowns()
         {
-            _cboDb.Items.Add(new ItemMap { EnName = "TestData", ChName = "檢測數據" });
-            _cboDb.SelectedIndex = 0;
+            var dbMap = App_DbConfig.GetDbMapCache();
 
+            // 1. 綁定資料庫變更事件
             _cboDb.SelectedIndexChanged += (s, e) => {
                 _cboTable.Items.Clear();
-                var dbMap = App_DbConfig.GetDbMapCache();
-                if (dbMap.ContainsKey("TestData")) {
-                    foreach (var tb in dbMap["TestData"].Tables) {
-                        _cboTable.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                _cboDate.Items.Clear();
+                _cboPoint.Items.Clear();
+                if (_cboDb.SelectedItem == null) return;
+                
+                string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
+                if (dbMap.ContainsKey(dbName)) {
+                    foreach (var tb in dbMap[dbName].Tables) {
+                        if (tb.Key != EvalTableName) { // 排除評估表本身
+                            _cboTable.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                        }
                     }
                 }
+                if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
             };
 
+            // 2. 綁定資料表變更事件
             _cboTable.SelectedIndexChanged += (s, e) => {
                 _cboDate.Items.Clear();
                 _cboPoint.Items.Clear();
-                if (_cboTable.SelectedItem == null) return;
+                if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null) return;
+                
+                string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
                 
                 try {
-                    DataTable dt = DataManager.GetTableData("TestData", tbName, "", "", "");
-                    if (dt != null && dt.Columns.Contains("日期") && dt.Columns.Contains("檢測點")) {
+                    DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
+                    string dateCol = GetDateColumnName(dt);
+                    string pointCol = GetPointColumnName(dt);
+                    
+                    if (!string.IsNullOrEmpty(dateCol) && !string.IsNullOrEmpty(pointCol)) {
                         var dates = new HashSet<string>();
                         foreach (DataRow r in dt.Rows) {
-                            if (r["日期"] != DBNull.Value && !string.IsNullOrEmpty(r["日期"].ToString())) {
-                                dates.Add(r["日期"].ToString());
+                            if (r[dateCol] != DBNull.Value && !string.IsNullOrEmpty(r[dateCol].ToString())) {
+                                dates.Add(r[dateCol].ToString());
                             }
                         }
                         var sortedDates = new List<string>(dates);
@@ -226,35 +242,85 @@ namespace Safety_System
                         foreach(var d in sortedDates) _cboDate.Items.Add(d);
                     }
                 } catch { }
+
+                if (_cboDate.Items.Count > 0) _cboDate.SelectedIndex = 0;
             };
 
+            // 3. 綁定日期變更事件
             _cboDate.SelectedIndexChanged += (s, e) => {
                 _cboPoint.Items.Clear();
-                if (_cboTable.SelectedItem == null || _cboDate.SelectedItem == null) return;
+                if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null) return;
+                
+                string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
                 string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
                 string dateStr = _cboDate.SelectedItem.ToString();
 
                 try {
-                    DataTable dt = DataManager.GetTableData("TestData", tbName, "", "", "");
-                    if (dt != null && dt.Columns.Contains("日期") && dt.Columns.Contains("檢測點")) {
+                    DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
+                    string dateCol = GetDateColumnName(dt);
+                    string pointCol = GetPointColumnName(dt);
+
+                    if (!string.IsNullOrEmpty(dateCol) && !string.IsNullOrEmpty(pointCol)) {
                         var points = new HashSet<string>();
                         foreach (DataRow r in dt.Rows) {
-                            if (r["日期"].ToString() == dateStr && r["檢測點"] != DBNull.Value && !string.IsNullOrEmpty(r["檢測點"].ToString())) {
-                                points.Add(r["檢測點"].ToString());
+                            if (r[dateCol].ToString() == dateStr && r[pointCol] != DBNull.Value && !string.IsNullOrEmpty(r[pointCol].ToString())) {
+                                points.Add(r[pointCol].ToString());
                             }
                         }
                         foreach(var p in points) _cboPoint.Items.Add(p);
                     }
                 } catch { }
+
+                if (_cboPoint.Items.Count > 0) _cboPoint.SelectedIndex = 0;
             };
 
-            if (_cboTable.Items.Count > 0) _cboTable.SelectedIndex = 0;
+            // 4. 載入資料庫並觸發第一層
+            _cboDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            foreach (var kvp in dbMap) {
+                _cboDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+            }
+
+            // 自動定位到「TestData (檢測數據)」作為預設
+            int idx = 0;
+            for (int i = 0; i < _cboDb.Items.Count; i++) {
+                if (((ItemMap)_cboDb.Items[i]).EnName == "TestData") { idx = i; break; }
+            }
+            if (_cboDb.Items.Count > 0) _cboDb.SelectedIndex = idx;
+        }
+
+        // =======================================================
+        // 🟢 智慧抓取欄位名稱輔助函式
+        // =======================================================
+        private string GetDateColumnName(DataTable dt)
+        {
+            if (dt.Columns.Contains("日期")) return "日期";
+            if (dt.Columns.Contains("年月")) return "年月";
+            if (dt.Columns.Contains("清運日期")) return "清運日期";
+            return "";
+        }
+
+        private string GetPointColumnName(DataTable dt)
+        {
+            List<string> possibleNames = new List<string> { "檢測點", "檢測名稱", "設備名稱", "名稱", "點位", "SEG編號", "水錶名稱", "化學物質名稱", "項目", "單位" };
+            foreach (string pc in possibleNames) {
+                if (dt.Columns.Contains(pc)) return pc;
+            }
+            return "";
+        }
+
+        private string GetItemColumnName(DataTable dt)
+        {
+            List<string> possibleNames = new List<string> { "檢測項目", "項目", "檢測點", "檢測名稱", "名稱" };
+            foreach (string pc in possibleNames) {
+                if (dt.Columns.Contains(pc)) return pc;
+            }
+            return "";
         }
 
         private void BtnLoadData_Click(object sender, EventArgs e)
         {
-            if (_cboTable.SelectedItem == null || _cboDate.SelectedItem == null || _cboPoint.SelectedItem == null) {
-                MessageBox.Show("請確認資料表、日期與檢測點皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            if (_cboDb.SelectedItem == null || _cboTable.SelectedItem == null || _cboDate.SelectedItem == null || _cboPoint.SelectedItem == null) {
+                MessageBox.Show("請確認資料庫、資料表、日期與檢測名稱(點)皆已選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
             _currentId = 0; 
@@ -263,6 +329,7 @@ namespace Safety_System
             _txtTestPurpose.Clear();
             _rtbAnalysis.Clear();
 
+            string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
             string dateStr = _cboDate.SelectedItem.ToString();
             string pointName = _cboPoint.SelectedItem.ToString();
@@ -272,15 +339,21 @@ namespace Safety_System
             _dgvItems.Rows.Clear();
 
             try {
-                DataTable dt = DataManager.GetTableData("TestData", tbName, "", "", "");
+                DataTable dt = DataManager.GetTableData(dbName, tbName, "", "", "");
                 if (dt == null) return;
 
+                string dateCol = GetDateColumnName(dt);
+                string pointCol = GetPointColumnName(dt);
+                string itemCol = GetItemColumnName(dt);
+
+                if (string.IsNullOrEmpty(dateCol) || string.IsNullOrEmpty(pointCol)) return;
+
                 DataView dv = new DataView(dt);
-                dv.RowFilter = $"日期 = '{dateStr}' AND 檢測點 = '{pointName}'";
+                dv.RowFilter = $"[{dateCol}] = '{dateStr}' AND [{pointCol}] = '{pointName}'";
 
                 foreach (DataRowView drv in dv) 
                 {
-                    string item = drv.Row.Table.Columns.Contains("檢測項目") ? drv["檢測項目"].ToString() : "";
+                    string item = !string.IsNullOrEmpty(itemCol) ? drv[itemCol].ToString() : "";
                     string limit = drv.Row.Table.Columns.Contains("管制值") ? drv["管制值"].ToString() : "";
                     string method = drv.Row.Table.Columns.Contains("測定方法") ? drv["測定方法"].ToString() : "";
                     string currVal = drv.Row.Table.Columns.Contains("檢測數據") ? drv["檢測數據"].ToString() : "";
@@ -291,8 +364,8 @@ namespace Safety_System
                     // 尋找前次測值
                     if (!string.IsNullOrEmpty(item)) {
                         DataView dvPrev = new DataView(dt);
-                        dvPrev.RowFilter = $"檢測點 = '{pointName}' AND 檢測項目 = '{item}' AND 日期 < '{dateStr}'";
-                        dvPrev.Sort = "日期 DESC";
+                        dvPrev.RowFilter = $"[{pointCol}] = '{pointName}' AND [{itemCol}] = '{item}' AND [{dateCol}] < '{dateStr}'";
+                        dvPrev.Sort = $"[{dateCol}] DESC";
                         if (dvPrev.Count > 0 && dvPrev[0].Row.Table.Columns.Contains("檢測數據")) {
                             prevVal = dvPrev[0]["檢測數據"].ToString();
                         }
@@ -312,7 +385,7 @@ namespace Safety_System
                 MessageBox.Show("請先載入檢測數據後再進行存檔！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
-            string dbName = "TestData";
+            string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
 
             DataTable dtEval = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
@@ -321,6 +394,7 @@ namespace Safety_System
             // 尋找是否已有紀錄
             foreach (DataRow r in dtEval.Rows) {
                 if (r.RowState != DataRowState.Deleted &&
+                    r["資料庫"].ToString() == dbName &&
                     r["資料表"].ToString() == tbName &&
                     r["測定日期"].ToString() == _txtTestDate.Text &&
                     r["檢測名稱"].ToString() == _txtTestName.Text) 
@@ -350,7 +424,7 @@ namespace Safety_System
                 // 重新抓取 ID
                 DataTable dtCheck = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 foreach (DataRow r in dtCheck.Rows) {
-                    if (r["資料表"].ToString() == tbName && r["測定日期"].ToString() == _txtTestDate.Text && r["檢測名稱"].ToString() == _txtTestName.Text) {
+                    if (r["資料庫"].ToString() == dbName && r["資料表"].ToString() == tbName && r["測定日期"].ToString() == _txtTestDate.Text && r["檢測名稱"].ToString() == _txtTestName.Text) {
                         _currentId = Convert.ToInt32(r["Id"]); break;
                     }
                 }
@@ -361,7 +435,7 @@ namespace Safety_System
 
         private void BtnHistory_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "📂 歷史評估報告查詢", Size = new Size(1000, 600), StartPosition = FormStartPosition.CenterParent })
+            using (Form f = new Form { Text = "📂 歷史評估報告查詢", Size = new Size(1100, 600), StartPosition = FormStartPosition.CenterParent })
             {
                 DataTable dt = DataManager.GetTableData(EvalDbName, EvalTableName, "", "", "");
                 if (dt != null && dt.Columns.Contains("Id")) dt.Columns["Id"].ReadOnly = true;
@@ -373,7 +447,6 @@ namespace Safety_System
                 };
                 dgv.DataSource = dt;
                 if (dgv.Columns.Contains("Id")) dgv.Columns["Id"].Visible = false;
-                if (dgv.Columns.Contains("資料庫")) dgv.Columns["資料庫"].Visible = false;
 
                 Button btnLoad = new Button { Text = "✔️ 載入選定報告", Dock = DockStyle.Bottom, Height = 45, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
                 Button btnDel = new Button { Text = "❌ 刪除選定報告", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
@@ -381,10 +454,16 @@ namespace Safety_System
                 btnLoad.Click += (s, ev) => {
                     if (dgv.SelectedRows.Count > 0) {
                         var row = dgv.SelectedRows[0];
+                        string dbName = row.Cells["資料庫"].Value?.ToString() ?? "TestData";
                         string tbName = row.Cells["資料表"].Value.ToString();
                         string tDate = row.Cells["測定日期"].Value.ToString();
                         string tName = row.Cells["檢測名稱"].Value.ToString();
 
+                        // 智慧連動復原選項
+                        foreach (ItemMap item in _cboDb.Items) {
+                            if (item.EnName == dbName) { _cboDb.SelectedItem = item; break; }
+                        }
+                        
                         foreach (ItemMap item in _cboTable.Items) {
                             if (item.EnName == tbName) { _cboTable.SelectedItem = item; break; }
                         }
