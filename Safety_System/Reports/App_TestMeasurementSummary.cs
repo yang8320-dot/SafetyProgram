@@ -504,7 +504,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (修復 KeyNotFoundException 版本)
+        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 效能大幅優化版)
         // =========================================================
         private void LoadSettings()
         {
@@ -642,8 +642,10 @@ namespace Safety_System
 
                         cbDb.SelectedIndexChanged += (s, ev) => {
                             if (isInitializing) return;
-                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                             var selDb = cbDb.SelectedItem as ItemMap;
+                            conf.DbName = selDb?.EnName ?? ""; // 🟢 修復：確保選擇庫時，把值存回模型
+
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                             // 🟢 修復崩潰：加上 _dbMap.ContainsKey 的檢查
                             if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
                                 foreach(var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
@@ -653,8 +655,10 @@ namespace Safety_System
 
                         cbTb.SelectedIndexChanged += (s, ev) => {
                             if (isInitializing) return;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            conf.TableName = selTb?.EnName ?? ""; // 🟢 修復：確保選擇表時，把值存回模型
+
                             if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
-                                conf.TableName = ((ItemMap)cbTb.SelectedItem).EnName;
                                 colsLoaded = false; 
                                 cbDate.Text = ""; cbItem.Text = ""; cbPoint.Text = ""; cbVal.Text = ""; cbLimit.Text = "";
                             }
