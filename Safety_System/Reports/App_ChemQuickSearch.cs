@@ -245,6 +245,21 @@ namespace Safety_System
             return mainLayout;
         }
 
+        // ====================================================================
+        // 🟢 特殊字元跳脫方法：解決 %、[、]、* 造成的崩潰
+        // ====================================================================
+        private string EscapeLikeValue(string valueWithoutWildcards)
+        {
+            if (string.IsNullOrEmpty(valueWithoutWildcards)) return "";
+            
+            return valueWithoutWildcards
+                .Replace("[", "[[]")
+                .Replace("]", "[]]")
+                .Replace("%", "[%]")
+                .Replace("*", "[*]")
+                .Replace("'", "''");
+        }
+
         private async Task ExecuteSearchAsync()
         {
             string nameKey = _txtName.Text.Trim();
@@ -260,6 +275,10 @@ namespace Safety_System
             _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
+            // 🟢 跳脫輸入的關鍵字
+            string safeNameKey = EscapeLikeValue(nameKey);
+            string safeCasKey = EscapeLikeValue(casKey);
+
             await Task.Run(() => {
                 foreach (var info in _tableInfos) {
                     try {
@@ -269,12 +288,12 @@ namespace Safety_System
                             List<string> matchConditions = new List<string>();
 
                             // 1. 名稱模糊檢索 (掃描表格中所有跟名稱有關的欄位)
-                            if (!string.IsNullOrEmpty(nameKey)) {
+                            if (!string.IsNullOrEmpty(safeNameKey)) {
                                 List<string> nameFilters = new List<string>();
                                 string[] possibleNameCols = { "中文名稱", "英文名稱", "名稱", "種類", "化學品名稱", "內容", "危害成份" };
                                 foreach(var c in possibleNameCols) {
                                     if (dt.Columns.Contains(c)) {
-                                        nameFilters.Add($"[{c}] LIKE '%{nameKey.Replace("'", "''")}%'");
+                                        nameFilters.Add($"[{c}] LIKE '%{safeNameKey}%'");
                                     }
                                 }
                                 if (nameFilters.Count > 0) {
@@ -285,18 +304,18 @@ namespace Safety_System
                             }
 
                             // 2. CAS Number 檢索 
-                            if (!string.IsNullOrEmpty(casKey)) {
+                            if (!string.IsNullOrEmpty(safeCasKey)) {
                                 List<string> casFilters = new List<string>();
                                 string[] possibleCasCols = { "CASNO", "CAS_No", "化學式" };
                                 foreach(var c in possibleCasCols) {
                                     if (dt.Columns.Contains(c)) {
-                                        casFilters.Add($"[{c}] LIKE '%{casKey.Replace("'", "''")}%'");
+                                        casFilters.Add($"[{c}] LIKE '%{safeCasKey}%'");
                                     }
                                 }
                                 
                                 if (casFilters.Count > 0) {
                                     matchConditions.Add("(" + string.Join(" OR ", casFilters) + ")");
-                                } else if (string.IsNullOrEmpty(nameKey)) {
+                                } else if (string.IsNullOrEmpty(safeNameKey)) {
                                     matchConditions.Add("1=0");
                                 }
                             }
@@ -311,12 +330,10 @@ namespace Safety_System
                                     
                                     string dictKey = $"{info.TableName}_{col.ColumnName}";
 
-                                    // 🟢 終極防呆：強制攔截系統欄位
                                     bool isAllowedToShow = true;
                                     if (_columnVisibility.ContainsKey(dictKey)) {
                                         isAllowedToShow = _columnVisibility[dictKey];
                                     } else {
-                                        // 若設定檔還沒有紀錄，預設隱藏修改人相關欄位
                                         if (col.ColumnName == "最後修改人" || col.ColumnName == "修改時間" || col.ColumnName.Contains("時間") || col.ColumnName.Contains("修改人")) {
                                             isAllowedToShow = false;
                                         }
@@ -357,7 +374,6 @@ namespace Safety_System
                     info.GBox.Width = _flpResultsContainer.ClientSize.Width - 30;
                     info.Dgv.AutoResizeRows(); 
 
-                    // 完美高度修正：加入 50px 的底部緩衝
                     int exactGridHeight = info.Dgv.ColumnHeadersHeight;
                     foreach(DataGridViewRow r in info.Dgv.Rows) {
                         exactGridHeight += r.Height;
@@ -386,9 +402,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // 欄位顯示設定系統 (🚀 完美修復遮擋、強制補入系統隱藏欄位)
-        // ==========================================
         private void LoadVisibilitySettings()
         {
             _columnVisibility.Clear();
@@ -468,7 +481,6 @@ namespace Safety_System
                     string tblName = _tableInfos[lbTables.SelectedIndex].TableName;
                     var cols = DataManager.GetColumnNames(DbName, tblName);
                     
-                    // 🟢 系統審計欄位防呆：就算實體表還沒存過檔產生這兩欄，也強制加進去讓使用者看得到
                     if (!cols.Contains("最後修改人")) cols.Add("最後修改人");
                     if (!cols.Contains("修改時間")) cols.Add("修改時間");
 
@@ -517,9 +529,6 @@ namespace Safety_System
             }
         }
 
-        // ==========================================
-        // PDF 導出系統
-        // ==========================================
         private void ExportToPdf()
         {
             var visibleTables = _tableInfos.Where(t => t.GBox.Visible && t.ResultData != null && t.ResultData.Rows.Count > 0).ToList();
