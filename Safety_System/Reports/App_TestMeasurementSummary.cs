@@ -24,6 +24,13 @@ namespace Safety_System
         private List<SummaryConfigItem> _configs = new List<SummaryConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
+        // 🟢 修正 1：補齊 G30 (WaterMeterCalibration)
+        private readonly string[] _targetTables = { 
+            "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
+            "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
+            "TCLP", "WaterMeterCalibration", "OtherTests" 
+        };
+
         // 定義自訂統計項目的資料結構
         private class SummaryConfigItem
         {
@@ -51,7 +58,7 @@ namespace Safety_System
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
 
             // ==========================================
-            // 第一個框：資料選擇與操作列 (修復 UI 垂直對齊問題)
+            // 第一個框：資料選擇與操作列
             // ==========================================
             GroupBox box1 = new GroupBox { Text = "⚙️ 查詢條件與操作區", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0,0,0,20) };
             
@@ -482,7 +489,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗 (修復 Null 崩潰與閃爍問題)
+        // 設定檔管理與動態設定視窗 (🟢 效能大升級：實作記憶體快取)
         // =========================================================
         private void LoadSettings()
         {
@@ -503,9 +510,13 @@ namespace Safety_System
                 } catch { }
             }
             
-            // 系統防呆：如果沒有設定檔，載入預設組合
+            // 🟢 系統防呆：補足 G30
             if (_configs.Count == 0) {
-                string[] defaultTables = { "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", "TCLP", "OtherTests" };
+                string[] defaultTables = { 
+                    "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
+                    "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
+                    "TCLP", "WaterMeterCalibration", "OtherTests" 
+                };
                 foreach (var tb in defaultTables) {
                     _configs.Add(new SummaryConfigItem { DbName = "TestData", TableName = tb, DateCol = "日期", ItemCol = "檢測項目", PointCol = "檢測點", ValueCol = "檢測數據", LimitCol = "管制值" });
                 }
@@ -541,9 +552,12 @@ namespace Safety_System
 
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
 
+                // 🟢 核心效能優化：實作欄位快取 (Memory Cache)
+                Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
+
                 Action renderRows = null;
                 renderRows = () => {
-                    // 🟢 效能優化：停止 Layout 排版計算，避免頻繁重繪造成的卡頓與閃屏
+                    // 🟢 暫停畫面排版引擎，防止閃屏與卡頓
                     tlp.SuspendLayout();
                     pnlScroll.SuspendLayout();
 
@@ -568,11 +582,22 @@ namespace Safety_System
 
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
-                        Action<string> loadCols = (tbEnName) => {
+                        // 🟢 核心效能優化：改寫載入欄位邏輯，先查快取，沒有才問資料庫
+                        Action<string, string> loadCols = (dbEnName, tbEnName) => {
                             cbDate.Items.Clear(); cbItem.Items.Clear(); cbPoint.Items.Clear(); cbVal.Items.Clear(); cbLimit.Items.Clear();
                             cbDate.Items.Add(""); cbItem.Items.Add(""); cbPoint.Items.Add(""); cbVal.Items.Add(""); cbLimit.Items.Add("");
-                            if (!string.IsNullOrEmpty(tbEnName)) {
-                                var cols = DataManager.GetColumnNames(conf.DbName, tbEnName);
+                            
+                            if (!string.IsNullOrEmpty(tbEnName) && !string.IsNullOrEmpty(dbEnName)) {
+                                string cacheKey = $"{dbEnName}_{tbEnName}";
+                                List<string> cols;
+                                
+                                if (_columnCache.ContainsKey(cacheKey)) {
+                                    cols = _columnCache[cacheKey]; // 瞬間讀取
+                                } else {
+                                    cols = DataManager.GetColumnNames(dbEnName, tbEnName);
+                                    _columnCache[cacheKey] = cols; // 存入快取
+                                }
+
                                 foreach(var c in cols) {
                                     if (c != "Id") {
                                         cbDate.Items.Add(c); cbItem.Items.Add(c); cbPoint.Items.Add(c); cbVal.Items.Add(c); cbLimit.Items.Add(c);
@@ -590,9 +615,10 @@ namespace Safety_System
                         };
 
                         cbTb.SelectedIndexChanged += (s, ev) => {
-                            if (cbTb.SelectedItem != null) {
+                            if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
                                 conf.TableName = ((ItemMap)cbTb.SelectedItem).EnName;
-                                loadCols(conf.TableName);
+                                string dName = ((ItemMap)cbDb.SelectedItem).EnName;
+                                loadCols(dName, conf.TableName);
                             }
                         };
 
@@ -605,10 +631,9 @@ namespace Safety_System
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
-                            if (cbTb.SelectedItem != null) loadCols(conf.TableName);
+                            if (cbTb.SelectedItem != null) loadCols(conf.DbName, conf.TableName); // 傳入 dbName
                         }
                         
-                        // 🟢 核心修復防呆：加入 !string.IsNullOrEmpty 判斷，避免 Contains(null) 崩潰
                         if (!string.IsNullOrEmpty(conf.DateCol) && cbDate.Items.Contains(conf.DateCol)) cbDate.SelectedItem = conf.DateCol;
                         if (!string.IsNullOrEmpty(conf.ItemCol) && cbItem.Items.Contains(conf.ItemCol)) cbItem.SelectedItem = conf.ItemCol;
                         if (!string.IsNullOrEmpty(conf.PointCol) && cbPoint.Items.Contains(conf.PointCol)) cbPoint.SelectedItem = conf.PointCol;
@@ -642,7 +667,9 @@ namespace Safety_System
 
                 Button btnSave = new Button { Text = "💾 儲存設定並重新載入", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSave.FlatAppearance.BorderSize = 0;
-                btnSave.Click += (s, ev) => {
+                
+                // 🟢 修正名稱衝突
+                btnSave.Click += (senderObj, evnt) => {
                     _configs = editingConfigs;
                     SaveSettings();
                     BtnSearch_Click(null, null);
