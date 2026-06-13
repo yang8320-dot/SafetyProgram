@@ -1,6 +1,7 @@
-/// FILE: Safety_System/App_HomeDashboard.cs ///
+/// FILE: Safety_System/Dashboard/App_HomeDashboard.cs ///
 using System;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -134,10 +135,49 @@ namespace Safety_System
             };
             btn.FlatAppearance.BorderSize = 0;
 
-            // 點擊事件統整
-            Action onClick = () => {
+            // 🟢 點擊事件統整 (修復游標轉圈 Bug，加入 Loading 流程與完善的 Cursor 還原機制)
+            Action onClick = async () => {
                 Form f = p.FindForm();
-                if (f is MainForm mf) mf.LoadModule(loadFunc());
+                if (f is MainForm mf) 
+                {
+                    Application.UseWaitCursor = true;
+                    Cursor.Current = Cursors.WaitCursor;
+
+                    try 
+                    {
+                        // 建立暫時的 Loading 畫面容器
+                        Panel pnlLoading = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke };
+                        Label lblLoading = new Label {
+                            Text = $"⏳ 正在為您準備【{title}】的資料與畫面，請稍候...",
+                            Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
+                            ForeColor = Color.DimGray,
+                            Dock = DockStyle.Fill,
+                            TextAlign = ContentAlignment.MiddleCenter
+                        };
+                        pnlLoading.Controls.Add(lblLoading);
+                        
+                        // 先掛載 Loading 畫面並刷新
+                        mf.LoadModule(pnlLoading);
+                        Application.DoEvents(); 
+                        
+                        await Task.Delay(30);
+
+                        // 執行模組載入
+                        Control view = loadFunc(); 
+                        if (view != null) {
+                            mf.LoadModule(view);
+                        }
+                    } 
+                    catch (Exception ex) { 
+                        MessageBox.Show($"載入模組 {title} 失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                    }
+                    finally { 
+                        // 強制釋放 WaitCursor 狀態
+                        Application.UseWaitCursor = false;
+                        Cursor.Current = Cursors.Default;
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
+                }
             };
 
             // 註冊所有子元件點擊
