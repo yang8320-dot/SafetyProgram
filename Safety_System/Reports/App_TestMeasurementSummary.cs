@@ -25,7 +25,7 @@ namespace Safety_System
         private List<SummaryConfigItem> _configs = new List<SummaryConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
-        // 🟢 修正 1：補齊 G30 (WaterMeterCalibration)，共計 11 個
+        // 目標資料表清單 (11個)
         private readonly string[] _targetTables = { 
             "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
             "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
@@ -59,7 +59,7 @@ namespace Safety_System
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
 
             // ==========================================
-            // 第一個框：資料選擇與操作列 (🟢 修正 3：按鍵完美水平對齊)
+            // 第一個框：資料選擇與操作列
             // ==========================================
             GroupBox box1 = new GroupBox { Text = "⚙️ 查詢條件與操作區", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0,0,0,20) };
             
@@ -200,7 +200,6 @@ namespace Safety_System
                 }
             }
 
-            // 備用解析 (純西元年等)
             if (DateTime.TryParse(dateStr, out DateTime result)) {
                 return (result.Year.ToString(), result.Month);
             }
@@ -505,7 +504,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 延遲載入)
+        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 延遲加載機制)
         // =========================================================
         private void LoadSettings()
         {
@@ -526,6 +525,7 @@ namespace Safety_System
                 } catch { }
             }
             
+            // 系統防呆：如果沒有設定檔，載入 11 個預設組合
             if (_configs.Count == 0) {
                 foreach (var tb in _targetTables) {
                     _configs.Add(new SummaryConfigItem { DbName = "TestData", TableName = tb, DateCol = "日期", ItemCol = "檢測項目", PointCol = "檢測點", ValueCol = "檢測數據", LimitCol = "管制值" });
@@ -561,11 +561,13 @@ namespace Safety_System
                 for (int i = 0; i < 8; i++) tlp.Controls.Add(new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill }, i, 0);
 
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
+
+                // 🟢 記憶體快取：避免重複存取資料庫
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
 
                 Action renderRows = null;
                 renderRows = () => {
-                    // 暫停排版引擎避免閃爍
+                    // 暫停排版引擎避免閃爍與延遲
                     tlp.SuspendLayout();
                     pnlScroll.SuspendLayout();
 
@@ -580,33 +582,35 @@ namespace Safety_System
                         btnDel.FlatAppearance.BorderSize = 0;
                         btnDel.Click += (s, ev) => { editingConfigs.RemoveAt(currentIndex); renderRows(); };
 
+                        // 🟢 使用一般的 ComboBox，但不做大量資料寫入，僅賦值 Text
                         ComboBox cbDb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbTb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbDate = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbItem = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbPoint = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbVal = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbLimit = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbDate = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbItem = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbPoint = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbVal = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbLimit = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
-                        bool isBinding = true;
+                        // 判斷是否需要展開選項的 Flag
                         bool colsLoaded = false;
 
-                        // 🟢 延遲載入邏輯：只在使用者點開下拉選單時才去抓資料表結構
+                        // 🟢 延遲載入邏輯：只在使用者準備挑選欄位 (DropDown) 時，才執行一次載入
                         Action<string, string> lazyLoadCols = (dbEnName, tbEnName) => {
                             if (colsLoaded) return;
-                            string cacheKey = $"{dbEnName}_{tbEnName}";
-                            List<string> cols;
-                            if (_columnCache.ContainsKey(cacheKey)) {
-                                cols = _columnCache[cacheKey]; 
-                            } else {
-                                cols = DataManager.GetColumnNames(dbEnName, tbEnName);
-                                _columnCache[cacheKey] = cols; 
+                            
+                            List<string> cols = new List<string>();
+                            if (!string.IsNullOrEmpty(tbEnName) && !string.IsNullOrEmpty(dbEnName)) {
+                                string cacheKey = $"{dbEnName}_{tbEnName}";
+                                if (_columnCache.ContainsKey(cacheKey)) {
+                                    cols = _columnCache[cacheKey]; 
+                                } else {
+                                    cols = DataManager.GetColumnNames(dbEnName, tbEnName);
+                                    _columnCache[cacheKey] = cols; 
+                                }
                             }
 
-                            cbDate.BeginUpdate(); cbItem.BeginUpdate(); cbPoint.BeginUpdate(); cbVal.BeginUpdate(); cbLimit.BeginUpdate();
-                            
                             string sDate = cbDate.Text; string sItem = cbItem.Text; string sPoint = cbPoint.Text; string sVal = cbVal.Text; string sLim = cbLimit.Text;
 
                             cbDate.Items.Clear(); cbItem.Items.Clear(); cbPoint.Items.Clear(); cbVal.Items.Clear(); cbLimit.Items.Clear();
@@ -618,30 +622,26 @@ namespace Safety_System
                                 }
                             }
                             
-                            if(cbDate.Items.Contains(sDate)) cbDate.SelectedItem = sDate;
-                            if(cbItem.Items.Contains(sItem)) cbItem.SelectedItem = sItem;
-                            if(cbPoint.Items.Contains(sPoint)) cbPoint.SelectedItem = sPoint;
-                            if(cbVal.Items.Contains(sVal)) cbVal.SelectedItem = sVal;
-                            if(cbLimit.Items.Contains(sLim)) cbLimit.SelectedItem = sLim;
+                            // 恢復原本選擇的文字 (即使表中找不到，也保留文字)
+                            cbDate.Text = sDate; cbItem.Text = sItem; cbPoint.Text = sPoint; cbVal.Text = sVal; cbLimit.Text = sLim;
 
-                            cbDate.EndUpdate(); cbItem.EndUpdate(); cbPoint.EndUpdate(); cbVal.EndUpdate(); cbLimit.EndUpdate();
                             colsLoaded = true;
                         };
 
-                        EventHandler dropDownHandler = (s, ev) => {
+                        // 綁定 DropDown 事件
+                        EventHandler triggerLoad = (s, ev) => {
                             if (cbDb.SelectedItem != null && cbTb.SelectedItem != null) {
                                 lazyLoadCols(((ItemMap)cbDb.SelectedItem).EnName, ((ItemMap)cbTb.SelectedItem).EnName);
                             }
                         };
 
-                        cbDate.DropDown += dropDownHandler;
-                        cbItem.DropDown += dropDownHandler;
-                        cbPoint.DropDown += dropDownHandler;
-                        cbVal.DropDown += dropDownHandler;
-                        cbLimit.DropDown += dropDownHandler;
+                        cbDate.DropDown += triggerLoad;
+                        cbItem.DropDown += triggerLoad;
+                        cbPoint.DropDown += triggerLoad;
+                        cbVal.DropDown += triggerLoad;
+                        cbLimit.DropDown += triggerLoad;
 
                         cbDb.SelectedIndexChanged += (s, ev) => {
-                            if (isBinding) return;
                             cbTb.Items.Clear();
                             if (cbDb.SelectedItem != null) {
                                 conf.DbName = ((ItemMap)cbDb.SelectedItem).EnName;
@@ -650,34 +650,31 @@ namespace Safety_System
                         };
 
                         cbTb.SelectedIndexChanged += (s, ev) => {
-                            if (isBinding) return;
                             if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
                                 conf.TableName = ((ItemMap)cbTb.SelectedItem).EnName;
-                                colsLoaded = false; 
-                                lazyLoadCols(((ItemMap)cbDb.SelectedItem).EnName, conf.TableName);
+                                colsLoaded = false; // 切換資料表，強迫下次 DropDown 重新載入
+                                cbDate.Text = ""; cbItem.Text = ""; cbPoint.Text = ""; cbVal.Text = ""; cbLimit.Text = "";
                             }
                         };
 
-                        cbDate.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.DateCol = cbDate.Text; };
-                        cbItem.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.ItemCol = cbItem.Text; };
-                        cbPoint.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.PointCol = cbPoint.Text; };
-                        cbVal.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.ValueCol = cbVal.Text; };
-                        cbLimit.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.LimitCol = cbLimit.Text; };
+                        // 失去焦點或是變更時儲存回模型
+                        cbDate.TextChanged += (s, ev) => { conf.DateCol = cbDate.Text; };
+                        cbItem.TextChanged += (s, ev) => { conf.ItemCol = cbItem.Text; };
+                        cbPoint.TextChanged += (s, ev) => { conf.PointCol = cbPoint.Text; };
+                        cbVal.TextChanged += (s, ev) => { conf.ValueCol = cbVal.Text; };
+                        cbLimit.TextChanged += (s, ev) => { conf.LimitCol = cbLimit.Text; };
 
+                        // 🟢 初始化：只填充 Db 與 Tb，欄位全部用 Text 直接賦值，**絕對不碰資料庫**
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
-                            foreach(var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
                         }
-
-                        // 🟢 將已有的設定填入 (不需要去資料庫查證，直接顯示)
-                        if (!string.IsNullOrEmpty(conf.DateCol)) { cbDate.Items.Add(conf.DateCol); cbDate.SelectedItem = conf.DateCol; }
-                        if (!string.IsNullOrEmpty(conf.ItemCol)) { cbItem.Items.Add(conf.ItemCol); cbItem.SelectedItem = conf.ItemCol; }
-                        if (!string.IsNullOrEmpty(conf.PointCol)) { cbPoint.Items.Add(conf.PointCol); cbPoint.SelectedItem = conf.PointCol; }
-                        if (!string.IsNullOrEmpty(conf.ValueCol)) { cbVal.Items.Add(conf.ValueCol); cbVal.SelectedItem = conf.ValueCol; }
-                        if (!string.IsNullOrEmpty(conf.LimitCol)) { cbLimit.Items.Add(conf.LimitCol); cbLimit.SelectedItem = conf.LimitCol; }
-
-                        isBinding = false;
+                        
+                        cbDate.Text = conf.DateCol;
+                        cbItem.Text = conf.ItemCol;
+                        cbPoint.Text = conf.PointCol;
+                        cbVal.Text = conf.ValueCol;
+                        cbLimit.Text = conf.LimitCol;
 
                         tlp.Controls.Add(btnDel, 0, i + 1);
                         tlp.Controls.Add(cbDb, 1, i + 1);
@@ -696,6 +693,7 @@ namespace Safety_System
                     tlp.Controls.Add(btnAdd, 1, editingConfigs.Count + 1);
                     tlp.SetColumnSpan(btnAdd, 7);
 
+                    // 🟢 恢復排版與重繪
                     pnlScroll.ResumeLayout(false);
                     tlp.ResumeLayout(true);
                 };
