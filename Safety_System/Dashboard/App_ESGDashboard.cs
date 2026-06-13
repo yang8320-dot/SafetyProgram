@@ -6,7 +6,6 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -81,11 +80,12 @@ namespace Safety_System
 
             int btnHeight = 35;
 
-            _btnSearch = new Button { Text = "🔍 查詢年度資料", Size = new Size(160, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 0, 0, 0) };
+            // 🟢 修改點 1：按鍵文字修正
+            _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(130, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.FlatAppearance.BorderSize = 0;
             _btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
 
-            _btnSettings = new Button { Text = "⚙️ 設定顯示欄位", Size = new Size(160, btnHeight), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            _btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, btnHeight), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             _btnSettings.FlatAppearance.BorderSize = 0;
             _btnSettings.Click += (s, e) => OpenSettingsDialog();
 
@@ -230,7 +230,7 @@ namespace Safety_System
             // 初始化欄位隱藏設定
             foreach (DataGridViewColumn col in sec.Dgv.Columns)
             {
-                string dictKey = $"{sec.TableName}_{col.Name}";
+                string dictKey = $"{sec.TableName}_|{col.Name}"; // 使用安全的連字號避免跟資料表名稱底線衝突
 
                 if (_columnVisibility.ContainsKey(dictKey)) {
                     col.Visible = _columnVisibility[dictKey];
@@ -265,9 +265,10 @@ namespace Safety_System
             if (File.Exists(VisibilityFile)) {
                 try {
                     foreach (var line in File.ReadAllLines(VisibilityFile, Encoding.UTF8)) {
+                        // 🟢 修復點：改用 | 符號切割兩段即可，不要再使用 _ 切割
                         var parts = line.Split('|');
-                        if (parts.Length == 3) {
-                            _columnVisibility[$"{parts[0]}_{parts[1]}"] = (parts[2] == "1");
+                        if (parts.Length == 2) {
+                            _columnVisibility[parts[0]] = (parts[1] == "1");
                         }
                     }
                 } catch { }
@@ -277,17 +278,15 @@ namespace Safety_System
         private void SaveVisibilitySettings()
         {
             try {
-                var lines = _columnVisibility.Select(kvp => {
-                    var parts = kvp.Key.Split('_');
-                    return $"{parts[0]}|{parts[1]}|{(kvp.Value ? "1" : "0")}";
-                }).ToArray();
+                // 🟢 修復點：直接把 dictKey (包含表名和欄位) 用 | 連接值存起來
+                var lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
                 File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
             } catch { }
         }
 
         private void OpenSettingsDialog()
         {
-            using (Form f = new Form { Text = "⚙️ 顯示欄位設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
+            using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -340,7 +339,8 @@ namespace Safety_System
 
                     foreach (var c in cols) {
                         if (c == "Id") continue;
-                        string key = $"{tblName}_{c}";
+                        // 🟢 使用安全連字號防呆
+                        string key = $"{tblName}_|{c}";
                         bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : _defaultVisibleCols.Contains(c);
                         clbCols.Items.Add(c, isChecked);
                     }
@@ -350,7 +350,7 @@ namespace Safety_System
                     if (lbTables.SelectedIndex < 0) return;
                     string tblName = _sections[lbTables.SelectedIndex].TableName;
                     string colName = clbCols.Items[e.Index].ToString();
-                    _columnVisibility[$"{tblName}_{colName}"] = e.NewValue == CheckState.Checked;
+                    _columnVisibility[$"{tblName}_|{colName}"] = e.NewValue == CheckState.Checked;
                 };
 
                 btnSave.Click += (s, e) => {
