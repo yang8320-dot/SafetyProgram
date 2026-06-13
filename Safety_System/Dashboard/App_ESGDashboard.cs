@@ -38,7 +38,7 @@ namespace Safety_System
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_Visibility.txt");
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 🟢 資料列 (筆) 顯示/隱藏的設定檔與快取 (紀錄被隱藏的項目名稱)
+        // 資料列 (筆) 顯示/隱藏的設定檔與快取 (紀錄被隱藏的項目名稱)
         private readonly string HiddenRowsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_HiddenRows.txt");
         private Dictionary<string, HashSet<string>> _hiddenRows = new Dictionary<string, HashSet<string>>();
 
@@ -53,7 +53,7 @@ namespace Safety_System
         public Control GetView()
         {
             LoadVisibilitySettings();
-            LoadHiddenRowsSettings(); // 🟢 載入資料列隱藏名單
+            LoadHiddenRowsSettings(); // 載入資料列隱藏名單
 
             _sections = new List<SectionInfo>
             {
@@ -148,7 +148,7 @@ namespace Safety_System
                 Padding = new Padding(0, 5, 0, 0)
             };
 
-            // 🟢 資料列顯示篩選按鈕
+            // 資料列顯示篩選按鈕
             Button btnFilter = new Button {
                 Text = "🔍 顯示資料",
                 Size = new Size(130, 35),
@@ -224,13 +224,13 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 取得資料表的代表名稱欄位
+        // 取得資料表的代表名稱欄位
         // ==========================================
         private string GetKeyColumn(DataTable dt)
         {
             if (dt.Columns.Contains("指標名稱")) return "指標名稱";
             if (dt.Columns.Contains("項目")) return "項目";
-            return ""; // 如果都沒有，代表無法隱藏
+            return ""; 
         }
 
         private async Task LoadDashboardDataAsync()
@@ -256,7 +256,7 @@ namespace Safety_System
                         {
                             DataView dv = dt.DefaultView;
                             
-                            // 1. 區分年度與年月欄位過濾邏輯
+                            // 區分年度與年月欄位過濾邏輯
                             if (dt.Columns.Contains("年度")) {
                                 dv.RowFilter = $"[年度] = '{targetYear}' OR [年度] = '{targetYear}年'";
                             } else if (dt.Columns.Contains("年月")) {
@@ -265,15 +265,27 @@ namespace Safety_System
 
                             DataTable filteredDt = dv.ToTable();
 
-                            // 2. 🟢 讀取該區塊被隱藏的資料列，從顯示資料表中剔除
+                            // 🟢 讀取該區塊被隱藏的資料列，從顯示資料表中剔除
                             string keyCol = GetKeyColumn(filteredDt);
-                            if (!string.IsNullOrEmpty(keyCol) && _hiddenRows.ContainsKey(sec.TableName))
+                            if (_hiddenRows.ContainsKey(sec.TableName))
                             {
                                 var hiddenSet = _hiddenRows[sec.TableName];
                                 // 從後面刪除避免 Index 跑掉
                                 for (int i = filteredDt.Rows.Count - 1; i >= 0; i--)
                                 {
-                                    string val = filteredDt.Rows[i][keyCol]?.ToString().Trim() ?? "";
+                                    DataRow r = filteredDt.Rows[i];
+                                    string val = "";
+                                    
+                                    if (!string.IsNullOrEmpty(keyCol) && filteredDt.Columns.Contains(keyCol)) {
+                                        val = r[keyCol]?.ToString().Trim() ?? "";
+                                    }
+
+                                    // 🟢 防呆：如果該列的名稱是空白的，自動給予包含 ID 的預設名稱
+                                    if (string.IsNullOrEmpty(val)) {
+                                        string id = filteredDt.Columns.Contains("Id") ? r["Id"].ToString() : "";
+                                        val = $"[未填寫名稱] (系統代碼:{id})";
+                                    }
+
                                     if (hiddenSet.Contains(val))
                                     {
                                         filteredDt.Rows.RemoveAt(i);
@@ -304,11 +316,12 @@ namespace Safety_System
             // 初始化欄位隱藏設定
             foreach (DataGridViewColumn col in sec.Dgv.Columns)
             {
-                string dictKey = $"{sec.TableName}::{col.Name}"; 
+                string dictKey = $"{sec.TableName}_{col.Name}"; 
 
                 if (_columnVisibility.ContainsKey(dictKey)) {
                     col.Visible = _columnVisibility[dictKey];
                 } else {
+                    // 如果沒有存過設定，套用預設顯示邏輯
                     if (_defaultVisibleCols.Contains(col.Name)) {
                         col.Visible = true;
                         _columnVisibility[dictKey] = true;
@@ -319,11 +332,12 @@ namespace Safety_System
                 }
             }
             
-            // 動態調整 Grid 高度
+            // 動態調整 Grid 高度以適應內容，避免出現卷軸 (供匯出 PDF 使用)
             int totalHeight = sec.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in sec.Dgv.Rows) {
                 totalHeight += row.Height;
             }
+            // 限制最大高度，避免資料過多撐爆畫面
             sec.Dgv.Height = totalHeight > 500 ? 500 : (totalHeight < 150 ? 150 : totalHeight + 2);
             sec.Dgv.ClearSelection();
             
@@ -332,7 +346,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 專屬各表框的「資料列(筆)」顯示/隱藏管理系統
+        // 資料列(筆)顯示/隱藏管理系統
         // ==========================================
         private void LoadHiddenRowsSettings()
         {
@@ -381,16 +395,21 @@ namespace Safety_System
             DataTable yearDt = dv.ToTable();
             string keyCol = GetKeyColumn(yearDt);
             
-            if (string.IsNullOrEmpty(keyCol)) {
-                MessageBox.Show("此資料表缺乏可識別的項目名稱欄位，無法個別隱藏。");
-                return;
-            }
-
             // 建立獨特項目清單 (避免重複列出)
             HashSet<string> uniqueItems = new HashSet<string>();
             foreach (DataRow r in yearDt.Rows) {
-                string val = r[keyCol]?.ToString().Trim() ?? "";
-                if (!string.IsNullOrEmpty(val)) uniqueItems.Add(val);
+                string val = "";
+                if (!string.IsNullOrEmpty(keyCol) && yearDt.Columns.Contains(keyCol)) {
+                    val = r[keyCol]?.ToString().Trim() ?? "";
+                }
+                
+                // 🟢 防呆：如果名稱為空，以 ID 作為識別顯示
+                if (string.IsNullOrEmpty(val)) {
+                    string id = yearDt.Columns.Contains("Id") ? r["Id"].ToString() : "";
+                    val = $"[未填寫名稱] (系統代碼:{id})";
+                }
+                
+                uniqueItems.Add(val);
             }
 
             if (uniqueItems.Count == 0) {
@@ -553,7 +572,7 @@ namespace Safety_System
 
                     foreach (var c in cols) {
                         if (c == "Id") continue;
-                        string key = $"{tblName}::{c}";
+                        string key = $"{tblName}_{c}";
                         bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : _defaultVisibleCols.Contains(c);
                         clbCols.Items.Add(c, isChecked);
                     }
@@ -563,7 +582,7 @@ namespace Safety_System
                     if (lbTables.SelectedIndex < 0) return;
                     string tblName = _sections[lbTables.SelectedIndex].TableName;
                     string colName = clbCols.Items[e.Index].ToString();
-                    _columnVisibility[$"{tblName}::{colName}"] = e.NewValue == CheckState.Checked;
+                    _columnVisibility[$"{tblName}_{colName}"] = e.NewValue == CheckState.Checked;
                 };
 
                 btnSave.Click += (s, e) => {
