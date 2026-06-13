@@ -237,11 +237,11 @@ namespace Safety_System
             menuFire.DropDownItems.Add(CreateItem("F24 各單位消防自主檢查表", () => new App_CoreTable("Fire", "FireSelfInspection", "各單位消防自主檢查表", new DefaultLogic()).GetView()));
 
             // ==========================================
-            // 🟢 檢測數據選單註冊區域
+            // 檢測數據選單註冊區域
             // ==========================================
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("G11 檢測數據看版", () => new App_TestDashboard().GetView()));
-            menuTest.DropDownItems.Add(CreateItem("G12 量測項目一覽表", () => new App_TestMeasurementSummary().GetView())); // 🟢 新增
+            menuTest.DropDownItems.Add(CreateItem("G12 量測項目一覽表", () => new App_TestMeasurementSummary().GetView())); 
             menuTest.DropDownItems.Add(CreateItem("G13 檢測報告分析評估表", () => new App_TestReportEvaluation().GetView()));
             
             menuTest.DropDownItems.Add(new ToolStripSeparator());
@@ -337,11 +337,11 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
+            // 🟢 取消了「下拉選單與連動設定」的密碼驗證
             var dropdownItem = new ToolStripMenuItem("Z14 下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
-                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                    if (AuthManager.VerifyAdmin(prompt)) { new App_DropdownManager().ShowDialog(this); } 
+                    new App_DropdownManager().ShowDialog(this);
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -361,11 +361,11 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
+            // 🟢 取消了「系統提醒設定」的密碼驗證
             var reminderSettingItem = new ToolStripMenuItem("Z16 系統提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
-                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                    if (AuthManager.VerifyAdmin(prompt)) { new App_ReminderManager().ShowDialog(this); } 
+                    new App_ReminderManager().ShowDialog(this);
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -374,14 +374,12 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator());
 
+            // 🟢 取消了「應用連結設定」的密碼驗證
             var appLinkSettingItem = new ToolStripMenuItem("Z17 應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
                 try {
-                    string prompt = "進入設定需要系統權限\n請輸入【Lv2管理者】等級以上\n密碼進行授權：";
-                    if (AuthManager.VerifyAdmin(prompt)) { 
-                        new App_LinkManager().ShowDialog(this); 
-                        LoadDynamicAppLinks(menuApp); 
-                    } 
+                    new App_LinkManager().ShowDialog(this); 
+                    LoadDynamicAppLinks(menuApp); 
                 } catch (Exception ex) {
                     MessageBox.Show($"無法載入設定：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
