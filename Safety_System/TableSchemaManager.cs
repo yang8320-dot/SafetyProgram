@@ -101,7 +101,7 @@ namespace Safety_System
 			//TCLP
             { "TCLP", "[日期] TEXT, [時間] TEXT, [檢測點] TEXT, [檢測項目] TEXT, [檢測數據] TEXT, [管制值] TEXT, [測定方法] TEXT, [檢驗機構] TEXT, [測定用途] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 			//水錶校正
-            { "WaterMeterCalibration", "[日期] TEXT, [時間] TEXT, [檢測點] TEXT, [檢測項目] TEXT, [管徑] TEXT, [現場流量計讀值] TEXT, [檢驗單位讀值] TEXT, [器差值] TEXT, [設定參數K值] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [測定用途] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "WaterMeterCalibration", "[日期] TEXT, [時間] TEXT, [檢測點] TEXT, [檢測項目] TEXT, [管制值] TEXT, [管徑] TEXT, [現場流量計讀值] TEXT, [檢驗單位讀值] TEXT, [器差值] TEXT, [設定參數K值] TEXT, [校正單位] TEXT, [下次校正日期] TEXT, [測定用途] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 			//其它檢測
             { "OtherTests", "[日期] TEXT, [時間] TEXT, [檢測點] TEXT, [檢測項目] TEXT, [檢測數據] TEXT, [管制值] TEXT, [測定方法] TEXT, [檢驗機構] TEXT, [測定用途] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             // 檢測報告分析評估表
