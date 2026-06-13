@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -80,7 +81,6 @@ namespace Safety_System
 
             int btnHeight = 35;
 
-            // 🟢 修改點 1：按鍵文字修正
             _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(130, btnHeight), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.FlatAppearance.BorderSize = 0;
             _btnSearch.Click += async (s, e) => await LoadDashboardDataAsync();
@@ -265,7 +265,6 @@ namespace Safety_System
             if (File.Exists(VisibilityFile)) {
                 try {
                     foreach (var line in File.ReadAllLines(VisibilityFile, Encoding.UTF8)) {
-                        // 🟢 修復點：改用 | 符號切割兩段即可，不要再使用 _ 切割
                         var parts = line.Split('|');
                         if (parts.Length == 2) {
                             _columnVisibility[parts[0]] = (parts[1] == "1");
@@ -278,7 +277,6 @@ namespace Safety_System
         private void SaveVisibilitySettings()
         {
             try {
-                // 🟢 修復點：直接把 dictKey (包含表名和欄位) 用 | 連接值存起來
                 var lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
                 File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
             } catch { }
@@ -339,7 +337,6 @@ namespace Safety_System
 
                     foreach (var c in cols) {
                         if (c == "Id") continue;
-                        // 🟢 使用安全連字號防呆
                         string key = $"{tblName}_|{c}";
                         bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : _defaultVisibleCols.Contains(c);
                         clbCols.Items.Add(c, isChecked);
