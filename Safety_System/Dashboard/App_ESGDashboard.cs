@@ -211,6 +211,7 @@ namespace Safety_System
                 ReadOnly = true,
                 RowHeadersVisible = false, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
+                // 🟢 確保行高會因為文字太多而自動長高
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
                 Font = new Font("Microsoft JhengHei UI", 11F),
                 BorderStyle = BorderStyle.None,
@@ -222,10 +223,13 @@ namespace Safety_System
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
-            dgv.ColumnHeadersHeight = 40;
+            
+            // 🟢 釋放表頭高度鎖定，允許表頭文字自動換行
+            dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             
             dgv.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // 內容自動換行
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
             dgv.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
 
@@ -341,16 +345,17 @@ namespace Safety_System
                 }
             }
             
-            // 動態調整 Grid 高度以適應內容，避免出現卷軸 (供匯出 PDF 使用)
+            // 動態精準計算 Grid 高度，加上小緩衝避免卷軸出現
+            sec.Dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+
             int totalHeight = sec.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in sec.Dgv.Rows) {
                 totalHeight += row.Height;
             }
-            // 限制最大高度，避免資料過多撐爆畫面
-            sec.Dgv.Height = totalHeight > 500 ? 500 : (totalHeight < 150 ? 150 : totalHeight + 2);
+            
+            sec.Dgv.Height = totalHeight > 500 ? 500 : (totalHeight < 120 ? 120 : totalHeight + 5);
             sec.Dgv.ClearSelection();
             
-            // 觸發重新繪製更新狀態文字
             sec.MainBox.Invalidate(true);
         }
 
@@ -404,7 +409,6 @@ namespace Safety_System
             DataTable yearDt = dv.ToTable();
             string keyCol = GetKeyColumn(yearDt);
             
-            // 建立獨特項目清單 (避免重複列出)
             HashSet<string> uniqueItems = new HashSet<string>();
             foreach (DataRow r in yearDt.Rows) {
                 string val = "";
@@ -412,7 +416,6 @@ namespace Safety_System
                     val = r[keyCol]?.ToString().Trim() ?? "";
                 }
                 
-                // 防呆：如果名稱為空，以 ID 作為識別顯示
                 if (string.IsNullOrEmpty(val)) {
                     string id = yearDt.Columns.Contains("Id") ? r["Id"].ToString() : "";
                     val = $"[未填寫名稱] (系統代碼:{id})";
@@ -426,16 +429,17 @@ namespace Safety_System
                 return;
             }
 
-            // 開啟選取視窗
             using (Form f = new Form { Text = $"🔍 {sec.Title} - 顯示資料選擇", Size = new Size(500, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke })
             {
+                // 🟢 限制標籤的最大寬度，強迫它在視窗邊緣自動換行
                 Label lblTop = new Label { 
                     Text = "請勾選您希望顯示在看板上的資料，取消勾選則會隱藏：", 
                     Dock = DockStyle.Top, 
                     Padding = new Padding(15), 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                     ForeColor = sec.ThemeColor, 
-                    AutoSize = true 
+                    AutoSize = true,
+                    MaximumSize = new Size(470, 0)
                 };
                 f.Controls.Add(lblTop);
 
@@ -447,7 +451,6 @@ namespace Safety_System
                     Margin = new Padding(20)
                 };
 
-                // 將項目填入，如果不存在於 _hiddenRows 就是 true (顯示)
                 bool hasHiddenSet = _hiddenRows.ContainsKey(sec.TableName);
                 foreach (string item in uniqueItems) {
                     bool isVisible = true;
@@ -477,10 +480,9 @@ namespace Safety_System
                     if (!_hiddenRows.ContainsKey(sec.TableName)) {
                         _hiddenRows[sec.TableName] = new HashSet<string>();
                     } else {
-                        _hiddenRows[sec.TableName].Clear(); // 清空舊的
+                        _hiddenRows[sec.TableName].Clear(); 
                     }
 
-                    // 把沒打勾的項目加進隱藏清單
                     for (int i = 0; i < clb.Items.Count; i++) {
                         if (!clb.GetItemChecked(i)) {
                             _hiddenRows[sec.TableName].Add(clb.Items[i].ToString());
@@ -488,7 +490,7 @@ namespace Safety_System
                     }
 
                     SaveHiddenRowsSettings();
-                    _ = LoadDashboardDataAsync(); // 重新載入，就會自動略過被隱藏的列
+                    _ = LoadDashboardDataAsync();
                     f.DialogResult = DialogResult.OK;
                 };
 
@@ -498,7 +500,6 @@ namespace Safety_System
                 f.ShowDialog();
             }
         }
-
 
         // ==========================================
         // 欄位 (直行) 顯示設定系統
@@ -528,7 +529,6 @@ namespace Safety_System
 
         private void OpenSettingsDialog()
         {
-            // 🟢 強制採用 40:60 的完美等比切割，絕不走鐘
             using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(800, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
@@ -542,19 +542,20 @@ namespace Safety_System
                     Padding = new Padding(15, 15, 10, 5), 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                     ForeColor = Color.SteelBlue, 
-                    AutoSize = true 
+                    AutoSize = true,
+                    MaximumSize = new Size(770, 0)
                 };
                 tlp.Controls.Add(lblTop, 0, 0);
 
-                // 🟢 替換 SplitContainer，改用保證等比縮放的 TableLayoutPanel
+                // 🟢 改用保證等比縮放的 TableLayoutPanel (左40% : 右60%)
                 TableLayoutPanel splitLayout = new TableLayoutPanel {
                     Dock = DockStyle.Fill,
                     ColumnCount = 2,
                     RowCount = 1,
                     Margin = new Padding(15, 5, 15, 15)
                 };
-                splitLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F)); // 左側 40%
-                splitLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F)); // 右側 60%
+                splitLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+                splitLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
 
                 // 左半部
                 Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 5, 0) };
@@ -621,7 +622,6 @@ namespace Safety_System
                     f.DialogResult = DialogResult.OK;
                 };
 
-                // 確保初始載入時觸發選單的改變
                 if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
 
                 f.ShowDialog();
@@ -684,10 +684,8 @@ namespace Safety_System
                 List<Bitmap> bitmaps = new List<Bitmap>();
                 foreach (var pnl in panelsToExport) 
                 {
-                    // 暫時將 DataGridView 高度展開以擷取完整截圖
                     DataGridView dgv = pnl.Controls.OfType<DataGridView>().FirstOrDefault();
                     
-                    // 🟢 從 pnl 找回對應的 SectionInfo 來操控按鈕隱藏
                     SectionInfo sec = _sections.FirstOrDefault(s => s.MainBox == pnl);
                     bool origBtnVisible = true;
                     bool origLblVisible = true;
@@ -714,7 +712,7 @@ namespace Safety_System
                     pnl.DrawToBitmap(bmp, new Rectangle(0, 0, pnl.Width, pnl.Height));
                     bitmaps.Add(bmp);
 
-                    // 恢復原本高度與按鈕顯示狀態
+                    // 恢復狀態
                     if (dgv != null) {
                         dgv.Height = dgvOriginalHeight;
                         pnl.Height = originalHeight;
