@@ -33,12 +33,14 @@ namespace Safety_System
         private List<SectionInfo> _sections;
 
         private const string DbName = "ESG";
+        
+        // 欄位顯示/隱藏的設定檔
         private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_Visibility.txt");
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 🟢 新增：各資料表的進階資料篩選記憶設定
-        private readonly string FilterFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_Filter.txt");
-        private Dictionary<string, Dictionary<string, string>> _tableFilters = new Dictionary<string, Dictionary<string, string>>();
+        // 🟢 資料列 (筆) 顯示/隱藏的設定檔與快取 (紀錄被隱藏的項目名稱)
+        private readonly string HiddenRowsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_HiddenRows.txt");
+        private Dictionary<string, HashSet<string>> _hiddenRows = new Dictionary<string, HashSet<string>>();
 
         // 您指定的預設顯示欄位名單
         private readonly string[] _defaultVisibleCols = { 
@@ -51,7 +53,7 @@ namespace Safety_System
         public Control GetView()
         {
             LoadVisibilitySettings();
-            LoadFilterSettings(); // 🟢 載入篩選記憶
+            LoadHiddenRowsSettings(); // 🟢 載入資料列隱藏名單
 
             _sections = new List<SectionInfo>
             {
@@ -130,7 +132,6 @@ namespace Safety_System
             return _mainScrollPanel;
         }
 
-        // 🟢 修改點：傳入整個 SectionInfo 物件，並在右上角加入「顯示資料(篩選)」按鈕
         private Panel BuildSectionBox(SectionInfo sec, Color themeColor)
         {
             Panel pnlBox = new Panel { Dock = DockStyle.Top, AutoSize = true, BackColor = Color.White, Margin = new Padding(0, 0, 0, 25), Padding = new Padding(15) };
@@ -147,9 +148,10 @@ namespace Safety_System
                 Padding = new Padding(0, 5, 0, 0)
             };
 
+            // 🟢 資料列顯示篩選按鈕
             Button btnFilter = new Button {
-                Text = "🔍 顯示資料 (篩選)",
-                Size = new Size(160, 35),
+                Text = "🔍 顯示資料",
+                Size = new Size(130, 35),
                 Dock = DockStyle.Right,
                 BackColor = Color.LightSlateGray,
                 ForeColor = Color.White,
@@ -158,9 +160,12 @@ namespace Safety_System
                 FlatStyle = FlatStyle.Flat
             };
             btnFilter.FlatAppearance.BorderSize = 0;
-            btnFilter.Click += (s, e) => OpenFilterDialog(sec);
+            btnFilter.Click += (s, e) => {
+                if (_cboYear.SelectedItem != null) {
+                    OpenRowVisibilityDialog(sec, _cboYear.SelectedItem.ToString());
+                }
+            };
 
-            // 判斷該區塊目前是否有啟用過濾條件，有的話加上提示
             Label lblFilterStatus = new Label {
                 Text = "",
                 Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold),
@@ -170,10 +175,9 @@ namespace Safety_System
                 Padding = new Padding(0, 12, 10, 0)
             };
             
-            // 每次畫面刷新前更新這個狀態文字
             pnlTitleBar.Paint += (s, e) => {
-                if (_tableFilters.ContainsKey(sec.TableName) && _tableFilters[sec.TableName].Any(kvp => !string.IsNullOrWhiteSpace(kvp.Value))) {
-                    lblFilterStatus.Text = "(已啟用進階篩選)";
+                if (_hiddenRows.ContainsKey(sec.TableName) && _hiddenRows[sec.TableName].Count > 0) {
+                    lblFilterStatus.Text = "(已隱藏部分資料列)";
                 } else {
                     lblFilterStatus.Text = "";
                 }
@@ -220,8 +224,15 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 載入與套用篩選資料
+        // 🟢 取得資料表的代表名稱欄位
         // ==========================================
+        private string GetKeyColumn(DataTable dt)
+        {
+            if (dt.Columns.Contains("指標名稱")) return "指標名稱";
+            if (dt.Columns.Contains("項目")) return "項目";
+            return ""; // 如果都沒有，代表無法隱藏
+        }
+
         private async Task LoadDashboardDataAsync()
         {
             if (_cboYear.SelectedItem == null) return;
@@ -244,30 +255,31 @@ namespace Safety_System
                         if (dt != null)
                         {
                             DataView dv = dt.DefaultView;
-                            List<string> filterConditions = new List<string>();
                             
-                            // 1. 基礎年度過濾
+                            // 1. 區分年度與年月欄位過濾邏輯
                             if (dt.Columns.Contains("年度")) {
-                                filterConditions.Add($"([年度] = '{targetYear}' OR [年度] = '{targetYear}年')");
+                                dv.RowFilter = $"[年度] = '{targetYear}' OR [年度] = '{targetYear}年'";
                             } else if (dt.Columns.Contains("年月")) {
-                                filterConditions.Add($"([年月] LIKE '{targetYear}-%' OR [年月] LIKE '{targetYear}/%')");
+                                dv.RowFilter = $"[年月] LIKE '{targetYear}-%' OR [年月] LIKE '{targetYear}/%'";
                             }
 
-                            // 2. 🟢 套用自訂的顯示過濾條件 (來自記憶設定)
-                            if (_tableFilters.ContainsKey(sec.TableName))
+                            DataTable filteredDt = dv.ToTable();
+
+                            // 2. 🟢 讀取該區塊被隱藏的資料列，從顯示資料表中剔除
+                            string keyCol = GetKeyColumn(filteredDt);
+                            if (!string.IsNullOrEmpty(keyCol) && _hiddenRows.ContainsKey(sec.TableName))
                             {
-                                foreach (var kvp in _tableFilters[sec.TableName])
+                                var hiddenSet = _hiddenRows[sec.TableName];
+                                // 從後面刪除避免 Index 跑掉
+                                for (int i = filteredDt.Rows.Count - 1; i >= 0; i--)
                                 {
-                                    if (dt.Columns.Contains(kvp.Key) && !string.IsNullOrWhiteSpace(kvp.Value))
+                                    string val = filteredDt.Rows[i][keyCol]?.ToString().Trim() ?? "";
+                                    if (hiddenSet.Contains(val))
                                     {
-                                        // 使用 LIKE 進行模糊比對，並跳脫單引號以防報錯
-                                        filterConditions.Add($"[{kvp.Key}] LIKE '%{kvp.Value.Replace("'", "''")}%'");
+                                        filteredDt.Rows.RemoveAt(i);
                                     }
                                 }
                             }
-
-                            dv.RowFilter = filterConditions.Count > 0 ? string.Join(" AND ", filterConditions) : "";
-                            DataTable filteredDt = dv.ToTable();
 
                             if (sec.Dgv.InvokeRequired) {
                                 sec.Dgv.Invoke(new Action(() => BindDataToGrid(sec, filteredDt)));
@@ -297,7 +309,6 @@ namespace Safety_System
                 if (_columnVisibility.ContainsKey(dictKey)) {
                     col.Visible = _columnVisibility[dictKey];
                 } else {
-                    // 如果沒有存過設定，套用預設顯示邏輯
                     if (_defaultVisibleCols.Contains(col.Name)) {
                         col.Visible = true;
                         _columnVisibility[dictKey] = true;
@@ -308,62 +319,90 @@ namespace Safety_System
                 }
             }
             
-            // 動態調整 Grid 高度以適應內容，避免出現卷軸 (供匯出 PDF 使用)
+            // 動態調整 Grid 高度
             int totalHeight = sec.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in sec.Dgv.Rows) {
                 totalHeight += row.Height;
             }
-            
             sec.Dgv.Height = totalHeight > 500 ? 500 : (totalHeight < 150 ? 150 : totalHeight + 2);
             sec.Dgv.ClearSelection();
             
-            // 觸發重新繪製以更新標題旁的「(已啟用進階篩選)」文字
+            // 觸發重新繪製更新狀態文字
             sec.MainBox.Invalidate(true);
         }
 
         // ==========================================
-        // 🟢 專屬各表框的「顯示資料 (進階篩選)」管理系統
+        // 🟢 專屬各表框的「資料列(筆)」顯示/隱藏管理系統
         // ==========================================
-        private void LoadFilterSettings()
+        private void LoadHiddenRowsSettings()
         {
-            _tableFilters.Clear();
-            if (File.Exists(FilterFile)) {
+            _hiddenRows.Clear();
+            if (File.Exists(HiddenRowsFile)) {
                 try {
-                    foreach (var line in File.ReadAllLines(FilterFile, Encoding.UTF8)) {
+                    foreach (var line in File.ReadAllLines(HiddenRowsFile, Encoding.UTF8)) {
                         var parts = line.Split(new[] { "::" }, StringSplitOptions.None);
-                        if (parts.Length == 3) {
+                        if (parts.Length == 2) {
                             string tbl = parts[0];
-                            string col = parts[1];
-                            string val = parts[2];
-                            if (!_tableFilters.ContainsKey(tbl)) _tableFilters[tbl] = new Dictionary<string, string>();
-                            _tableFilters[tbl][col] = val;
+                            string itemName = parts[1];
+                            if (!_hiddenRows.ContainsKey(tbl)) _hiddenRows[tbl] = new HashSet<string>();
+                            _hiddenRows[tbl].Add(itemName);
                         }
                     }
                 } catch { }
             }
         }
 
-        private void SaveFilterSettings()
+        private void SaveHiddenRowsSettings()
         {
             try {
                 List<string> lines = new List<string>();
-                foreach (var tbl in _tableFilters) {
-                    foreach (var col in tbl.Value) {
-                        if (!string.IsNullOrWhiteSpace(col.Value)) {
-                            lines.Add($"{tbl.Key}::{col.Key}::{col.Value}");
-                        }
+                foreach (var kvp in _hiddenRows) {
+                    foreach (var item in kvp.Value) {
+                        lines.Add($"{kvp.Key}::{item}");
                     }
                 }
-                File.WriteAllLines(FilterFile, lines, Encoding.UTF8);
+                File.WriteAllLines(HiddenRowsFile, lines, Encoding.UTF8);
             } catch { }
         }
 
-        private void OpenFilterDialog(SectionInfo sec)
+        private void OpenRowVisibilityDialog(SectionInfo sec, string targetYear)
         {
-            using (Form f = new Form { Text = $"🔍 {sec.Title} - 資料進階篩選", Size = new Size(500, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke })
+            // 先從 DB 撈取該年度的所有完整資料 (不套用隱藏過濾)
+            DataTable dt = DataManager.GetTableData(DbName, sec.TableName, "", "", "");
+            if (dt == null) return;
+            
+            DataView dv = dt.DefaultView;
+            if (dt.Columns.Contains("年度")) {
+                dv.RowFilter = $"[年度] = '{targetYear}' OR [年度] = '{targetYear}年'";
+            } else if (dt.Columns.Contains("年月")) {
+                dv.RowFilter = $"[年月] LIKE '{targetYear}-%' OR [年月] LIKE '{targetYear}/%'";
+            }
+            
+            DataTable yearDt = dv.ToTable();
+            string keyCol = GetKeyColumn(yearDt);
+            
+            if (string.IsNullOrEmpty(keyCol)) {
+                MessageBox.Show("此資料表缺乏可識別的項目名稱欄位，無法個別隱藏。");
+                return;
+            }
+
+            // 建立獨特項目清單 (避免重複列出)
+            HashSet<string> uniqueItems = new HashSet<string>();
+            foreach (DataRow r in yearDt.Rows) {
+                string val = r[keyCol]?.ToString().Trim() ?? "";
+                if (!string.IsNullOrEmpty(val)) uniqueItems.Add(val);
+            }
+
+            if (uniqueItems.Count == 0) {
+                MessageBox.Show($"目前 {targetYear} 年度沒有任何資料可供設定。");
+                return;
+            }
+
+            // 開啟選取視窗
+            using (Form f = new Form { Text = $"🔍 {sec.Title} - 顯示資料選擇", Size = new Size(500, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke })
             {
                 Label lblTop = new Label { 
-                    Text = "請輸入各欄位的查詢關鍵字 (留空代表不限制)：", 
+                    Text = "請勾選您希望顯示在看板上的資料，取消勾選則會隱藏：", 
                     Dock = DockStyle.Top, 
                     Padding = new Padding(15), 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
@@ -372,63 +411,32 @@ namespace Safety_System
                 };
                 f.Controls.Add(lblTop);
 
-                FlowLayoutPanel flp = new FlowLayoutPanel { 
+                CheckedListBox clb = new CheckedListBox { 
                     Dock = DockStyle.Fill, 
-                    AutoScroll = true, 
-                    FlowDirection = FlowDirection.TopDown, 
-                    WrapContents = false, 
-                    Padding = new Padding(20, 10, 20, 10) 
+                    Font = new Font("Microsoft JhengHei UI", 12F), 
+                    CheckOnClick = true, 
+                    BorderStyle = BorderStyle.None,
+                    Margin = new Padding(20)
                 };
-                f.Controls.Add(flp);
-                flp.BringToFront();
 
-                List<string> cols = DataManager.GetColumnNames(DbName, sec.TableName);
-                Dictionary<string, TextBox> inputMap = new Dictionary<string, TextBox>();
-
-                // 排除系統專用或不適合做文字篩選的欄位
-                string[] excludeCols = { "Id", "年度", "年月", "最後修改人", "修改時間" };
-
-                foreach (string col in cols)
-                {
-                    if (excludeCols.Contains(col)) continue;
-
-                    Panel pRow = new Panel { Width = 420, Height = 40, Margin = new Padding(0, 0, 0, 10) };
-                    Label lCol = new Label { Text = col + "：", Width = 150, Location = new Point(0, 7), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleRight };
-                    TextBox tInput = new TextBox { Width = 260, Location = new Point(155, 5), Font = new Font("Microsoft JhengHei UI", 12F) };
-
-                    // 帶入之前存檔的記憶值
-                    if (_tableFilters.ContainsKey(sec.TableName) && _tableFilters[sec.TableName].ContainsKey(col)) {
-                        tInput.Text = _tableFilters[sec.TableName][col];
+                // 將項目填入，如果不存在於 _hiddenRows 就是 true (顯示)
+                bool hasHiddenSet = _hiddenRows.ContainsKey(sec.TableName);
+                foreach (string item in uniqueItems) {
+                    bool isVisible = true;
+                    if (hasHiddenSet && _hiddenRows[sec.TableName].Contains(item)) {
+                        isVisible = false;
                     }
-
-                    pRow.Controls.Add(lCol);
-                    pRow.Controls.Add(tInput);
-                    flp.Controls.Add(pRow);
-
-                    inputMap[col] = tInput;
+                    clb.Items.Add(item, isVisible);
                 }
+                
+                f.Controls.Add(clb);
+                clb.BringToFront();
 
                 Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(15, 0, 15, 10) };
                 
-                Button btnClear = new Button { 
-                    Text = "🧹 清除所有條件", 
-                    Width = 150, 
-                    Dock = DockStyle.Left, 
-                    BackColor = Color.IndianRed, 
-                    ForeColor = Color.White, 
-                    Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
-                    Cursor = Cursors.Hand, 
-                    FlatStyle = FlatStyle.Flat 
-                };
-                btnClear.FlatAppearance.BorderSize = 0;
-                btnClear.Click += (s, e) => {
-                    foreach (var t in inputMap.Values) t.Clear();
-                };
-
                 Button btnSave = new Button { 
-                    Text = "💾 儲存並套用篩選", 
-                    Width = 200, 
-                    Dock = DockStyle.Right, 
+                    Text = "💾 儲存並套用顯示設定", 
+                    Dock = DockStyle.Fill, 
                     BackColor = Color.ForestGreen, 
                     ForeColor = Color.White, 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
@@ -438,25 +446,24 @@ namespace Safety_System
                 btnSave.FlatAppearance.BorderSize = 0;
                 
                 btnSave.Click += (s, e) => {
-                    if (!_tableFilters.ContainsKey(sec.TableName)) {
-                        _tableFilters[sec.TableName] = new Dictionary<string, string>();
+                    if (!_hiddenRows.ContainsKey(sec.TableName)) {
+                        _hiddenRows[sec.TableName] = new HashSet<string>();
                     } else {
-                        _tableFilters[sec.TableName].Clear(); // 清空舊的
+                        _hiddenRows[sec.TableName].Clear(); // 清空舊的
                     }
 
-                    foreach (var kvp in inputMap) {
-                        string val = kvp.Value.Text.Trim();
-                        if (!string.IsNullOrEmpty(val)) {
-                            _tableFilters[sec.TableName][kvp.Key] = val;
+                    // 把沒打勾的項目加進隱藏清單
+                    for (int i = 0; i < clb.Items.Count; i++) {
+                        if (!clb.GetItemChecked(i)) {
+                            _hiddenRows[sec.TableName].Add(clb.Items[i].ToString());
                         }
                     }
 
-                    SaveFilterSettings();
-                    _ = LoadDashboardDataAsync(); // 觸發重新讀取並套用篩選
+                    SaveHiddenRowsSettings();
+                    _ = LoadDashboardDataAsync(); // 重新載入，就會自動略過被隱藏的列
                     f.DialogResult = DialogResult.OK;
                 };
 
-                pnlBottom.Controls.Add(btnClear);
                 pnlBottom.Controls.Add(btnSave);
                 f.Controls.Add(pnlBottom);
 
@@ -464,8 +471,9 @@ namespace Safety_System
             }
         }
 
+
         // ==========================================
-        // 欄位顯示設定系統
+        // 欄位 (直行) 顯示設定系統
         // ==========================================
         private void LoadVisibilitySettings()
         {
