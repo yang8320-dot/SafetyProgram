@@ -365,10 +365,6 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
-                    _pdfPrintRowIndex = 0;
-                    _pdfPrintPageNumber = 1;
-                    _pdfPrintedFormInfo = false;
-
                     PrintDocument pd = new PrintDocument();
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
@@ -507,12 +503,8 @@ namespace Safety_System
             }
         }
 
-        private int _pdfPrintRowIndex = 0;
-        private int _pdfPrintPageNumber = 1;
-        private bool _pdfPrintedFormInfo = false;
-
         // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 效能大幅優化版)
+        // 🟢 設定檔管理與動態設定視窗 (修復 KeyNotFoundException 版本)
         // =========================================================
         private void LoadSettings()
         {
@@ -590,6 +582,7 @@ namespace Safety_System
                         btnDel.FlatAppearance.BorderSize = 0;
                         btnDel.Click += (s, ev) => { editingConfigs.RemoveAt(currentIndex); renderRows(); };
 
+                        // 🟢 使用一般的 ComboBox，但不做大量資料寫入，僅賦值 Text
                         ComboBox cbDb = new ComboBox { Location = new Point(xs[1], 5), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbTb = new ComboBox { Location = new Point(xs[2], 5), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbDate = new ComboBox { Location = new Point(xs[3], 5), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -651,6 +644,7 @@ namespace Safety_System
                             if (isInitializing) return;
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                             var selDb = cbDb.SelectedItem as ItemMap;
+                            // 🟢 修復崩潰：加上 _dbMap.ContainsKey 的檢查
                             if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
                                 foreach(var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             }
@@ -676,7 +670,10 @@ namespace Safety_System
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                            foreach (var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            // 🟢 修復崩潰：加上 _dbMap.ContainsKey 的檢查
+                            if (_dbMap.ContainsKey(conf.DbName)) {
+                                foreach (var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            }
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
                         }
                         
