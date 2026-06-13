@@ -254,7 +254,7 @@ namespace Safety_System
             menuTest.DropDownItems.Add(CreateItem("G27 循環水檢測(廠商)", () => new App_CoreTable("TestData", "CoolingWaterVendor", "循環水檢測(廠商)", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G28 循環水檢測(自評)", () => new App_CoreTable("TestData", "CoolingWaterSelf", "循環水檢測(自評)", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G29 TCLP", () => new App_CoreTable("TestData", "TCLP", "TCLP毒性特性溶出", new DefaultLogic()).GetView()));
-            menuTest.DropDownItems.Add(CreateItem("G30 水錶校正", () => new App_CoreTable("TestData", "WaterMeterCalibration", "水錶校正", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("G30 水表校正", () => new App_CoreTable("TestData", "WaterMeterCalibration", "水錶校正", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G31 其它檢測數據", () => new App_CoreTable("TestData", "OtherTests", "其它檢測數據", new DefaultLogic()).GetView()));
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
