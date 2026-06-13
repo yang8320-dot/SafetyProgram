@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -24,7 +25,7 @@ namespace Safety_System
         private List<SummaryConfigItem> _configs = new List<SummaryConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
-        // 🟢 修正 1：補齊 G30 (WaterMeterCalibration)
+        // 目標資料表清單
         private readonly string[] _targetTables = { 
             "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
             "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
@@ -179,8 +180,8 @@ namespace Safety_System
             if (string.IsNullOrWhiteSpace(dateStr)) return ("", 0);
             dateStr = dateStr.Trim().Replace("/", "-");
 
-            System.Text.RegularExpressions.Regex twRegex = new System.Text.RegularExpressions.Regex(@"^(?<year>\d{2,3})(?:-(?<month>\d{1,2}))?(?:-(?<day>\d{1,2}))?(?:\s+.*)?$");
-            System.Text.RegularExpressions.Match matchTw = twRegex.Match(dateStr);
+            Regex twRegex = new Regex(@"^(?<year>\d{2,3})(?:-(?<month>\d{1,2}))?(?:-(?<day>\d{1,2}))?(?:\s+.*)?$");
+            Match matchTw = twRegex.Match(dateStr);
 
             string yStr = "";
             int mInt = 0;
@@ -207,6 +208,15 @@ namespace Safety_System
             return ("", 0);
         }
 
+        // =========================================================
+        // 🟢 智慧欄位容錯補救引擎 (Intelligent Fallback Engine)
+        // =========================================================
+        private string GetFallbackDateCol(DataTable dt) => dt.Columns.Contains("日期") ? "日期" : (dt.Columns.Contains("年月") ? "年月" : (dt.Columns.Contains("年度") ? "年度" : ""));
+        private string GetFallbackItemCol(DataTable dt) => new[] { "檢測項目", "項目", "名稱", "設備名稱", "量測項目" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
+        private string GetFallbackPointCol(DataTable dt) => new[] { "檢測點", "點位", "SEG編號", "水錶名稱", "位置" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
+        private string GetFallbackValueCol(DataTable dt) => new[] { "檢測數據", "現場流量計讀值", "數值", "結果" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
+        private string GetFallbackLimitCol(DataTable dt) => new[] { "管制值", "管制標準", "標準" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
+
         private void BtnSearch_Click(object sender, EventArgs e)
         {
             if (_cboYear.SelectedItem == null) return;
@@ -222,7 +232,8 @@ namespace Safety_System
             try 
             {
                 _dtResult.Rows.Clear(); 
-                var aggregatedData = new Dictionary<string, Dictionary<int, List<double>>>();
+                // 🟢 字典結構修改：保存 (純數值 Num, 原始字串 Raw)
+                var aggregatedData = new Dictionary<string, Dictionary<int, List<(double Num, string Raw)>>>();
 
                 foreach (var cfg in _configs) 
                 {
@@ -233,34 +244,60 @@ namespace Safety_System
 
                     if (dt == null || dt.Rows.Count == 0) continue;
 
+                    string actualDateCol = !string.IsNullOrEmpty(cfg.DateCol) && dt.Columns.Contains(cfg.DateCol) ? cfg.DateCol : GetFallbackDateCol(dt);
+                    string actualItemCol = !string.IsNullOrEmpty(cfg.ItemCol) && dt.Columns.Contains(cfg.ItemCol) ? cfg.ItemCol : GetFallbackItemCol(dt);
+                    string actualPointCol = !string.IsNullOrEmpty(cfg.PointCol) && dt.Columns.Contains(cfg.PointCol) ? cfg.PointCol : GetFallbackPointCol(dt);
+                    string actualValueCol = !string.IsNullOrEmpty(cfg.ValueCol) && dt.Columns.Contains(cfg.ValueCol) ? cfg.ValueCol : GetFallbackValueCol(dt);
+                    string actualLimitCol = !string.IsNullOrEmpty(cfg.LimitCol) && dt.Columns.Contains(cfg.LimitCol) ? cfg.LimitCol : GetFallbackLimitCol(dt);
+
+                    if (string.IsNullOrEmpty(actualDateCol) || string.IsNullOrEmpty(actualItemCol) || string.IsNullOrEmpty(actualValueCol)) continue;
+
                     foreach (DataRow r in dt.Rows) 
                     {
                         if (r.RowState == DataRowState.Deleted) continue;
 
-                        string rawDate = dt.Columns.Contains(cfg.DateCol) ? r[cfg.DateCol]?.ToString() : "";
+                        string rawDate = r[actualDateCol]?.ToString() ?? "";
                         var parsedDate = ParseDateFlexible(rawDate);
                         
                         if (parsedDate.Year != targetYear) continue; 
 
-                        string item = dt.Columns.Contains(cfg.ItemCol) ? r[cfg.ItemCol]?.ToString()?.Trim() ?? "" : "";
-                        string point = dt.Columns.Contains(cfg.PointCol) ? r[cfg.PointCol]?.ToString()?.Trim() ?? "" : "";
-                        string limit = dt.Columns.Contains(cfg.LimitCol) ? r[cfg.LimitCol]?.ToString()?.Trim() ?? "" : "";
-                        string valStr = dt.Columns.Contains(cfg.ValueCol) ? r[cfg.ValueCol]?.ToString()?.Replace(",", "").Trim() ?? "" : "";
+                        string item = r[actualItemCol]?.ToString()?.Trim() ?? "";
+                        string point = !string.IsNullOrEmpty(actualPointCol) ? r[actualPointCol]?.ToString()?.Trim() ?? "" : "";
+                        string limit = !string.IsNullOrEmpty(actualLimitCol) ? r[actualLimitCol]?.ToString()?.Trim() ?? "" : "";
+                        string valStr = r[actualValueCol]?.ToString()?.Replace(",", "").Trim() ?? "";
 
                         if (string.IsNullOrEmpty(item) || string.IsNullOrEmpty(valStr)) continue;
 
-                        if (double.TryParse(valStr, out double val)) 
+                        // ========================================================
+                        // 🟢 智慧數值萃取引擎 (保留原始 % 或 < 顯示，但提取純數字運算)
+                        // ========================================================
+                        double numericVal = 0;
+                        bool isNumericValid = false;
+
+                        // 判斷是否為「未檢出」或 N.D.，數學上視為 0
+                        if (valStr.ToUpper().Contains("N.D") || valStr.Contains("未檢出")) {
+                            numericVal = 0;
+                            isNumericValid = true;
+                        } else {
+                            // 擷取所有可能是小數點或負數的連續數字
+                            Match mNum = Regex.Match(valStr, @"[-+]?[0-9]*\.?[0-9]+");
+                            if (mNum.Success && double.TryParse(mNum.Value, out double parsedVal)) {
+                                numericVal = parsedVal;
+                                isNumericValid = true;
+                            }
+                        }
+
+                        if (isNumericValid) 
                         {
                             string key = $"{item}|{point}|{limit}";
 
                             if (!aggregatedData.ContainsKey(key)) {
-                                aggregatedData[key] = new Dictionary<int, List<double>>();
-                                // Index 0 用來存放「只有年，沒有月份」的數據 (參與最大/最小/平均運算)
-                                for (int i = 0; i <= 12; i++) aggregatedData[key][i] = new List<double>();
+                                aggregatedData[key] = new Dictionary<int, List<(double Num, string Raw)>>();
+                                for (int i = 0; i <= 12; i++) aggregatedData[key][i] = new List<(double Num, string Raw)>();
                             }
 
                             int mIdx = (parsedDate.Month >= 1 && parsedDate.Month <= 12) ? parsedDate.Month : 0;
-                            aggregatedData[key][mIdx].Add(val);
+                            aggregatedData[key][mIdx].Add((numericVal, valStr)); // 將數值與原始字面一同保存
                         }
                     }
                 }
@@ -279,16 +316,18 @@ namespace Safety_System
 
                     List<double> allValuesForYear = new List<double>();
                     
-                    // 將沒有月份的數據先加入總池
-                    allValuesForYear.AddRange(kvp.Value[0]);
+                    // 將沒有月份的數據先加入總池 (只取純數值參與運算)
+                    allValuesForYear.AddRange(kvp.Value[0].Select(x => x.Num));
 
                     for (int m = 1; m <= 12; m++) 
                     {
                         var mValues = kvp.Value[m];
                         if (mValues.Count > 0) 
                         {
-                            row[$"{m}月"] = string.Join("、", mValues.Select(v => v.ToString("0.##")));
-                            allValuesForYear.AddRange(mValues);
+                            // 🟢 畫面顯示：輸出原始字面字串 (包含 %, <, >, N.D. 等)
+                            row[$"{m}月"] = string.Join("、", mValues.Select(v => v.Raw));
+                            // 🟢 數學運算：將純數字加入平均/最大/最小池中
+                            allValuesForYear.AddRange(mValues.Select(x => x.Num));
                         } 
                         else 
                         {
@@ -296,6 +335,7 @@ namespace Safety_System
                         }
                     }
 
+                    // 結算整年的最大、最小、平均
                     if (allValuesForYear.Count > 0) {
                         row["最大值"] = allValuesForYear.Max().ToString("0.##");
                         row["最小值"] = allValuesForYear.Min().ToString("0.##");
@@ -390,7 +430,7 @@ namespace Safety_System
                         g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                         y += 40;
 
-                        // 2. 雙層表頭繪製 
+                        // 2. 雙層表頭繪製
                         float rowH = 35f;
                         float[] colWidths = new float[_dgvResult.Columns.Count];
                         
@@ -414,7 +454,7 @@ namespace Safety_System
                             currX += colWidths[i];
                         }
                         
-                        // 右側群組標題「XX 年度」 (佔 75% 寬度 = 15 格 * 5%)
+                        // 右側群組標題「XX 年度」
                         float monthGroupWidth = unitWidth * 75f; 
                         RectangleF rYearTitle = new RectangleF(currX, y, monthGroupWidth, rowH);
                         g.FillRectangle(Brushes.LightGray, rYearTitle);
@@ -434,7 +474,7 @@ namespace Safety_System
                         
                         y += rowH * 2;
 
-                        // 3. 資料清單 
+                        // 3. 資料清單
                         while (currentRowIndex < _dgvResult.Rows.Count) 
                         {
                             DataGridViewRow row = _dgvResult.Rows[currentRowIndex];
@@ -489,7 +529,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗 (🟢 效能大升級：實作記憶體快取)
+        // 設定檔管理與動態設定視窗 (加入 Memory Cache 以解決卡頓)
         // =========================================================
         private void LoadSettings()
         {
@@ -510,14 +550,8 @@ namespace Safety_System
                 } catch { }
             }
             
-            // 🟢 系統防呆：補足 G30
             if (_configs.Count == 0) {
-                string[] defaultTables = { 
-                    "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
-                    "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
-                    "TCLP", "WaterMeterCalibration", "OtherTests" 
-                };
-                foreach (var tb in defaultTables) {
+                foreach (var tb in _targetTables) {
                     _configs.Add(new SummaryConfigItem { DbName = "TestData", TableName = tb, DateCol = "日期", ItemCol = "檢測項目", PointCol = "檢測點", ValueCol = "檢測數據", LimitCol = "管制值" });
                 }
             }
@@ -552,12 +586,10 @@ namespace Safety_System
 
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
 
-                // 🟢 核心效能優化：實作欄位快取 (Memory Cache)
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
 
                 Action renderRows = null;
                 renderRows = () => {
-                    // 🟢 暫停畫面排版引擎，防止閃屏與卡頓
                     tlp.SuspendLayout();
                     pnlScroll.SuspendLayout();
 
@@ -582,7 +614,6 @@ namespace Safety_System
 
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
-                        // 🟢 核心效能優化：改寫載入欄位邏輯，先查快取，沒有才問資料庫
                         Action<string, string> loadCols = (dbEnName, tbEnName) => {
                             cbDate.Items.Clear(); cbItem.Items.Clear(); cbPoint.Items.Clear(); cbVal.Items.Clear(); cbLimit.Items.Clear();
                             cbDate.Items.Add(""); cbItem.Items.Add(""); cbPoint.Items.Add(""); cbVal.Items.Add(""); cbLimit.Items.Add("");
@@ -592,10 +623,10 @@ namespace Safety_System
                                 List<string> cols;
                                 
                                 if (_columnCache.ContainsKey(cacheKey)) {
-                                    cols = _columnCache[cacheKey]; // 瞬間讀取
+                                    cols = _columnCache[cacheKey]; 
                                 } else {
                                     cols = DataManager.GetColumnNames(dbEnName, tbEnName);
-                                    _columnCache[cacheKey] = cols; // 存入快取
+                                    _columnCache[cacheKey] = cols; 
                                 }
 
                                 foreach(var c in cols) {
@@ -631,7 +662,7 @@ namespace Safety_System
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
-                            if (cbTb.SelectedItem != null) loadCols(conf.DbName, conf.TableName); // 傳入 dbName
+                            if (cbTb.SelectedItem != null) loadCols(conf.DbName, conf.TableName);
                         }
                         
                         if (!string.IsNullOrEmpty(conf.DateCol) && cbDate.Items.Contains(conf.DateCol)) cbDate.SelectedItem = conf.DateCol;
@@ -657,7 +688,6 @@ namespace Safety_System
                     tlp.Controls.Add(btnAdd, 1, editingConfigs.Count + 1);
                     tlp.SetColumnSpan(btnAdd, 7);
 
-                    // 🟢 恢復排版與重繪
                     pnlScroll.ResumeLayout(false);
                     tlp.ResumeLayout(true);
                 };
@@ -668,7 +698,6 @@ namespace Safety_System
                 Button btnSave = new Button { Text = "💾 儲存設定並重新載入", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSave.FlatAppearance.BorderSize = 0;
                 
-                // 🟢 修正名稱衝突
                 btnSave.Click += (senderObj, evnt) => {
                     _configs = editingConfigs;
                     SaveSettings();
