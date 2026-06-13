@@ -29,7 +29,6 @@ namespace Safety_System
             public Panel MainBox { get; set; }
             public DataGridView Dgv { get; set; }
             
-            // 🟢 新增參照，供 PDF 匯出時隱藏使用
             public Button BtnFilter { get; set; }
             public Label LblFilterStatus { get; set; }
         }
@@ -170,7 +169,7 @@ namespace Safety_System
                 }
             };
             
-            // 🟢 將按鈕綁定到 sec 中，方便匯出時隱藏
+            // 綁定到 sec 中，方便匯出時隱藏
             sec.BtnFilter = btnFilter;
 
             Label lblFilterStatus = new Label {
@@ -182,7 +181,7 @@ namespace Safety_System
                 Padding = new Padding(0, 12, 10, 0)
             };
             
-            // 🟢 將 Label 綁定到 sec 中，方便匯出時隱藏
+            // 綁定到 sec 中，方便匯出時隱藏
             sec.LblFilterStatus = lblFilterStatus;
             
             pnlTitleBar.Paint += (s, e) => {
@@ -290,7 +289,7 @@ namespace Safety_System
                                         val = r[keyCol]?.ToString().Trim() ?? "";
                                     }
 
-                                    // 防呆：如果該列的名稱是空白的，自動給予包含 ID 的預設名稱
+                                    // 防呆：如果名稱為空，以 ID 作為識別顯示
                                     if (string.IsNullOrEmpty(val)) {
                                         string id = filteredDt.Columns.Contains("Id") ? r["Id"].ToString() : "";
                                         val = $"[未填寫名稱] (系統代碼:{id})";
@@ -326,7 +325,7 @@ namespace Safety_System
             // 初始化欄位隱藏設定
             foreach (DataGridViewColumn col in sec.Dgv.Columns)
             {
-                string dictKey = $"{sec.TableName}_{col.Name}"; 
+                string dictKey = $"{sec.TableName}::{col.Name}"; 
 
                 if (_columnVisibility.ContainsKey(dictKey)) {
                     col.Visible = _columnVisibility[dictKey];
@@ -529,7 +528,7 @@ namespace Safety_System
 
         private void OpenSettingsDialog()
         {
-            using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(650, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
+            using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(720, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -537,28 +536,40 @@ namespace Safety_System
                 tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));
 
                 Label lblTop = new Label { 
-                    Text = "請選擇分類並勾選查詢時【允許顯示】的欄位：", 
+                    Text = "請設定查詢看板時【允許顯示】的資料表欄位：", 
                     Dock = DockStyle.Fill, 
-                    Padding = new Padding(10), 
+                    Padding = new Padding(15, 15, 10, 5), 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                     ForeColor = Color.SteelBlue, 
                     AutoSize = true 
                 };
                 tlp.Controls.Add(lblTop, 0, 0);
 
+                // 🟢 調整 SplitContainer 的間距與邊距
                 SplitContainer split = new SplitContainer { 
                     Dock = DockStyle.Fill, 
-                    SplitterDistance = 250, 
-                    FixedPanel = FixedPanel.Panel1, 
-                    Padding = new Padding(10) 
+                    SplitterDistance = 220, 
+                    FixedPanel = FixedPanel.Panel1,
+                    Margin = new Padding(15, 5, 15, 15) 
                 };
 
-                ListBox lbTables = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
+                // 左半部
+                Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 5, 0) };
+                Label lblLeft = new Label { Text = "1. 選擇看板區塊", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Top, Height = 25 };
+                ListBox lbTables = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), IntegralHeight = false };
                 foreach (var sec in _sections) lbTables.Items.Add(sec.Title);
-                split.Panel1.Controls.Add(lbTables);
+                pnlLeft.Controls.Add(lbTables);
+                pnlLeft.Controls.Add(lblLeft);
 
-                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle };
-                split.Panel2.Controls.Add(clbCols);
+                // 右半部
+                Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 0, 0, 0) };
+                Label lblRight = new Label { Text = "2. 勾選要顯示的欄位", Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Top, Height = 25 };
+                CheckedListBox clbCols = new CheckedListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle, IntegralHeight = false };
+                pnlRight.Controls.Add(clbCols);
+                pnlRight.Controls.Add(lblRight);
+
+                split.Panel1.Controls.Add(pnlLeft);
+                split.Panel2.Controls.Add(pnlRight);
                 tlp.Controls.Add(split, 0, 1);
 
                 Button btnSave = new Button { 
@@ -568,9 +579,14 @@ namespace Safety_System
                     ForeColor = Color.White, 
                     Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
                     Cursor = Cursors.Hand, 
-                    FlatStyle = FlatStyle.Flat 
+                    FlatStyle = FlatStyle.Flat,
+                    Margin = new Padding(0)
                 };
-                tlp.Controls.Add(btnSave, 0, 2);
+                btnSave.FlatAppearance.BorderSize = 0;
+                
+                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 0, 15, 10) };
+                pnlBottom.Controls.Add(btnSave);
+                tlp.Controls.Add(pnlBottom, 0, 2);
 
                 f.Controls.Add(tlp);
 
@@ -582,7 +598,7 @@ namespace Safety_System
 
                     foreach (var c in cols) {
                         if (c == "Id") continue;
-                        string key = $"{tblName}_{c}";
+                        string key = $"{tblName}::{c}";
                         bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : _defaultVisibleCols.Contains(c);
                         clbCols.Items.Add(c, isChecked);
                     }
@@ -592,7 +608,7 @@ namespace Safety_System
                     if (lbTables.SelectedIndex < 0) return;
                     string tblName = _sections[lbTables.SelectedIndex].TableName;
                     string colName = clbCols.Items[e.Index].ToString();
-                    _columnVisibility[$"{tblName}_{colName}"] = e.NewValue == CheckState.Checked;
+                    _columnVisibility[$"{tblName}::{colName}"] = e.NewValue == CheckState.Checked;
                 };
 
                 btnSave.Click += (s, e) => {
@@ -601,6 +617,7 @@ namespace Safety_System
                     f.DialogResult = DialogResult.OK;
                 };
 
+                // 確保初始載入時觸發選單的改變
                 if (lbTables.Items.Count > 0) lbTables.SelectedIndex = 0;
 
                 f.ShowDialog();
@@ -608,11 +625,11 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 PDF 導出系統 (修改了擷取畫面時隱藏按鈕的邏輯)
+        // PDF 導出系統
         // ==========================================
-        private List<SectionInfo> GetSelectedExportSections()
+        private List<Panel> GetSelectedExportPanels()
         {
-            List<SectionInfo> selectedSections = new List<SectionInfo>();
+            List<Panel> selectedPanels = new List<Panel>();
             using (Form f = new Form() { Width = 450, Height = 400, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
@@ -641,18 +658,18 @@ namespace Safety_System
                 {
                     for (int i = 0; i < clb.Items.Count; i++) {
                         if (clb.GetItemChecked(i)) {
-                            selectedSections.Add(_sections[i]);
+                            selectedPanels.Add(_sections[i].MainBox);
                         }
                     }
                 }
             }
-            return selectedSections;
+            return selectedPanels;
         }
 
         private void ExportToPdf()
         {
-            var sectionsToExport = GetSelectedExportSections();
-            if (sectionsToExport.Count == 0) return;
+            var panelsToExport = GetSelectedExportPanels();
+            if (panelsToExport.Count == 0) return;
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
@@ -661,18 +678,23 @@ namespace Safety_System
                 Application.DoEvents(); 
 
                 List<Bitmap> bitmaps = new List<Bitmap>();
-                foreach (var sec in sectionsToExport) 
+                foreach (var pnl in panelsToExport) 
                 {
-                    Panel pnl = sec.MainBox;
-                    DataGridView dgv = sec.Dgv;
-
-                    // 🟢 在截圖前，暫時隱藏「顯示資料」按鈕與「隱藏狀態字眼」
-                    bool origBtnVisible = sec.BtnFilter.Visible;
-                    bool origLblVisible = sec.LblFilterStatus.Visible;
-                    sec.BtnFilter.Visible = false;
-                    sec.LblFilterStatus.Visible = false;
-
                     // 暫時將 DataGridView 高度展開以擷取完整截圖
+                    DataGridView dgv = pnl.Controls.OfType<DataGridView>().FirstOrDefault();
+                    
+                    // 🟢 從 pnl 找回對應的 SectionInfo 來操控按鈕隱藏
+                    SectionInfo sec = _sections.FirstOrDefault(s => s.MainBox == pnl);
+                    bool origBtnVisible = true;
+                    bool origLblVisible = true;
+                    
+                    if (sec != null) {
+                        origBtnVisible = sec.BtnFilter.Visible;
+                        origLblVisible = sec.LblFilterStatus.Visible;
+                        sec.BtnFilter.Visible = false;
+                        sec.LblFilterStatus.Visible = false;
+                    }
+
                     int originalHeight = pnl.Height;
                     int dgvOriginalHeight = 0;
 
@@ -688,15 +710,15 @@ namespace Safety_System
                     pnl.DrawToBitmap(bmp, new Rectangle(0, 0, pnl.Width, pnl.Height));
                     bitmaps.Add(bmp);
 
-                    // 恢復原本高度
+                    // 恢復原本高度與按鈕顯示狀態
                     if (dgv != null) {
                         dgv.Height = dgvOriginalHeight;
                         pnl.Height = originalHeight;
                     }
-
-                    // 🟢 截圖完成後，還原這兩個元件的顯示狀態
-                    sec.BtnFilter.Visible = origBtnVisible;
-                    sec.LblFilterStatus.Visible = origLblVisible;
+                    if (sec != null) {
+                        sec.BtnFilter.Visible = origBtnVisible;
+                        sec.LblFilterStatus.Visible = origLblVisible;
+                    }
                 }
 
                 string dateStr = $"查詢年度：{_cboYear.SelectedItem}";
