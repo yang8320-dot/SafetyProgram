@@ -1,10 +1,12 @@
 /// FILE: Safety_System/settings/App_DbConfig.Formula.cs ///
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using OfficeOpenXml;
@@ -18,6 +20,11 @@ namespace Safety_System
         private NumericUpDown _numDecimals; 
         private ComboBox _cboRoundingMode;  
         private FlowLayoutPanel _pnlOps;  
+        
+        // 🟢 新增跨表變數生成器 UI 元件
+        private Panel _pnlCrossTableBuilder;
+        private ComboBox _cboCrossDb, _cboCrossTb, _cboCrossCol, _cboCrossAgg;
+        
         private bool _isChangingFormulaDb = false; 
 
         private void BuildFormulaTab(TabPage tabFormula)
@@ -93,8 +100,9 @@ namespace Safety_System
             _cboFormulaTargetCol = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
             Label lblFType = new Label { Text = "公式類別：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
-            _cboFormulaType = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
-            _cboFormulaType.Items.AddRange(new string[] { "數學運算", "組合文字" });
+            _cboFormulaType = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+            // 🟢 新增「運算+文字」選項
+            _cboFormulaType.Items.AddRange(new string[] { "數學運算", "組合文字", "運算+文字" });
             _cboFormulaType.SelectedIndex = 0;
 
             Label lblFDec = new Label { Text = "小數點：", AutoSize = true, Margin = new Padding(15, 5, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) };
@@ -105,13 +113,18 @@ namespace Safety_System
             _cboRoundingMode.Items.AddRange(new string[] { "四捨五入", "無條件進位", "無條件捨去" });
             _cboRoundingMode.SelectedIndex = 0;
 
+            // 🟢 UI 連動邏輯：開啟對應的工具列
             _cboFormulaType.SelectedIndexChanged += (s, e) => {
-                bool isMath = _cboFormulaType.SelectedIndex == 0;
-                _pnlOps.Visible = isMath;
-                _numDecimals.Visible = isMath;
-                lblFDec.Visible = isMath;
-                _cboRoundingMode.Visible = isMath;
-                lblFRound.Visible = isMath;
+                string selType = _cboFormulaType.SelectedItem.ToString();
+                bool showMathTools = (selType == "數學運算" || selType == "運算+文字");
+                
+                _pnlOps.Visible = showMathTools;
+                _numDecimals.Visible = showMathTools;
+                lblFDec.Visible = showMathTools;
+                _cboRoundingMode.Visible = showMathTools;
+                lblFRound.Visible = showMathTools;
+
+                _pnlCrossTableBuilder.Visible = (selType == "運算+文字");
             };
 
             flpRow3.Controls.AddRange(new Control[] { lblFTarget, _cboFormulaTargetCol, lblFType, _cboFormulaType, lblFDec, _numDecimals, lblFRound, _cboRoundingMode });
@@ -119,7 +132,7 @@ namespace Safety_System
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(15, 10, 10, 15) };
 
             Label lblFormula = new Label { 
-                Text = "編輯公式：(數學運算如：[數量]*[單價]；文字組合如：[廠區] - 第[機台]號)", 
+                Text = "編輯公式：(支援數學運算、文字組合、以及跨表資料聚合)", 
                 AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 10) 
             };
 
@@ -133,7 +146,7 @@ namespace Safety_System
                 _pnlOps.Controls.Add(b);
             }
 
-            Button btnInsertVar = new Button { Text = "插入欄位變數", Size = new Size(170, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            Button btnInsertVar = new Button { Text = "插入本地欄位變數", Size = new Size(170, 35), BackColor = Color.LightSlateGray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             btnInsertVar.FlatAppearance.BorderSize = 0;
             btnInsertVar.Click += (s, e) => {
                 using(Form fSel = new Form { Text = "選擇欄位", Size = new Size(300, 400), StartPosition = FormStartPosition.CenterParent }) {
@@ -161,13 +174,60 @@ namespace Safety_System
             pnlActionTools.Controls.Add(btnInsertVar);
             pnlActionTools.Controls.Add(btnClearForm);
 
+            // 🟢 新增：跨表/跨庫聚合變數生成器 UI
+            _pnlCrossTableBuilder = new Panel { Width = 950, Height = 45, BackColor = Color.FromArgb(240, 245, 250), Margin = new Padding(0, 0, 0, 10), Visible = false };
+            _pnlCrossTableBuilder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, _pnlCrossTableBuilder.ClientRectangle, Color.LightSteelBlue, ButtonBorderStyle.Solid);
+            
+            Label lblCross = new Label { Text = "插入跨表運算：", AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue };
+            _cboCrossDb = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(135, 10) };
+            _cboCrossTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(275, 10) };
+            _cboCrossCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(465, 10) };
+            
+            _cboCrossAgg = new ComboBox { Width = 100, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(655, 10) };
+            _cboCrossAgg.Items.AddRange(new string[] { "SUM", "AVG", "MAX", "MIN", "COUNT" });
+            _cboCrossAgg.SelectedIndex = 0;
+
+            Button btnInsertCross = new Button { Text = "插入 ⬇️", Width = 90, Height = 32, Location = new Point(765, 8), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnInsertCross.FlatAppearance.BorderSize = 0;
+
+            _pnlCrossTableBuilder.Controls.AddRange(new Control[] { lblCross, _cboCrossDb, _cboCrossTb, _cboCrossCol, _cboCrossAgg, btnInsertCross });
+
+            // 綁定跨表下拉選單邏輯
+            _cboCrossDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            var dbMap = App_DbConfig.GetDbMapCache();
+            foreach (var kvp in dbMap) _cboCrossDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+
+            _cboCrossDb.SelectedIndexChanged += (s, e) => {
+                _cboCrossTb.Items.Clear(); _cboCrossTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                var db = _cboCrossDb.SelectedItem as ItemMap;
+                if (db != null && !string.IsNullOrEmpty(db.EnName)) {
+                    foreach (var tb in dbMap[db.EnName].Tables) _cboCrossTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                }
+            };
+
+            _cboCrossTb.SelectedIndexChanged += (s, e) => {
+                _cboCrossCol.Items.Clear();
+                var db = _cboCrossDb.SelectedItem as ItemMap; var tb = _cboCrossTb.SelectedItem as ItemMap;
+                if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
+                    var cols = DataManager.GetColumnNames(db.EnName, tb.EnName).Where(c => c != "Id");
+                    foreach (var c in cols) _cboCrossCol.Items.Add(c);
+                }
+            };
+
+            btnInsertCross.Click += (s, e) => {
+                var db = _cboCrossDb.SelectedItem as ItemMap; var tb = _cboCrossTb.SelectedItem as ItemMap;
+                if (db == null || tb == null || _cboCrossCol.SelectedItem == null) { MessageBox.Show("請選擇完整的跨表欄位來源！"); return; }
+                _rtbFormulaEditor.Focus();
+                _rtbFormulaEditor.SelectedText = $"{_cboCrossAgg.Text}([{db.EnName}].[{tb.EnName}].[{_cboCrossCol.Text}])";
+            };
+
             _rtbFormulaEditor = new RichTextBox { Width = 950, Height = 120, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 0, 0, 15) };
 
             Button btnSaveFormula = new Button { Text = "💾 儲存此運算公式", Size = new Size(200, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             btnSaveFormula.FlatAppearance.BorderSize = 0;
             btnSaveFormula.Click += BtnSaveFormula_Click;
 
-            flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlActionTools, _rtbFormulaEditor, btnSaveFormula });
+            flpFormulaBlock.Controls.AddRange(new Control[] { lblFormula, pnlActionTools, _pnlCrossTableBuilder, _rtbFormulaEditor, btnSaveFormula });
 
             boxFormula.Controls.Add(flpFormulaBlock);
             boxFormula.Controls.Add(flpRow3);
@@ -400,6 +460,9 @@ namespace Safety_System
             }
         }
 
+        // =========================================================================================
+        // 🟢 核心升級：背景重算引擎 (支援「運算+文字」與跨表動態擷取)
+        // =========================================================================================
         private async Task RunBackgroundRecalculation(string dbName, string tableName)
         {
             bool hasChanges = false;
@@ -425,8 +488,27 @@ namespace Safety_System
                         }
                         if (dtFormulas.Rows.Count == 0) return;
 
-                        System.Text.RegularExpressions.Regex priceRegex = new System.Text.RegularExpressions.Regex(@"PRICE\((?<cat>[^\)]+)\)");
-                        System.Text.RegularExpressions.Regex fieldRegex = new System.Text.RegularExpressions.Regex(@"\[(.*?)\]");
+                        Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
+                        Regex fieldRegex = new Regex(@"\[(.*?)\]");
+                        
+                        // 🟢 擷取跨表聚合函數的正則表示式
+                        Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
+
+                        // 🟢 效能優化：預先載入所有被提及的跨表資料，避免迴圈內反覆撈取 I/O
+                        Dictionary<string, DataTable> foreignTablesCache = new Dictionary<string, DataTable>();
+                        foreach (DataRow fRow in dtFormulas.Rows) {
+                            if (fRow["FormulaType"].ToString() == "運算+文字") {
+                                var matches = crossRegex.Matches(fRow["Formula"].ToString());
+                                foreach (Match m in matches) {
+                                    string fDb = m.Groups["db"].Value; string fTb = m.Groups["tb"].Value;
+                                    string cacheKey = $"{fDb}|{fTb}";
+                                    if (!foreignTablesCache.ContainsKey(cacheKey)) {
+                                        foreignTablesCache[cacheKey] = DataManager.GetTableData(fDb, fTb, "", "", "");
+                                    }
+                                }
+                            }
+                        }
+
                         int totalRows = dt.Rows.Count;
 
                         using (DataTable dtMath = new DataTable())
@@ -465,7 +547,7 @@ namespace Safety_System
 
                                     if (fType == "文字組合") {
                                         var fieldMatches = fieldRegex.Matches(evalFormula);
-                                        foreach (System.Text.RegularExpressions.Match m in fieldMatches) {
+                                        foreach (Match m in fieldMatches) {
                                             string colName = m.Groups[1].Value;
                                             if (dt.Columns.Contains(colName)) {
                                                 string val = row[colName]?.ToString().Trim() ?? "";
@@ -476,7 +558,79 @@ namespace Safety_System
                                             row[tCol] = evalFormula; rowChanged = true;
                                         }
                                     } 
+                                    // 🟢 新增：運算+文字 處理邏輯
+                                    else if (fType == "運算+文字") {
+                                        var crossMatches = crossRegex.Matches(evalFormula);
+                                        foreach (Match m in crossMatches) {
+                                            string agg = m.Groups["agg"].Value;
+                                            string fDb = m.Groups["db"].Value;
+                                            string fTb = m.Groups["tb"].Value;
+                                            string fCol = m.Groups["col"].Value;
+
+                                            string cacheKey = $"{fDb}|{fTb}";
+                                            double computedVal = 0;
+
+                                            if (foreignTablesCache.ContainsKey(cacheKey)) {
+                                                DataTable fDt = foreignTablesCache[cacheKey];
+                                                if (fDt != null && fDt.Columns.Contains(fCol)) {
+                                                    string fDateCol = fDt.Columns.Contains("日期") ? "日期" : (fDt.Columns.Contains("年月") ? "年月" : (fDt.Columns.Contains("年度") ? "年度" : ""));
+                                                    
+                                                    string rDate = "";
+                                                    if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
+                                                        rDate = row[mCol]?.ToString().Trim() ?? "";
+                                                    }
+
+                                                    // 完美支援：年月去撈取年月、年撈取年、年撈取年月 (只要 StartsWith 就中)
+                                                    var matchedRows = fDt.Rows.Cast<DataRow>().Where(fr => {
+                                                        if (fr.RowState == DataRowState.Deleted) return false;
+                                                        if (string.IsNullOrEmpty(rDate) || string.IsNullOrEmpty(fDateCol)) return true;
+                                                        string fd = fr[fDateCol]?.ToString().Trim() ?? "";
+                                                        return fd.StartsWith(rDate); 
+                                                    });
+
+                                                    List<double> vals = new List<double>();
+                                                    foreach (var fr in matchedRows) {
+                                                        if (double.TryParse(fr[fCol]?.ToString().Replace(",", ""), out double v)) vals.Add(v);
+                                                    }
+
+                                                    if (vals.Count > 0 || agg == "COUNT") {
+                                                        if (agg == "SUM") computedVal = vals.Sum();
+                                                        else if (agg == "AVG") computedVal = vals.Average();
+                                                        else if (agg == "MAX") computedVal = vals.Max();
+                                                        else if (agg == "MIN") computedVal = vals.Min();
+                                                        else if (agg == "COUNT") computedVal = vals.Count;
+                                                    }
+                                                }
+                                            }
+
+                                            // 套用進位與小數點格式
+                                            double multiplier = Math.Pow(10, decPlaces);
+                                            double adjusted = computedVal * multiplier;
+                                            if (rMode == "無條件進位") adjusted = Math.Ceiling(adjusted);
+                                            else if (rMode == "無條件捨去") adjusted = Math.Floor(adjusted);
+                                            else adjusted = Math.Round(adjusted);
+                                            computedVal = adjusted / multiplier;
+                                            
+                                            string formatStr = decPlaces > 0 ? $"F{decPlaces}" : "F0";
+                                            evalFormula = evalFormula.Replace(m.Value, computedVal.ToString(formatStr));
+                                        }
+
+                                        // 替換完成後，再替換本地欄位 (如 [說明])
+                                        var fieldMatches = fieldRegex.Matches(evalFormula);
+                                        foreach (Match m in fieldMatches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (dt.Columns.Contains(colName)) {
+                                                string val = row[colName]?.ToString().Trim() ?? "";
+                                                evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                            }
+                                        }
+
+                                        if (row[tCol]?.ToString() != evalFormula) {
+                                            row[tCol] = evalFormula; rowChanged = true;
+                                        }
+                                    }
                                     else {
+                                        // 舊有的純數學運算
                                         bool canCompute = true;
                                         if (evalFormula.Contains("PRICE(")) {
                                             DateTime targetDate = DateTime.Today;
@@ -486,7 +640,7 @@ namespace Safety_System
                                                 else DateTime.TryParse(dateStr, out targetDate);
                                             }
                                             var priceMatches = priceRegex.Matches(evalFormula);
-                                            foreach (System.Text.RegularExpressions.Match m in priceMatches) {
+                                            foreach (Match m in priceMatches) {
                                                 string category = m.Groups["cat"].Value.Trim();
                                                 double unitPrice = DataManager.GetUnitPrice(category, targetDate);
                                                 evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
@@ -494,7 +648,7 @@ namespace Safety_System
                                         }
 
                                         var fieldMatches = fieldRegex.Matches(evalFormula);
-                                        foreach (System.Text.RegularExpressions.Match m in fieldMatches) {
+                                        foreach (Match m in fieldMatches) {
                                             string colName = m.Groups[1].Value;
                                             if (dt.Columns.Contains(colName)) {
                                                 string val = row[colName]?.ToString().Replace(",", "").Trim();
@@ -595,11 +749,15 @@ namespace Safety_System
                 string rMode = row.Table.Columns.Contains("RoundingMode") && row["RoundingMode"] != DBNull.Value ? row["RoundingMode"].ToString() : "四捨五入";
 
                 string dateInfo = string.IsNullOrEmpty(matchCol) ? "" : $" (當 [{matchCol}] 介於 {sDate} ~ {eDate} 時)";
-                string roundInfo = fType == "數學運算" ? $" (小數點:{decPlaces}位 | {rMode})" : "";
+                string roundInfo = (fType == "數學運算" || fType == "運算+文字") ? $" (小數點:{decPlaces}位 | {rMode})" : "";
 
                 string text = $"【{fType}】表:[{chTbName}]  ➡️  目標:[{targetCol}] = {formula}{dateInfo}{roundInfo}";
                 
-                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = fType == "組合文字" ? Color.DarkCyan : Color.DarkSlateBlue, Cursor = Cursors.Hand };
+                Color fColor = Color.DarkSlateBlue;
+                if (fType == "組合文字") fColor = Color.DarkCyan;
+                else if (fType == "運算+文字") fColor = Color.DarkOrange;
+
+                Label lTxt = new Label { Text = text, AutoSize = true, Location = new Point(10, 12), Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = fColor, Cursor = Cursors.Hand };
                 int reqW = TextRenderer.MeasureText(text, lTxt.Font).Width + 100;
                 int panelW = Math.Max(_flpFormulasList.ClientSize.Width - 25, reqW);
 
@@ -627,9 +785,8 @@ namespace Safety_System
                     SetFormulaDateStr(sDate, _cboFStartYear, _cboFStartMonth, _cboFStartDay);
                     SetFormulaDateStr(eDate, _cboFEndYear, _cboFEndMonth, _cboFEndDay);
                     
-                    if (_cboFormulaType.Items.Count > 1) {
-                        _cboFormulaType.SelectedIndex = (fType == "組合文字" || fType == "文字組合") ? 1 : 0;
-                    }
+                    if (_cboFormulaType.Items.Contains(fType)) _cboFormulaType.SelectedItem = fType;
+                    
                     _numDecimals.Value = decPlaces;
                     if (_cboRoundingMode.Items.Contains(rMode)) _cboRoundingMode.SelectedItem = rMode;
                     
@@ -672,8 +829,6 @@ namespace Safety_System
 
         private void BtnImportFormula_Click(object sender, EventArgs e)
         {
-            // 🟢 取消了這裡的 AuthManager.VerifyAdmin 驗證
-
             using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx", Title = "選擇要匯入的公式設定檔" }) 
             {
                 if (ofd.ShowDialog() == DialogResult.OK) {
