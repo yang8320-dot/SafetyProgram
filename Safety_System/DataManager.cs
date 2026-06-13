@@ -11,7 +11,7 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
-    // 🟢 新增：支援小數點位數與四捨五入模式
+    // 🟢 支援小數點位數與四捨五入模式
     public class ColumnFormulaDef {
         public int Id { get; set; }
         public string TargetCol { get; set; }
@@ -62,7 +62,6 @@ namespace Safety_System
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);"; 
                     cmd.ExecuteNonQuery();
 
-                    // 🟢 動態升級表結構：新增 FormulaType, DecimalPlaces, RoundingMode，確保舊資料相容
                     var cols = new List<string>();
                     cmd.CommandText = "PRAGMA table_info([ColumnFormulas])";
                     using (var reader = cmd.ExecuteReader()) {
@@ -159,9 +158,6 @@ namespace Safety_System
             if (!Directory.Exists(AttachmentBasePath)) Directory.CreateDirectory(AttachmentBasePath);
         }
 
-        // ========================================================
-        // 🟢 欄位自訂公式 API 升級：讀取小數點與進位模式
-        // ========================================================
         public static List<ColumnFormulaDef> GetTableFormulas(string dbName, string tableName)
         {
             var list = new List<ColumnFormulaDef>();
@@ -205,7 +201,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // ========================================================
         public static void SaveGridConfig(string dbName, string tableName, string configType, string colName, string value)
         {
             try {
@@ -336,6 +331,9 @@ namespace Safety_System
             } catch { }
         }
 
+        // =========================================================================
+        // 🟢 寫入引擎核心修復：全面採用「參數索引映射 (p0, p1...)」徹底解決 % 崩潰
+        // =========================================================================
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt, IProgress<int> progInt = null, IProgress<string> progStr = null)
         {
             if (dt == null || dt.Rows.Count == 0) return true; 
@@ -382,20 +380,19 @@ namespace Safety_System
 
                             int existingId = -1;
                             
+                            // 🟢 檢查防重寫，參數全面改用索引命名 (k0, k1...)
                             if (activeKeys.Count > 0) {
                                 List<string> whereClauses = new List<string>();
-                                foreach (var k in activeKeys) {
-                                    string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
-                                    whereClauses.Add($"IFNULL([{k}], '') = IFNULL(@{safeKey}, '')");
+                                for (int kIdx = 0; kIdx < activeKeys.Count; kIdx++) {
+                                    whereClauses.Add($"IFNULL([{activeKeys[kIdx]}], '') = IFNULL(@k{kIdx}, '')");
                                 }
 
                                 string qCheck = $"SELECT Id FROM [{tableName}] WHERE " + string.Join(" AND ", whereClauses);
 
                                 using (var cmdCheck = new SQLiteCommand(qCheck, conn, trans)) {
-                                    foreach (var k in activeKeys) {
-                                        string safeKey = k.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
-                                        object val = row[k] != DBNull.Value ? (object)row[k].ToString().Trim() : DBNull.Value;
-                                        cmdCheck.Parameters.AddWithValue("@" + safeKey, val);
+                                    for (int kIdx = 0; kIdx < activeKeys.Count; kIdx++) {
+                                        object val = row[activeKeys[kIdx]] != DBNull.Value ? (object)row[activeKeys[kIdx]].ToString().Trim() : DBNull.Value;
+                                        cmdCheck.Parameters.AddWithValue($"@k{kIdx}", val);
                                     }
                                     var res = cmdCheck.ExecuteScalar();
                                     if (res != null && res != DBNull.Value) existingId = Convert.ToInt32(res);
@@ -405,35 +402,45 @@ namespace Safety_System
                             bool isUpdate = (existingId != -1) || (dt.Columns.Contains("Id") && row["Id"] != DBNull.Value && Convert.ToInt32(row["Id"]) > 0);
                             using (var cmd = new SQLiteCommand(conn)) {
                                 cmd.Transaction = trans;
-                                List<string> sqlParts = new List<string>();
                                 
+                                // 🟢 參數全面改用索引命名 (p0, p1...)
                                 if (isUpdate) {
                                     int targetId = existingId != -1 ? existingId : Convert.ToInt32(row["Id"]);
-                                    string sql = $"UPDATE [{tableName}] SET ";
+                                    List<string> sqlParts = new List<string>();
+                                    int pIdx = 0;
+
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
-                                        sqlParts.Add($"[{col.ColumnName}]=@{safeParamName}");
+                                        
+                                        string paramName = $"@p{pIdx}";
+                                        sqlParts.Add($"[{col.ColumnName}]={paramName}");
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
-                                        cmd.Parameters.AddWithValue("@" + safeParamName, val);
+                                        cmd.Parameters.AddWithValue(paramName, val);
+                                        pIdx++;
                                     }
+                                    
                                     sqlParts.Add("[最後修改人]=@SysUser");
                                     sqlParts.Add("[修改時間]=@SysTime");
                                     cmd.Parameters.AddWithValue("@SysUser", currentUser);
                                     cmd.Parameters.AddWithValue("@SysTime", currentTime);
 
-                                    cmd.CommandText = sql + string.Join(", ", sqlParts) + " WHERE Id=" + targetId;
+                                    cmd.CommandText = $"UPDATE [{tableName}] SET {string.Join(", ", sqlParts)} WHERE Id={targetId}";
                                 } else {
                                     List<string> colNames = new List<string>();
                                     List<string> paramNames = new List<string>();
+                                    int pIdx = 0;
+
                                     foreach (DataColumn col in dt.Columns) {
                                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
+                                        
+                                        string paramName = $"@p{pIdx}";
                                         colNames.Add($"[{col.ColumnName}]");
-                                        paramNames.Add($"@{safeParamName}");
+                                        paramNames.Add(paramName);
                                         object val = row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value;
-                                        cmd.Parameters.AddWithValue("@" + safeParamName, val);
+                                        cmd.Parameters.AddWithValue(paramName, val);
+                                        pIdx++;
                                     }
+                                    
                                     colNames.Add("[最後修改人]"); paramNames.Add("@SysUser");
                                     colNames.Add("[修改時間]"); paramNames.Add("@SysTime");
                                     cmd.Parameters.AddWithValue("@SysUser", currentUser);
@@ -470,13 +477,18 @@ namespace Safety_System
                 string currentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
                 var cmd = new SQLiteCommand(conn);
+                
+                // 🟢 單筆寫入引擎也同步升級參數索引映射
                 if (isUpdate) {
                     List<string> sets = new List<string>();
+                    int pIdx = 0;
+
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
-                        sets.Add($"[{col.ColumnName}]=@{safeParamName}");
-                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
+                        string paramName = $"@p{pIdx}";
+                        sets.Add($"[{col.ColumnName}]={paramName}");
+                        cmd.Parameters.AddWithValue(paramName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
+                        pIdx++;
                     }
                     sets.Add("[最後修改人]=@SysUser");
                     sets.Add("[修改時間]=@SysTime");
@@ -490,12 +502,15 @@ namespace Safety_System
                 } else {
                     List<string> c = new List<string>();
                     List<string> v = new List<string>();
+                    int pIdx = 0;
+
                     foreach (DataColumn col in row.Table.Columns) {
                         if (col.ColumnName == "Id" || col.ColumnName == "最後修改人" || col.ColumnName == "修改時間") continue;
-                        string safeParamName = col.ColumnName.Replace(" ", "_").Replace("[", "").Replace("]", "").Replace("(", "_").Replace(")", "_").Replace("/", "_").Replace("-", "_");
+                        string paramName = $"@p{pIdx}";
                         c.Add($"[{col.ColumnName}]"); 
-                        v.Add($"@{safeParamName}");
-                        cmd.Parameters.AddWithValue("@" + safeParamName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
+                        v.Add(paramName);
+                        cmd.Parameters.AddWithValue(paramName, row[col] != DBNull.Value ? (object)row[col].ToString().Trim() : DBNull.Value);
+                        pIdx++;
                     }
                     c.Add("[最後修改人]"); v.Add("@SysUser");
                     c.Add("[修改時間]"); v.Add("@SysTime");
