@@ -51,34 +51,35 @@ namespace Safety_System
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
 
             // ==========================================
-            // 第一個框：資料選擇與操作列
+            // 第一個框：資料選擇與操作列 (修復 UI 垂直對齊問題)
             // ==========================================
             GroupBox box1 = new GroupBox { Text = "⚙️ 查詢條件與操作區", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0,0,0,20) };
             
             FlowLayoutPanel flpRow = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0,5,0,10), WrapContents = false };
             
-            _cboYear = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
+            _cboYear = new ComboBox { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(0, 3, 0, 0) };
             int currentYear = DateTime.Today.Year;
             for (int i = currentYear - 10; i <= currentYear + 2; i++) {
                 _cboYear.Items.Add(i.ToString());
             }
             _cboYear.SelectedItem = currentYear.ToString();
 
-            _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(120, 35), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSearch = new Button { Text = "🔍 查詢", Size = new Size(120, 38), BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 0, 0, 0) };
             _btnSearch.FlatAppearance.BorderSize = 0;
             _btnSearch.Click += BtnSearch_Click;
 
-            _btnSettings = new Button { Text = "⚙️ 統計設定", Size = new Size(130, 35), BackColor = Color.DimGray, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            _btnSettings = new Button { Text = "⚙️ 統計設定", Size = new Size(130, 38), BackColor = Color.DimGray, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             _btnSettings.FlatAppearance.BorderSize = 0;
             _btnSettings.Click += BtnSettings_Click;
 
-            _btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 35), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
+            _btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(140, 38), BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 0, 0, 0) };
             _btnPdf.FlatAppearance.BorderSize = 0;
             _btnPdf.Click += BtnPdf_Click;
 
             flpRow.Controls.AddRange(new Control[] {
-                new Label { Text = "查詢年度:", AutoSize = true, Margin = new Padding(10,5,5,0) }, _cboYear,
-                new Panel { Width=10, Height=1 }, _btnSearch, _btnSettings, _btnPdf
+                new Label { Text = "查詢年度:", AutoSize = true, Margin = new Padding(10, 10, 5, 0) }, 
+                _cboYear,
+                _btnSearch, _btnSettings, _btnPdf
             });
 
             box1.Controls.Add(flpRow);
@@ -382,7 +383,7 @@ namespace Safety_System
                         g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                         y += 40;
 
-                        // 2. 雙層表頭繪製
+                        // 2. 雙層表頭繪製 
                         float rowH = 35f;
                         float[] colWidths = new float[_dgvResult.Columns.Count];
                         
@@ -426,7 +427,7 @@ namespace Safety_System
                         
                         y += rowH * 2;
 
-                        // 3. 資料清單
+                        // 3. 資料清單 
                         while (currentRowIndex < _dgvResult.Rows.Count) 
                         {
                             DataGridViewRow row = _dgvResult.Rows[currentRowIndex];
@@ -481,7 +482,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗
+        // 設定檔管理與動態設定視窗 (修復 Null 崩潰與閃爍問題)
         // =========================================================
         private void LoadSettings()
         {
@@ -538,12 +539,14 @@ namespace Safety_System
                 string[] headers = { "", "來源資料庫", "來源資料表", "對應[日期]欄位", "對應[量測項目]欄", "對應[檢測點]欄", "對應[檢測數據]欄", "對應[管制值]欄" };
                 for (int i = 0; i < 8; i++) tlp.Controls.Add(new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill }, i, 0);
 
-                // 複製一份操作副本
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
 
                 Action renderRows = null;
                 renderRows = () => {
-                    // 清除除了 Header 以外的列
+                    // 🟢 效能優化：停止 Layout 排版計算，避免頻繁重繪造成的卡頓與閃屏
+                    tlp.SuspendLayout();
+                    pnlScroll.SuspendLayout();
+
                     while (tlp.Controls.Count > 8) tlp.Controls.RemoveAt(8);
                     tlp.RowCount = editingConfigs.Count + 2;
 
@@ -593,25 +596,24 @@ namespace Safety_System
                             }
                         };
 
-                        // Event binding for dynamic saving back to model
                         cbDate.SelectedIndexChanged += (s, ev) => { conf.DateCol = cbDate.Text; };
                         cbItem.SelectedIndexChanged += (s, ev) => { conf.ItemCol = cbItem.Text; };
                         cbPoint.SelectedIndexChanged += (s, ev) => { conf.PointCol = cbPoint.Text; };
                         cbVal.SelectedIndexChanged += (s, ev) => { conf.ValueCol = cbVal.Text; };
                         cbLimit.SelectedIndexChanged += (s, ev) => { conf.LimitCol = cbLimit.Text; };
 
-                        // Initialize values
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
                             if (cbTb.SelectedItem != null) loadCols(conf.TableName);
                         }
                         
-                        if (cbDate.Items.Contains(conf.DateCol)) cbDate.SelectedItem = conf.DateCol;
-                        if (cbItem.Items.Contains(conf.ItemCol)) cbItem.SelectedItem = conf.ItemCol;
-                        if (cbPoint.Items.Contains(conf.PointCol)) cbPoint.SelectedItem = conf.PointCol;
-                        if (cbVal.Items.Contains(conf.ValueCol)) cbVal.SelectedItem = conf.ValueCol;
-                        if (cbLimit.Items.Contains(conf.LimitCol)) cbLimit.SelectedItem = conf.LimitCol;
+                        // 🟢 核心修復防呆：加入 !string.IsNullOrEmpty 判斷，避免 Contains(null) 崩潰
+                        if (!string.IsNullOrEmpty(conf.DateCol) && cbDate.Items.Contains(conf.DateCol)) cbDate.SelectedItem = conf.DateCol;
+                        if (!string.IsNullOrEmpty(conf.ItemCol) && cbItem.Items.Contains(conf.ItemCol)) cbItem.SelectedItem = conf.ItemCol;
+                        if (!string.IsNullOrEmpty(conf.PointCol) && cbPoint.Items.Contains(conf.PointCol)) cbPoint.SelectedItem = conf.PointCol;
+                        if (!string.IsNullOrEmpty(conf.ValueCol) && cbVal.Items.Contains(conf.ValueCol)) cbVal.SelectedItem = conf.ValueCol;
+                        if (!string.IsNullOrEmpty(conf.LimitCol) && cbLimit.Items.Contains(conf.LimitCol)) cbLimit.SelectedItem = conf.LimitCol;
 
                         tlp.Controls.Add(btnDel, 0, i + 1);
                         tlp.Controls.Add(cbDb, 1, i + 1);
@@ -623,13 +625,16 @@ namespace Safety_System
                         tlp.Controls.Add(cbLimit, 7, i + 1);
                     }
 
-                    // 新增按鈕列
                     Button btnAdd = new Button { Text = "➕ 新增來源", Dock = DockStyle.Fill, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                     btnAdd.FlatAppearance.BorderSize = 0;
                     btnAdd.Click += (s, ev) => { editingConfigs.Add(new SummaryConfigItem()); renderRows(); };
                     
                     tlp.Controls.Add(btnAdd, 1, editingConfigs.Count + 1);
                     tlp.SetColumnSpan(btnAdd, 7);
+
+                    // 🟢 恢復排版與重繪
+                    pnlScroll.ResumeLayout(false);
+                    tlp.ResumeLayout(true);
                 };
 
                 renderRows();
@@ -637,7 +642,7 @@ namespace Safety_System
 
                 Button btnSave = new Button { Text = "💾 儲存設定並重新載入", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSave.FlatAppearance.BorderSize = 0;
-                btnSave.Click += (s, ev) => { // 🟢 已修正：將變數改為 ev，避免覆蓋外部參數 e
+                btnSave.Click += (s, ev) => {
                     _configs = editingConfigs;
                     SaveSettings();
                     BtnSearch_Click(null, null);
