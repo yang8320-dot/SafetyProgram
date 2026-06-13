@@ -28,6 +28,10 @@ namespace Safety_System
             public Color ThemeColor { get; set; }
             public Panel MainBox { get; set; }
             public DataGridView Dgv { get; set; }
+            
+            // 🟢 新增參照，供 PDF 匯出時隱藏使用
+            public Button BtnFilter { get; set; }
+            public Label LblFilterStatus { get; set; }
         }
 
         private List<SectionInfo> _sections;
@@ -165,6 +169,9 @@ namespace Safety_System
                     OpenRowVisibilityDialog(sec, _cboYear.SelectedItem.ToString());
                 }
             };
+            
+            // 🟢 將按鈕綁定到 sec 中，方便匯出時隱藏
+            sec.BtnFilter = btnFilter;
 
             Label lblFilterStatus = new Label {
                 Text = "",
@@ -174,6 +181,9 @@ namespace Safety_System
                 AutoSize = true,
                 Padding = new Padding(0, 12, 10, 0)
             };
+            
+            // 🟢 將 Label 綁定到 sec 中，方便匯出時隱藏
+            sec.LblFilterStatus = lblFilterStatus;
             
             pnlTitleBar.Paint += (s, e) => {
                 if (_hiddenRows.ContainsKey(sec.TableName) && _hiddenRows[sec.TableName].Count > 0) {
@@ -265,7 +275,7 @@ namespace Safety_System
 
                             DataTable filteredDt = dv.ToTable();
 
-                            // 🟢 讀取該區塊被隱藏的資料列，從顯示資料表中剔除
+                            // 讀取該區塊被隱藏的資料列，從顯示資料表中剔除
                             string keyCol = GetKeyColumn(filteredDt);
                             if (_hiddenRows.ContainsKey(sec.TableName))
                             {
@@ -280,7 +290,7 @@ namespace Safety_System
                                         val = r[keyCol]?.ToString().Trim() ?? "";
                                     }
 
-                                    // 🟢 防呆：如果該列的名稱是空白的，自動給予包含 ID 的預設名稱
+                                    // 防呆：如果該列的名稱是空白的，自動給予包含 ID 的預設名稱
                                     if (string.IsNullOrEmpty(val)) {
                                         string id = filteredDt.Columns.Contains("Id") ? r["Id"].ToString() : "";
                                         val = $"[未填寫名稱] (系統代碼:{id})";
@@ -403,7 +413,7 @@ namespace Safety_System
                     val = r[keyCol]?.ToString().Trim() ?? "";
                 }
                 
-                // 🟢 防呆：如果名稱為空，以 ID 作為識別顯示
+                // 防呆：如果名稱為空，以 ID 作為識別顯示
                 if (string.IsNullOrEmpty(val)) {
                     string id = yearDt.Columns.Contains("Id") ? r["Id"].ToString() : "";
                     val = $"[未填寫名稱] (系統代碼:{id})";
@@ -598,11 +608,11 @@ namespace Safety_System
         }
 
         // ==========================================
-        // PDF 導出系統
+        // 🟢 PDF 導出系統 (修改了擷取畫面時隱藏按鈕的邏輯)
         // ==========================================
-        private List<Panel> GetSelectedExportPanels()
+        private List<SectionInfo> GetSelectedExportSections()
         {
-            List<Panel> selectedPanels = new List<Panel>();
+            List<SectionInfo> selectedSections = new List<SectionInfo>();
             using (Form f = new Form() { Width = 450, Height = 400, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
@@ -631,18 +641,18 @@ namespace Safety_System
                 {
                     for (int i = 0; i < clb.Items.Count; i++) {
                         if (clb.GetItemChecked(i)) {
-                            selectedPanels.Add(_sections[i].MainBox);
+                            selectedSections.Add(_sections[i]);
                         }
                     }
                 }
             }
-            return selectedPanels;
+            return selectedSections;
         }
 
         private void ExportToPdf()
         {
-            var panelsToExport = GetSelectedExportPanels();
-            if (panelsToExport.Count == 0) return;
+            var sectionsToExport = GetSelectedExportSections();
+            if (sectionsToExport.Count == 0) return;
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
@@ -651,10 +661,18 @@ namespace Safety_System
                 Application.DoEvents(); 
 
                 List<Bitmap> bitmaps = new List<Bitmap>();
-                foreach (var pnl in panelsToExport) 
+                foreach (var sec in sectionsToExport) 
                 {
+                    Panel pnl = sec.MainBox;
+                    DataGridView dgv = sec.Dgv;
+
+                    // 🟢 在截圖前，暫時隱藏「顯示資料」按鈕與「隱藏狀態字眼」
+                    bool origBtnVisible = sec.BtnFilter.Visible;
+                    bool origLblVisible = sec.LblFilterStatus.Visible;
+                    sec.BtnFilter.Visible = false;
+                    sec.LblFilterStatus.Visible = false;
+
                     // 暫時將 DataGridView 高度展開以擷取完整截圖
-                    DataGridView dgv = pnl.Controls.OfType<DataGridView>().FirstOrDefault();
                     int originalHeight = pnl.Height;
                     int dgvOriginalHeight = 0;
 
@@ -667,7 +685,7 @@ namespace Safety_System
                     }
 
                     Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                    pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, pnl.Height));
+                    pnl.DrawToBitmap(bmp, new Rectangle(0, 0, pnl.Width, pnl.Height));
                     bitmaps.Add(bmp);
 
                     // 恢復原本高度
@@ -675,6 +693,10 @@ namespace Safety_System
                         dgv.Height = dgvOriginalHeight;
                         pnl.Height = originalHeight;
                     }
+
+                    // 🟢 截圖完成後，還原這兩個元件的顯示狀態
+                    sec.BtnFilter.Visible = origBtnVisible;
+                    sec.LblFilterStatus.Visible = origLblVisible;
                 }
 
                 string dateStr = $"查詢年度：{_cboYear.SelectedItem}";
