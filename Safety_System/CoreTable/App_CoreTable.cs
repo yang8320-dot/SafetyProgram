@@ -36,7 +36,6 @@ namespace Safety_System
         private ComboBox _cboSearchColumn;
         private TextBox _txtSearchKeyword;
         
-        // 🟢 新增：明確宣告下拉式查詢元件與狀態旗標
         private ComboBox _cboSearchKeyword;
         private bool _isSearchDropdownMode = false;
         
@@ -86,7 +85,6 @@ namespace Safety_System
             LoadColumnWidths(); 
             CheckTimeMode();
 
-            // 呼叫 UI 構建與事件綁定
             Control mainPanel = BuildUI();
             BindEvents();
 
@@ -203,12 +201,26 @@ namespace Safety_System
             SetUIState(true, $"載入成功，共 {dt.Rows.Count} 筆", Color.Green);
         }
 
+        // ====================================================================
+        // 🟢 特殊字元跳脫方法：解決 %、[、]、* 造成的崩潰
+        // ====================================================================
+        private string EscapeLikeValue(string valueWithoutWildcards)
+        {
+            if (string.IsNullOrEmpty(valueWithoutWildcards)) return "";
+            
+            return valueWithoutWildcards
+                .Replace("[", "[[]")
+                .Replace("]", "[]]")
+                .Replace("%", "[%]")
+                .Replace("*", "[*]")
+                .Replace("'", "''");
+        }
+
         private async Task ExecuteAdvancedSearchAsync() 
         {
             SetUIState(false, "條件搜尋中，請稍候...", Color.Orange);
             string searchCol = _cboSearchColumn.SelectedItem?.ToString();
             
-            // 🟢 嚴格使用狀態旗標判斷，精確捕捉下拉選單或輸入框的值
             string keyword = _isSearchDropdownMode ? (_cboSearchKeyword.SelectedItem?.ToString() ?? "") : _txtSearchKeyword.Text;
 
             DataTable resultDt = null;
@@ -218,9 +230,17 @@ namespace Safety_System
                 DataView dv = allData.DefaultView;
 
                 if (!string.IsNullOrEmpty(searchCol)) {
-                    if (keyword == "有鍵入資料者") dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
-                    else if (string.IsNullOrWhiteSpace(keyword)) dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
-                    else dv.RowFilter = $"[{searchCol}] LIKE '%{keyword.Replace("'", "''")}%'";
+                    if (keyword == "有鍵入資料者") {
+                        dv.RowFilter = $"[{searchCol}] <> '' AND [{searchCol}] IS NOT NULL";
+                    }
+                    else if (string.IsNullOrWhiteSpace(keyword)) {
+                        dv.RowFilter = $"[{searchCol}] IS NULL OR [{searchCol}] = ''";
+                    }
+                    else {
+                        // 🟢 使用安全跳脫後的字串進行查詢
+                        string safeKeyword = EscapeLikeValue(keyword);
+                        dv.RowFilter = $"[{searchCol}] LIKE '%{safeKeyword}%'";
+                    }
                 }
                 
                 dv.Sort = "Id DESC"; 
