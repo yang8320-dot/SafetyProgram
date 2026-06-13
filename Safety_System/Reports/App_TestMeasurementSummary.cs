@@ -365,6 +365,10 @@ namespace Safety_System
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
+                    _pdfPrintRowIndex = 0;
+                    _pdfPrintPageNumber = 1;
+                    _pdfPrintedFormInfo = false;
+
                     PrintDocument pd = new PrintDocument();
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
@@ -503,8 +507,12 @@ namespace Safety_System
             }
         }
 
+        private int _pdfPrintRowIndex = 0;
+        private int _pdfPrintPageNumber = 1;
+        private bool _pdfPrintedFormInfo = false;
+
         // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 延遲加載機制)
+        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 效能大幅優化版)
         // =========================================================
         private void LoadSettings()
         {
@@ -546,57 +554,57 @@ namespace Safety_System
             using (Form f = new Form { Text = "⚙️ 讀取資料來源設定 (定義要合併統計的資料表)", Size = new Size(1300, 600), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 Panel pnlScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.WhiteSmoke };
-                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 8, RowCount = 15, Padding = new Padding(10) };
-                
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 50F));  
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F)); 
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); 
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
 
-                string[] headers = { "", "來源資料庫", "來源資料表", "對應[日期]欄位", "對應[量測項目]欄", "對應[檢測點]欄", "對應[檢測數據]欄", "對應[管制值]欄" };
-                for (int i = 0; i < 8; i++) tlp.Controls.Add(new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill }, i, 0);
+                // 🟢 替換 TableLayoutPanel 為 FlowLayoutPanel (解決效能延遲問題)
+                FlowLayoutPanel flpMain = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
 
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
-
-                // 🟢 記憶體快取：避免重複存取資料庫
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
 
                 Action renderRows = null;
                 renderRows = () => {
-                    // 暫停排版引擎避免閃爍與延遲
-                    tlp.SuspendLayout();
-                    pnlScroll.SuspendLayout();
+                    flpMain.SuspendLayout();
+                    flpMain.Controls.Clear();
 
-                    while (tlp.Controls.Count > 8) tlp.Controls.RemoveAt(8);
-                    tlp.RowCount = editingConfigs.Count + 2;
+                    // 畫標題列
+                    Panel pnlHeader = new Panel { Width = 1250, Height = 30 };
+                    string[] headers = { "刪除", "來源資料庫", "來源資料表", "對應[日期]欄位", "對應[量測項目]欄", "對應[檢測點]欄", "對應[檢測數據]欄", "對應[管制值]欄" };
+                    
+                    int[] xs = { 0, 45, 205, 415, 585, 755, 925, 1085 };
+                    int[] ws = { 35, 150, 200, 160, 160, 160, 150, 150 };
 
+                    for (int i = 0; i < 8; i++) {
+                        Label lbl = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Location = new Point(xs[i], 5), AutoSize = true };
+                        pnlHeader.Controls.Add(lbl);
+                    }
+                    flpMain.Controls.Add(pnlHeader);
+
+                    // 畫資料列
                     for (int i = 0; i < editingConfigs.Count; i++) {
                         int currentIndex = i;
                         var conf = editingConfigs[i];
 
-                        Button btnDel = new Button { Text = "❌", Dock = DockStyle.Fill, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                        Panel pnlRow = new Panel { Width = 1250, Height = 40, Margin = new Padding(0, 2, 0, 2) };
+
+                        Button btnDel = new Button { Text = "❌", Location = new Point(xs[0], 2), Size = new Size(ws[0], 32), BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                         btnDel.FlatAppearance.BorderSize = 0;
                         btnDel.Click += (s, ev) => { editingConfigs.RemoveAt(currentIndex); renderRows(); };
 
-                        // 🟢 使用一般的 ComboBox，但不做大量資料寫入，僅賦值 Text
-                        ComboBox cbDb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbTb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbDate = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbItem = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbPoint = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbVal = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbLimit = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbDb = new ComboBox { Location = new Point(xs[1], 5), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbTb = new ComboBox { Location = new Point(xs[2], 5), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbDate = new ComboBox { Location = new Point(xs[3], 5), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbItem = new ComboBox { Location = new Point(xs[4], 5), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbPoint = new ComboBox { Location = new Point(xs[5], 5), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbVal = new ComboBox { Location = new Point(xs[6], 5), Width = ws[6], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbLimit = new ComboBox { Location = new Point(xs[7], 5), Width = ws[7], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
 
+                        // 綁定中英文對照
+                        cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
-                        // 判斷是否需要展開選項的 Flag
                         bool colsLoaded = false;
+                        bool isInitializing = true; // 🟢 防呆：初始化期間不要觸發清除事件
 
-                        // 🟢 延遲載入邏輯：只在使用者準備挑選欄位 (DropDown) 時，才執行一次載入
                         Action<string, string> lazyLoadCols = (dbEnName, tbEnName) => {
                             if (colsLoaded) return;
                             
@@ -622,13 +630,11 @@ namespace Safety_System
                                 }
                             }
                             
-                            // 恢復原本選擇的文字 (即使表中找不到，也保留文字)
                             cbDate.Text = sDate; cbItem.Text = sItem; cbPoint.Text = sPoint; cbVal.Text = sVal; cbLimit.Text = sLim;
 
                             colsLoaded = true;
                         };
 
-                        // 綁定 DropDown 事件
                         EventHandler triggerLoad = (s, ev) => {
                             if (cbDb.SelectedItem != null && cbTb.SelectedItem != null) {
                                 lazyLoadCols(((ItemMap)cbDb.SelectedItem).EnName, ((ItemMap)cbTb.SelectedItem).EnName);
@@ -642,31 +648,35 @@ namespace Safety_System
                         cbLimit.DropDown += triggerLoad;
 
                         cbDb.SelectedIndexChanged += (s, ev) => {
-                            cbTb.Items.Clear();
-                            if (cbDb.SelectedItem != null) {
-                                conf.DbName = ((ItemMap)cbDb.SelectedItem).EnName;
-                                foreach(var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            if (isInitializing) return;
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
+                                foreach(var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             }
+                            if (cbTb.Items.Count > 0) cbTb.SelectedIndex = 0;
                         };
 
                         cbTb.SelectedIndexChanged += (s, ev) => {
+                            if (isInitializing) return;
                             if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
                                 conf.TableName = ((ItemMap)cbTb.SelectedItem).EnName;
-                                colsLoaded = false; // 切換資料表，強迫下次 DropDown 重新載入
+                                colsLoaded = false; 
                                 cbDate.Text = ""; cbItem.Text = ""; cbPoint.Text = ""; cbVal.Text = ""; cbLimit.Text = "";
                             }
                         };
 
-                        // 失去焦點或是變更時儲存回模型
-                        cbDate.TextChanged += (s, ev) => { conf.DateCol = cbDate.Text; };
-                        cbItem.TextChanged += (s, ev) => { conf.ItemCol = cbItem.Text; };
-                        cbPoint.TextChanged += (s, ev) => { conf.PointCol = cbPoint.Text; };
-                        cbVal.TextChanged += (s, ev) => { conf.ValueCol = cbVal.Text; };
-                        cbLimit.TextChanged += (s, ev) => { conf.LimitCol = cbLimit.Text; };
+                        cbDate.TextChanged += (s, ev) => { if(!isInitializing) conf.DateCol = cbDate.Text; };
+                        cbItem.TextChanged += (s, ev) => { if(!isInitializing) conf.ItemCol = cbItem.Text; };
+                        cbPoint.TextChanged += (s, ev) => { if(!isInitializing) conf.PointCol = cbPoint.Text; };
+                        cbVal.TextChanged += (s, ev) => { if(!isInitializing) conf.ValueCol = cbVal.Text; };
+                        cbLimit.TextChanged += (s, ev) => { if(!isInitializing) conf.LimitCol = cbLimit.Text; };
 
-                        // 🟢 初始化：只填充 Db 與 Tb，欄位全部用 Text 直接賦值，**絕對不碰資料庫**
+                        // 🟢 初始化
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                            foreach (var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
                         }
                         
@@ -676,30 +686,23 @@ namespace Safety_System
                         cbVal.Text = conf.ValueCol;
                         cbLimit.Text = conf.LimitCol;
 
-                        tlp.Controls.Add(btnDel, 0, i + 1);
-                        tlp.Controls.Add(cbDb, 1, i + 1);
-                        tlp.Controls.Add(cbTb, 2, i + 1);
-                        tlp.Controls.Add(cbDate, 3, i + 1);
-                        tlp.Controls.Add(cbItem, 4, i + 1);
-                        tlp.Controls.Add(cbPoint, 5, i + 1);
-                        tlp.Controls.Add(cbVal, 6, i + 1);
-                        tlp.Controls.Add(cbLimit, 7, i + 1);
+                        isInitializing = false; // 解除初始化狀態
+
+                        pnlRow.Controls.AddRange(new Control[] { btnDel, cbDb, cbTb, cbDate, cbItem, cbPoint, cbVal, cbLimit });
+                        flpMain.Controls.Add(pnlRow);
                     }
 
-                    Button btnAdd = new Button { Text = "➕ 新增來源", Dock = DockStyle.Fill, Height = 40, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                    Button btnAdd = new Button { Text = "➕ 新增來源", Width = 1250, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                     btnAdd.FlatAppearance.BorderSize = 0;
                     btnAdd.Click += (s, ev) => { editingConfigs.Add(new SummaryConfigItem()); renderRows(); };
                     
-                    tlp.Controls.Add(btnAdd, 1, editingConfigs.Count + 1);
-                    tlp.SetColumnSpan(btnAdd, 7);
+                    flpMain.Controls.Add(btnAdd);
 
-                    // 🟢 恢復排版與重繪
-                    pnlScroll.ResumeLayout(false);
-                    tlp.ResumeLayout(true);
+                    flpMain.ResumeLayout(true);
                 };
 
                 renderRows();
-                pnlScroll.Controls.Add(tlp);
+                pnlScroll.Controls.Add(flpMain);
 
                 Button btnSave = new Button { Text = "💾 儲存設定並重新載入", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSave.FlatAppearance.BorderSize = 0;
