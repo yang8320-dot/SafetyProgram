@@ -528,7 +528,7 @@ namespace Safety_System
 
         private void OpenSettingsDialog()
         {
-            // 🟢 將視窗寬度從 720 放大至 800
+            // 🟢 強制採用 40:60 的完美等比切割，絕不走鐘
             using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(800, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
@@ -546,13 +546,15 @@ namespace Safety_System
                 };
                 tlp.Controls.Add(lblTop, 0, 0);
 
-                // 🟢 將 SplitterDistance 設為 40% (800 * 0.4 = 320)，並取消 FixedPanel 鎖定
-                SplitContainer split = new SplitContainer { 
-                    Dock = DockStyle.Fill, 
-                    SplitterDistance = 320, 
-                    FixedPanel = FixedPanel.None,
-                    Margin = new Padding(15, 5, 15, 15) 
+                // 🟢 替換 SplitContainer，改用保證等比縮放的 TableLayoutPanel
+                TableLayoutPanel splitLayout = new TableLayoutPanel {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 2,
+                    RowCount = 1,
+                    Margin = new Padding(15, 5, 15, 15)
                 };
+                splitLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F)); // 左側 40%
+                splitLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F)); // 右側 60%
 
                 // 左半部
                 Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 5, 0) };
@@ -569,9 +571,10 @@ namespace Safety_System
                 pnlRight.Controls.Add(clbCols);
                 pnlRight.Controls.Add(lblRight);
 
-                split.Panel1.Controls.Add(pnlLeft);
-                split.Panel2.Controls.Add(pnlRight);
-                tlp.Controls.Add(split, 0, 1);
+                splitLayout.Controls.Add(pnlLeft, 0, 0);
+                splitLayout.Controls.Add(pnlRight, 1, 0);
+                
+                tlp.Controls.Add(splitLayout, 0, 1);
 
                 Button btnSave = new Button { 
                     Text = "💾 儲存並套用", 
