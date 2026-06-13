@@ -528,7 +528,8 @@ namespace Safety_System
 
         private void OpenSettingsDialog()
         {
-            using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(720, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
+            // 🟢 將視窗寬度從 720 放大至 800
+            using (Form f = new Form { Text = "⚙️ 顯示設定", Size = new Size(800, 550), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, BackColor = Color.WhiteSmoke }) 
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
                 tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -545,11 +546,11 @@ namespace Safety_System
                 };
                 tlp.Controls.Add(lblTop, 0, 0);
 
-                // 🟢 調整 SplitContainer 的間距與邊距
+                // 🟢 將 SplitterDistance 設為 40% (800 * 0.4 = 320)，並取消 FixedPanel 鎖定
                 SplitContainer split = new SplitContainer { 
                     Dock = DockStyle.Fill, 
-                    SplitterDistance = 220, 
-                    FixedPanel = FixedPanel.Panel1,
+                    SplitterDistance = 320, 
+                    FixedPanel = FixedPanel.None,
                     Margin = new Padding(15, 5, 15, 15) 
                 };
 
