@@ -25,7 +25,7 @@ namespace Safety_System
         private List<SummaryConfigItem> _configs = new List<SummaryConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
-        // 目標資料表清單
+        // 🟢 修正 1：補齊 G30 (WaterMeterCalibration)，共計 11 個
         private readonly string[] _targetTables = { 
             "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
             "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
@@ -59,7 +59,7 @@ namespace Safety_System
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
 
             // ==========================================
-            // 第一個框：資料選擇與操作列
+            // 第一個框：資料選擇與操作列 (🟢 修正 3：按鍵完美水平對齊)
             // ==========================================
             GroupBox box1 = new GroupBox { Text = "⚙️ 查詢條件與操作區", Dock = DockStyle.Top, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Padding = new Padding(15), Margin = new Padding(0,0,0,20) };
             
@@ -209,7 +209,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 智慧欄位容錯補救引擎 (Intelligent Fallback Engine)
+        // 智慧欄位容錯補救引擎 (Intelligent Fallback Engine)
         // =========================================================
         private string GetFallbackDateCol(DataTable dt) => dt.Columns.Contains("日期") ? "日期" : (dt.Columns.Contains("年月") ? "年月" : (dt.Columns.Contains("年度") ? "年度" : ""));
         private string GetFallbackItemCol(DataTable dt) => new[] { "檢測項目", "項目", "名稱", "設備名稱", "量測項目" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
@@ -232,7 +232,6 @@ namespace Safety_System
             try 
             {
                 _dtResult.Rows.Clear(); 
-                // 🟢 字典結構修改：保存 (純數值 Num, 原始字串 Raw)
                 var aggregatedData = new Dictionary<string, Dictionary<int, List<(double Num, string Raw)>>>();
 
                 foreach (var cfg in _configs) 
@@ -268,18 +267,13 @@ namespace Safety_System
 
                         if (string.IsNullOrEmpty(item) || string.IsNullOrEmpty(valStr)) continue;
 
-                        // ========================================================
-                        // 🟢 智慧數值萃取引擎 (保留原始 % 或 < 顯示，但提取純數字運算)
-                        // ========================================================
                         double numericVal = 0;
                         bool isNumericValid = false;
 
-                        // 判斷是否為「未檢出」或 N.D.，數學上視為 0
                         if (valStr.ToUpper().Contains("N.D") || valStr.Contains("未檢出")) {
                             numericVal = 0;
                             isNumericValid = true;
                         } else {
-                            // 擷取所有可能是小數點或負數的連續數字
                             Match mNum = Regex.Match(valStr, @"[-+]?[0-9]*\.?[0-9]+");
                             if (mNum.Success && double.TryParse(mNum.Value, out double parsedVal)) {
                                 numericVal = parsedVal;
@@ -297,7 +291,7 @@ namespace Safety_System
                             }
 
                             int mIdx = (parsedDate.Month >= 1 && parsedDate.Month <= 12) ? parsedDate.Month : 0;
-                            aggregatedData[key][mIdx].Add((numericVal, valStr)); // 將數值與原始字面一同保存
+                            aggregatedData[key][mIdx].Add((numericVal, valStr)); 
                         }
                     }
                 }
@@ -316,7 +310,6 @@ namespace Safety_System
 
                     List<double> allValuesForYear = new List<double>();
                     
-                    // 將沒有月份的數據先加入總池 (只取純數值參與運算)
                     allValuesForYear.AddRange(kvp.Value[0].Select(x => x.Num));
 
                     for (int m = 1; m <= 12; m++) 
@@ -324,9 +317,7 @@ namespace Safety_System
                         var mValues = kvp.Value[m];
                         if (mValues.Count > 0) 
                         {
-                            // 🟢 畫面顯示：輸出原始字面字串 (包含 %, <, >, N.D. 等)
                             row[$"{m}月"] = string.Join("、", mValues.Select(v => v.Raw));
-                            // 🟢 數學運算：將純數字加入平均/最大/最小池中
                             allValuesForYear.AddRange(mValues.Select(x => x.Num));
                         } 
                         else 
@@ -335,7 +326,6 @@ namespace Safety_System
                         }
                     }
 
-                    // 結算整年的最大、最小、平均
                     if (allValuesForYear.Count > 0) {
                         row["最大值"] = allValuesForYear.Max().ToString("0.##");
                         row["最小值"] = allValuesForYear.Min().ToString("0.##");
@@ -380,16 +370,15 @@ namespace Safety_System
                     pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
                     pd.PrinterSettings.PrintToFile = true;
                     pd.PrinterSettings.PrintFileName = sfd.FileName;
-                    pd.DefaultPageSettings.Landscape = true; // 橫式
+                    pd.DefaultPageSettings.Landscape = true; 
                     pd.DefaultPageSettings.Margins = new Margins(40, 40, 50, 50);
 
                     int currentRowIndex = 0;
                     int pageNumber = 1;
                     
-                    // 先計算總頁數
                     int totalPages = 1;
-                    float simH = 827f - 100f; // A4橫向高度扣掉上下邊界
-                    float simStartY = 50f + 40f + 40f + 35f + 40f + 35f; // 標題高度
+                    float simH = 827f - 100f; 
+                    float simStartY = 50f + 40f + 40f + 35f + 40f + 35f; 
                     float simCurrentY = simStartY;
                     float simBottomLimit = simH - 30f; 
 
@@ -419,9 +408,7 @@ namespace Safety_System
                         Font fFooter = new Font("Microsoft JhengHei UI", 10F);
 
                         StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                        // 1. 大標題與簽核 (每頁都有)
                         g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fMainTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
                         y += 40;
                         g.DrawString("環境量測項目績效一覽表", fSubTitle, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
@@ -430,21 +417,15 @@ namespace Safety_System
                         g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                         y += 40;
 
-                        // 2. 雙層表頭繪製
                         float rowH = 35f;
                         float[] colWidths = new float[_dgvResult.Columns.Count];
-                        
                         float unitWidth = w / 100f;
                         
-                        colWidths[0] = unitWidth * 11f; // 量測項目 11%
-                        colWidths[1] = unitWidth * 7f;  // 檢測點   7%
-                        colWidths[2] = unitWidth * 7f;  // 管制標準 7%
-                        
-                        for (int i = 3; i <= 17; i++) {
-                            colWidths[i] = unitWidth * 5f; // 1~12月 + 最大 + 最小 + 平均，共15格，每格5%
-                        }
+                        colWidths[0] = unitWidth * 11f; 
+                        colWidths[1] = unitWidth * 7f;  
+                        colWidths[2] = unitWidth * 7f;  
+                        for (int i = 3; i <= 17; i++) { colWidths[i] = unitWidth * 5f; }
 
-                        // 第一層表頭
                         float currX = x;
                         for (int i = 0; i <= 2; i++) {
                             RectangleF rHead = new RectangleF(currX, y, colWidths[i], rowH * 2);
@@ -454,14 +435,12 @@ namespace Safety_System
                             currX += colWidths[i];
                         }
                         
-                        // 右側群組標題「XX 年度」
                         float monthGroupWidth = unitWidth * 75f; 
                         RectangleF rYearTitle = new RectangleF(currX, y, monthGroupWidth, rowH);
                         g.FillRectangle(Brushes.LightGray, rYearTitle);
                         g.DrawRectangle(Pens.Black, Rectangle.Round(rYearTitle));
                         g.DrawString($"{targetYear} 年度", fGridTitle, Brushes.Black, rYearTitle, sfCenter);
 
-                        // 第二層表頭 (1~12月, 最大, 最小, 平均)
                         float subY = y + rowH;
                         float subX = currX;
                         for (int i = 3; i < _dgvResult.Columns.Count; i++) {
@@ -474,7 +453,6 @@ namespace Safety_System
                         
                         y += rowH * 2;
 
-                        // 3. 資料清單
                         while (currentRowIndex < _dgvResult.Rows.Count) 
                         {
                             DataGridViewRow row = _dgvResult.Rows[currentRowIndex];
@@ -499,7 +477,6 @@ namespace Safety_System
                             currentRowIndex++;
                         }
 
-                        // 4. 補空白列填滿畫面
                         while (y + rowH <= ev.MarginBounds.Bottom - 30)
                         {
                             currX = x;
@@ -511,7 +488,6 @@ namespace Safety_System
                             y += rowH;
                         }
 
-                        // 5. 底部代碼與頁碼
                         g.DrawString("8-ES-B11-02 環境量測項目績效一覽表", fFooter, Brushes.Black, x, ev.MarginBounds.Bottom - 15);
                         g.DrawString($"{pageNumber} / {totalPages}", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
@@ -529,7 +505,7 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗 (加入 Memory Cache 以解決卡頓)
+        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 延遲載入)
         // =========================================================
         private void LoadSettings()
         {
@@ -572,24 +548,24 @@ namespace Safety_System
                 Panel pnlScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.WhiteSmoke };
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 8, RowCount = 15, Padding = new Padding(10) };
                 
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 50F));  // 刪除按鈕
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F)); // 庫
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); // 表
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   // 日期
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   // 項目
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   // 檢測點
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   // 數據
-                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   // 管制值
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 50F));  
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F)); 
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F)); 
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
+                tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));   
 
                 string[] headers = { "", "來源資料庫", "來源資料表", "對應[日期]欄位", "對應[量測項目]欄", "對應[檢測點]欄", "對應[檢測數據]欄", "對應[管制值]欄" };
                 for (int i = 0; i < 8; i++) tlp.Controls.Add(new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill }, i, 0);
 
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
-
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
 
                 Action renderRows = null;
                 renderRows = () => {
+                    // 暫停排版引擎避免閃爍
                     tlp.SuspendLayout();
                     pnlScroll.SuspendLayout();
 
@@ -614,30 +590,58 @@ namespace Safety_System
 
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
-                        Action<string, string> loadCols = (dbEnName, tbEnName) => {
+                        bool isBinding = true;
+                        bool colsLoaded = false;
+
+                        // 🟢 延遲載入邏輯：只在使用者點開下拉選單時才去抓資料表結構
+                        Action<string, string> lazyLoadCols = (dbEnName, tbEnName) => {
+                            if (colsLoaded) return;
+                            string cacheKey = $"{dbEnName}_{tbEnName}";
+                            List<string> cols;
+                            if (_columnCache.ContainsKey(cacheKey)) {
+                                cols = _columnCache[cacheKey]; 
+                            } else {
+                                cols = DataManager.GetColumnNames(dbEnName, tbEnName);
+                                _columnCache[cacheKey] = cols; 
+                            }
+
+                            cbDate.BeginUpdate(); cbItem.BeginUpdate(); cbPoint.BeginUpdate(); cbVal.BeginUpdate(); cbLimit.BeginUpdate();
+                            
+                            string sDate = cbDate.Text; string sItem = cbItem.Text; string sPoint = cbPoint.Text; string sVal = cbVal.Text; string sLim = cbLimit.Text;
+
                             cbDate.Items.Clear(); cbItem.Items.Clear(); cbPoint.Items.Clear(); cbVal.Items.Clear(); cbLimit.Items.Clear();
                             cbDate.Items.Add(""); cbItem.Items.Add(""); cbPoint.Items.Add(""); cbVal.Items.Add(""); cbLimit.Items.Add("");
-                            
-                            if (!string.IsNullOrEmpty(tbEnName) && !string.IsNullOrEmpty(dbEnName)) {
-                                string cacheKey = $"{dbEnName}_{tbEnName}";
-                                List<string> cols;
-                                
-                                if (_columnCache.ContainsKey(cacheKey)) {
-                                    cols = _columnCache[cacheKey]; 
-                                } else {
-                                    cols = DataManager.GetColumnNames(dbEnName, tbEnName);
-                                    _columnCache[cacheKey] = cols; 
-                                }
 
-                                foreach(var c in cols) {
-                                    if (c != "Id") {
-                                        cbDate.Items.Add(c); cbItem.Items.Add(c); cbPoint.Items.Add(c); cbVal.Items.Add(c); cbLimit.Items.Add(c);
-                                    }
+                            foreach(var c in cols) {
+                                if (c != "Id") {
+                                    cbDate.Items.Add(c); cbItem.Items.Add(c); cbPoint.Items.Add(c); cbVal.Items.Add(c); cbLimit.Items.Add(c);
                                 }
+                            }
+                            
+                            if(cbDate.Items.Contains(sDate)) cbDate.SelectedItem = sDate;
+                            if(cbItem.Items.Contains(sItem)) cbItem.SelectedItem = sItem;
+                            if(cbPoint.Items.Contains(sPoint)) cbPoint.SelectedItem = sPoint;
+                            if(cbVal.Items.Contains(sVal)) cbVal.SelectedItem = sVal;
+                            if(cbLimit.Items.Contains(sLim)) cbLimit.SelectedItem = sLim;
+
+                            cbDate.EndUpdate(); cbItem.EndUpdate(); cbPoint.EndUpdate(); cbVal.EndUpdate(); cbLimit.EndUpdate();
+                            colsLoaded = true;
+                        };
+
+                        EventHandler dropDownHandler = (s, ev) => {
+                            if (cbDb.SelectedItem != null && cbTb.SelectedItem != null) {
+                                lazyLoadCols(((ItemMap)cbDb.SelectedItem).EnName, ((ItemMap)cbTb.SelectedItem).EnName);
                             }
                         };
 
+                        cbDate.DropDown += dropDownHandler;
+                        cbItem.DropDown += dropDownHandler;
+                        cbPoint.DropDown += dropDownHandler;
+                        cbVal.DropDown += dropDownHandler;
+                        cbLimit.DropDown += dropDownHandler;
+
                         cbDb.SelectedIndexChanged += (s, ev) => {
+                            if (isBinding) return;
                             cbTb.Items.Clear();
                             if (cbDb.SelectedItem != null) {
                                 conf.DbName = ((ItemMap)cbDb.SelectedItem).EnName;
@@ -646,30 +650,34 @@ namespace Safety_System
                         };
 
                         cbTb.SelectedIndexChanged += (s, ev) => {
+                            if (isBinding) return;
                             if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
                                 conf.TableName = ((ItemMap)cbTb.SelectedItem).EnName;
-                                string dName = ((ItemMap)cbDb.SelectedItem).EnName;
-                                loadCols(dName, conf.TableName);
+                                colsLoaded = false; 
+                                lazyLoadCols(((ItemMap)cbDb.SelectedItem).EnName, conf.TableName);
                             }
                         };
 
-                        cbDate.SelectedIndexChanged += (s, ev) => { conf.DateCol = cbDate.Text; };
-                        cbItem.SelectedIndexChanged += (s, ev) => { conf.ItemCol = cbItem.Text; };
-                        cbPoint.SelectedIndexChanged += (s, ev) => { conf.PointCol = cbPoint.Text; };
-                        cbVal.SelectedIndexChanged += (s, ev) => { conf.ValueCol = cbVal.Text; };
-                        cbLimit.SelectedIndexChanged += (s, ev) => { conf.LimitCol = cbLimit.Text; };
+                        cbDate.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.DateCol = cbDate.Text; };
+                        cbItem.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.ItemCol = cbItem.Text; };
+                        cbPoint.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.PointCol = cbPoint.Text; };
+                        cbVal.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.ValueCol = cbVal.Text; };
+                        cbLimit.SelectedIndexChanged += (s, ev) => { if(!isBinding) conf.LimitCol = cbLimit.Text; };
 
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
+                            foreach(var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == conf.TableName) { cbTb.SelectedItem = im; break; }
-                            if (cbTb.SelectedItem != null) loadCols(conf.DbName, conf.TableName);
                         }
-                        
-                        if (!string.IsNullOrEmpty(conf.DateCol) && cbDate.Items.Contains(conf.DateCol)) cbDate.SelectedItem = conf.DateCol;
-                        if (!string.IsNullOrEmpty(conf.ItemCol) && cbItem.Items.Contains(conf.ItemCol)) cbItem.SelectedItem = conf.ItemCol;
-                        if (!string.IsNullOrEmpty(conf.PointCol) && cbPoint.Items.Contains(conf.PointCol)) cbPoint.SelectedItem = conf.PointCol;
-                        if (!string.IsNullOrEmpty(conf.ValueCol) && cbVal.Items.Contains(conf.ValueCol)) cbVal.SelectedItem = conf.ValueCol;
-                        if (!string.IsNullOrEmpty(conf.LimitCol) && cbLimit.Items.Contains(conf.LimitCol)) cbLimit.SelectedItem = conf.LimitCol;
+
+                        // 🟢 將已有的設定填入 (不需要去資料庫查證，直接顯示)
+                        if (!string.IsNullOrEmpty(conf.DateCol)) { cbDate.Items.Add(conf.DateCol); cbDate.SelectedItem = conf.DateCol; }
+                        if (!string.IsNullOrEmpty(conf.ItemCol)) { cbItem.Items.Add(conf.ItemCol); cbItem.SelectedItem = conf.ItemCol; }
+                        if (!string.IsNullOrEmpty(conf.PointCol)) { cbPoint.Items.Add(conf.PointCol); cbPoint.SelectedItem = conf.PointCol; }
+                        if (!string.IsNullOrEmpty(conf.ValueCol)) { cbVal.Items.Add(conf.ValueCol); cbVal.SelectedItem = conf.ValueCol; }
+                        if (!string.IsNullOrEmpty(conf.LimitCol)) { cbLimit.Items.Add(conf.LimitCol); cbLimit.SelectedItem = conf.LimitCol; }
+
+                        isBinding = false;
 
                         tlp.Controls.Add(btnDel, 0, i + 1);
                         tlp.Controls.Add(cbDb, 1, i + 1);
