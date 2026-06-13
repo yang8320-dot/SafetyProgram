@@ -230,7 +230,8 @@ namespace Safety_System
             // 初始化欄位隱藏設定
             foreach (DataGridViewColumn col in sec.Dgv.Columns)
             {
-                string dictKey = $"{sec.TableName}_|{col.Name}"; // 使用安全的連字號避免跟資料表名稱底線衝突
+                // 🟢 採用安全分隔符號 ::，避免與表格自帶的底線衝突
+                string dictKey = $"{sec.TableName}::{col.Name}"; 
 
                 if (_columnVisibility.ContainsKey(dictKey)) {
                     col.Visible = _columnVisibility[dictKey];
@@ -266,6 +267,7 @@ namespace Safety_System
                 try {
                     foreach (var line in File.ReadAllLines(VisibilityFile, Encoding.UTF8)) {
                         var parts = line.Split('|');
+                        // 確保只有兩段 (Key | Value)
                         if (parts.Length == 2) {
                             _columnVisibility[parts[0]] = (parts[1] == "1");
                         }
@@ -277,6 +279,7 @@ namespace Safety_System
         private void SaveVisibilitySettings()
         {
             try {
+                // 🟢 直接把完整的 Key 結合 Value 寫入檔案，中間用 | 隔開
                 var lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
                 File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
             } catch { }
@@ -337,7 +340,8 @@ namespace Safety_System
 
                     foreach (var c in cols) {
                         if (c == "Id") continue;
-                        string key = $"{tblName}_|{c}";
+                        // 🟢 使用安全連字號 ::
+                        string key = $"{tblName}::{c}";
                         bool isChecked = _columnVisibility.ContainsKey(key) ? _columnVisibility[key] : _defaultVisibleCols.Contains(c);
                         clbCols.Items.Add(c, isChecked);
                     }
@@ -347,7 +351,7 @@ namespace Safety_System
                     if (lbTables.SelectedIndex < 0) return;
                     string tblName = _sections[lbTables.SelectedIndex].TableName;
                     string colName = clbCols.Items[e.Index].ToString();
-                    _columnVisibility[$"{tblName}_|{colName}"] = e.NewValue == CheckState.Checked;
+                    _columnVisibility[$"{tblName}::{colName}"] = e.NewValue == CheckState.Checked;
                 };
 
                 btnSave.Click += (s, e) => {
