@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace Safety_System
@@ -23,7 +20,7 @@ namespace Safety_System
         private Panel _pnlGridContainer;
 
         // 設定檔路徑與快取
-        private readonly string SettingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestSummarySettings.txt");
+        private readonly string SettingsFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestSummarySettings.txt");
         private List<SummaryConfigItem> _configs = new List<SummaryConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
@@ -174,8 +171,8 @@ namespace Safety_System
             if (string.IsNullOrWhiteSpace(dateStr)) return ("", 0);
             dateStr = dateStr.Trim().Replace("/", "-");
 
-            Regex twRegex = new Regex(@"^(?<year>\d{2,3})(?:-(?<month>\d{1,2}))?(?:-(?<day>\d{1,2}))?(?:\s+.*)?$");
-            Match matchTw = twRegex.Match(dateStr);
+            System.Text.RegularExpressions.Regex twRegex = new System.Text.RegularExpressions.Regex(@"^(?<year>\d{2,3})(?:-(?<month>\d{1,2}))?(?:-(?<day>\d{1,2}))?(?:\s+.*)?$");
+            System.Text.RegularExpressions.Match matchTw = twRegex.Match(dateStr);
 
             string yStr = "";
             int mInt = 0;
@@ -325,94 +322,161 @@ namespace Safety_System
                 MessageBox.Show("目前沒有數據可供導出，請先執行查詢。"); return;
             }
 
-            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+            string targetYear = _cboYear.SelectedItem.ToString();
 
-            try 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"環境量測項目績效一覽表_{targetYear}年度_{DateTime.Now:yyyyMMdd}" })
             {
-                string targetYear = _cboYear.SelectedItem.ToString();
-                
-                // 為了完美套用 PdfHelper，動態繪製雙層表頭的 Bitmap
-                int totalHeight = 45 * 2; // 雙層表頭高度
-                foreach (DataGridViewRow row in _dgvResult.Rows) totalHeight += row.Height;
-                totalHeight += 2;
-
-                Bitmap bmp = new Bitmap(_dgvResult.Width, totalHeight);
-                using (Graphics g = Graphics.FromImage(bmp))
+                if (sfd.ShowDialog() == DialogResult.OK)
                 {
-                    g.Clear(Color.White);
-                    
-                    float w = bmp.Width;
-                    float[] colWidths = new float[_dgvResult.Columns.Count];
-                    float unitWidth = w / 100f;
-                    
-                    colWidths[0] = unitWidth * 11f; 
-                    colWidths[1] = unitWidth * 7f;  
-                    colWidths[2] = unitWidth * 7f;  
-                    for (int i = 3; i <= 17; i++) colWidths[i] = unitWidth * 5f; 
+                    PrintDocument pd = new PrintDocument();
+                    pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                    pd.PrinterSettings.PrintToFile = true;
+                    pd.PrinterSettings.PrintFileName = sfd.FileName;
+                    pd.DefaultPageSettings.Landscape = true; // 橫式
+                    pd.DefaultPageSettings.Margins = new Margins(40, 40, 50, 50);
 
-                    Font fGridTitle = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold);
-                    Font fGridHead = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
-                    Font fGridBody = new Font("Microsoft JhengHei UI", 11F);
-                    StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-
-                    float y = 0;
-                    float rowH = 45f;
-                    float currX = 0;
+                    int currentRowIndex = 0;
+                    int pageNumber = 1;
                     
-                    // 第一層表頭
-                    Brush headerBg = new SolidBrush(Color.FromArgb(45, 62, 80));
-                    for (int i = 0; i <= 2; i++) {
-                        RectangleF rHead = new RectangleF(currX, y, colWidths[i], rowH * 2);
-                        g.FillRectangle(headerBg, rHead);
-                        g.DrawRectangle(Pens.White, Rectangle.Round(rHead));
-                        g.DrawString(_dgvResult.Columns[i].HeaderText, fGridTitle, Brushes.White, rHead, sfCenter);
-                        currX += colWidths[i];
+                    // 先計算總頁數
+                    int totalPages = 1;
+                    float simH = 827f - 100f; // A4橫向高度扣掉上下邊界
+                    float simStartY = 50f + 40f + 40f + 35f + 40f + 35f; // 標題高度
+                    float simCurrentY = simStartY;
+                    float simBottomLimit = simH - 30f; 
+
+                    for (int i = 0; i < _dgvResult.Rows.Count; i++) {
+                        float rowH = 35f; 
+                        if (simCurrentY + rowH > simBottomLimit) {
+                            totalPages++;
+                            simCurrentY = simStartY + rowH;
+                        } else {
+                            simCurrentY += rowH;
+                        }
                     }
-                    
-                    float monthGroupWidth = unitWidth * 75f; 
-                    RectangleF rYearTitle = new RectangleF(currX, y, monthGroupWidth, rowH);
-                    g.FillRectangle(headerBg, rYearTitle);
-                    g.DrawRectangle(Pens.White, Rectangle.Round(rYearTitle));
-                    g.DrawString($"{targetYear} 年度", fGridTitle, Brushes.White, rYearTitle, sfCenter);
 
-                    // 第二層表頭
-                    float subY = y + rowH;
-                    float subX = currX;
-                    for (int i = 3; i < _dgvResult.Columns.Count; i++) {
-                        RectangleF rSubHead = new RectangleF(subX, subY, colWidths[i], rowH);
-                        g.FillRectangle(headerBg, rSubHead);
-                        g.DrawRectangle(Pens.White, Rectangle.Round(rSubHead));
-                        g.DrawString(_dgvResult.Columns[i].HeaderText, fGridHead, Brushes.White, rSubHead, sfCenter);
-                        subX += colWidths[i];
-                    }
-                    y += rowH * 2;
+                    pd.PrintPage += (s, ev) => {
+                        Graphics g = ev.Graphics;
+                        float x = ev.MarginBounds.Left;
+                        float y = ev.MarginBounds.Top;
+                        float w = ev.MarginBounds.Width;
 
-                    // 資料列
-                    foreach (DataGridViewRow row in _dgvResult.Rows) {
-                        currX = 0;
-                        for (int i = 0; i < _dgvResult.Columns.Count; i++) {
-                            RectangleF rCell = new RectangleF(currX, y, colWidths[i], row.Height);
-                            Brush bgBrush = (row.Index % 2 == 0) ? Brushes.White : Brushes.AliceBlue;
-                            g.FillRectangle(bgBrush, rCell);
-                            g.DrawRectangle(Pens.LightGray, Rectangle.Round(rCell));
-                            string val = row.Cells[i].Value?.ToString() ?? "";
-                            g.DrawString(val, fGridBody, Brushes.Black, rCell, sfCenter);
+                        Font fMainTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
+                        Font fSubTitle = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
+                        Font fSign = new Font("Microsoft JhengHei UI", 12F);
+                        
+                        Font fGridTitle = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold);
+                        Font fGridHead = new Font("Microsoft JhengHei UI", 9F, FontStyle.Bold);
+                        Font fGridBody = new Font("Microsoft JhengHei UI", 9F);
+                        Font fFooter = new Font("Microsoft JhengHei UI", 10F);
+
+                        StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        StringFormat sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                        // 1. 大標題與簽核 (每頁都有)
+                        g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fMainTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
+                        y += 40;
+                        g.DrawString("環境量測項目績效一覽表", fSubTitle, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
+                        y += 40;
+                        string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
+                        g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
+                        y += 40;
+
+                        // 2. 雙層表頭繪製
+                        float rowH = 35f;
+                        float[] colWidths = new float[_dgvResult.Columns.Count];
+                        
+                        float unitWidth = w / 100f;
+                        
+                        colWidths[0] = unitWidth * 11f; // 量測項目 11%
+                        colWidths[1] = unitWidth * 7f;  // 檢測點   7%
+                        colWidths[2] = unitWidth * 7f;  // 管制標準 7%
+                        
+                        for (int i = 3; i <= 17; i++) {
+                            colWidths[i] = unitWidth * 5f; // 1~12月 + 最大 + 最小 + 平均，共15格，每格5%
+                        }
+
+                        // 第一層表頭
+                        float currX = x;
+                        for (int i = 0; i <= 2; i++) {
+                            RectangleF rHead = new RectangleF(currX, y, colWidths[i], rowH * 2);
+                            g.FillRectangle(Brushes.LightGray, rHead);
+                            g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
+                            g.DrawString(_dgvResult.Columns[i].HeaderText, fGridTitle, Brushes.Black, rHead, sfCenter);
                             currX += colWidths[i];
                         }
-                        y += row.Height;
+                        
+                        // 右側群組標題「XX 年度」 (佔 75% 寬度 = 15 格 * 5%)
+                        float monthGroupWidth = unitWidth * 75f; 
+                        RectangleF rYearTitle = new RectangleF(currX, y, monthGroupWidth, rowH);
+                        g.FillRectangle(Brushes.LightGray, rYearTitle);
+                        g.DrawRectangle(Pens.Black, Rectangle.Round(rYearTitle));
+                        g.DrawString($"{targetYear} 年度", fGridTitle, Brushes.Black, rYearTitle, sfCenter);
+
+                        // 第二層表頭 (1~12月, 最大, 最小, 平均)
+                        float subY = y + rowH;
+                        float subX = currX;
+                        for (int i = 3; i < _dgvResult.Columns.Count; i++) {
+                            RectangleF rSubHead = new RectangleF(subX, subY, colWidths[i], rowH);
+                            g.FillRectangle(Brushes.LightGray, rSubHead);
+                            g.DrawRectangle(Pens.Black, Rectangle.Round(rSubHead));
+                            g.DrawString(_dgvResult.Columns[i].HeaderText, fGridHead, Brushes.Black, rSubHead, sfCenter);
+                            subX += colWidths[i];
+                        }
+                        
+                        y += rowH * 2;
+
+                        // 3. 資料清單
+                        while (currentRowIndex < _dgvResult.Rows.Count) 
+                        {
+                            DataGridViewRow row = _dgvResult.Rows[currentRowIndex];
+                            
+                            if (y + rowH > ev.MarginBounds.Bottom - 30) {
+                                g.DrawString("8-ES-B11-02 環境量測項目績效一覽表", fFooter, Brushes.Black, x, ev.MarginBounds.Bottom - 15);
+                                g.DrawString($"{pageNumber} / {totalPages}", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
+                                pageNumber++;
+                                ev.HasMorePages = true;
+                                return;
+                            }
+
+                            currX = x;
+                            for (int i = 0; i < _dgvResult.Columns.Count; i++) {
+                                RectangleF rCell = new RectangleF(currX, y, colWidths[i], rowH);
+                                g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
+                                string val = row.Cells[i].Value?.ToString() ?? "";
+                                g.DrawString(val, fGridBody, Brushes.Black, rCell, sfCenter);
+                                currX += colWidths[i];
+                            }
+                            y += rowH;
+                            currentRowIndex++;
+                        }
+
+                        // 4. 補空白列填滿畫面
+                        while (y + rowH <= ev.MarginBounds.Bottom - 30)
+                        {
+                            currX = x;
+                            for (int i = 0; i < _dgvResult.Columns.Count; i++) {
+                                RectangleF rCell = new RectangleF(currX, y, colWidths[i], rowH);
+                                g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
+                                currX += colWidths[i];
+                            }
+                            y += rowH;
+                        }
+
+                        // 5. 底部代碼與頁碼
+                        g.DrawString("8-ES-B11-02 環境量測項目績效一覽表", fFooter, Brushes.Black, x, ev.MarginBounds.Bottom - 15);
+                        g.DrawString($"{pageNumber} / {totalPages}", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom - 15, w, 20), sfCenter);
+
+                        ev.HasMorePages = false;
+                    };
+
+                    try {
+                        pd.Print();
+                        MessageBox.Show("PDF 導出成功！\n匯出內容已完全同步目前的視窗排序狀態。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("PDF 導出失敗：" + ex.Message, "錯誤");
                     }
                 }
-
-                string dateStr = $"查詢年度：{targetYear}年度";
-                PdfHelper.ExportDashboardToPdf(new List<Bitmap> { bmp }, "環境量測項目績效一覽表", dateStr, "環境量測績效總表");
-            } 
-            catch (Exception ex)
-            {
-                MessageBox.Show("PDF 導出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
 
@@ -422,10 +486,10 @@ namespace Safety_System
         private void LoadSettings()
         {
             _configs.Clear();
-            if (File.Exists(SettingsFile))
+            if (System.IO.File.Exists(SettingsFile))
             {
                 try {
-                    foreach (var line in File.ReadAllLines(SettingsFile, Encoding.UTF8)) {
+                    foreach (var line in System.IO.File.ReadAllLines(SettingsFile, System.Text.Encoding.UTF8)) {
                         var parts = line.Split('|');
                         if (parts.Length == 7) {
                             _configs.Add(new SummaryConfigItem { 
@@ -438,7 +502,7 @@ namespace Safety_System
                 } catch { }
             }
             
-            // 系統防呆：如果沒有設定檔，載入預設的 G21~G31 組合做為基礎
+            // 系統防呆：如果沒有設定檔，載入預設組合
             if (_configs.Count == 0) {
                 string[] defaultTables = { "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", "TCLP", "OtherTests" };
                 foreach (var tb in defaultTables) {
@@ -451,7 +515,7 @@ namespace Safety_System
         {
             try {
                 var lines = _configs.Select(c => $"{c.DbName}|{c.TableName}|{c.DateCol}|{c.ItemCol}|{c.PointCol}|{c.ValueCol}|{c.LimitCol}").ToArray();
-                File.WriteAllLines(SettingsFile, lines, Encoding.UTF8);
+                System.IO.File.WriteAllLines(SettingsFile, lines, System.Text.Encoding.UTF8);
             } catch { }
         }
 
@@ -573,7 +637,7 @@ namespace Safety_System
 
                 Button btnSave = new Button { Text = "💾 儲存設定並重新載入", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSave.FlatAppearance.BorderSize = 0;
-                btnSave.Click += (s, e) => {
+                btnSave.Click += (s, ev) => { // 🟢 已修正：將變數改為 ev，避免覆蓋外部參數 e
                     _configs = editingConfigs;
                     SaveSettings();
                     BtnSearch_Click(null, null);
