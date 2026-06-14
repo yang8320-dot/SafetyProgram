@@ -30,18 +30,12 @@ namespace Safety_System
         // 存放動態生成的 Grid 以供 PDF 導出時對應
         private Dictionary<string, Panel> _monthlyPanels = new Dictionary<string, Panel>();
 
+        // 🟢 替換：已移除 .txt 設定檔路徑，改用 SQLite
         private List<TestConfigItem> _configs = new List<TestConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
         // 查詢按鈕，用於防呆禁用
         private Button _btnSearch;
-
-        // 目標資料表清單 (11個)
-        private readonly string[] _targetTables = { 
-            "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
-            "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
-            "TCLP", "WaterMeterCalibration", "OtherTests" 
-        };
 
         // 定義下拉選單對應的中英文模型
         private class ItemMap {
@@ -54,7 +48,7 @@ namespace Safety_System
         private class TestConfigItem
         {
             public string DisplayName { get; set; }
-            public string Unit { get; set; } = "mg/L"; 
+            public string Unit { get; set; } = "mg/L"; // 檢測數據預設單位
             public List<DataSourceDef> Sources { get; set; } = new List<DataSourceDef>();
 
             // 深拷貝方法，防止編輯時污染原始資料
@@ -77,10 +71,11 @@ namespace Safety_System
             public string ColName { get; set; }
             public string FilterValue { get; set; } 
             public string AggType { get; set; } 
-            public string ColName2 { get; set; } = ""; 
-            public string RefColName { get; set; } = ""; 
+            public string ColName2 { get; set; } = ""; // 保持結構相容
+            public string RefColName { get; set; } = ""; // 參照資料欄 (用於過濾條件)
         }
 
+        // 🟢 新增：資料庫初始化邏輯
         private void InitDatabase()
         {
             try {
@@ -99,7 +94,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            InitDatabase(); 
+            InitDatabase(); // 🟢 初始化 SQLite 表格
             _dbMap = App_DbConfig.GetDbMapCache();
             LoadSettings();
 
@@ -209,37 +204,6 @@ namespace Safety_System
         private FlowLayoutPanel CreateDataPanel()
         {
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 150), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
-        }
-
-        private DateTime? ParseUniversalDate(string dateStr)
-        {
-            if (string.IsNullOrWhiteSpace(dateStr)) return null;
-            
-            dateStr = dateStr.Trim().Replace("/", "-");
-
-            Regex twRegex = new Regex(@"^(?<year>\d{2,3})-(?<month>\d{1,2})-(?<day>\d{1,2})(?:\s+.*)?$");
-            Match matchTw = twRegex.Match(dateStr);
-
-            if (matchTw.Success)
-            {
-                if (int.TryParse(matchTw.Groups["year"].Value, out int twYear))
-                {
-                    if (twYear < 200)
-                    {
-                        int westernYear = twYear + 1911;
-                        string m = matchTw.Groups["month"].Value.PadLeft(2, '0');
-                        string d = matchTw.Groups["day"].Value.PadLeft(2, '0');
-                        dateStr = $"{westernYear}-{m}-{d}"; 
-                    }
-                }
-            }
-
-            if (DateTime.TryParse(dateStr, out DateTime result))
-            {
-                return result;
-            }
-
-            return null;
         }
 
         private void InitDateComboBoxes()
@@ -627,13 +591,6 @@ namespace Safety_System
                     }
                 }
             } catch { }
-            
-            // 系統防呆：如果沒有設定檔，載入 11 個預設組合
-            if (_configs.Count == 0) {
-                foreach (var tb in _targetTables) {
-                    _configs.Add(new TestConfigItem { DisplayName = tb, Unit = "mg/L" });
-                }
-            }
         }
 
         private void SaveSettings()
@@ -668,9 +625,9 @@ namespace Safety_System
             } catch { }
         }
 
-        private void BtnSettings_Click(object sender, EventArgs e)
+        private void BtnSetting_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
@@ -944,7 +901,7 @@ namespace Safety_System
                     }
                 };
 
-                btnAddNewStat.Click += (s, e) => {
+                btnAddNewStat.Click += (s, ev) => {
                     lbItems.ClearSelected();
                     currentEditingItem = new TestConfigItem();
                     currentEditingItem.Sources.Add(new DataSourceDef());
@@ -1003,7 +960,7 @@ namespace Safety_System
                 btnSaveAll.Click += (senderObj, evnt) => {
                     _configs = editingConfigs;
                     SaveSettings();
-                    BtnSearch_Click(null, null);
+                    _ = LoadDashboardDataAsync();
                     f.DialogResult = DialogResult.OK;
                 };
 
@@ -1014,6 +971,88 @@ namespace Safety_System
 
                 f.ShowDialog();
             }
+        }
+
+        // =========================================================
+        // PDF 導出 
+        // =========================================================
+        private void BtnPdf_Click(object sender, EventArgs e)
+        {
+            if (_configs.Count == 0) { MessageBox.Show("無資料可導出。"); return; }
+
+            var panelsToExport = GetSelectedExportPanels();
+            if (panelsToExport.Count == 0) return;
+
+            List<Bitmap> bitmaps = new List<Bitmap>();
+            foreach (var pnl in panelsToExport) 
+            {
+                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                bitmaps.Add(bmp);
+            }
+
+            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+            
+            PdfHelper.ExportDashboardToPdf(bitmaps, "檢測數據統計表", dateStr, "檢測數據統計表");
+        }
+
+        private List<Panel> GetSelectedExportPanels()
+        {
+            List<Panel> selectedPanels = new List<Panel>();
+            using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 90F));
+
+                Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Fill, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), AutoSize = true };
+                tlp.Controls.Add(lbl, 0, 0);
+
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
+                
+                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
+                
+                foreach (var kvp in _monthlyPanels) {
+                    clb.Items.Add($"近三年逐月：{kvp.Key}", true);
+                }
+                tlp.Controls.Add(clb, 0, 1);
+
+                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
+                
+                Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(15, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(125, 5), Size = new Size(130, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                
+                btnSelectAll.Click += (s, ev) => {
+                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true);
+                };
+
+                btnUnselectAll.Click += (s, ev) => {
+                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false);
+                };
+
+                pnlBottom.Controls.Add(btnSelectAll);
+                pnlBottom.Controls.Add(btnUnselectAll);
+                pnlBottom.Controls.Add(btnOk);
+                
+                tlp.Controls.Add(pnlBottom, 0, 2);
+                f.Controls.Add(tlp);
+
+                if (f.ShowDialog() == DialogResult.OK) 
+                {
+                    foreach (var item in clb.CheckedItems) {
+                        string text = item.ToString();
+                        if (text.Contains("【總計】區間統計總計")) {
+                            selectedPanels.Add(_pnlTopBox);
+                        } else {
+                            string key = text.Replace("近三年逐月：", "");
+                            if (_monthlyPanels.ContainsKey(key)) selectedPanels.Add(_monthlyPanels[key]);
+                        }
+                    }
+                }
+            }
+            return selectedPanels;
         }
     }
 }
