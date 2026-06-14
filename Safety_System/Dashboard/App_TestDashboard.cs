@@ -243,9 +243,6 @@ namespace Safety_System
             return null;
         }
 
-        // =========================================================
-        // 🟢 修復：統一加入 ToString()，確保與字串的選項匹配無誤
-        // =========================================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
@@ -270,7 +267,6 @@ namespace Safety_System
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, today);
         }
 
-        // 🟢 修復：增加 TryParse 防呆保護
         private void UpdateDaysCombo(ComboBox y, ComboBox m, ComboBox d)
         {
             if (y.SelectedItem == null || m.SelectedItem == null) return;
@@ -287,7 +283,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修復：將指派動作全數改為字串處理
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date)
         {
             y.SelectedItem = date.Year.ToString(); 
@@ -296,7 +291,6 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
-        // 🟢 修復：增加 TryParse 防呆保護
         private DateTime GetDateFromCombo(ComboBox y, ComboBox m, ComboBox d)
         {
             if (y.SelectedItem == null || m.SelectedItem == null || d.SelectedItem == null) return DateTime.Today;
@@ -611,9 +605,6 @@ namespace Safety_System
             return result;
         }
 
-        // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
-        // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
@@ -645,19 +636,6 @@ namespace Safety_System
                     }
                 }
             } catch { }
-            
-            // 系統防呆：如果沒有設定檔，載入 11 個預設組合
-            if (_configs.Count == 0) {
-                foreach (var tb in _targetTables) {
-                    _configs.Add(new TestConfigItem { 
-                        DisplayName = tb, 
-                        Unit = "mg/L", 
-                        Sources = new List<DataSourceDef> {
-                            new DataSourceDef { DbName = "TestData", TableName = tb, ColName = "檢測數據", RefColName = "檢測項目", FilterValue = "" }
-                        }
-                    });
-                }
-            }
         }
 
         private void SaveSettings()
@@ -743,7 +721,7 @@ namespace Safety_System
 
                 TestConfigItem currentEditingItem = null;
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
-                bool isSyncing = false; // 🟢 防無窮迴圈鎖
+                bool isSyncing = false; 
 
                 Action renderRows = null;
                 renderRows = () => {
@@ -783,12 +761,13 @@ namespace Safety_System
                         btnRemove.FlatAppearance.BorderSize = 0;
                         btnRemove.Click += (s, ev) => { currentEditingItem.Sources.RemoveAt(currentIndex); renderRows(); };
 
+                        // 🟢 修復 2：下拉選單屬性改為 DropDown 確保延遲載入時仍可正確賦值並顯示
                         ComboBox cbDb = new ComboBox { Location = new Point(xs[1], cy), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbTb = new ComboBox { Location = new Point(xs[2], cy), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         
-                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbAgg = new ComboBox { Location = new Point(xs[6], cy), Width = ws[6]+50, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                         pRow.Controls.AddRange(new Control[] { btnRemove, cbDb, cbTb, cbRefCol, cbFilter, cbCol, cbAgg });
@@ -839,7 +818,14 @@ namespace Safety_System
 
                             if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
                                 colsLoaded = false;
-                                cbCol.Text = "Id (無條件計數)"; cbRefCol.Text = ""; cbFilter.Text = "非空值 (有輸入即算)";
+                                
+                                // 預防性加入以避免直接覆蓋後文字被清空
+                                if (!cbCol.Items.Contains("Id (無條件計數)")) cbCol.Items.Add("Id (無條件計數)");
+                                if (!cbFilter.Items.Contains("非空值 (有輸入即算)")) cbFilter.Items.Add("非空值 (有輸入即算)");
+                                
+                                cbCol.Text = "Id (無條件計數)"; 
+                                cbRefCol.Text = ""; 
+                                cbFilter.Text = "非空值 (有輸入即算)";
                             }
                         };
 
@@ -900,12 +886,11 @@ namespace Safety_System
                             }
                         };
 
-                        // 🟢 即時同步至記憶體
                         cbCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName = cbCol.Text; } };
                         cbFilter.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.FilterValue = cbFilter.Text; } };
                         cbRefCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.RefColName = cbRefCol.Text; } };
 
-                        // 初始化填值 (靜默進行)
+                        // 🟢 初始化填值 (確保文字賦值時，不會因為 DropDown 的懶加載機制導致值被清空)
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == srcDef.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null && _dbMap.ContainsKey(srcDef.DbName)) {
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
@@ -913,13 +898,19 @@ namespace Safety_System
                             foreach (ItemMap im in cbTb.Items) if (im.EnName == srcDef.TableName) { cbTb.SelectedItem = im; break; }
                         }
 
+                        if (!string.IsNullOrEmpty(srcDef.ColName) && !cbCol.Items.Contains(srcDef.ColName)) cbCol.Items.Add(srcDef.ColName);
                         cbCol.Text = srcDef.ColName;
-                        if (!string.IsNullOrEmpty(srcDef.RefColName)) cbRefCol.Text = srcDef.RefColName;
+
+                        if (!string.IsNullOrEmpty(srcDef.RefColName)) {
+                            if (!cbRefCol.Items.Contains(srcDef.RefColName)) cbRefCol.Items.Add(srcDef.RefColName);
+                            cbRefCol.Text = srcDef.RefColName;
+                        }
 
                         if (!string.IsNullOrEmpty(srcDef.FilterValue)) {
                             if (!cbFilter.Items.Contains(srcDef.FilterValue)) cbFilter.Items.Add(srcDef.FilterValue);
                             cbFilter.Text = srcDef.FilterValue;
                         } else {
+                            if (!cbFilter.Items.Contains("非空值 (有輸入即算)")) cbFilter.Items.Add("非空值 (有輸入即算)");
                             cbFilter.Text = "非空值 (有輸入即算)";
                         }
                         
@@ -944,7 +935,6 @@ namespace Safety_System
                     flpSourcesContainer.ResumeLayout(true);
                 };
 
-                // 🟢 綁定文字框同步機制 (即時反映至左側清單與記憶體模型)
                 txtName.TextChanged += (s, ev) => {
                     if (isSyncing || currentEditingItem == null || lbItems.SelectedIndex < 0) return;
                     currentEditingItem.DisplayName = txtName.Text;
@@ -1008,7 +998,6 @@ namespace Safety_System
                     }
                 };
 
-                // 🟢 徹底簡化儲存流程：只保留最下方一顆「儲存設定並關閉視窗」按鈕
                 pnlRight.Controls.Add(flpEditor);
                 pnlRight.Controls.Add(l2);
 
@@ -1035,9 +1024,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================
-        // PDF 導出 
-        // =========================================================
         private void BtnPdf_Click(object sender, EventArgs e)
         {
             if (_configs.Count == 0) { MessageBox.Show("無資料可導出。"); return; }
