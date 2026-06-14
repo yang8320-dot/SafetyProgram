@@ -2,11 +2,11 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -30,9 +30,9 @@ namespace Safety_System
         // 存放動態生成的 Grid 以供 PDF 導出時對應
         private Dictionary<string, Panel> _monthlyPanels = new Dictionary<string, Panel>();
 
-        // 設定檔路徑與快取 (檢測數據專屬)
-        private readonly string SettingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestDashboardSettings.txt");
+        // 🟢 替換：已移除 .txt 設定檔路徑，改用 SQLite
         private List<TestConfigItem> _configs = new List<TestConfigItem>();
+        private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
         // 查詢按鈕，用於防呆禁用
         private Button _btnSearch;
@@ -63,8 +63,27 @@ namespace Safety_System
             public string RefColName { get; set; } = ""; // 參照資料欄 (用於過濾條件)
         }
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [TestDashboardConfigs] (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        DisplayName TEXT, Unit TEXT, DbName TEXT, TableName TEXT, 
+                        ColName TEXT, AggType TEXT, FilterValue TEXT, ColName2 TEXT, RefColName TEXT);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); // 🟢 初始化 SQLite 表格
+            _dbMap = App_DbConfig.GetDbMapCache();
             LoadSettings();
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
@@ -175,9 +194,6 @@ namespace Safety_System
             return new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, MinimumSize = new Size(0, 150), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(248, 249, 250), Margin = new Padding(2), Padding = new Padding(10) };
         }
 
-        // =========================================================
-        // 萬能日期解析器：自動應付民國年、西元年、各種格式差異
-        // =========================================================
         private DateTime? ParseUniversalDate(string dateStr)
         {
             if (string.IsNullOrWhiteSpace(dateStr)) return null;
@@ -209,9 +225,6 @@ namespace Safety_System
             return null;
         }
 
-        // =========================================================
-        // 日期控制與資料運算
-        // =========================================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
@@ -564,72 +577,90 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗
+        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
         // =========================================================
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [TestDashboardConfigs] (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        DisplayName TEXT, Unit TEXT, DbName TEXT, TableName TEXT, 
+                        ColName TEXT, AggType TEXT, FilterValue TEXT, ColName2 TEXT, RefColName TEXT);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         private void LoadSettings()
         {
             _configs.Clear();
-            if (File.Exists(SettingsFile))
-            {
-                try
-                {
-                    foreach (var line in File.ReadAllLines(SettingsFile, Encoding.UTF8))
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length > 1)
-                        {
-                            string dispName = parts[0];
-                            string unit = "mg/L"; 
-
-                            if (parts.Length > 1 && !parts[1].Contains(";")) {
-                                unit = parts[1];
-                            }
-
-                            TestConfigItem cfg = new TestConfigItem { DisplayName = dispName, Unit = unit };
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM TestDashboardConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        var dict = new Dictionary<string, TestConfigItem>();
+                        while (reader.Read()) {
+                            string dispName = reader["DisplayName"].ToString();
+                            string unit = reader["Unit"].ToString();
                             
-                            int srcStartIdx = (!parts[1].Contains(";")) ? 2 : 1;
-
-                            for (int i = srcStartIdx; i < parts.Length; i++)
-                            {
-                                var srcParts = parts[i].Split(';');
-                                if (srcParts.Length >= 4)
-                                {
-                                    string filter = srcParts.Length > 4 ? srcParts[4] : "";
-                                    string col2 = srcParts.Length > 5 ? srcParts[5] : ""; 
-                                    string refCol = srcParts.Length > 6 ? srcParts[6] : "";
-                                    cfg.Sources.Add(new DataSourceDef { DbName = srcParts[0], TableName = srcParts[1], ColName = srcParts[2], AggType = srcParts[3], FilterValue = filter, ColName2 = col2, RefColName = refCol });
-                                }
+                            if (!dict.ContainsKey(dispName)) {
+                                dict[dispName] = new TestConfigItem { DisplayName = dispName, Unit = unit, Sources = new List<DataSourceDef>() };
                             }
-                            _configs.Add(cfg);
+
+                            dict[dispName].Sources.Add(new DataSourceDef {
+                                DbName = reader["DbName"].ToString(),
+                                TableName = reader["TableName"].ToString(),
+                                ColName = reader["ColName"].ToString(),
+                                AggType = reader["AggType"].ToString(),
+                                FilterValue = reader["FilterValue"].ToString(),
+                                ColName2 = reader["ColName2"].ToString(),
+                                RefColName = reader["RefColName"].ToString()
+                            });
                         }
+                        _configs = dict.Values.ToList();
                     }
                 }
-                catch { }
-            }
+            } catch { }
         }
 
         private void SaveSettings()
         {
-            try
-            {
-                List<string> lines = new List<string>();
-                foreach (var cfg in _configs)
-                {
-                    if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
-
-                    string line = $"{cfg.DisplayName}|{cfg.Unit}";
-                    foreach (var src in cfg.Sources)
-                    {
-                        line += $"|{src.DbName};{src.TableName};{src.ColName};{src.AggType};{src.FilterValue};{src.ColName2};{src.RefColName}";
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM TestDashboardConfigs", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO TestDashboardConfigs (DisplayName, Unit, DbName, TableName, ColName, AggType, FilterValue, ColName2, RefColName) VALUES (@D, @U, @DB, @TB, @C, @A, @F, @C2, @RC)";
+                        foreach (var cfg in _configs) {
+                            if (string.IsNullOrEmpty(cfg.DisplayName)) continue;
+                            foreach (var src in cfg.Sources) {
+                                using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                    cmd.Parameters.AddWithValue("@D", cfg.DisplayName);
+                                    cmd.Parameters.AddWithValue("@U", cfg.Unit ?? "mg/L");
+                                    cmd.Parameters.AddWithValue("@DB", src.DbName ?? "");
+                                    cmd.Parameters.AddWithValue("@TB", src.TableName ?? "");
+                                    cmd.Parameters.AddWithValue("@C", src.ColName ?? "");
+                                    cmd.Parameters.AddWithValue("@A", src.AggType ?? "COUNT");
+                                    cmd.Parameters.AddWithValue("@F", src.FilterValue ?? "");
+                                    cmd.Parameters.AddWithValue("@C2", src.ColName2 ?? "");
+                                    cmd.Parameters.AddWithValue("@RC", src.RefColName ?? "");
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                        trans.Commit();
                     }
-                    lines.Add(line);
                 }
-                File.WriteAllLines(SettingsFile, lines, Encoding.UTF8);
-            }
-            catch { }
+            } catch { }
         }
 
-        private void BtnSetting_Click(object sender, EventArgs e)
+        private void BtnSettings_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
@@ -672,7 +703,6 @@ namespace Safety_System
                 var dbMap = App_DbConfig.GetDbMapCache();
 
                 Action<DataSourceDef> addSourceRow = (def) => {
-                    // 🟢 縮減後的寬度分配
                     Panel pRow = new Panel { Width = 950, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                     pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                     
@@ -713,15 +743,19 @@ namespace Safety_System
                     cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                     foreach (var kvp in dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
+                    bool isInitializing = true; 
+
                     cbDb.SelectedIndexChanged += (s, ev) => {
+                        if (isInitializing) return;
                         cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                         var selDb = cbDb.SelectedItem as ItemMap;
-                        if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && dbMap.ContainsKey(selDb.EnName)) {
-                            foreach (var tb in dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                        if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
+                            foreach (var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                         }
                     };
 
                     cbTb.SelectedIndexChanged += (s, ev) => {
+                        if (isInitializing) return;
                         cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
                         cbRefCol.Items.Clear(); cbRefCol.Items.Add(""); 
                         
@@ -736,7 +770,6 @@ namespace Safety_System
                         }
                     };
 
-                    // 🟢 連動改由 RefCol 驅動，且動態從資料庫撈取唯一值 (使用 Cast<DataRow>)
                     cbRefCol.SelectedIndexChanged += (s, ev) => {
                         cbFilter.Items.Clear(); 
                         cbFilter.Items.Add("非空值 (有輸入即算)");
@@ -788,8 +821,13 @@ namespace Safety_System
 
                     if (def != null) {
                         foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
-                        foreach(ItemMap im in cbTb.Items) if(im.EnName == def.TableName) { cbTb.SelectedItem = im; break; }
                         
+                        if (cbDb.SelectedItem != null && _dbMap.ContainsKey(def.DbName)) {
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                            foreach (var tb in _dbMap[def.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            foreach (ItemMap im in cbTb.Items) if(im.EnName == def.TableName) { cbTb.SelectedItem = im; break; }
+                        }
+
                         cbCol.Text = def.ColName;
                         if (!string.IsNullOrEmpty(def.RefColName) && cbRefCol.Items.Contains(def.RefColName)) {
                             cbRefCol.SelectedItem = def.RefColName;
@@ -812,6 +850,7 @@ namespace Safety_System
                         cbFilter.Text = "非空值 (有輸入即算)";
                     }
 
+                    isInitializing = false; 
                     flpSourcesContainer.Controls.Add(pRow);
                 };
 
@@ -828,7 +867,6 @@ namespace Safety_System
                 tlp.Controls.Add(pnlRight, 1, 0);
                 f.Controls.Add(tlp);
 
-                // 資料載入與綁定邏輯
                 Action refreshList = () => {
                     lbItems.Items.Clear();
                     foreach (var cfg in _configs) {
@@ -926,9 +964,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================
-        // PDF 導出 
-        // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
@@ -987,26 +1022,6 @@ namespace Safety_System
                 }
             }
             return selectedPanels;
-        }
-
-        private void BtnPdf_Click(object sender, EventArgs e)
-        {
-            if (_configs.Count == 0) { MessageBox.Show("無資料可導出。"); return; }
-
-            var panelsToExport = GetSelectedExportPanels();
-            if (panelsToExport.Count == 0) return;
-
-            List<Bitmap> bitmaps = new List<Bitmap>();
-            foreach (var pnl in panelsToExport) 
-            {
-                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                bitmaps.Add(bmp);
-            }
-
-            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
-            
-            PdfHelper.ExportDashboardToPdf(bitmaps, "檢測數據統計表", dateStr, "檢測數據統計表");
         }
     }
 }
