@@ -1,6 +1,8 @@
+/// FILE: Safety_System/Dashboard/App_ChemDashboard.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
@@ -19,9 +21,7 @@ namespace Safety_System
         private const string DbName = "Chemical";
         private const string TableName = "SDS_Inventory";
         
-        // 確保新的 10 個預設欄位直接生效
-        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemSDS_Columns_v4.txt");
-        
+        // 🟢 替換：已移除 txt 檔案，改用 SQLite
         // 用於儲存欄位順序與可見性的結構
         private class ColConfig {
             public string Name { get; set; }
@@ -29,11 +29,28 @@ namespace Safety_System
         }
         private List<ColConfig> _columnSettings = new List<ColConfig>();
 
-        // 您指定的 10 個預設顯示欄位與排序 (對應真實欄位名稱)
+        // 預設顯示欄位與排序 (對應真實欄位名稱)
         private readonly string[] _defaultVisibleCols = { "項次", "化學物質名稱", "危害標示", "供應商", "供應商電話", "使用單位", "貯存地點", "使用最大量", "SDS版本日期", "備註" };
+
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [ChemDashboardVisibility] (
+                        ItemKey TEXT PRIMARY KEY, IsVisible INTEGER);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
 
         public Control GetView()
         {
+            InitDatabase(); // 🟢 初始化 SQLite 表格
+            
             // 防呆：確保資料表已建立，避免因為空表導致讀取崩潰畫面擠壓
             string schema = TableSchemaManager.SchemaMap.ContainsKey(TableName) ? TableSchemaManager.SchemaMap[TableName] : "[日期] TEXT, [備註] TEXT";
             DataManager.InitTable(DbName, TableName, $"CREATE TABLE IF NOT EXISTS [{TableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {schema});");
@@ -151,7 +168,6 @@ namespace Safety_System
             _dgvSDS.ColumnHeadersHeight = 40;
             _dgvSDS.AlternatingRowsDefaultCellStyle.BackColor = Color.WhiteSmoke;
             
-            // 🟢 核心攔截：儲存格自訂繪製 (純圖示處理)
             _dgvSDS.CellPainting += DgvSDS_CellPainting;
 
             boxGrid.Controls.Add(_dgvSDS);
@@ -382,47 +398,56 @@ namespace Safety_System
             catch (Exception ex) { MessageBox.Show("開啟設定視窗失敗：" + ex.Message); }
         }
 
+        // 🟢 替換為 SQLite
         private void LoadVisibilitySettings()
         {
             _columnSettings.Clear();
-            if (File.Exists(VisibilityFile))
-            {
-                try
-                {
-                    string[] lines = File.ReadAllLines(VisibilityFile, Encoding.UTF8);
-                    foreach (var line in lines)
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length == 2)
-                        {
-                            _columnSettings.Add(new ColConfig {
-                                Name = parts[0],
-                                IsVisible = (parts[1] == "1")
-                            });
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM ChemDashboardVisibility", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        // 因為排序很重要，所以我們把資料拉出來後，還要能依照原本在文字檔裡的順序（雖然 SQLite 沒有文字檔那樣天生順序，我們依賴寫入的先後 `Id` 即可）。
+                        var orderedList = new List<(string Name, bool IsVisible, int Id)>();
+                        while (reader.Read()) {
+                            orderedList.Add((
+                                reader["ItemKey"].ToString(),
+                                Convert.ToInt32(reader["IsVisible"]) == 1,
+                                Convert.ToInt32(reader["Id"])
+                            ));
+                        }
+                        
+                        foreach (var item in orderedList.OrderBy(x => x.Id)) {
+                            _columnSettings.Add(new ColConfig { Name = item.Name, IsVisible = item.IsVisible });
                         }
                     }
                 }
-                catch { }
-            }
+            } catch { }
         }
 
+        // 🟢 替換為 SQLite
         private void SaveVisibilitySettings()
         {
-            try
-            {
-                StringBuilder sb = new StringBuilder();
-                foreach (var cfg in _columnSettings)
-                {
-                    sb.AppendLine($"{cfg.Name}|{(cfg.IsVisible ? "1" : "0")}");
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM ChemDashboardVisibility", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO ChemDashboardVisibility (ItemKey, IsVisible) VALUES (@K, @V)";
+                        foreach (var cfg in _columnSettings) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@K", cfg.Name);
+                                cmd.Parameters.AddWithValue("@V", cfg.IsVisible ? 1 : 0);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
                 }
-                File.WriteAllText(VisibilityFile, sb.ToString(), Encoding.UTF8);
-            }
-            catch { }
+            } catch { }
         }
 
-        // =========================================================================
-        // 🟢 導出 A4 危害性化學品清單 PDF 功能 (套用圖示顯示)
-        // =========================================================================
         private void ExportToHazardousListPdfDirectly()
         {
             if (_dgvSDS.DataSource == null || _dgvSDS.Rows.Count == 0)
@@ -471,17 +496,14 @@ namespace Safety_System
                                 return "";
                             }
 
-                            // 1. 唯一標題：危害性化學品清單
                             g.DrawString("危害性化學品清單", fTitle, Brushes.Black, new RectangleF(x, y, w, 50), sfCenter);
                             y += 80;
 
-                            // 以下為實體內容
                             g.DrawString(separator, fBody, Brushes.Black, x, y); y += 30;
                             g.DrawString($"化學品名稱：{GetVal("化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
                             g.DrawString($"其他名稱：{GetVal("其它化學物質名稱")}", fBody, Brushes.Black, x, y); y += 30;
                             g.DrawString($"安全資料表索引碼：{GetVal("廠內編號")}", fBody, Brushes.Black, x, y); y += 30;
                             
-                            // 🟢 危害標示 (處理圖示)
                             g.DrawString($"危害標示：", fBody, Brushes.Black, x, y);
                             string hazardVal = GetVal("危害標示");
                             var hazardIcons = PdfHelper.GetIconsFromCache(TableName, "危害標示", hazardVal);
@@ -552,7 +574,6 @@ namespace Safety_System
 
                             g.DrawString(separator, fBody, Brushes.Black, x, y); y += 40;
 
-                            // 底部表單號 (無頁碼)
                             g.DrawString("8-ES-B09-01 危害性化學品清單", fSmall, Brushes.Black, x, e.MarginBounds.Bottom - 20);
 
                             currentRow++;
@@ -575,9 +596,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================================
-        // 導出 SDS 清冊 PDF 功能 (套用圖示顯示)
-        // =========================================================================
         private void ExportToPdf()
         {
             if (_dgvSDS.DataSource == null || _dgvSDS.Rows.Count == 0)
@@ -608,7 +626,6 @@ namespace Safety_System
                         var visCols = _dgvSDS.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
                         if (visCols.Count == 0) return;
 
-                        // ====== 先計算總頁數 ======
                         int totalPages = 1;
                         float simH = 827f - 60f;  
                         
@@ -626,7 +643,6 @@ namespace Safety_System
                             }
                         }
 
-                        // ====== 正式繪製 ======
                         pd.PrintPage += (s, e) => {
                             Graphics g = e.Graphics;
                             float x = e.MarginBounds.Left;
@@ -643,20 +659,16 @@ namespace Safety_System
                             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                             StringFormat sfBody = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 
-                            // 1. 第一行：大標題置中
                             g.DrawString("台灣玻璃工業股份有限公司 - 彰濱廠", fTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter); 
                             y += 40;
 
-                            // 2. 第二行：副標題置中
                             g.DrawString("化學品清單一覽表", fSubTitle, Brushes.Black, new RectangleF(x, y, w, 30), sfCenter); 
                             y += 40;
 
-                            // 3. 第三行：簽核置中
                             string sign = "廠主管：______________    經/副理：______________    課/股長：______________    制表：______________";
                             g.DrawString(sign, fSign, Brushes.Black, new RectangleF(x, y, w, 25), sfCenter); 
                             y += 35;
 
-                            // 4. 第四行：查詢條件留空高度
                             g.DrawString("", fDate, Brushes.DimGray, new RectangleF(x, y, w, 20), new StringFormat { Alignment = StringAlignment.Near }); 
                             y += 30;
 
@@ -686,11 +698,10 @@ namespace Safety_System
                                     
                                     string val = _dgvSDS[col.Index, rowIndex].Value?.ToString() ?? "";
                                     
-                                    // 🟢 檢查是否有圖示
                                     var icons = PdfHelper.GetIconsFromCache(TableName, col.Name, val);
                                     if (icons.Count > 0)
                                     {
-                                        float imgSize = 18f; // PDF上的圖示大小
+                                        float imgSize = 18f; 
                                         float imgY = y + (rowH - imgSize) / 2;
                                         float startX = currX + 4;
                                         foreach (var img in icons)
@@ -701,7 +712,6 @@ namespace Safety_System
                                     }
                                     else
                                     {
-                                        // 沒圖示就畫純文字
                                         RectangleF textRect = new RectangleF(rect.X + 2, rect.Y, rect.Width - 4, rect.Height);
                                         g.DrawString(val, fBody, Brushes.Black, textRect, sfBody);
                                     }
@@ -717,7 +727,6 @@ namespace Safety_System
                                 }
                             }
                             
-                            // 底部標註與頁碼
                             g.DrawString("8-ES-B09-01 化學品清冊一覽表", fDate, Brushes.Black, x, e.MarginBounds.Bottom - 15);
                             g.DrawString($"第 {pageNumber} 頁 / 共 {totalPages} 頁", fDate, Brushes.Black, new RectangleF(x, e.MarginBounds.Bottom - 15, w, 20), sfCenter);
 
@@ -742,9 +751,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================================
-        // 🟢 讓化學品看板的 Grid 也支援純圖示/多圖示並排顯示
-        // =========================================================================
         private void DgvSDS_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
@@ -755,7 +761,6 @@ namespace Safety_System
                 var icons = PdfHelper.GetIconsFromCache(TableName, colName, e.Value.ToString());
                 if (icons.Count > 0)
                 {
-                    // 🟢 核心修正：只畫背景與邊框，刻意排除文字
                     e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.Focus | DataGridViewPaintParts.SelectionBackground);
                     
                     int imgSize = 24; 
@@ -767,7 +772,7 @@ namespace Safety_System
                         e.Graphics.DrawImage(img, startX, imgY, imgSize, imgSize);
                         startX += imgSize + 4;
                     }
-                    e.Handled = true; // 告知系統已處理完成
+                    e.Handled = true; 
                 }
             }
         }
