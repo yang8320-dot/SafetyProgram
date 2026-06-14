@@ -243,13 +243,16 @@ namespace Safety_System
             return null;
         }
 
+        // =========================================================
+        // 🟢 修復：統一加入 ToString()，確保與字串的選項匹配無誤
+        // =========================================================
         private void InitDateComboBoxes()
         {
             int currY = DateTime.Today.Year;
             for (int i = currY - 10; i <= currY + 1; i++) 
             { 
-                _cboStartYear.Items.Add(i); 
-                _cboEndYear.Items.Add(i); 
+                _cboStartYear.Items.Add(i.ToString()); 
+                _cboEndYear.Items.Add(i.ToString()); 
             }
             for (int i = 1; i <= 12; i++) 
             { 
@@ -267,17 +270,24 @@ namespace Safety_System
             SetComboDate(_cboEndYear, _cboEndMonth, _cboEndDay, today);
         }
 
+        // 🟢 修復：增加 TryParse 防呆保護
         private void UpdateDaysCombo(ComboBox y, ComboBox m, ComboBox d)
         {
             if (y.SelectedItem == null || m.SelectedItem == null) return;
-            int days = DateTime.DaysInMonth(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()));
-            string currentDay = d.SelectedItem?.ToString();
-            d.Items.Clear();
-            for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
-            if (currentDay != null && d.Items.Contains(currentDay)) d.SelectedItem = currentDay;
-            else d.SelectedIndex = d.Items.Count - 1; 
+            
+            if (int.TryParse(y.SelectedItem.ToString(), out int year) && int.TryParse(m.SelectedItem.ToString(), out int month))
+            {
+                int days = DateTime.DaysInMonth(year, month);
+                string currentDay = d.SelectedItem?.ToString();
+                d.Items.Clear();
+                for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
+                
+                if (currentDay != null && d.Items.Contains(currentDay)) d.SelectedItem = currentDay;
+                else d.SelectedIndex = d.Items.Count - 1; 
+            }
         }
 
+        // 🟢 修復：將指派動作全數改為字串處理
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date)
         {
             y.SelectedItem = date.Year.ToString(); 
@@ -286,12 +296,19 @@ namespace Safety_System
             d.SelectedItem = date.Day.ToString("D2");
         }
 
+        // 🟢 修復：增加 TryParse 防呆保護
         private DateTime GetDateFromCombo(ComboBox y, ComboBox m, ComboBox d)
         {
             if (y.SelectedItem == null || m.SelectedItem == null || d.SelectedItem == null) return DateTime.Today;
-            int day = int.Parse(d.SelectedItem.ToString());
-            int maxDay = DateTime.DaysInMonth(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()));
-            return new DateTime(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()), day > maxDay ? maxDay : day);
+            
+            if (int.TryParse(y.SelectedItem.ToString(), out int year) && 
+                int.TryParse(m.SelectedItem.ToString(), out int month) && 
+                int.TryParse(d.SelectedItem.ToString(), out int day))
+            {
+                int maxDay = DateTime.DaysInMonth(year, month);
+                return new DateTime(year, month, day > maxDay ? maxDay : day);
+            }
+            return DateTime.Today;
         }
 
         private async Task LoadDashboardDataAsync()
@@ -594,6 +611,9 @@ namespace Safety_System
             return result;
         }
 
+        // =========================================================
+        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
+        // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
@@ -625,6 +645,19 @@ namespace Safety_System
                     }
                 }
             } catch { }
+            
+            // 系統防呆：如果沒有設定檔，載入 11 個預設組合
+            if (_configs.Count == 0) {
+                foreach (var tb in _targetTables) {
+                    _configs.Add(new TestConfigItem { 
+                        DisplayName = tb, 
+                        Unit = "mg/L", 
+                        Sources = new List<DataSourceDef> {
+                            new DataSourceDef { DbName = "TestData", TableName = tb, ColName = "檢測數據", RefColName = "檢測項目", FilterValue = "" }
+                        }
+                    });
+                }
+            }
         }
 
         private void SaveSettings()
@@ -699,7 +732,7 @@ namespace Safety_System
                 
                 flpEditor.Controls.Add(pName);
 
-                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 950, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+                FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 980, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
                 // 複製一份記憶體來編輯
@@ -710,7 +743,7 @@ namespace Safety_System
 
                 TestConfigItem currentEditingItem = null;
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
-                bool isSyncing = false; 
+                bool isSyncing = false; // 🟢 防無窮迴圈鎖
 
                 Action renderRows = null;
                 renderRows = () => {
@@ -750,12 +783,12 @@ namespace Safety_System
                         btnRemove.FlatAppearance.BorderSize = 0;
                         btnRemove.Click += (s, ev) => { currentEditingItem.Sources.RemoveAt(currentIndex); renderRows(); };
 
-                        ComboBox cbDb = new ComboBox { Location = new Point(xs[1], cy), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbTb = new ComboBox { Location = new Point(xs[2], cy), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbDb = new ComboBox { Location = new Point(xs[1], cy), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbTb = new ComboBox { Location = new Point(xs[2], cy), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         
-                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbAgg = new ComboBox { Location = new Point(xs[6], cy), Width = ws[6]+50, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                         pRow.Controls.AddRange(new Control[] { btnRemove, cbDb, cbTb, cbRefCol, cbFilter, cbCol, cbAgg });
