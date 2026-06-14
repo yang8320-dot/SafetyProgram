@@ -36,7 +36,7 @@ namespace Safety_System
         // 查詢按鈕，用於防呆禁用
         private Button _btnSearch;
 
-        // 🟢 補回遺失的目標資料表清單 (11個)
+        // 目標資料表清單 (11個)
         private readonly string[] _targetTables = { 
             "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
             "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
@@ -54,8 +54,20 @@ namespace Safety_System
         private class TestConfigItem
         {
             public string DisplayName { get; set; }
-            public string Unit { get; set; } = "mg/L"; // 檢測數據預設單位
+            public string Unit { get; set; } = "mg/L"; 
             public List<DataSourceDef> Sources { get; set; } = new List<DataSourceDef>();
+
+            // 深拷貝方法，防止編輯時污染原始資料
+            public TestConfigItem Clone() {
+                var clone = new TestConfigItem { DisplayName = this.DisplayName, Unit = this.Unit };
+                foreach (var s in this.Sources) {
+                    clone.Sources.Add(new DataSourceDef {
+                        DbName = s.DbName, TableName = s.TableName, ColName = s.ColName,
+                        FilterValue = s.FilterValue, AggType = s.AggType, ColName2 = s.ColName2, RefColName = s.RefColName
+                    });
+                }
+                return clone;
+            }
         }
 
         private class DataSourceDef
@@ -65,8 +77,8 @@ namespace Safety_System
             public string ColName { get; set; }
             public string FilterValue { get; set; } 
             public string AggType { get; set; } 
-            public string ColName2 { get; set; } = ""; // 保持結構相容
-            public string RefColName { get; set; } = ""; // 參照資料欄 (用於過濾條件)
+            public string ColName2 { get; set; } = ""; 
+            public string RefColName { get; set; } = ""; 
         }
 
         private void InitDatabase()
@@ -581,6 +593,9 @@ namespace Safety_System
             return result;
         }
 
+        // =========================================================
+        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
+        // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
@@ -653,23 +668,30 @@ namespace Safety_System
             } catch { }
         }
 
-        private void BtnSetting_Click(object sender, EventArgs e)
+        private void BtnSettings_Click(object sender, EventArgs e)
         {
-            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
+            using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
                 tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
+                // 🟢 左側面板：清單與新增鈕
                 Panel pnlLeft = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
-                Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 30 };
+                
+                Button btnAddNewStat = new Button { Text = "➕ 新增統計指標", Dock = DockStyle.Top, Height = 45, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+                btnAddNewStat.FlatAppearance.BorderSize = 0;
+
+                Label l1 = new Label { Text = "已建立的統計項目", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35, Padding = new Padding(0,10,0,0) };
                 ListBox lbItems = new ListBox { Dock = DockStyle.Fill, Font = new Font("Microsoft JhengHei UI", 12F) };
                 Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 
                 pnlLeft.Controls.Add(lbItems);
                 pnlLeft.Controls.Add(l1);
+                pnlLeft.Controls.Add(btnAddNewStat);
                 pnlLeft.Controls.Add(btnDel);
 
+                // 🟢 右側面板：編輯區
                 Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
                 Label l2 = new Label { Text = "編輯 / 新增項目", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.SaddleBrown, Dock = DockStyle.Top, Height = 40 };
 
@@ -684,65 +706,71 @@ namespace Safety_System
                 TextBox txtUnit = new TextBox { Width = 100, Location = new Point(465, 7), Font = new Font("Microsoft JhengHei UI", 12F), Text = "mg/L" };
                 pName.Controls.Add(txtUnit);
                 
-                Button btnAddSource = new Button { Text = "➕ 新增項目", Location = new Point(595, 5), Size = new Size(130, 32), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
-                btnAddSource.FlatAppearance.BorderSize = 0;
-                pName.Controls.Add(btnAddSource);
-                
                 flpEditor.Controls.Add(pName);
 
                 FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 980, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
-                var editingConfigs = new List<TestConfigItem>(_configs);
+                var editingConfigs = new List<TestConfigItem>();
+                foreach (var c in _configs) {
+                    editingConfigs.Add(c.Clone()); // 深拷貝
+                }
+
+                TestConfigItem currentEditingItem = null;
+                Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
 
                 Action renderRows = null;
                 renderRows = () => {
                     flpSourcesContainer.SuspendLayout();
                     flpSourcesContainer.Controls.Clear();
 
-                    var confItem = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
-                    if (confItem == null) {
-                        confItem = new TestConfigItem();
-                        editingConfigs.Add(confItem);
+                    if (currentEditingItem == null) {
+                        Label lblEmpty = new Label { Text = "請從左側點擊「新增統計指標」或選擇現有項目進行編輯。", Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.DimGray, AutoSize = true, Margin = new Padding(20) };
+                        flpSourcesContainer.Controls.Add(lblEmpty);
+                        flpSourcesContainer.ResumeLayout(true);
+                        return;
                     }
 
-                    for (int i = 0; i < confItem.Sources.Count; i++) {
-                        int currentIndex = i;
-                        var srcDef = confItem.Sources[i];
+                    // 畫標題列
+                    Panel pnlHeader = new Panel { Width = 950, Height = 30 };
+                    string[] headers = { "刪除", "來源資料庫", "來源資料表", "參照資料欄", "選項過濾條件", "計算欄位", "運算方式" };
+                    int[] xs = { 0, 45, 180, 345, 510, 685, 850 };
+                    
+                    for (int i = 0; i < headers.Length; i++) {
+                        Label lbl = new Label { Text = headers[i], Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Location = new Point(xs[i], 5), AutoSize = true };
+                        pnlHeader.Controls.Add(lbl);
+                    }
+                    flpSourcesContainer.Controls.Add(pnlHeader);
 
-                        Panel pRow = new Panel { Width = 950, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                    for (int i = 0; i < currentEditingItem.Sources.Count; i++) {
+                        int currentIndex = i;
+                        var srcDef = currentEditingItem.Sources[i];
+
+                        Panel pRow = new Panel { Width = 950, Height = 50, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                         pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                         
-                        int ly = 10; int cy = 35;
-                        int x0 = 10, w0 = 35;   // 刪除按鈕
-                        int x1 = 50, w1 = 130;  // 資料庫
-                        int x2 = 185, w2 = 160; // 資料表
-                        int x3 = 350, w3 = 160; // 參照資料欄
-                        int x4 = 515, w4 = 170; // 選項過濾條件
-                        int x5 = 690, w5 = 160; // 計算欄位
-                        int x6 = 855, w6 = 80;  // 運算方式
+                        int cy = 8;
+                        int w0 = 35;   // 刪除按鈕
+                        int w1 = 130;  // 資料庫
+                        int w2 = 160;  // 資料表
+                        int w3 = 160;  // 參照資料欄
+                        int w4 = 170;  // 選項過濾條件
+                        int w5 = 160;  // 計算欄位
+                        int w6 = 80;   // 運算方式
 
-                        Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                        Button btnRemove = new Button { Text = "❌", Location = new Point(xs[0], cy-2), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                         btnRemove.FlatAppearance.BorderSize = 0;
-                        btnRemove.Click += (s, ev) => { confItem.Sources.RemoveAt(currentIndex); renderRows(); };
+                        btnRemove.Click += (s, ev) => { currentEditingItem.Sources.RemoveAt(currentIndex); renderRows(); };
 
-                        ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbDb = new ComboBox { Location = new Point(xs[1], cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbTb = new ComboBox { Location = new Point(xs[2], cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         
-                        ComboBox cbRefCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbCol = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbAgg = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbAgg = new ComboBox { Location = new Point(xs[6], cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-                        pRow.Controls.AddRange(new Control[] {
-                            btnRemove,
-                            new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
-                            new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
-                            new Label { Text = "參照資料欄", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbRefCol,
-                            new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
-                            new Label { Text = "計算欄位", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
-                            new Label { Text = "運算方式", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg
-                        });
+                        pRow.Controls.AddRange(new Control[] { btnRemove, cbDb, cbTb, cbRefCol, cbFilter, cbCol, cbAgg });
 
                         cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
@@ -851,10 +879,12 @@ namespace Safety_System
                             }
                         };
 
+                        // 值改變時即時更新回模型
                         cbCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName = cbCol.Text; } };
                         cbFilter.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.FilterValue = cbFilter.Text; } };
                         cbRefCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.RefColName = cbRefCol.Text; } };
 
+                        // 🟢 初始化
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == srcDef.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null && _dbMap.ContainsKey(srcDef.DbName)) {
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
@@ -882,15 +912,10 @@ namespace Safety_System
                         flpSourcesContainer.Controls.Add(pRow);
                     }
 
-                    Button btnAdd = new Button { Text = "➕ 新增來源", Width = 950, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                    Button btnAdd = new Button { Text = "➕ 新增資料來源", Width = 950, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                     btnAdd.FlatAppearance.BorderSize = 0;
                     btnAdd.Click += (s, ev) => { 
-                        var targetConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
-                        if (targetConf == null) {
-                            targetConf = new TestConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text };
-                            editingConfigs.Add(targetConf);
-                        }
-                        targetConf.Sources.Add(new DataSourceDef()); 
+                        currentEditingItem.Sources.Add(new DataSourceDef()); 
                         renderRows(); 
                     };
                     
@@ -898,9 +923,70 @@ namespace Safety_System
                     flpSourcesContainer.ResumeLayout(true);
                 };
 
-                renderRows();
+                Action bindRightPanel = () => {
+                    if (currentEditingItem == null) {
+                        txtName.Text = ""; txtUnit.Text = "";
+                        txtName.Enabled = false; txtUnit.Enabled = false;
+                    } else {
+                        txtName.Enabled = true; txtUnit.Enabled = true;
+                        txtName.Text = currentEditingItem.DisplayName;
+                        txtUnit.Text = string.IsNullOrEmpty(currentEditingItem.Unit) ? "mg/L" : currentEditingItem.Unit;
+                    }
+                    renderRows();
+                };
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 950, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
+                Action refreshList = () => {
+                    lbItems.Items.Clear();
+                    foreach (var cfg in editingConfigs) {
+                        if (cfg != null && !string.IsNullOrEmpty(cfg.DisplayName)) {
+                            lbItems.Items.Add(cfg.DisplayName);
+                        }
+                    }
+                };
+
+                btnAddNewStat.Click += (s, e) => {
+                    lbItems.ClearSelected();
+                    currentEditingItem = new TestConfigItem();
+                    currentEditingItem.Sources.Add(new DataSourceDef());
+                    bindRightPanel();
+                    txtName.Focus();
+                };
+
+                lbItems.SelectedIndexChanged += (ss, ee) => {
+                    if (lbItems.SelectedIndex < 0) return;
+                    currentEditingItem = editingConfigs[lbItems.SelectedIndex].Clone();
+                    bindRightPanel();
+                };
+
+                btnDel.Click += (ss, ee) => {
+                    if (lbItems.SelectedIndex >= 0) {
+                        editingConfigs.RemoveAt(lbItems.SelectedIndex);
+                        currentEditingItem = null;
+                        refreshList();
+                        bindRightPanel();
+                    }
+                };
+
+                Button btnSaveRow = new Button { Text = "💾 暫存此指標並加入清單", Width = 950, Height = 45, BackColor = Color.Teal, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnSaveRow.FlatAppearance.BorderSize = 0;
+
+                btnSaveRow.Click += (ss, ee) => {
+                    if (currentEditingItem == null) return;
+                    if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入顯示名稱！"); return; }
+                    
+                    currentEditingItem.DisplayName = txtName.Text.Trim();
+                    currentEditingItem.Unit = string.IsNullOrWhiteSpace(txtUnit.Text) ? "mg/L" : txtUnit.Text.Trim();
+
+                    int existingIdx = editingConfigs.FindIndex(c => c.DisplayName == currentEditingItem.DisplayName);
+                    if (existingIdx >= 0) {
+                        editingConfigs[existingIdx] = currentEditingItem;
+                    } else {
+                        editingConfigs.Add(currentEditingItem);
+                    }
+
+                    refreshList();
+                    MessageBox.Show("項目已暫存至左側清單！\n請記得點擊下方「儲存設定並重新載入」完成寫入資料庫。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
 
                 pnlRight.Controls.Add(flpEditor);
                 pnlRight.Controls.Add(l2);
@@ -911,139 +997,23 @@ namespace Safety_System
                 tlp.Controls.Add(pnlRight, 1, 0);
                 f.Controls.Add(tlp);
 
-                Action refreshList = () => {
-                    lbItems.Items.Clear();
-                    foreach (var cfg in editingConfigs) {
-                        if (cfg != null && !string.IsNullOrEmpty(cfg.DisplayName)) {
-                            lbItems.Items.Add(cfg.DisplayName);
-                        }
-                    }
-                };
-                refreshList();
-
-                lbItems.SelectedIndexChanged += (ss, ee) => {
-                    if (lbItems.SelectedIndex < 0) return;
-                    var cfg = editingConfigs[lbItems.SelectedIndex];
-                    txtName.Text = cfg.DisplayName;
-                    txtUnit.Text = string.IsNullOrEmpty(cfg.Unit) ? "mg/L" : cfg.Unit; 
-                    renderRows();
-                };
-
-                btnDel.Click += (ss, ee) => {
-                    if (lbItems.SelectedIndex >= 0) {
-                        editingConfigs.RemoveAt(lbItems.SelectedIndex);
-                        refreshList();
-                        txtName.Clear();
-                        flpSourcesContainer.Controls.Clear();
-                    }
-                };
-
-                btnSaveRow.Click += (ss, ee) => {
-                    if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入顯示名稱！"); return; }
-                    
-                    var newCfg = new TestConfigItem { 
-                        DisplayName = txtName.Text.Trim(),
-                        Unit = string.IsNullOrWhiteSpace(txtUnit.Text) ? "mg/L" : txtUnit.Text.Trim()
-                    };
-
-                    var oldCfg = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
-                    if (oldCfg != null) {
-                        newCfg.Sources = oldCfg.Sources; 
-                        int idx = editingConfigs.IndexOf(oldCfg);
-                        editingConfigs[idx] = newCfg;
-                    } else {
-                        editingConfigs.Add(newCfg);
-                    }
-
-                    _configs = new List<TestConfigItem>(editingConfigs);
+                Button btnSaveAll = new Button { Text = "💾 儲存設定並重新載入", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnSaveAll.FlatAppearance.BorderSize = 0;
+                
+                btnSaveAll.Click += (senderObj, evnt) => {
+                    _configs = editingConfigs;
                     SaveSettings();
-                    refreshList();
-                    MessageBox.Show("儲存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    BtnSearch_Click(null, null);
+                    f.DialogResult = DialogResult.OK;
                 };
+
+                f.Controls.Add(btnSaveAll);
+                
+                refreshList();
+                bindRightPanel();
 
                 f.ShowDialog();
-                _ = LoadDashboardDataAsync(); 
             }
-        }
-
-        private List<Panel> GetSelectedExportPanels()
-        {
-            List<Panel> selectedPanels = new List<Panel>();
-            using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
-            {
-                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
-                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 90F));
-
-                Label lbl = new Label { Text = "請勾選欲匯出至 PDF 的報表項目：", Dock = DockStyle.Fill, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), AutoSize = true };
-                tlp.Controls.Add(lbl, 0, 0);
-
-                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
-                
-                clb.Items.Add("【總計】區間統計總計 (四大區塊)", true); 
-                
-                foreach (var kvp in _monthlyPanels) {
-                    clb.Items.Add($"近三年逐月：{kvp.Key}", true);
-                }
-                tlp.Controls.Add(clb, 0, 1);
-
-                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
-                
-                Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(15, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
-                Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(125, 5), Size = new Size(130, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
-                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
-                
-                btnSelectAll.Click += (s, e) => {
-                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true);
-                };
-
-                btnUnselectAll.Click += (s, e) => {
-                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false);
-                };
-
-                pnlBottom.Controls.Add(btnSelectAll);
-                pnlBottom.Controls.Add(btnUnselectAll);
-                pnlBottom.Controls.Add(btnOk);
-                
-                tlp.Controls.Add(pnlBottom, 0, 2);
-
-                f.Controls.Add(tlp);
-
-                if (f.ShowDialog() == DialogResult.OK) 
-                {
-                    foreach (var item in clb.CheckedItems) {
-                        string text = item.ToString();
-                        if (text.Contains("【總計】區間統計總計")) {
-                            selectedPanels.Add(_pnlTopBox);
-                        } else {
-                            string key = text.Replace("近三年逐月：", "");
-                            if (_monthlyPanels.ContainsKey(key)) selectedPanels.Add(_monthlyPanels[key]);
-                        }
-                    }
-                }
-            }
-            return selectedPanels;
-        }
-
-        private void BtnPdf_Click(object sender, EventArgs e)
-        {
-            if (_configs.Count == 0) { MessageBox.Show("無資料可導出。"); return; }
-
-            var panelsToExport = GetSelectedExportPanels();
-            if (panelsToExport.Count == 0) return;
-
-            List<Bitmap> bitmaps = new List<Bitmap>();
-            foreach (var pnl in panelsToExport) 
-            {
-                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-                bitmaps.Add(bmp);
-            }
-
-            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
-            
-            PdfHelper.ExportDashboardToPdf(bitmaps, "檢測數據統計表", dateStr, "檢測數據統計表");
         }
     }
 }
