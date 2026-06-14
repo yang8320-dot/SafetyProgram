@@ -5,6 +5,8 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using OfficeOpenXml; 
+using System.IO;
 
 namespace Safety_System
 {
@@ -18,6 +20,7 @@ namespace Safety_System
         private ComboBox _cboColumn;
         private TextBox _txtFormNumbers;
         private Button _btnSearch;
+        private Button _btnExportExcel; // 🟢 匯出 Excel 按鈕
 
         // UI 控制項 - 結果區 A (日期區間)
         private Label _lblResultATitle;
@@ -31,6 +34,9 @@ namespace Safety_System
 
         // 資料庫快取
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
+
+        // 🟢 預設顯示欄位設定
+        private readonly string[] _defaultVisibleCols = { "日期", "單位", "表單單號", "表單主題", "建議改善事項", "追蹤改善狀況", "改善進度", "缺失責任人" };
 
         // 下拉選單對映模型
         private class ItemMap {
@@ -102,7 +108,7 @@ namespace Safety_System
                 new Label { Text = "資料欄:", AutoSize = true, Margin = new Padding(0, 6, 0, 0), Font = new Font("Microsoft JhengHei UI", 12F) }, _cboColumn
             });
 
-            // 多行文字框與查詢按鈕
+            // 多行文字框與按鈕
             FlowLayoutPanel flpText = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 5, 0, 5) };
             _txtFormNumbers = new TextBox { Multiline = true, Width = 350, Height = 100, Font = new Font("Consolas", 12F), ScrollBars = ScrollBars.Vertical, Margin = new Padding(5, 0, 20, 0) };
             
@@ -110,10 +116,15 @@ namespace Safety_System
             _btnSearch.FlatAppearance.BorderSize = 0;
             _btnSearch.Click += async (s, e) => await ExecuteSearchAsync();
 
+            _btnExportExcel = new Button { Text = "📤 匯出 Excel", Size = new Size(180, 60), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 20, 0, 0) };
+            _btnExportExcel.FlatAppearance.BorderSize = 0;
+            _btnExportExcel.Click += (s, e) => ExportToExcel();
+
             flpText.Controls.AddRange(new Control[] {
                 new Label { Text = "查詢巡檢表單單號:\n(每行代表一段查詢文字)", AutoSize = true, Margin = new Padding(30, 5, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F), ForeColor = Color.DimGray },
                 _txtFormNumbers,
-                _btnSearch
+                _btnSearch,
+                _btnExportExcel // 🟢 新增的匯出按鈕
             });
 
             flpQueryMain.Controls.Add(flpDate);
@@ -129,7 +140,7 @@ namespace Safety_System
             
             Panel pnlHeaderA = new Panel { Dock = DockStyle.Top, Height = 40 };
             _lblResultATitle = new Label { Text = "查詢區間：尚未查詢", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Left, AutoSize = true };
-            _btnSettingsA = new Button { Text = "⚙️ 顯示設定", Size = new Size(120, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSettingsA = new Button { Text = "⚙️ 顯示設定", Size = new Size(150, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; // 🟢 寬度+30
             _btnSettingsA.FlatAppearance.BorderSize = 0;
             _btnSettingsA.Click += (s, e) => OpenGridSettings(_dgvResultA, "GridA");
 
@@ -149,7 +160,7 @@ namespace Safety_System
             
             Panel pnlHeaderB = new Panel { Dock = DockStyle.Top, Height = 40 };
             _lblResultBTitle = new Label { Text = "巡檢異常改善單 - 追蹤", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Chocolate, Dock = DockStyle.Left, AutoSize = true };
-            _btnSettingsB = new Button { Text = "⚙️ 顯示設定", Size = new Size(120, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSettingsB = new Button { Text = "⚙️ 顯示設定", Size = new Size(150, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; // 🟢 寬度+30
             _btnSettingsB.FlatAppearance.BorderSize = 0;
             _btnSettingsB.Click += (s, e) => OpenGridSettings(_dgvResultB, "GridB");
 
@@ -180,16 +191,22 @@ namespace Safety_System
                 ReadOnly = true, 
                 RowHeadersVisible = false, 
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, 
+                // 🟢 開啟列高自動撐開
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
+                // 🟢 標題自動高度
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
                 Font = new Font("Microsoft JhengHei UI", 11F), 
                 BorderStyle = BorderStyle.FixedSingle, 
                 Margin = new Padding(0, 10, 0, 0)
             };
+            
             dgv.EnableHeadersVisualStyles = false;
             dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 62, 80);
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
-            dgv.ColumnHeadersHeight = 40;
+            // 🟢 標題允許換行
+            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.AliceBlue;
             dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
@@ -342,18 +359,19 @@ namespace Safety_System
             if (dgv.Columns.Count == 0) return;
 
             var visibilityDict = DataManager.LoadGridConfig("AuditDash", gridId, "Visibility");
+            bool hasConfig = visibilityDict.Count > 0;
 
             foreach (DataGridViewColumn col in dgv.Columns) {
                 if (col.Name == "Id") {
-                    col.Visible = false; continue;
+                    col.Visible = false; 
+                    continue;
                 }
 
-                if (visibilityDict.ContainsKey(col.Name)) {
+                // 🟢 判斷：如果有存過設定就依設定，沒有就套用預設八欄
+                if (hasConfig && visibilityDict.ContainsKey(col.Name)) {
                     col.Visible = (visibilityDict[col.Name] == "1");
                 } else {
-                    // 預設全顯示，除了系統欄位
-                    if (col.Name == "最後修改人" || col.Name == "修改時間") col.Visible = false;
-                    else col.Visible = true;
+                    col.Visible = _defaultVisibleCols.Contains(col.Name);
                 }
             }
         }
@@ -398,6 +416,101 @@ namespace Safety_System
                 f.Controls.Add(btnSaveLocal); 
                 f.ShowDialog();
             }
+        }
+
+        // ==========================================
+        // 🟢 匯出 Excel 系統
+        // ==========================================
+        private void ExportToExcel()
+        {
+            if ((_dgvResultA.DataSource == null || _dgvResultA.Rows.Count == 0) &&
+                (_dgvResultB.DataSource == null || _dgvResultB.Rows.Count == 0))
+            {
+                MessageBox.Show("目前沒有任何查詢結果可供匯出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = "稽核資料查詢結果_" + DateTime.Now.ToString("yyyyMMdd_HHmm") })
+            {
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+
+                        using (ExcelPackage p = new ExcelPackage())
+                        {
+                            // A區 - 巡檢缺失分頁
+                            if (_dgvResultA.DataSource != null && _dgvResultA.Rows.Count > 0)
+                            {
+                                var wsA = p.Workbook.Worksheets.Add("巡檢缺失");
+                                DataTable dtA = GetVisibleData(_dgvResultA);
+                                wsA.Cells["A1"].LoadFromDataTable(dtA, true);
+                                // 標題加粗、加上背景色
+                                using (var range = wsA.Cells[1, 1, 1, dtA.Columns.Count]) {
+                                    range.Style.Font.Bold = true;
+                                    range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                    range.Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                                }
+                                wsA.Cells.AutoFitColumns();
+                            }
+
+                            // B區 - 追蹤改善分頁
+                            if (_dgvResultB.DataSource != null && _dgvResultB.Rows.Count > 0)
+                            {
+                                var wsB = p.Workbook.Worksheets.Add("追蹤改善");
+                                DataTable dtB = GetVisibleData(_dgvResultB);
+                                wsB.Cells["A1"].LoadFromDataTable(dtB, true);
+                                // 標題加粗、加上背景色
+                                using (var range = wsB.Cells[1, 1, 1, dtB.Columns.Count]) {
+                                    range.Style.Font.Bold = true;
+                                    range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                    range.Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                                }
+                                wsB.Cells.AutoFitColumns();
+                            }
+
+                            p.SaveAs(new FileInfo(sfd.FileName));
+                        }
+                        
+                        MessageBox.Show("Excel 報表匯出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
+                }
+            }
+        }
+
+        private DataTable GetVisibleData(DataGridView dgv)
+        {
+            DataTable dt = new DataTable();
+            
+            // 抓取畫面上可見的欄位，並依照使用者可能的拖曳排序(DisplayIndex)來排列
+            var visCols = dgv.Columns.Cast<DataGridViewColumn>()
+                                     .Where(c => c.Visible)
+                                     .OrderBy(c => c.DisplayIndex)
+                                     .ToList();
+            
+            foreach (var col in visCols) {
+                dt.Columns.Add(col.HeaderText.Replace("\n", ""));
+            }
+
+            foreach (DataGridViewRow row in dgv.Rows) {
+                if (row.IsNewRow) continue;
+                DataRow dRow = dt.NewRow();
+                for (int i = 0; i < visCols.Count; i++) {
+                    var cellVal = row.Cells[visCols[i].Index].Value;
+                    dRow[i] = cellVal != null ? cellVal.ToString() : "";
+                }
+                dt.Rows.Add(dRow);
+            }
+            return dt;
         }
     }
 }
