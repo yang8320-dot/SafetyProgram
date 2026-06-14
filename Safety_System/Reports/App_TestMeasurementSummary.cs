@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Linq;
@@ -20,8 +21,7 @@ namespace Safety_System
         private DataTable _dtResult;
         private Panel _pnlGridContainer;
 
-        // 設定檔路徑與快取
-        private readonly string SettingsFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestSummarySettings.txt");
+        // 🟢 替換：已移除 .txt 設定檔路徑，改用 SQLite
         private List<SummaryConfigItem> _configs = new List<SummaryConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
@@ -50,8 +50,25 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [TestSummaryConfigs] (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        DbName TEXT, TableName TEXT, DateCol TEXT, ItemCol TEXT, PointCol TEXT, ValueCol TEXT, LimitCol TEXT);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); // 🟢 初始化 SQLite 表格
             _dbMap = App_DbConfig.GetDbMapCache();
             LoadSettings();
 
@@ -172,9 +189,6 @@ namespace Safety_System
             _dgvResult.Columns["平均值"].Width = (int)(unitWidth * 5f);
         }
 
-        // =========================================================
-        // 萬能日期解析引擎 (處理 年/年月/年月日 與 民國年)
-        // =========================================================
         private (string Year, int Month) ParseDateFlexible(string dateStr)
         {
             if (string.IsNullOrWhiteSpace(dateStr)) return ("", 0);
@@ -207,12 +221,9 @@ namespace Safety_System
             return ("", 0);
         }
 
-        // =========================================================
-        // 智慧欄位容錯補救引擎 (Intelligent Fallback Engine)
-        // =========================================================
         private string GetFallbackDateCol(DataTable dt) => dt.Columns.Contains("日期") ? "日期" : (dt.Columns.Contains("年月") ? "年月" : (dt.Columns.Contains("年度") ? "年度" : ""));
         private string GetFallbackItemCol(DataTable dt) => new[] { "檢測項目", "項目", "名稱", "設備名稱", "量測項目" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
-        private string GetFallbackPointCol(DataTable dt) => new[] { "檢測點", "點位", "SEG編號", "水表名稱", "位置" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
+        private string GetFallbackPointCol(DataTable dt) => new[] { "檢測點", "點位", "SEG編號", "水錶名稱", "位置" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
         private string GetFallbackValueCol(DataTable dt) => new[] { "檢測數據", "現場流量計讀值", "數值", "結果" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
         private string GetFallbackLimitCol(DataTable dt) => new[] { "管制值", "管制標準", "標準" }.FirstOrDefault(c => dt.Columns.Contains(c)) ?? "";
 
@@ -504,26 +515,30 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (Lazy Loading 效能大幅優化版)
+        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
         // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
-            if (System.IO.File.Exists(SettingsFile))
-            {
-                try {
-                    foreach (var line in System.IO.File.ReadAllLines(SettingsFile, System.Text.Encoding.UTF8)) {
-                        var parts = line.Split('|');
-                        if (parts.Length == 7) {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM TestSummaryConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
                             _configs.Add(new SummaryConfigItem { 
-                                DbName = parts[0], TableName = parts[1], 
-                                DateCol = parts[2], ItemCol = parts[3], 
-                                PointCol = parts[4], ValueCol = parts[5], LimitCol = parts[6]
+                                DbName = reader["DbName"].ToString(), 
+                                TableName = reader["TableName"].ToString(), 
+                                DateCol = reader["DateCol"].ToString(), 
+                                ItemCol = reader["ItemCol"].ToString(), 
+                                PointCol = reader["PointCol"].ToString(), 
+                                ValueCol = reader["ValueCol"].ToString(), 
+                                LimitCol = reader["LimitCol"].ToString()
                             });
                         }
                     }
-                } catch { }
-            }
+                }
+            } catch { }
             
             // 系統防呆：如果沒有設定檔，載入 11 個預設組合
             if (_configs.Count == 0) {
@@ -536,8 +551,28 @@ namespace Safety_System
         private void SaveSettings()
         {
             try {
-                var lines = _configs.Select(c => $"{c.DbName}|{c.TableName}|{c.DateCol}|{c.ItemCol}|{c.PointCol}|{c.ValueCol}|{c.LimitCol}").ToArray();
-                System.IO.File.WriteAllLines(SettingsFile, lines, System.Text.Encoding.UTF8);
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        // 清空舊設定
+                        new SQLiteCommand("DELETE FROM TestSummaryConfigs", conn, trans).ExecuteNonQuery();
+
+                        string insertSql = "INSERT INTO TestSummaryConfigs (DbName, TableName, DateCol, ItemCol, PointCol, ValueCol, LimitCol) VALUES (@DB, @TB, @DC, @IC, @PC, @VC, @LC)";
+                        foreach (var c in _configs) {
+                            using (var cmd = new SQLiteCommand(insertSql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@DB", c.DbName);
+                                cmd.Parameters.AddWithValue("@TB", c.TableName);
+                                cmd.Parameters.AddWithValue("@DC", c.DateCol);
+                                cmd.Parameters.AddWithValue("@IC", c.ItemCol);
+                                cmd.Parameters.AddWithValue("@PC", c.PointCol);
+                                cmd.Parameters.AddWithValue("@VC", c.ValueCol);
+                                cmd.Parameters.AddWithValue("@LC", c.LimitCol);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
             } catch { }
         }
 
@@ -547,7 +582,6 @@ namespace Safety_System
             {
                 Panel pnlScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.WhiteSmoke };
 
-                // 🟢 替換 TableLayoutPanel 為 FlowLayoutPanel (解決效能延遲問題)
                 FlowLayoutPanel flpMain = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(10) };
 
                 var editingConfigs = new List<SummaryConfigItem>(_configs);
@@ -582,7 +616,6 @@ namespace Safety_System
                         btnDel.FlatAppearance.BorderSize = 0;
                         btnDel.Click += (s, ev) => { editingConfigs.RemoveAt(currentIndex); renderRows(); };
 
-                        // 🟢 使用一般的 ComboBox，但不做大量資料寫入，僅賦值 Text
                         ComboBox cbDb = new ComboBox { Location = new Point(xs[1], 5), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbTb = new ComboBox { Location = new Point(xs[2], 5), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbDate = new ComboBox { Location = new Point(xs[3], 5), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -591,12 +624,11 @@ namespace Safety_System
                         ComboBox cbVal = new ComboBox { Location = new Point(xs[6], 5), Width = ws[6], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbLimit = new ComboBox { Location = new Point(xs[7], 5), Width = ws[7], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-                        // 綁定中英文對照
                         cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
                         foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
 
                         bool colsLoaded = false;
-                        bool isInitializing = true; // 🟢 防呆：初始化期間不要觸發清除事件
+                        bool isInitializing = true; 
 
                         Action<string, string> lazyLoadCols = (dbEnName, tbEnName) => {
                             if (colsLoaded) return;
@@ -643,10 +675,10 @@ namespace Safety_System
                         cbDb.SelectedIndexChanged += (s, ev) => {
                             if (isInitializing) return;
                             var selDb = cbDb.SelectedItem as ItemMap;
-                            conf.DbName = selDb?.EnName ?? ""; // 🟢 修復：確保選擇庫時，把值存回模型
+                            conf.DbName = selDb?.EnName ?? ""; 
 
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                            // 🟢 修復崩潰：加上 _dbMap.ContainsKey 的檢查
+                            
                             if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
                                 foreach(var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             }
@@ -656,7 +688,7 @@ namespace Safety_System
                         cbTb.SelectedIndexChanged += (s, ev) => {
                             if (isInitializing) return;
                             var selTb = cbTb.SelectedItem as ItemMap;
-                            conf.TableName = selTb?.EnName ?? ""; // 🟢 修復：確保選擇表時，把值存回模型
+                            conf.TableName = selTb?.EnName ?? ""; 
 
                             if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
                                 colsLoaded = false; 
@@ -670,11 +702,11 @@ namespace Safety_System
                         cbVal.TextChanged += (s, ev) => { if(!isInitializing) conf.ValueCol = cbVal.Text; };
                         cbLimit.TextChanged += (s, ev) => { if(!isInitializing) conf.LimitCol = cbLimit.Text; };
 
-                        // 🟢 初始化
+                        // 🟢 初始化模型載入，加上 Key 防呆保護
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == conf.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null) {
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                            // 🟢 修復崩潰：加上 _dbMap.ContainsKey 的檢查
+                            
                             if (_dbMap.ContainsKey(conf.DbName)) {
                                 foreach (var tb in _dbMap[conf.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
                             }
@@ -687,7 +719,7 @@ namespace Safety_System
                         cbVal.Text = conf.ValueCol;
                         cbLimit.Text = conf.LimitCol;
 
-                        isInitializing = false; // 解除初始化狀態
+                        isInitializing = false; 
 
                         pnlRow.Controls.AddRange(new Control[] { btnDel, cbDb, cbTb, cbDate, cbItem, cbPoint, cbVal, cbLimit });
                         flpMain.Controls.Add(pnlRow);
