@@ -579,22 +579,6 @@ namespace Safety_System
         // =========================================================
         // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
         // =========================================================
-        private void InitDatabase()
-        {
-            try {
-                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
-                    conn.Open();
-                    string sql = @"CREATE TABLE IF NOT EXISTS [TestDashboardConfigs] (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                        DisplayName TEXT, Unit TEXT, DbName TEXT, TableName TEXT, 
-                        ColName TEXT, AggType TEXT, FilterValue TEXT, ColName2 TEXT, RefColName TEXT);";
-                    using (var cmd = new SQLiteCommand(sql, conn)) {
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            } catch { }
-        }
-
         private void LoadSettings()
         {
             _configs.Clear();
@@ -660,7 +644,7 @@ namespace Safety_System
             } catch { }
         }
 
-        private void BtnSettings_Click(object sender, EventArgs e)
+        private void BtnSetting_Click(object sender, EventArgs e)
         {
             using (Form f = new Form { Text = "⚙️ 看板自訂統計項目設定", Size = new Size(1300, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
@@ -700,161 +684,214 @@ namespace Safety_System
                 FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 980, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
-                var dbMap = App_DbConfig.GetDbMapCache();
+                var editingConfigs = new List<TestConfigItem>(_configs);
 
-                Action<DataSourceDef> addSourceRow = (def) => {
-                    Panel pRow = new Panel { Width = 950, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
-                    pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-                    
-                    int ly = 10;
-                    int cy = 35;
+                Action renderRows = null;
+                renderRows = () => {
+                    flpSourcesContainer.SuspendLayout();
+                    flpSourcesContainer.Controls.Clear();
 
-                    int x0 = 10, w0 = 35;   // 刪除按鈕
-                    int x1 = 50, w1 = 130;  // 資料庫
-                    int x2 = 185, w2 = 160; // 資料表
-                    int x3 = 350, w3 = 160; // 參照資料欄
-                    int x4 = 515, w4 = 170; // 選項過濾條件
-                    int x5 = 690, w5 = 160; // 計算欄位
-                    int x6 = 855, w6 = 80;  // 運算方式
+                    var confItem = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                    if (confItem == null) {
+                        confItem = new TestConfigItem();
+                        editingConfigs.Add(confItem);
+                    }
 
-                    Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-                    btnRemove.FlatAppearance.BorderSize = 0;
+                    for (int i = 0; i < confItem.Sources.Count; i++) {
+                        int currentIndex = i;
+                        var srcDef = confItem.Sources[i];
 
-                    ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
-                    ComboBox cbRefCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbCol = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbAgg = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-
-                    pRow.Controls.AddRange(new Control[] {
-                        btnRemove,
-                        new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
-                        new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
-                        new Label { Text = "參照資料欄", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbRefCol,
-                        new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
-                        new Label { Text = "計算欄位", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
-                        new Label { Text = "運算方式", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg
-                    });
-
-                    btnRemove.Click += (s, ev) => flpSourcesContainer.Controls.Remove(pRow);
-
-                    cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                    foreach (var kvp in dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-
-                    bool isInitializing = true; 
-
-                    cbDb.SelectedIndexChanged += (s, ev) => {
-                        if (isInitializing) return;
-                        cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                        var selDb = cbDb.SelectedItem as ItemMap;
-                        if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
-                            foreach (var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
-                        }
-                    };
-
-                    cbTb.SelectedIndexChanged += (s, ev) => {
-                        if (isInitializing) return;
-                        cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
-                        cbRefCol.Items.Clear(); cbRefCol.Items.Add(""); 
+                        Panel pRow = new Panel { Width = 950, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                        pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
                         
-                        var selDb = cbDb.SelectedItem as ItemMap;
-                        var selTb = cbTb.SelectedItem as ItemMap;
-                        if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName)) {
-                            var cols = DataManager.GetColumnNames(selDb.EnName, selTb.EnName).Where(c => c != "Id");
-                            foreach (var c in cols) {
-                                cbCol.Items.Add(c);
-                                cbRefCol.Items.Add(c); 
-                            }
-                        }
-                    };
+                        int ly = 10; int cy = 35;
+                        int x0 = 10, w0 = 35;   // 刪除按鈕
+                        int x1 = 50, w1 = 130;  // 資料庫
+                        int x2 = 185, w2 = 160; // 資料表
+                        int x3 = 350, w3 = 160; // 參照資料欄
+                        int x4 = 515, w4 = 170; // 選項過濾條件
+                        int x5 = 690, w5 = 160; // 計算欄位
+                        int x6 = 855, w6 = 80;  // 運算方式
 
-                    cbRefCol.SelectedIndexChanged += (s, ev) => {
-                        cbFilter.Items.Clear(); 
-                        cbFilter.Items.Add("非空值 (有輸入即算)");
-                        var selDb = cbDb.SelectedItem as ItemMap;
-                        var selTb = cbTb.SelectedItem as ItemMap;
-                        string refColStr = cbRefCol.Text;
+                        Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                        btnRemove.FlatAppearance.BorderSize = 0;
+                        btnRemove.Click += (s, ev) => { confItem.Sources.RemoveAt(currentIndex); renderRows(); };
+
+                        ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         
-                        if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && !string.IsNullOrEmpty(refColStr)) {
-                            string tbName = selTb.EnName;
-                            string dbName = selDb.EnName;
-                            
-                            string multiKey = $"{tbName}|{refColStr}";
-                            if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                                foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
-                                    if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
-                                        cbFilter.Items.Add(opt.Text.Trim());
-                                    }
+                        ComboBox cbRefCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbCol = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbAgg = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+
+                        pRow.Controls.AddRange(new Control[] {
+                            btnRemove,
+                            new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
+                            new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
+                            new Label { Text = "參照資料欄", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbRefCol,
+                            new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
+                            new Label { Text = "計算欄位", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
+                            new Label { Text = "運算方式", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg
+                        });
+
+                        cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                        foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+
+                        bool isInitializing = true;
+                        bool colsLoaded = false;
+
+                        Action lazyLoadCols = () => {
+                            if (colsLoaded) return;
+                            cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
+                            cbRefCol.Items.Clear(); cbRefCol.Items.Add(""); 
+
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName)) {
+                                var cols = DataManager.GetColumnNames(selDb.EnName, selTb.EnName).Where(c => c != "Id");
+                                foreach (var c in cols) {
+                                    cbCol.Items.Add(c);
+                                    cbRefCol.Items.Add(c); 
                                 }
                             }
-                            
-                            string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, refColStr);
-                            if (dropOpts != null && dropOpts.Length > 0) {
-                                foreach (var opt in dropOpts) {
-                                    if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
-                                        cbFilter.Items.Add(opt.Trim());
-                                    }
-                                }
-                            }
+                            colsLoaded = true;
+                        };
 
-                            try {
-                                DataTable dtDist = DataManager.GetTableData(dbName, tbName, "", "", "");
-                                if (dtDist != null && dtDist.Columns.Contains(refColStr)) {
-                                    var distinctVals = dtDist.Rows.Cast<DataRow>()
-                                                             .Select(r => r[refColStr]?.ToString().Trim())
-                                                             .Where(str => !string.IsNullOrEmpty(str))
-                                                             .Distinct();
-                                    foreach (var val in distinctVals) {
-                                        if (!cbFilter.Items.Contains(val)) {
-                                            cbFilter.Items.Add(val);
+                        EventHandler triggerLoad = (s, ev) => { lazyLoadCols(); };
+                        cbCol.DropDown += triggerLoad;
+                        cbRefCol.DropDown += triggerLoad;
+
+                        cbDb.SelectedIndexChanged += (s, ev) => {
+                            if (isInitializing) return;
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            srcDef.DbName = selDb?.EnName ?? "";
+
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                            if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
+                                foreach (var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            }
+                            if (cbTb.Items.Count > 0) cbTb.SelectedIndex = 0;
+                        };
+
+                        cbTb.SelectedIndexChanged += (s, ev) => {
+                            if (isInitializing) return;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            srcDef.TableName = selTb?.EnName ?? "";
+
+                            if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
+                                colsLoaded = false;
+                                cbCol.Text = "Id (無條件計數)"; cbRefCol.Text = ""; cbFilter.Text = "非空值 (有輸入即算)";
+                            }
+                        };
+
+                        cbRefCol.SelectedIndexChanged += (s, ev) => {
+                            cbFilter.Items.Clear(); 
+                            cbFilter.Items.Add("非空值 (有輸入即算)");
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            string refColStr = cbRefCol.Text;
+                            
+                            if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && !string.IsNullOrEmpty(refColStr)) {
+                                string tbName = selTb.EnName;
+                                string dbName = selDb.EnName;
+                                
+                                string multiKey = $"{tbName}|{refColStr}";
+                                if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
+                                    foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
+                                        if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
+                                            cbFilter.Items.Add(opt.Text.Trim());
                                         }
                                     }
                                 }
-                            } catch { }
-                        }
-                        cbFilter.SelectedIndex = 0;
-                    };
+                                
+                                string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, refColStr);
+                                if (dropOpts != null && dropOpts.Length > 0) {
+                                    foreach (var opt in dropOpts) {
+                                        if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
+                                            cbFilter.Items.Add(opt.Trim());
+                                        }
+                                    }
+                                }
 
-                    cbAgg.Items.AddRange(new string[] { "計數", "平均值", "最大值", "最小值" });
+                                try {
+                                    DataTable dtDist = DataManager.GetTableData(dbName, tbName, "", "", "");
+                                    if (dtDist != null && dtDist.Columns.Contains(refColStr)) {
+                                        var distinctVals = dtDist.Rows.Cast<DataRow>()
+                                                                 .Select(r => r[refColStr]?.ToString().Trim())
+                                                                 .Where(str => !string.IsNullOrEmpty(str))
+                                                                 .Distinct();
+                                        foreach (var val in distinctVals) {
+                                            if (!cbFilter.Items.Contains(val)) {
+                                                cbFilter.Items.Add(val);
+                                            }
+                                        }
+                                    }
+                                } catch { }
+                            }
+                            cbFilter.SelectedIndex = 0;
+                        };
 
-                    if (def != null) {
-                        foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
-                        
-                        if (cbDb.SelectedItem != null && _dbMap.ContainsKey(def.DbName)) {
+                        cbAgg.Items.AddRange(new string[] { "計數", "平均值", "最大值", "最小值" });
+                        cbAgg.SelectedIndexChanged += (s, ev) => {
+                            if (!isInitializing) {
+                                if (cbAgg.Text == "平均值") srcDef.AggType = "AVG";
+                                else if (cbAgg.Text == "最大值") srcDef.AggType = "MAX";
+                                else if (cbAgg.Text == "最小值") srcDef.AggType = "MIN";
+                                else srcDef.AggType = "COUNT";
+                            }
+                        };
+
+                        // 值改變時即時更新回模型
+                        cbCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName = cbCol.Text; } };
+                        cbFilter.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.FilterValue = cbFilter.Text; } };
+                        cbRefCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.RefColName = cbRefCol.Text; } };
+
+                        // 🟢 初始化
+                        foreach (ItemMap im in cbDb.Items) if (im.EnName == srcDef.DbName) { cbDb.SelectedItem = im; break; }
+                        if (cbDb.SelectedItem != null && _dbMap.ContainsKey(srcDef.DbName)) {
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                            foreach (var tb in _dbMap[def.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
-                            foreach (ItemMap im in cbTb.Items) if(im.EnName == def.TableName) { cbTb.SelectedItem = im; break; }
+                            foreach (var tb in _dbMap[srcDef.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            foreach (ItemMap im in cbTb.Items) if (im.EnName == srcDef.TableName) { cbTb.SelectedItem = im; break; }
                         }
 
-                        cbCol.Text = def.ColName;
-                        if (!string.IsNullOrEmpty(def.RefColName) && cbRefCol.Items.Contains(def.RefColName)) {
-                            cbRefCol.SelectedItem = def.RefColName;
-                        }
+                        cbCol.Text = srcDef.ColName;
+                        if (!string.IsNullOrEmpty(srcDef.RefColName)) cbRefCol.Text = srcDef.RefColName;
 
-                        if (!string.IsNullOrEmpty(def.FilterValue)) {
-                            if (!cbFilter.Items.Contains(def.FilterValue)) cbFilter.Items.Add(def.FilterValue);
-                            cbFilter.Text = def.FilterValue;
+                        if (!string.IsNullOrEmpty(srcDef.FilterValue)) {
+                            if (!cbFilter.Items.Contains(srcDef.FilterValue)) cbFilter.Items.Add(srcDef.FilterValue);
+                            cbFilter.Text = srcDef.FilterValue;
                         } else {
                             cbFilter.Text = "非空值 (有輸入即算)";
                         }
                         
-                        if (def.AggType == "COUNT") cbAgg.Text = "計數";
-                        else if (def.AggType == "AVG") cbAgg.Text = "平均值";
-                        else if (def.AggType == "MAX") cbAgg.Text = "最大值";
-                        else if (def.AggType == "MIN") cbAgg.Text = "最小值";
+                        if (srcDef.AggType == "COUNT") cbAgg.Text = "計數";
+                        else if (srcDef.AggType == "AVG") cbAgg.Text = "平均值";
+                        else if (srcDef.AggType == "MAX") cbAgg.Text = "最大值";
+                        else if (srcDef.AggType == "MIN") cbAgg.Text = "最小值";
                         else cbAgg.Text = "平均值"; 
-                    } else {
-                        cbAgg.Text = "平均值";
-                        cbFilter.Text = "非空值 (有輸入即算)";
+
+                        isInitializing = false;
+                        flpSourcesContainer.Controls.Add(pRow);
                     }
 
-                    isInitializing = false; 
-                    flpSourcesContainer.Controls.Add(pRow);
+                    Button btnAdd = new Button { Text = "➕ 新增來源", Width = 950, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                    btnAdd.FlatAppearance.BorderSize = 0;
+                    btnAdd.Click += (s, ev) => { 
+                        var confItem = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                        if (confItem == null) {
+                            confItem = new TestConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text };
+                            editingConfigs.Add(confItem);
+                        }
+                        confItem.Sources.Add(new DataSourceDef()); 
+                        renderRows(); 
+                    };
+                    
+                    flpSourcesContainer.Controls.Add(btnAdd);
+                    flpSourcesContainer.ResumeLayout(true);
                 };
 
-                btnAddSource.Click += (s, ev) => addSourceRow(null);
+                renderRows();
 
                 Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 950, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
 
@@ -867,9 +904,10 @@ namespace Safety_System
                 tlp.Controls.Add(pnlRight, 1, 0);
                 f.Controls.Add(tlp);
 
+                // 資料載入與綁定邏輯
                 Action refreshList = () => {
                     lbItems.Items.Clear();
-                    foreach (var cfg in _configs) {
+                    foreach (var cfg in editingConfigs) {
                         if (cfg != null && !string.IsNullOrEmpty(cfg.DisplayName)) {
                             lbItems.Items.Add(cfg.DisplayName);
                         }
@@ -879,20 +917,15 @@ namespace Safety_System
 
                 lbItems.SelectedIndexChanged += (ss, ee) => {
                     if (lbItems.SelectedIndex < 0) return;
-                    flpSourcesContainer.Controls.Clear();
-                    var cfg = _configs[lbItems.SelectedIndex];
+                    var cfg = editingConfigs[lbItems.SelectedIndex];
                     txtName.Text = cfg.DisplayName;
                     txtUnit.Text = string.IsNullOrEmpty(cfg.Unit) ? "mg/L" : cfg.Unit; 
-                    
-                    foreach (var src in cfg.Sources) {
-                        addSourceRow(src);
-                    }
+                    renderRows();
                 };
 
                 btnDel.Click += (ss, ee) => {
                     if (lbItems.SelectedIndex >= 0) {
-                        _configs.RemoveAt(lbItems.SelectedIndex);
-                        SaveSettings();
+                        editingConfigs.RemoveAt(lbItems.SelectedIndex);
                         refreshList();
                         txtName.Clear();
                         flpSourcesContainer.Controls.Clear();
@@ -906,54 +939,17 @@ namespace Safety_System
                         DisplayName = txtName.Text.Trim(),
                         Unit = string.IsNullOrWhiteSpace(txtUnit.Text) ? "mg/L" : txtUnit.Text.Trim()
                     };
-                    
-                    foreach (Control ctrl in flpSourcesContainer.Controls) {
-                        if (ctrl is Panel pRow) {
-                            var cbDb = pRow.Controls[2] as ComboBox;
-                            var cbTb = pRow.Controls[4] as ComboBox;
-                            var cbRefCol = pRow.Controls[6] as ComboBox; 
-                            var cbFilter = pRow.Controls[8] as ComboBox;
-                            var cbCol = pRow.Controls[10] as ComboBox; 
-                            var cbAgg = pRow.Controls[12] as ComboBox;
 
-                            var selDb = cbDb.SelectedItem as ItemMap;
-                            var selTb = cbTb.SelectedItem as ItemMap;
-
-                            if (selDb != null && selTb != null && !string.IsNullOrWhiteSpace(cbCol.Text) && !string.IsNullOrWhiteSpace(cbAgg.Text)) {
-                                string filterVal = (cbFilter.Text == "非空值 (有輸入即算)") ? "" : cbFilter.Text;
-                                
-                                string aggTypeDb = "COUNT";
-                                string dbColToSave = cbCol.Text;
-
-                                if (cbAgg.Text == "平均值") {
-                                    aggTypeDb = "AVG";
-                                }
-                                else if (cbAgg.Text == "最大值") {
-                                    aggTypeDb = "MAX";
-                                }
-                                else if (cbAgg.Text == "最小值") {
-                                    aggTypeDb = "MIN";
-                                }
-                                
-                                newCfg.Sources.Add(new DataSourceDef { 
-                                    DbName = selDb.EnName, 
-                                    TableName = selTb.EnName, 
-                                    ColName = dbColToSave, 
-                                    FilterValue = filterVal, 
-                                    AggType = aggTypeDb,
-                                    ColName2 = "", 
-                                    RefColName = cbRefCol.Text
-                                });
-                            }
-                        }
+                    var oldCfg = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                    if (oldCfg != null) {
+                        newCfg.Sources = oldCfg.Sources; 
+                        int idx = editingConfigs.IndexOf(oldCfg);
+                        editingConfigs[idx] = newCfg;
+                    } else {
+                        editingConfigs.Add(newCfg);
                     }
 
-                    if (newCfg.Sources.Count == 0) { MessageBox.Show("請至少設定一組完整的資料來源！"); return; }
-
-                    int existingIdx = _configs.FindIndex(c => c != null && c.DisplayName == newCfg.DisplayName);
-                    if (existingIdx >= 0) _configs[existingIdx] = newCfg;
-                    else _configs.Add(newCfg);
-
+                    _configs = new List<TestConfigItem>(editingConfigs);
                     SaveSettings();
                     refreshList();
                     MessageBox.Show("儲存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -964,6 +960,9 @@ namespace Safety_System
             }
         }
 
+        // =========================================================
+        // PDF 導出 
+        // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
@@ -1022,6 +1021,26 @@ namespace Safety_System
                 }
             }
             return selectedPanels;
+        }
+
+        private void BtnPdf_Click(object sender, EventArgs e)
+        {
+            if (_configs.Count == 0) { MessageBox.Show("無資料可導出。"); return; }
+
+            var panelsToExport = GetSelectedExportPanels();
+            if (panelsToExport.Count == 0) return;
+
+            List<Bitmap> bitmaps = new List<Bitmap>();
+            foreach (var pnl in panelsToExport) 
+            {
+                Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                pnl.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+                bitmaps.Add(bmp);
+            }
+
+            string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
+            
+            PdfHelper.ExportDashboardToPdf(bitmaps, "工安數據統計表", dateStr, "工安數據統計表");
         }
     }
 }
