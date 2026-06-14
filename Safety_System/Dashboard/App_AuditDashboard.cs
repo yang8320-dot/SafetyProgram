@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SQLite;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -141,7 +140,7 @@ namespace Safety_System
             
             Panel pnlHeaderA = new Panel { Dock = DockStyle.Top, Height = 40 };
             _lblResultATitle = new Label { Text = "查詢區間：尚未查詢", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Left, AutoSize = true };
-            _btnSettingsA = new Button { Text = "⚙️ 顯示與排序設定", Size = new Size(180, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSettingsA = new Button { Text = "⚙️ 顯示設定", Size = new Size(150, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; 
             _btnSettingsA.FlatAppearance.BorderSize = 0;
             _btnSettingsA.Click += (s, e) => OpenGridSettings(_dgvResultA, "GridA");
 
@@ -161,7 +160,7 @@ namespace Safety_System
             
             Panel pnlHeaderB = new Panel { Dock = DockStyle.Top, Height = 40 };
             _lblResultBTitle = new Label { Text = "巡檢異常改善單 - 追蹤", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Chocolate, Dock = DockStyle.Left, AutoSize = true };
-            _btnSettingsB = new Button { Text = "⚙️ 顯示與排序設定", Size = new Size(180, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSettingsB = new Button { Text = "⚙️ 顯示設定", Size = new Size(150, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; 
             _btnSettingsB.FlatAppearance.BorderSize = 0;
             _btnSettingsB.Click += (s, e) => OpenGridSettings(_dgvResultB, "GridB");
 
@@ -392,7 +391,6 @@ namespace Safety_System
                 }; 
                 f.Controls.Add(lblTop);
 
-                // 核心：使用 DataGridView 來呈現設定清單，完美支援拖曳與繪圖
                 DataGridView dgvSettings = new DataGridView {
                     Dock = DockStyle.Fill,
                     BackgroundColor = Color.WhiteSmoke,
@@ -411,11 +409,11 @@ namespace Safety_System
                 dgvSettings.RowTemplate.Height = 40;
 
                 DataGridViewCheckBoxColumn colChk = new DataGridViewCheckBoxColumn { Name = "Visible", Width = 50 };
-                DataGridViewTextBoxColumn colName = new DataGridViewTextBoxColumn { Name = "ColName", ReadOnly = true, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill };
+                // 🟢 修正名稱避免衝突
+                DataGridViewTextBoxColumn colNameCol = new DataGridViewTextBoxColumn { Name = "ColName", ReadOnly = true, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill };
                 dgvSettings.Columns.Add(colChk);
-                dgvSettings.Columns.Add(colName);
+                dgvSettings.Columns.Add(colNameCol);
 
-                // 取得依照目前 DisplayIndex 排序的欄位
                 var sortedCols = targetDgv.Columns.Cast<DataGridViewColumn>()
                                           .Where(c => c.Name != "Id")
                                           .OrderBy(c => c.DisplayIndex)
@@ -425,7 +423,6 @@ namespace Safety_System
                     dgvSettings.Rows.Add(col.Visible, col.Name);
                 }
 
-                // 拖曳狀態變數
                 int dragFromIdx = -1;
                 int dragToIdx = -1;
                 Rectangle dragBox = Rectangle.Empty;
@@ -458,7 +455,7 @@ namespace Safety_System
 
                     if (dragToIdx != newToIdx) {
                         dragToIdx = newToIdx;
-                        dgvSettings.Invalidate(); // 觸發重繪紅線
+                        dgvSettings.Invalidate(); 
                     }
                 };
 
@@ -491,7 +488,6 @@ namespace Safety_System
                     }
                 };
 
-                // 單點 CheckBox 立即切換
                 dgvSettings.CellContentClick += (s, e) => {
                     if (e.ColumnIndex == 0 && e.RowIndex >= 0) {
                         dgvSettings.CommitEdit(DataGridViewDataErrorContexts.Commit);
@@ -551,20 +547,19 @@ namespace Safety_System
                     List<string> orderedCols = new List<string>();
 
                     for (int i = 0; i < dgvSettings.Rows.Count; i++) {
-                        string colName = dgvSettings.Rows[i].Cells["ColName"].Value.ToString();
+                        string colName = dgvSettings.Rows[i].Cells["ColName"].Value.ToString(); // 🟢 安全取值
                         bool isChecked = Convert.ToBoolean(dgvSettings.Rows[i].Cells["Visible"].Value);
                         
                         orderedCols.Add(colName);
                         
                         if (targetDgv.Columns.Contains(colName)) {
                             targetDgv.Columns[colName].Visible = isChecked;
-                            targetDgv.Columns[colName].DisplayIndex = i; // 直接套用排序
+                            targetDgv.Columns[colName].DisplayIndex = i; 
                         }
                         
                         DataManager.SaveGridConfig("AuditDash", gridId, "Visibility", colName, isChecked ? "1" : "0");
                     } 
 
-                    // 儲存順序
                     DataManager.SaveGridConfig("AuditDash", gridId, "Order", "All", string.Join(",", orderedCols));
 
                     f.DialogResult = DialogResult.OK; 
@@ -576,7 +571,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 匯出 Excel 系統 (支援智慧排版與自動列高)
+        // 匯出 Excel 系統
         // ==========================================
         private void ExportToExcel()
         {
@@ -597,7 +592,6 @@ namespace Safety_System
 
                         using (ExcelPackage p = new ExcelPackage())
                         {
-                            // A區 - 巡檢缺失分頁
                             if (_dgvResultA.DataSource != null && _dgvResultA.Rows.Count > 0)
                             {
                                 var wsA = p.Workbook.Worksheets.Add("巡檢缺失");
@@ -606,7 +600,6 @@ namespace Safety_System
                                 FormatExcelSheet(wsA, dtA);
                             }
 
-                            // B區 - 追蹤改善分頁
                             if (_dgvResultB.DataSource != null && _dgvResultB.Rows.Count > 0)
                             {
                                 var wsB = p.Workbook.Worksheets.Add("追蹤改善");
@@ -634,7 +627,6 @@ namespace Safety_System
 
         private void FormatExcelSheet(ExcelWorksheet ws, DataTable dt)
         {
-            // 1. 標題樣式
             using (var range = ws.Cells[1, 1, 1, dt.Columns.Count]) {
                 range.Style.Font.Bold = true;
                 range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
@@ -643,44 +635,35 @@ namespace Safety_System
                 range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
             }
 
-            // 2. 內容開啟自動換行
             var dataRange = ws.Cells[2, 1, dt.Rows.Count + 1, dt.Columns.Count];
             dataRange.Style.WrapText = true;
             dataRange.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
 
-            // 3. 自動調整基礎欄寬
             ws.Cells.AutoFitColumns();
             
-            // 限制欄寬最大值，避免某些文字超長導致欄位寬到螢幕外
             for (int c = 1; c <= dt.Columns.Count; c++) {
                 if (ws.Column(c).Width > 60) ws.Column(c).Width = 60;
                 if (ws.Column(c).Width < 12) ws.Column(c).Width = 12;
             }
 
-            // 4. 精準計算每一列的列高 (最小 25，換行自動加高 + 5)
             Font excelFont = new Font("Microsoft JhengHei UI", 11F);
             
             using (Bitmap dummyBmp = new Bitmap(1, 1))
             using (Graphics g = Graphics.FromImage(dummyBmp))
             {
-                // 從第二列 (資料列) 開始
                 for (int r = 0; r < dt.Rows.Count; r++) 
                 {
-                    float maxRowHeightPts = 25f; // 最低要求列高 25
+                    float maxRowHeightPts = 25f; 
 
                     for (int c = 0; c < dt.Columns.Count; c++) 
                     {
                         string text = dt.Rows[r][c]?.ToString() ?? "";
                         if (string.IsNullOrEmpty(text)) continue;
 
-                        // Excel 的 Column.Width 單位是字元，大約 1 字元 = 7 像素
                         double colWidthChars = ws.Column(c + 1).Width;
                         int pixelWidth = (int)(colWidthChars * 7.0); 
 
-                        // 測量該段文字在給定欄寬下折行後的總高度 (像素)
                         SizeF sz = g.MeasureString(text, excelFont, pixelWidth);
-                        
-                        // 將像素(px)轉換為 Excel的點數(points) -> 1 px = 0.75 points
                         float ptHeight = sz.Height * 0.75f;
 
                         if (ptHeight > maxRowHeightPts) {
@@ -688,12 +671,10 @@ namespace Safety_System
                         }
                     }
 
-                    // 設定自訂列高，並加上 5 作為緩衝排版空間
                     ws.Row(r + 2).Height = maxRowHeightPts + 5f;
                     ws.Row(r + 2).CustomHeight = true;
                 }
                 
-                // 標題列高也設為 25
                 ws.Row(1).Height = 25f;
                 ws.Row(1).CustomHeight = true;
             }
