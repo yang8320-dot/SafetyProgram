@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
@@ -37,12 +38,11 @@ namespace Safety_System
 
         private const string DbName = "ESG";
         
-        // 欄位顯示/隱藏的設定檔
-        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_Visibility.txt");
+        // 🟢 替換：移除 TXT 路徑，改用 SQLite 儲存
+        // 欄位顯示/隱藏的快取
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
-        // 資料列 (筆) 顯示/隱藏的設定檔與快取 (紀錄被隱藏的項目名稱)
-        private readonly string HiddenRowsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESGDashboard_HiddenRows.txt");
+        // 資料列 (筆) 顯示/隱藏的快取 (紀錄被隱藏的項目名稱)
         private Dictionary<string, HashSet<string>> _hiddenRows = new Dictionary<string, HashSet<string>>();
 
         // 您指定的預設顯示欄位名單
@@ -53,8 +53,25 @@ namespace Safety_System
             "年月", "單位", "項目", "說明", "預計執行週期", "費用TWD", "統計至12月底之實際數據含計算式"
         };
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [ESGDashboardVisibility] (ItemKey TEXT PRIMARY KEY, IsVisible INTEGER);", conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var cmd = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [ESGDashboardHiddenRows] (TableName TEXT, ItemName TEXT, UNIQUE(TableName, ItemName));", conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); // 🟢 初始化資料表
             LoadVisibilitySettings();
             LoadHiddenRowsSettings(); // 載入資料列隱藏名單
 
@@ -360,36 +377,48 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 資料列(筆)顯示/隱藏管理系統
+        // 🟢 改為 SQLite：資料列(筆)顯示/隱藏管理系統
         // ==========================================
         private void LoadHiddenRowsSettings()
         {
             _hiddenRows.Clear();
-            if (File.Exists(HiddenRowsFile)) {
-                try {
-                    foreach (var line in File.ReadAllLines(HiddenRowsFile, Encoding.UTF8)) {
-                        var parts = line.Split(new[] { "::" }, StringSplitOptions.None);
-                        if (parts.Length == 2) {
-                            string tbl = parts[0];
-                            string itemName = parts[1];
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM ESGDashboardHiddenRows", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            string tbl = reader["TableName"].ToString();
+                            string item = reader["ItemName"].ToString();
                             if (!_hiddenRows.ContainsKey(tbl)) _hiddenRows[tbl] = new HashSet<string>();
-                            _hiddenRows[tbl].Add(itemName);
+                            _hiddenRows[tbl].Add(item);
                         }
                     }
-                } catch { }
-            }
+                }
+            } catch { }
         }
 
         private void SaveHiddenRowsSettings()
         {
             try {
-                List<string> lines = new List<string>();
-                foreach (var kvp in _hiddenRows) {
-                    foreach (var item in kvp.Value) {
-                        lines.Add($"{kvp.Key}::{item}");
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM ESGDashboardHiddenRows", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO ESGDashboardHiddenRows (TableName, ItemName) VALUES (@T, @I)";
+                        foreach (var kvp in _hiddenRows) {
+                            foreach (var item in kvp.Value) {
+                                using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                    cmd.Parameters.AddWithValue("@T", kvp.Key);
+                                    cmd.Parameters.AddWithValue("@I", item);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                        trans.Commit();
                     }
                 }
-                File.WriteAllLines(HiddenRowsFile, lines, Encoding.UTF8);
             } catch { }
         }
 
@@ -502,28 +531,43 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 欄位 (直行) 顯示設定系統
+        // 🟢 改為 SQLite：欄位 (直行) 顯示設定系統
         // ==========================================
         private void LoadVisibilitySettings()
         {
             _columnVisibility.Clear();
-            if (File.Exists(VisibilityFile)) {
-                try {
-                    foreach (var line in File.ReadAllLines(VisibilityFile, Encoding.UTF8)) {
-                        var parts = line.Split('|');
-                        if (parts.Length == 2) {
-                            _columnVisibility[parts[0]] = (parts[1] == "1");
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM ESGDashboardVisibility", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            _columnVisibility[reader["ItemKey"].ToString()] = Convert.ToInt32(reader["IsVisible"]) == 1;
                         }
                     }
-                } catch { }
-            }
+                }
+            } catch { }
         }
 
         private void SaveVisibilitySettings()
         {
             try {
-                var lines = _columnVisibility.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
-                File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM ESGDashboardVisibility", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO ESGDashboardVisibility (ItemKey, IsVisible) VALUES (@K, @V)";
+                        foreach (var kvp in _columnVisibility) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@K", kvp.Key);
+                                cmd.Parameters.AddWithValue("@V", kvp.Value ? 1 : 0);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
             } catch { }
         }
 
