@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
@@ -44,16 +45,35 @@ namespace Safety_System
         
         private Panel _mainScrollPanel;
         private const string DbName = "Water";
-        private readonly string SettingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WaterSettings.txt");
 
+        // 🟢 替換：移除 .txt 路徑，改用 SQLite
         // 儲存各模組的顯示設定
         private Dictionary<string, bool> _visibilitySettings = new Dictionary<string, bool>();
 
         // 🟢 供自定義單位的全域快取
         public static Dictionary<string, string> CustomUnitsCache = new Dictionary<string, string>();
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    // 建立顯示隱藏設定表
+                    using (var cmd = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [WaterDashboardVisibility] (ItemKey TEXT PRIMARY KEY, IsVisible INTEGER);", conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                    // 建立自訂統計公式表
+                    using (var cmd = new SQLiteCommand("CREATE TABLE IF NOT EXISTS [WaterCustomStats] (Id INTEGER PRIMARY KEY AUTOINCREMENT, Module TEXT, StatName TEXT, Unit TEXT, Formula TEXT);", conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); // 🟢 確保資料庫表格存在
             CustomStatEngine.LoadSettings(); 
             LoadVisibilitySettings(); 
 
@@ -173,34 +193,44 @@ namespace Safety_System
             return _mainScrollPanel;
         }
 
+        // 🟢 替換為 SQLite
         private void LoadVisibilitySettings()
         {
             _visibilitySettings.Clear();
-            if (File.Exists(SettingsFile)) 
-            {
-                try 
-                {
-                    foreach (var line in File.ReadAllLines(SettingsFile, Encoding.UTF8)) 
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length == 2) 
-                        {
-                            _visibilitySettings[parts[0]] = parts[1] == "1";
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM WaterDashboardVisibility", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            _visibilitySettings[reader["ItemKey"].ToString()] = Convert.ToInt32(reader["IsVisible"]) == 1;
                         }
                     }
-                } 
-                catch { }
-            }
+                }
+            } catch { }
         }
 
+        // 🟢 替換為 SQLite
         private void SaveVisibilitySettings()
         {
-            try 
-            {
-                var lines = _visibilitySettings.Select(kvp => $"{kvp.Key}|{(kvp.Value ? "1" : "0")}").ToArray();
-                File.WriteAllLines(SettingsFile, lines, Encoding.UTF8);
-            } 
-            catch { }
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM WaterDashboardVisibility", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO WaterDashboardVisibility (ItemKey, IsVisible) VALUES (@K, @V)";
+                        foreach (var kvp in _visibilitySettings) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@K", kvp.Key);
+                                cmd.Parameters.AddWithValue("@V", kvp.Value ? 1 : 0);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
+            } catch { }
         }
 
         private bool IsVisible(string module, string key)
@@ -948,39 +978,53 @@ namespace Safety_System
         }
 
         private static List<CustomRule> _rules = new List<CustomRule>();
-        private static readonly string ConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WaterCustomStats.txt");
         private static readonly string[] WaterTables = { "WaterMeterReadings", "WaterChemicals", "WaterUsageDaily", "DischargeData", "WaterVolume" };
 
         public static void LoadSettings()
         {
             _rules.Clear();
             App_WaterDashboard.CustomUnitsCache.Clear();
-            if (File.Exists(ConfigFile)) 
-            {
-                try 
-                {
-                    foreach (var line in File.ReadAllLines(ConfigFile, Encoding.UTF8)) 
-                    {
-                        var p = line.Split('|');
-                        if (p.Length >= 4) 
-                        {
-                            _rules.Add(new CustomRule { Module = p[0], StatName = p[1], Unit = p[2], Formula = p[3] });
-                            App_WaterDashboard.CustomUnitsCache[p[1]] = p[2];
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM WaterCustomStats", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            string mod = reader["Module"].ToString();
+                            string stat = reader["StatName"].ToString();
+                            string unit = reader["Unit"].ToString();
+                            string formula = reader["Formula"].ToString();
+
+                            _rules.Add(new CustomRule { Module = mod, StatName = stat, Unit = unit, Formula = formula });
+                            App_WaterDashboard.CustomUnitsCache[stat] = unit;
                         }
                     }
-                } 
-                catch { }
-            }
+                }
+            } catch { }
         }
 
         public static void SaveSettings()
         {
-            try 
-            {
-                var lines = _rules.Select(r => $"{r.Module}|{r.StatName}|{r.Unit}|{r.Formula}").ToArray();
-                File.WriteAllLines(ConfigFile, lines, Encoding.UTF8);
-            } 
-            catch { }
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM WaterCustomStats", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO WaterCustomStats (Module, StatName, Unit, Formula) VALUES (@M, @S, @U, @F)";
+                        foreach (var r in _rules) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@M", r.Module);
+                                cmd.Parameters.AddWithValue("@S", r.StatName);
+                                cmd.Parameters.AddWithValue("@U", r.Unit);
+                                cmd.Parameters.AddWithValue("@F", r.Formula);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
+            } catch { }
         }
 
         public static List<CustomRule> GetStatsForModule(string moduleName)
