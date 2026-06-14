@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
@@ -19,14 +20,14 @@ namespace Safety_System
         private ComboBox _cboStartYear, _cboStartMonth, _cboStartDay;
         private ComboBox _cboEndYear, _cboEndMonth, _cboEndDay;
 
-        // 🟢 三大區塊容器 (新增了廢棄物清除)
+        // 三大區塊容器
         private DashboardSection _wasteSection;
         private DashboardSection _materialSection;
         private DashboardSection _disposalSection;
 
-        // 設定檔路徑與快取
-        private readonly string SettingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WasteDashboardSettings.txt");
+        // 🟢 替換：移除 TXT，改為全域物件供 SQLite 取用
         private List<WasteConfigItem> _configs = new List<WasteConfigItem>();
+        private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
         // 查詢按鈕，用於防呆禁用
         private Button _btnSearch;
@@ -38,7 +39,7 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName; 
         }
 
-        // 定義自訂統計項目的資料結構 (加入 Category 區分廢棄物、原物料或清除)
+        // 定義自訂統計項目的資料結構
         private class WasteConfigItem
         {
             public string DisplayName { get; set; }
@@ -75,8 +76,27 @@ namespace Safety_System
             public Dictionary<string, Panel> MonthlyPanels { get; set; } = new Dictionary<string, Panel>();
         }
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [WasteDashboardConfigs] (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        DisplayName TEXT, Unit TEXT, Category TEXT, DbName TEXT, TableName TEXT, 
+                        ColName TEXT, AggType TEXT, FilterValue TEXT, ColName2 TEXT);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); 
+            _dbMap = App_DbConfig.GetDbMapCache();
             LoadSettings();
 
             Panel mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
@@ -85,7 +105,7 @@ namespace Safety_System
                 Dock = DockStyle.Top, 
                 AutoSize = true, 
                 ColumnCount = 1, 
-                RowCount = 5, // 🟢 增加了一列給廢棄物清除
+                RowCount = 5, 
                 Margin = new Padding(0)
             };
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); 
@@ -143,13 +163,13 @@ namespace Safety_System
             // ==========================================
             _wasteSection = BuildSection("廢棄物產出數據統計", "廢棄物產出", Color.SeaGreen);
             _materialSection = BuildSection("原物料產出數據統計", "原物料產出", Color.Sienna);
-            _disposalSection = BuildSection("廢棄物清除數據統計", "廢棄物清除", Color.SlateGray); // 🟢 新增第三大區塊
+            _disposalSection = BuildSection("廢棄物清除數據統計", "廢棄物清除", Color.SlateGray); 
 
             masterLayout.Controls.Add(pnlHeader, 0, 0);
             masterLayout.Controls.Add(flpControls, 0, 1);
             masterLayout.Controls.Add(_wasteSection.MainPanel, 0, 2);
             masterLayout.Controls.Add(_materialSection.MainPanel, 0, 3);
-            masterLayout.Controls.Add(_disposalSection.MainPanel, 0, 4); // 🟢 佈局寫入第三大區塊
+            masterLayout.Controls.Add(_disposalSection.MainPanel, 0, 4); 
 
             mainScrollPanel.Controls.Add(masterLayout);
 
@@ -302,7 +322,6 @@ namespace Safety_System
                 DateTime dtS = GetDateFromCombo(_cboStartYear, _cboStartMonth, _cboStartDay);
                 DateTime dtE = GetDateFromCombo(_cboEndYear, _cboEndMonth, _cboEndDay);
 
-                // 🟢 加入第三個區塊的讀取
                 await ProcessSectionAsync(_wasteSection, dtS, dtE);
                 await ProcessSectionAsync(_materialSection, dtS, dtE);
                 await ProcessSectionAsync(_disposalSection, dtS, dtE);
@@ -412,7 +431,6 @@ namespace Safety_System
             section.FlpBottomBox.Controls.Clear();
             section.MonthlyPanels.Clear();
 
-            // 🟢 根據三個類別調整報表標題與顏色
             Color headerColor = section.Category == "廢棄物產出" ? Color.SeaGreen : 
                                (section.Category == "原物料產出" ? Color.Sienna : Color.SlateGray);
 
@@ -579,73 +597,71 @@ namespace Safety_System
         }
 
         // =========================================================
-        // 設定檔管理與動態設定視窗
+        // 🟢 設定檔管理與動態設定視窗 (改為 SQLite)
         // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
-            if (File.Exists(SettingsFile))
-            {
-                try
-                {
-                    foreach (var line in File.ReadAllLines(SettingsFile, Encoding.UTF8))
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length > 1)
-                        {
-                            string dispName = parts[0];
-                            string unit = "噸"; 
-                            string category = "廢棄物產出"; 
-                            int srcStartIdx = 1;
-
-                            if (parts.Length > 1 && !parts[1].Contains(";")) {
-                                unit = parts[1];
-                                srcStartIdx = 2;
-                            }
-                            if (parts.Length > 2 && !parts[2].Contains(";")) {
-                                category = parts[2];
-                                srcStartIdx = 3;
-                            }
-
-                            WasteConfigItem cfg = new WasteConfigItem { DisplayName = dispName, Unit = unit, Category = category };
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM WasteDashboardConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        var dict = new Dictionary<string, WasteConfigItem>();
+                        while (reader.Read()) {
+                            string dispName = reader["DisplayName"].ToString();
+                            string unit = reader["Unit"].ToString();
+                            string cat = reader["Category"].ToString();
                             
-                            for (int i = srcStartIdx; i < parts.Length; i++)
-                            {
-                                var srcParts = parts[i].Split(';');
-                                if (srcParts.Length >= 4)
-                                {
-                                    string filter = srcParts.Length > 4 ? srcParts[4] : "";
-                                    string col2 = srcParts.Length > 5 ? srcParts[5] : ""; 
-                                    cfg.Sources.Add(new DataSourceDef { DbName = srcParts[0], TableName = srcParts[1], ColName = srcParts[2], AggType = srcParts[3], FilterValue = filter, ColName2 = col2 });
-                                }
+                            if (!dict.ContainsKey(dispName)) {
+                                dict[dispName] = new WasteConfigItem { DisplayName = dispName, Unit = unit, Category = cat, Sources = new List<DataSourceDef>() };
                             }
-                            _configs.Add(cfg);
+
+                            dict[dispName].Sources.Add(new DataSourceDef {
+                                DbName = reader["DbName"].ToString(),
+                                TableName = reader["TableName"].ToString(),
+                                ColName = reader["ColName"].ToString(),
+                                AggType = reader["AggType"].ToString(),
+                                FilterValue = reader["FilterValue"].ToString(),
+                                ColName2 = reader["ColName2"].ToString()
+                            });
                         }
+                        _configs = dict.Values.ToList();
                     }
                 }
-                catch { }
-            }
+            } catch { }
         }
 
         private void SaveSettings()
         {
-            try
-            {
-                List<string> lines = new List<string>();
-                foreach (var cfg in _configs)
-                {
-                    if (cfg == null || string.IsNullOrEmpty(cfg.DisplayName)) continue;
-
-                    string line = $"{cfg.DisplayName}|{cfg.Unit}|{cfg.Category}";
-                    foreach (var src in cfg.Sources)
-                    {
-                        line += $"|{src.DbName};{src.TableName};{src.ColName};{src.AggType};{src.FilterValue};{src.ColName2}";
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM WasteDashboardConfigs", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO WasteDashboardConfigs (DisplayName, Unit, Category, DbName, TableName, ColName, AggType, FilterValue, ColName2) VALUES (@D, @U, @Cat, @DB, @TB, @C, @A, @F, @C2)";
+                        foreach (var cfg in _configs) {
+                            if (string.IsNullOrEmpty(cfg.DisplayName)) continue;
+                            foreach (var src in cfg.Sources) {
+                                using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                    cmd.Parameters.AddWithValue("@D", cfg.DisplayName);
+                                    cmd.Parameters.AddWithValue("@U", cfg.Unit ?? "噸");
+                                    cmd.Parameters.AddWithValue("@Cat", cfg.Category ?? "廢棄物產出");
+                                    cmd.Parameters.AddWithValue("@DB", src.DbName ?? "");
+                                    cmd.Parameters.AddWithValue("@TB", src.TableName ?? "");
+                                    cmd.Parameters.AddWithValue("@C", src.ColName ?? "");
+                                    cmd.Parameters.AddWithValue("@A", src.AggType ?? "COUNT");
+                                    cmd.Parameters.AddWithValue("@F", src.FilterValue ?? "");
+                                    cmd.Parameters.AddWithValue("@C2", src.ColName2 ?? "");
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                        trans.Commit();
                     }
-                    lines.Add(line);
                 }
-                File.WriteAllLines(SettingsFile, lines, Encoding.UTF8);
-            }
-            catch { }
+            } catch { }
         }
 
         private void BtnSetting_Click(object sender, EventArgs e)
@@ -674,7 +690,6 @@ namespace Safety_System
                 
                 pName.Controls.Add(new Label { Text = "看板分類：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 ComboBox cboCategory = new ComboBox { Width = 140, Location = new Point(100, 7), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
-                // 🟢 加入第三個分類「廢棄物清除」
                 cboCategory.Items.AddRange(new string[] { "廢棄物產出", "原物料產出", "廢棄物清除" });
                 cboCategory.SelectedIndex = 0;
                 pName.Controls.Add(cboCategory);
@@ -696,150 +711,213 @@ namespace Safety_System
                 FlowLayoutPanel flpSourcesContainer = new FlowLayoutPanel { Width = 1150, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 flpEditor.Controls.Add(flpSourcesContainer);
 
-                var dbMap = App_DbConfig.GetDbMapCache();
+                var editingConfigs = new List<WasteConfigItem>(_configs);
 
-                Action<DataSourceDef> addSourceRow = (def) => {
-                    Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
-                    pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
-                    
-                    int ly = 10, cy = 35;
-                    int x0 = 10, w0 = 35;   
-                    int x1 = 55, w1 = 110;  
-                    int x2 = 175, w2 = 140; 
-                    int x3 = 325, w3 = 145; 
-                    int x4 = 480, w4 = 155; 
-                    int x5 = 645, w5 = 145; 
-                    int x6 = 800, w6 = 140; 
-                    int x7 = 950, w7 = 120; 
+                Action renderRows = null;
+                renderRows = () => {
+                    flpSourcesContainer.SuspendLayout();
+                    flpSourcesContainer.Controls.Clear();
 
-                    Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-                    btnRemove.FlatAppearance.BorderSize = 0;
-
-                    ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    ComboBox cbAgg = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                    
-                    Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
-                    ComboBox cbColEnd = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
-                    
-                    Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
-                    ComboBox cbColStart = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
-
-                    pRow.Controls.AddRange(new Control[] {
-                        btnRemove, 
-                        new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
-                        new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
-                        new Label { Text = "計算欄位", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
-                        new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
-                        new Label { Text = "運算方式", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
-                        lblColEnd, cbColEnd,
-                        lblColStart, cbColStart
-                    });
-
-                    btnRemove.Click += (s, ev) => flpSourcesContainer.Controls.Remove(pRow);
-
-                    cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                    foreach (var kvp in dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
-
-                    cbDb.SelectedIndexChanged += (s, ev) => {
-                        cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
-                        var selDb = cbDb.SelectedItem as ItemMap;
-                        if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && dbMap.ContainsKey(selDb.EnName)) {
-                            foreach (var tb in dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
-                        }
-                    };
-
-                    cbTb.SelectedIndexChanged += (s, ev) => {
-                        cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
-                        cbColEnd.Items.Clear(); cbColEnd.Items.Add("");
-                        cbColStart.Items.Clear(); cbColStart.Items.Add("");
-                        
-                        var selDb = cbDb.SelectedItem as ItemMap;
-                        var selTb = cbTb.SelectedItem as ItemMap;
-                        if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName)) {
-                            var cols = DataManager.GetColumnNames(selDb.EnName, selTb.EnName).Where(c => c != "Id");
-                            foreach (var c in cols) {
-                                cbCol.Items.Add(c);
-                                cbColEnd.Items.Add(c);
-                                cbColStart.Items.Add(c);
-                            }
-                        }
-                    };
-
-                    cbAgg.SelectedIndexChanged += (s, ev) => {
-                        bool isDiff = cbAgg.Text.Contains("相減");
-                        lblColEnd.Visible = isDiff;
-                        cbColEnd.Visible = isDiff;
-                        lblColStart.Visible = isDiff;
-                        cbColStart.Visible = isDiff;
-                    };
-
-                    cbCol.SelectedIndexChanged += (s, ev) => {
-                        cbFilter.Items.Clear(); 
-                        cbFilter.Items.Add("非空值 (有輸入即算)");
-                        var selDb = cbDb.SelectedItem as ItemMap;
-                        var selTb = cbTb.SelectedItem as ItemMap;
-                        string col = cbCol.Text;
-                        
-                        if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && col != "Id (無條件計數)") {
-                            string tbName = selTb.EnName;
-                            
-                            string multiKey = $"{tbName}|{col}";
-                            // 🟢 [修復 Error CS1061 & CS1503]
-                            if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                                foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
-                                    if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
-                                        cbFilter.Items.Add(opt.Text.Trim());
-                                    }
-                                }
-                            }
-                            
-                            string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, col);
-                            if (dropOpts != null && dropOpts.Length > 0) {
-                                foreach (var opt in dropOpts) {
-                                    if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
-                                        cbFilter.Items.Add(opt.Trim());
-                                    }
-                                }
-                            }
-                        }
-                        cbFilter.SelectedIndex = 0;
-                    };
-
-                    cbAgg.Items.AddRange(new string[] { "計數", "加總", "日期相減(總天數)" });
-
-                    if (def != null) {
-                        foreach(ItemMap im in cbDb.Items) if(im.EnName == def.DbName) { cbDb.SelectedItem = im; break; }
-                        foreach(ItemMap im in cbTb.Items) if(im.EnName == def.TableName) { cbTb.SelectedItem = im; break; }
-                        
-                        cbCol.Text = def.ColName;
-                        if (!string.IsNullOrEmpty(def.ColName2)) {
-                            cbColEnd.Text = def.ColName;
-                            cbColStart.Text = def.ColName2;
-                        }
-
-                        if (!string.IsNullOrEmpty(def.FilterValue) && cbFilter.Items.Contains(def.FilterValue)) {
-                            cbFilter.Text = def.FilterValue;
-                        } else {
-                            if (!string.IsNullOrEmpty(def.FilterValue)) cbFilter.Items.Add(def.FilterValue);
-                            cbFilter.Text = string.IsNullOrEmpty(def.FilterValue) ? "非空值 (有輸入即算)" : def.FilterValue;
-                        }
-                        
-                        if (def.AggType == "COUNT") cbAgg.Text = "計數";
-                        else if (def.AggType == "SUM") cbAgg.Text = "加總";
-                        else if (def.AggType == "DIFF_SUM") cbAgg.Text = "日期相減(總天數)";
-                        else cbAgg.Text = "加總"; 
-                    } else {
-                        cbAgg.Text = "加總";
-                        cbFilter.Text = "非空值 (有輸入即算)";
+                    var targetConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                    if (targetConf == null) {
+                        targetConf = new WasteConfigItem();
+                        editingConfigs.Add(targetConf);
                     }
 
-                    flpSourcesContainer.Controls.Add(pRow);
+                    for (int i = 0; i < targetConf.Sources.Count; i++) {
+                        int currentIndex = i;
+                        var srcDef = targetConf.Sources[i];
+
+                        Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
+                        pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+                        
+                        int ly = 10, cy = 35;
+                        int x0 = 10, w0 = 35;   
+                        int x1 = 55, w1 = 110;  
+                        int x2 = 175, w2 = 140; 
+                        int x3 = 325, w3 = 145; 
+                        int x4 = 480, w4 = 155; 
+                        int x5 = 645, w5 = 145; 
+                        int x6 = 800, w6 = 140; 
+                        int x7 = 950, w7 = 120; 
+
+                        Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+                        btnRemove.FlatAppearance.BorderSize = 0;
+                        btnRemove.Click += (s, ev) => { targetConf.Sources.RemoveAt(currentIndex); renderRows(); };
+
+                        ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbCol = new ComboBox { Location = new Point(x3, cy), Width = w3, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbFilter = new ComboBox { Location = new Point(x4, cy), Width = w4, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbAgg = new ComboBox { Location = new Point(x5, cy), Width = w5, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        
+                        Label lblColEnd = new Label { Text = "主欄位(迄)", Location = new Point(x6, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) };
+                        ComboBox cbColEnd = new ComboBox { Location = new Point(x6, cy), Width = w6, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
+                        
+                        Label lblColStart = new Label { Text = "次欄位(起)", Location = new Point(x7, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), ForeColor = Color.DarkOrange, Visible = false };
+                        ComboBox cbColStart = new ComboBox { Location = new Point(x7, cy), Width = w7, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F), Visible = false };
+
+                        pRow.Controls.AddRange(new Control[] {
+                            btnRemove, 
+                            new Label { Text = "資料庫", Location = new Point(x1, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbDb,
+                            new Label { Text = "資料表", Location = new Point(x2, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbTb,
+                            new Label { Text = "計算欄位", Location = new Point(x3, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbCol,
+                            new Label { Text = "選項過濾條件", Location = new Point(x4, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbFilter,
+                            new Label { Text = "運算方式", Location = new Point(x5, ly), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold) }, cbAgg,
+                            lblColEnd, cbColEnd,
+                            lblColStart, cbColStart
+                        });
+
+                        cbDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                        foreach (var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+
+                        bool isInitializing = true;
+                        bool colsLoaded = false;
+
+                        Action lazyLoadCols = () => {
+                            if (colsLoaded) return;
+                            cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
+                            cbColEnd.Items.Clear(); cbColEnd.Items.Add("");
+                            cbColStart.Items.Clear(); cbColStart.Items.Add("");
+
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName)) {
+                                var cols = DataManager.GetColumnNames(selDb.EnName, selTb.EnName).Where(c => c != "Id");
+                                foreach (var c in cols) {
+                                    cbCol.Items.Add(c);
+                                    cbColEnd.Items.Add(c);
+                                    cbColStart.Items.Add(c);
+                                }
+                            }
+                            colsLoaded = true;
+                        };
+
+                        EventHandler triggerLoad = (s, ev) => { lazyLoadCols(); };
+                        cbCol.DropDown += triggerLoad;
+                        cbColEnd.DropDown += triggerLoad;
+                        cbColStart.DropDown += triggerLoad;
+                        cbFilter.DropDown += triggerLoad;
+
+                        cbDb.SelectedIndexChanged += (s, ev) => {
+                            if (isInitializing) return;
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            srcDef.DbName = selDb?.EnName ?? "";
+
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                            if (selDb != null && !string.IsNullOrEmpty(selDb.EnName) && _dbMap.ContainsKey(selDb.EnName)) {
+                                foreach (var tb in _dbMap[selDb.EnName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            }
+                            if (cbTb.Items.Count > 0) cbTb.SelectedIndex = 0;
+                        };
+
+                        cbTb.SelectedIndexChanged += (s, ev) => {
+                            if (isInitializing) return;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            srcDef.TableName = selTb?.EnName ?? "";
+
+                            if (cbTb.SelectedItem != null && cbDb.SelectedItem != null) {
+                                colsLoaded = false;
+                                cbCol.Text = "Id (無條件計數)"; cbFilter.Text = "非空值 (有輸入即算)";
+                            }
+                        };
+
+                        cbAgg.Items.AddRange(new string[] { "計數", "加總", "日期相減(總天數)" });
+                        cbAgg.SelectedIndexChanged += (s, ev) => {
+                            bool isDiff = cbAgg.Text.Contains("相減");
+                            lblColEnd.Visible = isDiff; cbColEnd.Visible = isDiff;
+                            lblColStart.Visible = isDiff; cbColStart.Visible = isDiff;
+                            if(!isInitializing) {
+                                if (cbAgg.Text == "加總") srcDef.AggType = "SUM";
+                                else if (cbAgg.Text == "日期相減(總天數)") srcDef.AggType = "DIFF_SUM";
+                                else srcDef.AggType = "COUNT";
+                            }
+                        };
+
+                        cbCol.SelectedIndexChanged += (s, ev) => {
+                            cbFilter.Items.Clear(); 
+                            cbFilter.Items.Add("非空值 (有輸入即算)");
+                            var selDb = cbDb.SelectedItem as ItemMap;
+                            var selTb = cbTb.SelectedItem as ItemMap;
+                            string col = cbCol.Text;
+                            
+                            if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && col != "Id (無條件計數)") {
+                                string tbName = selTb.EnName;
+                                string multiKey = $"{tbName}|{col}";
+
+                                if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
+                                    foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
+                                        if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
+                                            cbFilter.Items.Add(opt.Text.Trim());
+                                        }
+                                    }
+                                }
+                                
+                                string[] dropOpts = App_DropdownManager.GetAllOptionsForColumn(tbName, col);
+                                if (dropOpts != null && dropOpts.Length > 0) {
+                                    foreach (var opt in dropOpts) {
+                                        if (!string.IsNullOrWhiteSpace(opt) && !cbFilter.Items.Contains(opt.Trim())) {
+                                            cbFilter.Items.Add(opt.Trim());
+                                        }
+                                    }
+                                }
+                            }
+                            cbFilter.SelectedIndex = 0;
+                        };
+
+                        // 值改變時即時更新回模型
+                        cbCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName = cbCol.Text; } };
+                        cbFilter.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.FilterValue = cbFilter.Text; } };
+                        cbColEnd.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName = cbColEnd.Text; } };
+                        cbColStart.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName2 = cbColStart.Text; } };
+
+                        // 🟢 初始化
+                        foreach (ItemMap im in cbDb.Items) if (im.EnName == srcDef.DbName) { cbDb.SelectedItem = im; break; }
+                        if (cbDb.SelectedItem != null && _dbMap.ContainsKey(srcDef.DbName)) {
+                            cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+                            foreach (var tb in _dbMap[srcDef.DbName].Tables) cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = tb.Value });
+                            foreach (ItemMap im in cbTb.Items) if (im.EnName == srcDef.TableName) { cbTb.SelectedItem = im; break; }
+                        }
+
+                        cbCol.Text = srcDef.ColName;
+                        if (!string.IsNullOrEmpty(srcDef.ColName2)) {
+                            cbColEnd.Text = srcDef.ColName;
+                            cbColStart.Text = srcDef.ColName2;
+                        }
+
+                        if (!string.IsNullOrEmpty(srcDef.FilterValue)) {
+                            if (!cbFilter.Items.Contains(srcDef.FilterValue)) cbFilter.Items.Add(srcDef.FilterValue);
+                            cbFilter.Text = srcDef.FilterValue;
+                        } else {
+                            cbFilter.Text = "非空值 (有輸入即算)";
+                        }
+                        
+                        if (srcDef.AggType == "COUNT") cbAgg.Text = "計數";
+                        else if (srcDef.AggType == "SUM") cbAgg.Text = "加總";
+                        else if (srcDef.AggType == "DIFF_SUM") cbAgg.Text = "日期相減(總天數)";
+                        else cbAgg.Text = "計數"; 
+
+                        isInitializing = false;
+                        flpSourcesContainer.Controls.Add(pRow);
+                    }
+
+                    Button btnAdd = new Button { Text = "➕ 新增來源", Width = 1100, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                    btnAdd.FlatAppearance.BorderSize = 0;
+                    btnAdd.Click += (s, ev) => { 
+                        var targetConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                        if (targetConf == null) {
+                            targetConf = new WasteConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text, Category = cboCategory.Text };
+                            editingConfigs.Add(targetConf);
+                        }
+                        targetConf.Sources.Add(new DataSourceDef()); 
+                        renderRows(); 
+                    };
+                    
+                    flpSourcesContainer.Controls.Add(btnAdd);
+                    flpSourcesContainer.ResumeLayout(true);
                 };
 
-                btnAddSource.Click += (s, ev) => addSourceRow(null);
+                renderRows();
 
                 Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 900, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
 
@@ -852,10 +930,9 @@ namespace Safety_System
                 tlp.Controls.Add(pnlRight, 1, 0);
                 f.Controls.Add(tlp);
 
-                // 資料載入與綁定邏輯
                 Action refreshList = () => {
                     lbItems.Items.Clear();
-                    foreach (var cfg in _configs) {
+                    foreach (var cfg in editingConfigs) {
                         if (cfg != null && !string.IsNullOrEmpty(cfg.DisplayName)) {
                             lbItems.Items.Add($"[{cfg.Category}] {cfg.DisplayName}");
                         }
@@ -866,21 +943,18 @@ namespace Safety_System
                 lbItems.SelectedIndexChanged += (ss, ee) => {
                     if (lbItems.SelectedIndex < 0) return;
                     flpSourcesContainer.Controls.Clear();
-                    var cfg = _configs[lbItems.SelectedIndex];
+                    var cfg = editingConfigs[lbItems.SelectedIndex];
                     
                     cboCategory.SelectedItem = cfg.Category;
                     txtName.Text = cfg.DisplayName;
                     txtUnit.Text = string.IsNullOrEmpty(cfg.Unit) ? "噸" : cfg.Unit; 
                     
-                    foreach (var src in cfg.Sources) {
-                        addSourceRow(src);
-                    }
+                    renderRows();
                 };
 
                 btnDel.Click += (ss, ee) => {
                     if (lbItems.SelectedIndex >= 0) {
-                        _configs.RemoveAt(lbItems.SelectedIndex);
-                        SaveSettings();
+                        editingConfigs.RemoveAt(lbItems.SelectedIndex);
                         refreshList();
                         txtName.Clear();
                         flpSourcesContainer.Controls.Clear();
@@ -896,53 +970,16 @@ namespace Safety_System
                         Category = cboCategory.SelectedItem.ToString()
                     };
                     
-                    foreach (Control ctrl in flpSourcesContainer.Controls) {
-                        if (ctrl is Panel pRow) {
-                            var cbDb = pRow.Controls[2] as ComboBox;
-                            var cbTb = pRow.Controls[4] as ComboBox;
-                            var cbCol = pRow.Controls[6] as ComboBox;
-                            var cbFilter = pRow.Controls[8] as ComboBox;
-                            var cbAgg = pRow.Controls[10] as ComboBox;
-                            var cbColEnd = pRow.Controls[12] as ComboBox;
-                            var cbColStart = pRow.Controls[14] as ComboBox;
-
-                            var selDb = cbDb.SelectedItem as ItemMap;
-                            var selTb = cbTb.SelectedItem as ItemMap;
-
-                            if (selDb != null && selTb != null && !string.IsNullOrWhiteSpace(cbCol.Text) && !string.IsNullOrWhiteSpace(cbAgg.Text)) {
-                                string filterVal = (cbFilter.Text == "非空值 (有輸入即算)") ? "" : cbFilter.Text;
-                                
-                                string aggTypeDb = "COUNT";
-                                string dbColToSave = cbCol.Text;
-                                string dbCol2ToSave = "";
-
-                                if (cbAgg.Text == "加總") {
-                                    aggTypeDb = "SUM";
-                                }
-                                else if (cbAgg.Text == "日期相減(總天數)") {
-                                    aggTypeDb = "DIFF_SUM";
-                                    dbColToSave = cbColEnd.Text;
-                                    dbCol2ToSave = cbColStart.Text;
-                                }
-                                
-                                newCfg.Sources.Add(new DataSourceDef { 
-                                    DbName = selDb.EnName, 
-                                    TableName = selTb.EnName, 
-                                    ColName = dbColToSave, 
-                                    FilterValue = filterVal, 
-                                    AggType = aggTypeDb,
-                                    ColName2 = dbCol2ToSave
-                                });
-                            }
-                        }
+                    var oldCfg = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                    if (oldCfg != null) {
+                        newCfg.Sources = oldCfg.Sources; 
+                        int idx = editingConfigs.IndexOf(oldCfg);
+                        editingConfigs[idx] = newCfg;
+                    } else {
+                        editingConfigs.Add(newCfg);
                     }
 
-                    if (newCfg.Sources.Count == 0) { MessageBox.Show("請至少設定一組完整的資料來源！"); return; }
-
-                    int existingIdx = _configs.FindIndex(c => c != null && c.DisplayName == newCfg.DisplayName);
-                    if (existingIdx >= 0) _configs[existingIdx] = newCfg;
-                    else _configs.Add(newCfg);
-
+                    _configs = new List<WasteConfigItem>(editingConfigs);
                     SaveSettings();
                     refreshList();
                     MessageBox.Show("儲存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -971,7 +1008,6 @@ namespace Safety_System
 
                 CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
                 
-                // 🟢 加入廢棄物清除項目的勾選
                 clb.Items.Add("[廢棄物產出] 區間統計總計 (四大區塊)", true); 
                 foreach (var kvp in _wasteSection.MonthlyPanels) {
                     clb.Items.Add($"[廢棄物產出] 近三年逐月：{kvp.Key}", true);
@@ -1016,7 +1052,6 @@ namespace Safety_System
                     foreach (var item in clb.CheckedItems) {
                         string text = item.ToString();
                         
-                        // 🟢 處理匯出映射邏輯
                         if (text == "[廢棄物產出] 區間統計總計 (四大區塊)") {
                             selectedPanels.Add(_wasteSection.TopBox);
                         } else if (text == "[原物料產出] 區間統計總計 (四大區塊)") {
