@@ -30,12 +30,18 @@ namespace Safety_System
         // 存放動態生成的 Grid 以供 PDF 導出時對應
         private Dictionary<string, Panel> _monthlyPanels = new Dictionary<string, Panel>();
 
-        // 🟢 替換：已移除 .txt 設定檔路徑，改用 SQLite
         private List<TestConfigItem> _configs = new List<TestConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
         // 查詢按鈕，用於防呆禁用
         private Button _btnSearch;
+
+        // 🟢 補回遺失的目標資料表清單 (11個)
+        private readonly string[] _targetTables = { 
+            "EnvMonitor", "WastewaterPeriodic", "DrinkingWater", "IndustrialZoneTest", 
+            "SoilGasTest", "WastewaterSelfTest", "CoolingWaterVendor", "CoolingWaterSelf", 
+            "TCLP", "WaterMeterCalibration", "OtherTests" 
+        };
 
         // 定義下拉選單對應的中英文模型
         private class ItemMap {
@@ -63,7 +69,6 @@ namespace Safety_System
             public string RefColName { get; set; } = ""; // 參照資料欄 (用於過濾條件)
         }
 
-        // 🟢 新增：資料庫初始化邏輯
         private void InitDatabase()
         {
             try {
@@ -82,7 +87,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            InitDatabase(); // 🟢 初始化 SQLite 表格
+            InitDatabase(); 
             _dbMap = App_DbConfig.GetDbMapCache();
             LoadSettings();
 
@@ -576,9 +581,6 @@ namespace Safety_System
             return result;
         }
 
-        // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
-        // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
@@ -849,12 +851,10 @@ namespace Safety_System
                             }
                         };
 
-                        // 值改變時即時更新回模型
                         cbCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.ColName = cbCol.Text; } };
                         cbFilter.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.FilterValue = cbFilter.Text; } };
                         cbRefCol.TextChanged += (s, ev) => { if (!isInitializing) { srcDef.RefColName = cbRefCol.Text; } };
 
-                        // 🟢 初始化
                         foreach (ItemMap im in cbDb.Items) if (im.EnName == srcDef.DbName) { cbDb.SelectedItem = im; break; }
                         if (cbDb.SelectedItem != null && _dbMap.ContainsKey(srcDef.DbName)) {
                             cbTb.Items.Clear(); cbTb.Items.Add(new ItemMap { EnName = "", ChName = "" });
@@ -911,7 +911,6 @@ namespace Safety_System
                 tlp.Controls.Add(pnlRight, 1, 0);
                 f.Controls.Add(tlp);
 
-                // 資料載入與綁定邏輯
                 Action refreshList = () => {
                     lbItems.Items.Clear();
                     foreach (var cfg in editingConfigs) {
@@ -967,9 +966,6 @@ namespace Safety_System
             }
         }
 
-        // =========================================================
-        // PDF 導出 
-        // =========================================================
         private List<Panel> GetSelectedExportPanels()
         {
             List<Panel> selectedPanels = new List<Panel>();
