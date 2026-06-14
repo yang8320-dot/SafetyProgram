@@ -594,9 +594,6 @@ namespace Safety_System
             return result;
         }
 
-        // =========================================================
-        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
-        // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
@@ -713,7 +710,7 @@ namespace Safety_System
 
                 TestConfigItem currentEditingItem = null;
                 Dictionary<string, List<string>> _columnCache = new Dictionary<string, List<string>>();
-                bool isSyncing = false; // 🟢 防無窮迴圈鎖
+                bool isSyncing = false; 
 
                 Action renderRows = null;
                 renderRows = () => {
@@ -753,12 +750,12 @@ namespace Safety_System
                         btnRemove.FlatAppearance.BorderSize = 0;
                         btnRemove.Click += (s, ev) => { currentEditingItem.Sources.RemoveAt(currentIndex); renderRows(); };
 
-                        ComboBox cbDb = new ComboBox { Location = new Point(xs[1], cy), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbTb = new ComboBox { Location = new Point(xs[2], cy), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbDb = new ComboBox { Location = new Point(xs[1], cy), Width = ws[1], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbTb = new ComboBox { Location = new Point(xs[2], cy), Width = ws[2], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                         
-                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbRefCol = new ComboBox { Location = new Point(xs[3], cy), Width = ws[3], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbFilter = new ComboBox { Location = new Point(xs[4], cy), Width = ws[4], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                        ComboBox cbCol = new ComboBox { Location = new Point(xs[5], cy), Width = ws[5], DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbAgg = new ComboBox { Location = new Point(xs[6], cy), Width = ws[6]+50, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                         pRow.Controls.AddRange(new Control[] { btnRemove, cbDb, cbTb, cbRefCol, cbFilter, cbCol, cbAgg });
@@ -989,10 +986,10 @@ namespace Safety_System
                 Button btnSaveAll = new Button { Text = "💾 儲存所有設定並關閉", Dock = DockStyle.Bottom, Height = 55, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                 btnSaveAll.FlatAppearance.BorderSize = 0;
                 
-                btnSaveAll.Click += (senderObj, evnt) => {
+                btnSaveAll.Click += async (senderObj, evnt) => {
                     _configs = new List<TestConfigItem>(editingConfigs);
                     SaveSettings();
-                    _ = LoadDashboardDataAsync(); 
+                    await LoadDashboardDataAsync(); 
                     f.DialogResult = DialogResult.OK;
                 };
 
