@@ -30,9 +30,11 @@ namespace Safety_System
         // 存放動態生成的 Grid 以供 PDF 導出時對應
         private Dictionary<string, Panel> _monthlyPanels = new Dictionary<string, Panel>();
 
+        // 🟢 替換：已移除 .txt 設定檔路徑，改用 SQLite
         private List<TestConfigItem> _configs = new List<TestConfigItem>();
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
+        // 查詢按鈕，用於防呆禁用
         private Button _btnSearch;
 
         // 目標資料表清單 (11個)
@@ -53,9 +55,10 @@ namespace Safety_System
         private class TestConfigItem
         {
             public string DisplayName { get; set; }
-            public string Unit { get; set; } = "mg/L"; 
+            public string Unit { get; set; } = "mg/L"; // 檢測數據預設單位
             public List<DataSourceDef> Sources { get; set; } = new List<DataSourceDef>();
 
+            // 深拷貝方法，防止編輯時污染原始資料
             public TestConfigItem Clone() {
                 var clone = new TestConfigItem { DisplayName = this.DisplayName, Unit = this.Unit };
                 foreach (var s in this.Sources) {
@@ -75,10 +78,11 @@ namespace Safety_System
             public string ColName { get; set; }
             public string FilterValue { get; set; } 
             public string AggType { get; set; } 
-            public string ColName2 { get; set; } = ""; 
-            public string RefColName { get; set; } = ""; 
+            public string ColName2 { get; set; } = ""; // 保持結構相容
+            public string RefColName { get; set; } = ""; // 參照資料欄 (用於過濾條件)
         }
 
+        // 🟢 新增：資料庫初始化邏輯
         private void InitDatabase()
         {
             try {
@@ -97,7 +101,7 @@ namespace Safety_System
 
         public Control GetView()
         {
-            InitDatabase(); 
+            InitDatabase(); // 🟢 初始化 SQLite 表格
             _dbMap = App_DbConfig.GetDbMapCache();
             LoadSettings();
 
@@ -270,7 +274,7 @@ namespace Safety_System
         private void UpdateDaysCombo(ComboBox y, ComboBox m, ComboBox d)
         {
             if (y.SelectedItem == null || m.SelectedItem == null) return;
-            int days = DateTime.DaysInMonth(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()));
+            int days = DateTime.DaysInMonth((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()));
             string currentDay = d.SelectedItem?.ToString();
             d.Items.Clear();
             for (int i = 1; i <= days; i++) d.Items.Add(i.ToString("D2"));
@@ -280,7 +284,7 @@ namespace Safety_System
 
         private void SetComboDate(ComboBox y, ComboBox m, ComboBox d, DateTime date)
         {
-            y.SelectedItem = date.Year.ToString(); 
+            y.SelectedItem = date.Year; 
             m.SelectedItem = date.Month.ToString("D2");
             UpdateDaysCombo(y, m, d); 
             d.SelectedItem = date.Day.ToString("D2");
@@ -290,8 +294,8 @@ namespace Safety_System
         {
             if (y.SelectedItem == null || m.SelectedItem == null || d.SelectedItem == null) return DateTime.Today;
             int day = int.Parse(d.SelectedItem.ToString());
-            int maxDay = DateTime.DaysInMonth(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()));
-            return new DateTime(int.Parse(y.SelectedItem.ToString()), int.Parse(m.SelectedItem.ToString()), day > maxDay ? maxDay : day);
+            int maxDay = DateTime.DaysInMonth((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()));
+            return new DateTime((int)y.SelectedItem, int.Parse(m.SelectedItem.ToString()), day > maxDay ? maxDay : day);
         }
 
         private async Task LoadDashboardDataAsync()
@@ -594,6 +598,9 @@ namespace Safety_System
             return result;
         }
 
+        // =========================================================
+        // 🟢 設定檔管理與動態設定視窗 (改由 SQLite 存取)
+        // =========================================================
         private void LoadSettings()
         {
             _configs.Clear();
@@ -626,7 +633,7 @@ namespace Safety_System
                 }
             } catch { }
             
-            // 系統防呆：如果沒有設定檔，載入 11 個預設組合
+            // 系統防呆：如果沒有設定檔，載入預設組合
             if (_configs.Count == 0) {
                 foreach (var tb in _targetTables) {
                     _configs.Add(new TestConfigItem { 
@@ -1002,7 +1009,7 @@ namespace Safety_System
                 btnSaveAll.Click += (senderObj, evnt) => {
                     _configs = new List<TestConfigItem>(editingConfigs);
                     SaveSettings();
-                    BtnSearch_Click(null, null);
+                    _ = LoadDashboardDataAsync(); // <--- 🟢 修正：取代不存在的 BtnSearch_Click，改為正確的資料載入函數
                     f.DialogResult = DialogResult.OK;
                 };
 
