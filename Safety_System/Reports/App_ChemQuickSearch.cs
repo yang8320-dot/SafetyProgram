@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
@@ -22,7 +23,8 @@ namespace Safety_System
         private FlowLayoutPanel _flpResultsContainer; 
         
         private const string DbName = "Chemical";
-        private readonly string VisibilityFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ChemQuickSearch_Visibility.txt");
+        
+        // 🟢 替換：移除 TXT 路徑，改用 SQLite
         private Dictionary<string, bool> _columnVisibility = new Dictionary<string, bool>();
 
         // 確保系統未初始化時能預先建表，避免設定欄位時找不到表
@@ -67,8 +69,25 @@ namespace Safety_System
             new ChemTableInfo { TableName="FactoryHazardous", Title="12. 工廠危險物品申報", ExtraNotice="" }
         };
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [ChemQuickSearchVisibility] (
+                        ItemKey TEXT PRIMARY KEY, IsVisible INTEGER);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); // 🟢 初始化 SQLite 表格
+            
             foreach (var info in _tableInfos) {
                 if (_schemaMap.ContainsKey(info.TableName)) {
                     DataManager.InitTable(DbName, info.TableName, $"CREATE TABLE IF NOT EXISTS [{info.TableName}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, {_schemaMap[info.TableName]});");
@@ -245,9 +264,6 @@ namespace Safety_System
             return mainLayout;
         }
 
-        // ====================================================================
-        // 🟢 特殊字元跳脫方法：解決 %、[、]、* 造成的崩潰
-        // ====================================================================
         private string EscapeLikeValue(string valueWithoutWildcards)
         {
             if (string.IsNullOrEmpty(valueWithoutWildcards)) return "";
@@ -275,7 +291,6 @@ namespace Safety_System
             _lblStatus.Text = "正在背景非同步檢索資料庫，請稍候...";
             _lblStatus.ForeColor = Color.OrangeRed;
 
-            // 🟢 跳脫輸入的關鍵字
             string safeNameKey = EscapeLikeValue(nameKey);
             string safeCasKey = EscapeLikeValue(casKey);
 
@@ -287,7 +302,7 @@ namespace Safety_System
                             DataView dv = dt.DefaultView;
                             List<string> matchConditions = new List<string>();
 
-                            // 1. 名稱模糊檢索 (掃描表格中所有跟名稱有關的欄位)
+                            // 1. 名稱模糊檢索
                             if (!string.IsNullOrEmpty(safeNameKey)) {
                                 List<string> nameFilters = new List<string>();
                                 string[] possibleNameCols = { "中文名稱", "英文名稱", "名稱", "種類", "化學品名稱", "內容", "危害成份" };
@@ -402,29 +417,43 @@ namespace Safety_System
             }
         }
 
+        // 🟢 替換為 SQLite
         private void LoadVisibilitySettings()
         {
             _columnVisibility.Clear();
-            if (File.Exists(VisibilityFile)) {
-                try {
-                    foreach (var line in File.ReadAllLines(VisibilityFile, Encoding.UTF8)) {
-                        var parts = line.Split('|');
-                        if (parts.Length == 3) {
-                            _columnVisibility[$"{parts[0]}_{parts[1]}"] = (parts[2] == "1");
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM ChemQuickSearchVisibility", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            _columnVisibility[reader["ItemKey"].ToString()] = Convert.ToInt32(reader["IsVisible"]) == 1;
                         }
                     }
-                } catch { }
-            }
+                }
+            } catch { }
         }
 
+        // 🟢 替換為 SQLite
         private void SaveVisibilitySettings()
         {
             try {
-                var lines = _columnVisibility.Select(kvp => {
-                    var parts = kvp.Key.Split('_');
-                    return $"{parts[0]}|{parts[1]}|{(kvp.Value ? "1" : "0")}";
-                }).ToArray();
-                File.WriteAllLines(VisibilityFile, lines, Encoding.UTF8);
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM ChemQuickSearchVisibility", conn, trans).ExecuteNonQuery();
+                        
+                        string sql = "INSERT INTO ChemQuickSearchVisibility (ItemKey, IsVisible) VALUES (@K, @V)";
+                        foreach (var kvp in _columnVisibility) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@K", kvp.Key);
+                                cmd.Parameters.AddWithValue("@V", kvp.Value ? 1 : 0);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
             } catch { }
         }
 
