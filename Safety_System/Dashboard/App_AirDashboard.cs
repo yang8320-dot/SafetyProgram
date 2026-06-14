@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
@@ -57,14 +58,9 @@ namespace Safety_System
             public override string ToString() => ChName;
         }
 
+        // 🟢 替換：移除 TXT 路徑，改用 SQLite
         private List<MatConfig> _matConfigs = new List<MatConfig>();
-        private readonly string ConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AirMaterialSettings.txt");
-
-        // 定義可選的資料庫清單 (提供中文選單)
-        private readonly Dictionary<string, string> _dbMap = new Dictionary<string, string> {
-            { "Water", "水污" }, { "Air", "空污" }, { "Waste", "廢棄物及產能" }, 
-            { "Chemical", "化學品" }, { "Fire", "消防" }, { "Safety", "工安" }, { "Purchase", "請購" }
-        };
+        private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
         // 定義部分已知的資料表中文對照，增加設定易用性
         private readonly Dictionary<string, string> _knownTables = new Dictionary<string, string> {
@@ -77,8 +73,27 @@ namespace Safety_System
             { "PurchaseData", "請購資料" }
         };
 
+        // 🟢 新增：資料庫初始化邏輯
+        private void InitDatabase()
+        {
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"CREATE TABLE IF NOT EXISTS [AirMaterialConfigs] (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        Alias TEXT, DbName TEXT, TableName TEXT, 
+                        ColName TEXT, Multiplier REAL);";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            } catch { }
+        }
+
         public Control GetView()
         {
+            InitDatabase(); 
+            _dbMap = App_DbConfig.GetDbMapCache();
             LoadMaterialConfigs();
 
             Panel mainPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
@@ -338,23 +353,47 @@ namespace Safety_System
         private void LoadMaterialConfigs()
         {
             _matConfigs.Clear();
-            if (File.Exists(ConfigFile)) {
-                try {
-                    foreach (var line in File.ReadAllLines(ConfigFile, Encoding.UTF8)) {
-                        var p = line.Split('|');
-                        if (p.Length >= 5) {
-                            _matConfigs.Add(new MatConfig { Alias = p[0], DbName = p[1], TableName = p[2], ColName = p[3], Multiplier = double.Parse(p[4]) });
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM AirMaterialConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            _matConfigs.Add(new MatConfig {
+                                Alias = reader["Alias"].ToString(),
+                                DbName = reader["DbName"].ToString(),
+                                TableName = reader["TableName"].ToString(),
+                                ColName = reader["ColName"].ToString(),
+                                Multiplier = Convert.ToDouble(reader["Multiplier"])
+                            });
                         }
                     }
-                } catch { }
-            }
+                }
+            } catch { }
         }
 
         private void SaveMaterialConfigs()
         {
             try {
-                var lines = _matConfigs.Select(c => $"{c.Alias}|{c.DbName}|{c.TableName}|{c.ColName}|{c.Multiplier}").ToArray();
-                File.WriteAllLines(ConfigFile, lines, Encoding.UTF8);
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction()) {
+                        new SQLiteCommand("DELETE FROM AirMaterialConfigs", conn, trans).ExecuteNonQuery();
+
+                        string sql = "INSERT INTO AirMaterialConfigs (Alias, DbName, TableName, ColName, Multiplier) VALUES (@A, @DB, @TB, @C, @M)";
+                        foreach (var conf in _matConfigs) {
+                            using (var cmd = new SQLiteCommand(sql, conn, trans)) {
+                                cmd.Parameters.AddWithValue("@A", conf.Alias);
+                                cmd.Parameters.AddWithValue("@DB", conf.DbName);
+                                cmd.Parameters.AddWithValue("@TB", conf.TableName);
+                                cmd.Parameters.AddWithValue("@C", conf.ColName);
+                                cmd.Parameters.AddWithValue("@M", conf.Multiplier);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
+                    }
+                }
             } catch { }
         }
 
@@ -385,7 +424,7 @@ namespace Safety_System
                     ComboBox cbConv = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
                     foreach (var kvp in _dbMap) {
-                        cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value });
+                        cbDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                     }
 
                     cbConv.Items.AddRange(new string[] { "無換算 (x1)", "公噸 ➔ 公斤 (x1000)", "公斤 ➔ 公噸 (x0.001)", "公升 ➔ 公秉 (x0.001)", "公秉 ➔ 公升 (x1000)" });
@@ -394,10 +433,12 @@ namespace Safety_System
                         cbTb.Items.Clear(); cbCol.Items.Clear();
                         if (cbDb.SelectedItem != null) {
                             string enDb = ((ItemMap)cbDb.SelectedItem).EnName;
-                            var tbs = GetTablesForDb(enDb);
-                            foreach(var tb in tbs) {
-                                string chTb = _knownTables.ContainsKey(tb) ? _knownTables[tb] : tb;
-                                cbTb.Items.Add(new ItemMap { EnName = tb, ChName = chTb });
+                            // 🟢 修復崩潰：加上防呆檢查
+                            if (!string.IsNullOrEmpty(enDb) && _dbMap.ContainsKey(enDb)) {
+                                foreach(var tb in _dbMap[enDb].Tables) {
+                                    string chTb = _knownTables.ContainsKey(tb.Key) ? _knownTables[tb.Key] : tb.Value;
+                                    cbTb.Items.Add(new ItemMap { EnName = tb.Key, ChName = chTb });
+                                }
                             }
                         }
                     };
@@ -476,24 +517,6 @@ namespace Safety_System
                 f.Controls.Add(btnSave);
                 f.ShowDialog();
             }
-        }
-
-        private List<string> GetTablesForDb(string dbName)
-        {
-            List<string> result = new List<string>();
-            try {
-                string fullPath = Path.Combine(DataManager.BasePath, dbName + ".sqlite");
-                if (File.Exists(fullPath)) {
-                    using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={fullPath};Version=3;")) {
-                        conn.Open();
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", conn))
-                        using (var reader = cmd.ExecuteReader()) {
-                            while (reader.Read()) result.Add(reader["name"].ToString());
-                        }
-                    }
-                }
-            } catch { }
-            return result;
         }
 
         private async Task LoadMaterialDataAsync()
