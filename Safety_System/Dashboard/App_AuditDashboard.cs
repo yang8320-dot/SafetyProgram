@@ -140,7 +140,7 @@ namespace Safety_System
             
             Panel pnlHeaderA = new Panel { Dock = DockStyle.Top, Height = 40 };
             _lblResultATitle = new Label { Text = "查詢區間：尚未查詢", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Teal, Dock = DockStyle.Left, AutoSize = true };
-            _btnSettingsA = new Button { Text = "⚙️ 顯示設定", Size = new Size(150, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; 
+            _btnSettingsA = new Button { Text = "⚙️ 顯示與排序設定", Size = new Size(180, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnSettingsA.FlatAppearance.BorderSize = 0;
             _btnSettingsA.Click += (s, e) => OpenGridSettings(_dgvResultA, "GridA");
 
@@ -160,7 +160,7 @@ namespace Safety_System
             
             Panel pnlHeaderB = new Panel { Dock = DockStyle.Top, Height = 40 };
             _lblResultBTitle = new Label { Text = "巡檢異常改善單 - 追蹤", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.Chocolate, Dock = DockStyle.Left, AutoSize = true };
-            _btnSettingsB = new Button { Text = "⚙️ 顯示設定", Size = new Size(150, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat }; 
+            _btnSettingsB = new Button { Text = "⚙️ 顯示與排序設定", Size = new Size(180, 32), BackColor = Color.LightSlateGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
             _btnSettingsB.FlatAppearance.BorderSize = 0;
             _btnSettingsB.Click += (s, e) => OpenGridSettings(_dgvResultB, "GridB");
 
@@ -361,7 +361,14 @@ namespace Safety_System
                 if (hasVisConfig && visibilityDict.ContainsKey(col.Name)) {
                     col.Visible = (visibilityDict[col.Name] == "1");
                 } else {
-                    col.Visible = _defaultVisibleCols.Contains(col.Name);
+                    bool isVisible = _defaultVisibleCols.Contains(col.Name);
+                    
+                    // 🟢 需求：A區(GridA)的資料顯示，預設把「追蹤改善狀況」隱藏
+                    if (gridId == "GridA" && col.Name == "追蹤改善狀況") {
+                        isVisible = false;
+                    }
+                    
+                    col.Visible = isVisible;
                 }
             }
 
@@ -409,7 +416,6 @@ namespace Safety_System
                 dgvSettings.RowTemplate.Height = 40;
 
                 DataGridViewCheckBoxColumn colChk = new DataGridViewCheckBoxColumn { Name = "Visible", Width = 50 };
-                // 🟢 修正名稱避免衝突
                 DataGridViewTextBoxColumn colNameCol = new DataGridViewTextBoxColumn { Name = "ColName", ReadOnly = true, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill };
                 dgvSettings.Columns.Add(colChk);
                 dgvSettings.Columns.Add(colNameCol);
@@ -547,7 +553,7 @@ namespace Safety_System
                     List<string> orderedCols = new List<string>();
 
                     for (int i = 0; i < dgvSettings.Rows.Count; i++) {
-                        string colName = dgvSettings.Rows[i].Cells["ColName"].Value.ToString(); // 🟢 安全取值
+                        string colName = dgvSettings.Rows[i].Cells["ColName"].Value.ToString(); 
                         bool isChecked = Convert.ToBoolean(dgvSettings.Rows[i].Cells["Visible"].Value);
                         
                         orderedCols.Add(colName);
@@ -642,8 +648,22 @@ namespace Safety_System
             ws.Cells.AutoFitColumns();
             
             for (int c = 1; c <= dt.Columns.Count; c++) {
-                if (ws.Column(c).Width > 60) ws.Column(c).Width = 60;
-                if (ws.Column(c).Width < 12) ws.Column(c).Width = 12;
+                string colName = dt.Columns[c - 1].ColumnName;
+                
+                // 🟢 需求：指定特定欄位寬度
+                if (colName == "表單單號") {
+                    ws.Column(c).Width = 30;
+                }
+                else if (colName == "表單主題") {
+                    ws.Column(c).Width = 55;
+                }
+                else if (colName == "追蹤改善狀況") {
+                    ws.Column(c).Width = 50;
+                }
+                else {
+                    if (ws.Column(c).Width > 60) ws.Column(c).Width = 60;
+                    if (ws.Column(c).Width < 12) ws.Column(c).Width = 12;
+                }
             }
 
             Font excelFont = new Font("Microsoft JhengHei UI", 11F);
