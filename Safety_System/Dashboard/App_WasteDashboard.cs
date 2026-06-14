@@ -718,15 +718,15 @@ namespace Safety_System
                     flpSourcesContainer.SuspendLayout();
                     flpSourcesContainer.Controls.Clear();
 
-                    var targetConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
-                    if (targetConf == null) {
-                        targetConf = new WasteConfigItem();
-                        editingConfigs.Add(targetConf);
+                    var newConfItem = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                    if (newConfItem == null) {
+                        newConfItem = new WasteConfigItem();
+                        editingConfigs.Add(newConfItem);
                     }
 
-                    for (int i = 0; i < targetConf.Sources.Count; i++) {
+                    for (int i = 0; i < newConfItem.Sources.Count; i++) {
                         int currentIndex = i;
-                        var srcDef = targetConf.Sources[i];
+                        var srcDef = newConfItem.Sources[i];
 
                         Panel pRow = new Panel { Width = 1100, Height = 75, BackColor = Color.FromArgb(245, 250, 245), Margin = new Padding(0, 5, 0, 5) };
                         pRow.Paint += (s, ev) => ControlPaint.DrawBorder(ev.Graphics, pRow.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
@@ -743,7 +743,7 @@ namespace Safety_System
 
                         Button btnRemove = new Button { Text = "❌", Location = new Point(x0, 34), Width = w0, Height = 30, BackColor = Color.IndianRed, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
                         btnRemove.FlatAppearance.BorderSize = 0;
-                        btnRemove.Click += (s, ev) => { targetConf.Sources.RemoveAt(currentIndex); renderRows(); };
+                        btnRemove.Click += (s, ev) => { newConfItem.Sources.RemoveAt(currentIndex); renderRows(); };
 
                         ComboBox cbDb = new ComboBox { Location = new Point(x1, cy), Width = w1, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                         ComboBox cbTb = new ComboBox { Location = new Point(x2, cy), Width = w2, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -843,8 +843,8 @@ namespace Safety_System
                             
                             if (selDb != null && selTb != null && !string.IsNullOrEmpty(selDb.EnName) && !string.IsNullOrEmpty(selTb.EnName) && col != "Id (無條件計數)") {
                                 string tbName = selTb.EnName;
+                                
                                 string multiKey = $"{tbName}|{col}";
-
                                 if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
                                     foreach (var opt in App_DropdownManager.MultiSelectCache[multiKey]) {
                                         if (!string.IsNullOrWhiteSpace(opt.Text) && !cbFilter.Items.Contains(opt.Text.Trim())) {
@@ -904,12 +904,12 @@ namespace Safety_System
                     Button btnAdd = new Button { Text = "➕ 新增來源", Width = 1100, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                     btnAdd.FlatAppearance.BorderSize = 0;
                     btnAdd.Click += (s, ev) => { 
-                        var targetConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
-                        if (targetConf == null) {
-                            targetConf = new WasteConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text, Category = cboCategory.Text };
-                            editingConfigs.Add(targetConf);
+                        var tConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                        if (tConf == null) {
+                            tConf = new WasteConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text, Category = cboCategory.Text };
+                            editingConfigs.Add(tConf);
                         }
-                        targetConf.Sources.Add(new DataSourceDef()); 
+                        tConf.Sources.Add(new DataSourceDef()); 
                         renderRows(); 
                     };
                     
@@ -1081,6 +1081,7 @@ namespace Safety_System
             var panelsToExport = GetSelectedExportPanels();
             if (panelsToExport.Count == 0) return;
 
+            // 🟢 替換為呼叫共用模板
             List<Bitmap> bitmaps = new List<Bitmap>();
             foreach (var pnl in panelsToExport) 
             {
