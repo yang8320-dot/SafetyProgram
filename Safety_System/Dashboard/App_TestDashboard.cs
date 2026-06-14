@@ -610,6 +610,13 @@ namespace Safety_System
                     }
                 }
             } catch { }
+            
+            // 系統防呆：如果沒有設定檔，載入 11 個預設組合
+            if (_configs.Count == 0) {
+                foreach (var tb in _targetTables) {
+                    _configs.Add(new TestConfigItem { DisplayName = tb, Unit = "mg/L" });
+                }
+            }
         }
 
         private void SaveSettings()
@@ -878,12 +885,12 @@ namespace Safety_System
                     Button btnAdd = new Button { Text = "➕ 新增來源", Width = 950, Height = 45, Margin = new Padding(0, 10, 0, 0), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
                     btnAdd.FlatAppearance.BorderSize = 0;
                     btnAdd.Click += (s, ev) => { 
-                        var confItem = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
-                        if (confItem == null) {
-                            confItem = new TestConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text };
-                            editingConfigs.Add(confItem);
+                        var targetConf = editingConfigs.FirstOrDefault(c => c.DisplayName == txtName.Text);
+                        if (targetConf == null) {
+                            targetConf = new TestConfigItem { DisplayName = txtName.Text, Unit = txtUnit.Text };
+                            editingConfigs.Add(targetConf);
                         }
-                        confItem.Sources.Add(new DataSourceDef()); 
+                        targetConf.Sources.Add(new DataSourceDef()); 
                         renderRows(); 
                     };
                     
@@ -1040,7 +1047,7 @@ namespace Safety_System
 
             string dateStr = $"查詢區間：{_cboStartYear.Text}/{_cboStartMonth.Text}/{_cboStartDay.Text} ~ {_cboEndYear.Text}/{_cboEndMonth.Text}/{_cboEndDay.Text}";
             
-            PdfHelper.ExportDashboardToPdf(bitmaps, "工安數據統計表", dateStr, "工安數據統計表");
+            PdfHelper.ExportDashboardToPdf(bitmaps, "檢測數據統計表", dateStr, "檢測數據統計表");
         }
     }
 }
