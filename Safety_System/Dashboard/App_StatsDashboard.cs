@@ -68,12 +68,9 @@ namespace Safety_System
 
             _mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
 
-            TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2, Margin = new Padding(0) };
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
             // ================= Header =================
-            Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0,0,0,10) };
+            Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 70, Margin = new Padding(0,0,0,20) };
+            
             Label lblTitle = new Label { Text = "📊 動態統計看板管理系統", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Left, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
             Button btnAddTheme = new Button { Text = "➕ 新增主題統計區塊", Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
@@ -82,16 +79,26 @@ namespace Safety_System
 
             pnlHeader.Controls.Add(btnAddTheme);
             pnlHeader.Controls.Add(lblTitle);
-            masterLayout.Controls.Add(pnlHeader, 0, 0);
 
             // ================= Container =================
-            _flpThemesContainer = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-            _flpThemesContainer.Resize += (s, e) => {
-                foreach (Control c in _flpThemesContainer.Controls) c.Width = _flpThemesContainer.ClientSize.Width - 10;
+            _flpThemesContainer = new FlowLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                FlowDirection = FlowDirection.TopDown, 
+                WrapContents = false 
+            };
+            
+            // 🟢 確保寬度動態跟隨，防止 UI 擠壓
+            _mainScrollPanel.Resize += (s, e) => {
+                _flpThemesContainer.Width = _mainScrollPanel.ClientSize.Width - _mainScrollPanel.Padding.Left - _mainScrollPanel.Padding.Right;
+                foreach (Control c in _flpThemesContainer.Controls) {
+                    c.Width = _flpThemesContainer.ClientSize.Width - 10;
+                }
             };
 
-            masterLayout.Controls.Add(_flpThemesContainer, 0, 1);
-            _mainScrollPanel.Controls.Add(masterLayout);
+            // 必須先加 Container，再加 Header，確保 Header 保持在最上方 (DockStyle.Top 邏輯)
+            _mainScrollPanel.Controls.Add(_flpThemesContainer);
+            _mainScrollPanel.Controls.Add(pnlHeader);
 
             LoadThemes();
 
@@ -145,7 +152,10 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            ui.MainBox = new GroupBox { Text = $"📌 {themeName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15), Margin = new Padding(0, 0, 0, 25), AutoSize = true };
+            // 🟢 設定預設寬度防縮小
+            int defaultW = _flpThemesContainer.Width > 0 ? _flpThemesContainer.Width - 10 : 1000;
+
+            ui.MainBox = new GroupBox { Text = $"📌 {themeName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15), Margin = new Padding(0, 0, 0, 25), AutoSize = true, Width = defaultW };
             ui.MainBox.Paint += (s, e) => {
                 if (ui.Dgv != null) {
                     int gridH = ui.Dgv.ColumnHeadersHeight;
@@ -154,7 +164,9 @@ namespace Safety_System
                 }
             };
 
+            // 🟢 加入 ColumnStyles 避免內部擠壓
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
