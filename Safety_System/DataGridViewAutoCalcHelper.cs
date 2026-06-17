@@ -124,6 +124,8 @@ namespace Safety_System
             int totalRows = validRows.Count;
             Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
             Regex fieldRegex = new Regex(@"\[(.*?)\]");
+            // 🟢 新增：攔截 { } 的正則表達式
+            Regex mathBlockRegex = new Regex(@"\{(?<expr>[^\}]+)\}");
 
             using (DataTable dtMath = new DataTable()) 
             {
@@ -197,7 +199,7 @@ namespace Safety_System
                             string evalFormula = rawFormula;
                             bool canCompute = true;
 
-                            if (formulaType == "文字組合")
+                            if (formulaType == "組合文字")
                             {
                                 var fieldMatches = fieldRegex.Matches(evalFormula);
                                 foreach (Match m in fieldMatches)
@@ -211,7 +213,80 @@ namespace Safety_System
                                 }
                                 row[targetCol] = evalFormula;
                             }
-                            else 
+                            else if (formulaType == "運算+文字")
+                            {
+                                // 🟢 處理 { } 區塊的數學運算
+                                var mathBlocks = mathBlockRegex.Matches(evalFormula);
+                                foreach (Match mBlock in mathBlocks)
+                                {
+                                    string expr = mBlock.Groups["expr"].Value;
+                                    bool canExprCompute = true;
+
+                                    // 解析 Price
+                                    if (expr.Contains("PRICE(")) {
+                                        DateTime targetDate = DateTime.Today; 
+                                        if (!string.IsNullOrEmpty(matchCol) && dt.Columns.Contains(matchCol)) {
+                                            string dateStr = row[matchCol]?.ToString().Trim() ?? "";
+                                            if (dateStr.Length == 7 && dateStr.Contains("-")) DateTime.TryParse(dateStr + "-01", out targetDate);
+                                            else DateTime.TryParse(dateStr, out targetDate);
+                                        }
+                                        var priceMatches = priceRegex.Matches(expr);
+                                        foreach (Match m in priceMatches) {
+                                            string category = m.Groups["cat"].Value.Trim();
+                                            double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                            expr = expr.Replace(m.Value, unitPrice.ToString());
+                                        }
+                                    }
+
+                                    // 替換區塊內的變數
+                                    var fieldMatchesInExpr = fieldRegex.Matches(expr);
+                                    foreach (Match fm in fieldMatchesInExpr) {
+                                        string colName = fm.Groups[1].Value;
+                                        if (dt.Columns.Contains(colName)) {
+                                            string val = row[colName]?.ToString().Replace(",", "").Trim();
+                                            if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) val = "0"; 
+                                            expr = expr.Replace($"[{colName}]", val);
+                                        } else {
+                                            canExprCompute = false; break;
+                                        }
+                                    }
+
+                                    if (canExprCompute) {
+                                        try {
+                                            object result = dtMath.Compute(expr, null);
+                                            if (result != DBNull.Value) {
+                                                double dRes = Convert.ToDouble(result);
+                                                double multiplier = Math.Pow(10, formulaDef.DecimalPlaces);
+                                                double adjusted = dRes * multiplier;
+                                                
+                                                if (formulaDef.RoundingMode == "無條件進位") adjusted = Math.Ceiling(adjusted);
+                                                else if (formulaDef.RoundingMode == "無條件捨去") adjusted = Math.Floor(adjusted);
+                                                else adjusted = Math.Round(adjusted); 
+                                                
+                                                dRes = adjusted / multiplier;
+                                                string formatStr = formulaDef.DecimalPlaces > 0 ? $"F{formulaDef.DecimalPlaces}" : "F0";
+                                                
+                                                evalFormula = evalFormula.Replace(mBlock.Value, dRes.ToString(formatStr));
+                                            }
+                                        } catch {
+                                            evalFormula = evalFormula.Replace(mBlock.Value, "NaN");
+                                        }
+                                    }
+                                }
+
+                                // 替換完 {} 內的數學後，把剩餘在 {} 外面的 [欄位] 當作純文字替換
+                                var remainingFields = fieldRegex.Matches(evalFormula);
+                                foreach (Match m in remainingFields) {
+                                    string colName = m.Groups[1].Value;
+                                    if (dt.Columns.Contains(colName)) {
+                                        string val = row[colName]?.ToString().Trim() ?? "";
+                                        evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                    }
+                                }
+                                
+                                row[targetCol] = evalFormula;
+                            }
+                            else // "數學運算"
                             {
                                 if (evalFormula.Contains("PRICE("))
                                 {
@@ -275,7 +350,6 @@ namespace Safety_System
                                         }
                                     } 
                                     catch {
-                                        // 🟢 修正：將 tCol 改為 targetCol
                                         if (row[targetCol]?.ToString() != "") {
                                             row[targetCol] = ""; 
                                         }
