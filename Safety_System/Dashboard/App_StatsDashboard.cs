@@ -132,6 +132,7 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
+                    // 🟢 嚴格綁定 MenuName，確保不同主選單間的主題隔離
                     using (var cmd = new SQLiteCommand($"SELECT * FROM {TblThemes} WHERE MenuName=@M", conn)) {
                         cmd.Parameters.AddWithValue("@M", _menuDbName);
                         using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtThemes);
@@ -195,15 +196,15 @@ namespace Safety_System
             ui.CboEndMonth.SelectedItem = prevMonth.Month.ToString("D2");
 
             Button btnSearch = new Button { Text = "🔍 讀取", Size = new Size(100, 36), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSearch.FlatAppearance.BorderSize = 0;
-            // 🟢 按鍵寬度由 125 -> 145 (+20)
-            Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(145, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
+            // 🟢 重新統計按鈕加寬至 165
+            Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(165, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
             Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
             Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
             
             Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, 36), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnPdf.FlatAppearance.BorderSize = 0;
             Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(130, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
 
-            // 🟢 刪除按鍵總寬度調整為 80 (原 55)
+            // 🟢 刪除按鍵總寬度固定為 80
             Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(80, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
             flpControls.Controls.AddRange(new Control[] {
@@ -259,6 +260,7 @@ namespace Safety_System
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
+                            // 🟢 刪除也嚴格綁定 ThemeId，互不干擾
                             new SQLiteCommand($"DELETE FROM {TblThemes} WHERE Id={themeId}", conn).ExecuteNonQuery();
                             new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={themeId}", conn).ExecuteNonQuery();
                             new SQLiteCommand($"DELETE FROM {TblRecords} WHERE ThemeId={themeId}", conn).ExecuteNonQuery();
@@ -370,7 +372,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 讀取模式 (重置 Grid)
+        // 🟢 讀取模式 (區間交集演算法：合併附件與備註)
         // ==========================================
         private async Task CalculateAndLoadGrid(ThemeSectionUI ui)
         {
@@ -387,18 +389,50 @@ namespace Safety_System
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
+                        // 🟢 嚴格綁定 ThemeId，確保不同主題間不會互相讀取
                         using (var cmd = new SQLiteCommand($"SELECT * FROM {TblConfigs} WHERE ThemeId=@T", conn)) {
                             cmd.Parameters.AddWithValue("@T", ui.ThemeId);
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtConfigs);
                         }
-                        using (var cmd = new SQLiteCommand($"SELECT * FROM {TblRecords} WHERE ThemeId=@T AND PeriodStart=@PS AND PeriodEnd=@PE", conn)) {
+                        
+                        // 🟢 抓取該主題下的「所有歷史紀錄」，我們在記憶體中進行交集篩選
+                        using (var cmd = new SQLiteCommand($"SELECT * FROM {TblRecords} WHERE ThemeId=@T", conn)) {
                             cmd.Parameters.AddWithValue("@T", ui.ThemeId);
-                            cmd.Parameters.AddWithValue("@PS", startYM);
-                            cmd.Parameters.AddWithValue("@PE", endYM);
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtRecords);
                         }
                     }
                 } catch { return; }
+
+                // 🟢 使用 Dictionary + HashSet 自動過濾重複的附件與備註
+                Dictionary<string, (HashSet<string> Atts, HashSet<string> Rems)> mergedHistory = new Dictionary<string, (HashSet<string>, HashSet<string>)>();
+
+                foreach (DataRow r in dtRecords.Rows) {
+                    string recS = r["PeriodStart"].ToString();
+                    string recE = r["PeriodEnd"].ToString();
+                    string itemName = r["ItemName"].ToString();
+
+                    // 判斷日期區間是否有交集 (Overlap: recStart <= queryEnd AND recEnd >= queryStart)
+                    if (string.Compare(recS, endYM) <= 0 && string.Compare(recE, startYM) >= 0) {
+                        
+                        if (!mergedHistory.ContainsKey(itemName)) {
+                            mergedHistory[itemName] = (new HashSet<string>(), new HashSet<string>());
+                        }
+
+                        // 合併附件
+                        string att = r["Attachment"]?.ToString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(att)) {
+                            foreach (string p in att.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)) {
+                                mergedHistory[itemName].Atts.Add(p.Trim());
+                            }
+                        }
+
+                        // 合併備註
+                        string rem = r["Remarks"]?.ToString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(rem)) {
+                            mergedHistory[itemName].Rems.Add(rem.Trim());
+                        }
+                    }
+                }
 
                 Dictionary<string, DataTable> tableCache = new Dictionary<string, DataTable>();
 
@@ -407,20 +441,21 @@ namespace Safety_System
                     string itemName = cfgRow["ItemName"].ToString();
                     string template = cfgRow["FormulaTemplate"].ToString();
 
-                    DataRow savedRecord = null;
-                    foreach(DataRow r in dtRecords.Rows) {
-                        if (r["ItemName"].ToString() == itemName) { savedRecord = r; break; }
-                    }
-
+                    // 呼叫共用的公式運算引擎，計算最新數據
                     string evalText = EvaluateStatsFormula(template, startYM, endYM, tableCache);
 
-                    string attach = savedRecord != null ? savedRecord["Attachment"].ToString() : "";
-                    string remarks = savedRecord != null ? savedRecord["Remarks"].ToString() : "";
+                    // 🟢 寫入合併後的附件與備註
+                    string finalAttach = "";
+                    string finalRemarks = "";
+                    if (mergedHistory.ContainsKey(itemName)) {
+                        finalAttach = string.Join("|", mergedHistory[itemName].Atts);
+                        finalRemarks = string.Join("\r\n\r\n", mergedHistory[itemName].Rems);
+                    }
 
                     if (ui.Dgv.InvokeRequired) {
-                        ui.Dgv.Invoke(new Action(() => ui.Dgv.Rows.Add(itemName, evalText, attach, remarks)));
+                        ui.Dgv.Invoke(new Action(() => ui.Dgv.Rows.Add(itemName, evalText, finalAttach, finalRemarks)));
                     } else {
-                        ui.Dgv.Rows.Add(itemName, evalText, attach, remarks);
+                        ui.Dgv.Rows.Add(itemName, evalText, finalAttach, finalRemarks);
                     }
                 }
             });
@@ -430,7 +465,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 重新統計模式 (保留備註與附件)
+        // 🟢 重新統計模式 (保留 Grid 上編輯中的備註與附件，僅重算數據)
         // ==========================================
         private async Task RecalculateGridData(ThemeSectionUI ui)
         {
@@ -483,7 +518,7 @@ namespace Safety_System
             ui.MainBox.Invalidate();
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             
-            MessageBox.Show("重新統計完成！\n\n最新的運算數值已更新至「數據」欄位，您剛才手動建立的「附件與備註」均保持不變。\n若確認無誤，請點擊「💾 儲存」將最終結果寫入資料庫。", "統計更新完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("重新統計完成！\n\n最新的運算數值已更新至「數據」欄位，您畫面上的「附件與備註」均保持不變。\n若確認無誤，請點擊「💾 儲存」將最終結果寫入資料庫。", "統計更新完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void SaveGridData(ThemeSectionUI ui)
@@ -497,6 +532,7 @@ namespace Safety_System
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
                         
+                        // 🟢 刪除舊資料時，嚴格綁定 ThemeId 避免誤刪其他主題的資料
                         new SQLiteCommand($"DELETE FROM {TblRecords} WHERE ThemeId={ui.ThemeId} AND PeriodStart='{startYM}' AND PeriodEnd='{endYM}'", conn, trans).ExecuteNonQuery();
 
                         string sql = $"INSERT INTO {TblRecords} (ThemeId, PeriodStart, PeriodEnd, ItemName, DataValue, Attachment, Remarks) VALUES (@T, @PS, @PE, @IN, @DV, @A, @R)";
@@ -548,7 +584,8 @@ namespace Safety_System
                 if (ui.Dgv.Columns[e.ColumnIndex].Name == "附件檔案") 
                 {
                     string currentVal = ui.Dgv[e.ColumnIndex, e.RowIndex].Value?.ToString() ?? "";
-                    string targetFolder = $"{ui.CboStartYear.Text}-{ui.CboStartMonth.Text}"; 
+                    // 🟢 附件資料夾結構加入日期區間以確保 Traceability
+                    string targetFolder = $"{ui.ThemeId}/{ui.CboStartYear.Text}-{ui.CboStartMonth.Text}_{ui.CboEndYear.Text}-{ui.CboEndMonth.Text}"; 
                     
                     using (var frm = new AttachmentManagerUI(currentVal, "StatsDashboard", ui.ThemeId.ToString(), targetFolder, delegate(string path) { DeletePhysicalFile(path, ui.Dgv, e.RowIndex); })) {
                         if (frm.ShowDialog() == DialogResult.OK) { 
@@ -583,11 +620,10 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 設定視窗：套用尺寸與間距優化
+        // 🟢 設定視窗：套用尺寸與間距優化，加入排序功能
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
-            // 🟢 Form 加寬至 1380 容納變數產生器的新寬度
             using (Form f = new Form { Text = $"⚙️ 設定顯示與公式 - {ui.ThemeName}", Size = new Size(1380, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -601,6 +637,7 @@ namespace Safety_System
 
                 Label l1 = new Label { Text = "清單項目 (拖曳可排序)", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35, Padding = new Padding(0,10,0,0) };
                 
+                // 🟢 左側選單：增加雙緩衝防閃爍，並允許滑鼠拖放排序
                 DataGridView dgvItems = new DataGridView { Dock = DockStyle.Fill, AllowUserToAddRows=false, RowHeadersVisible=false, ColumnHeadersVisible=false, SelectionMode=DataGridViewSelectionMode.FullRowSelect, BackgroundColor=Color.White, AllowDrop=true, MultiSelect=false };
                 dgvItems.Columns.Add("Name", "Name"); dgvItems.Columns["Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; dgvItems.Columns["Name"].ReadOnly = true;
                 
@@ -765,6 +802,7 @@ namespace Safety_System
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
+                        // 🟢 載入設定時，嚴格綁定 ThemeId
                         using (var cmd = new SQLiteCommand($"SELECT ItemName, FormulaTemplate FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn))
                         using (var reader = cmd.ExecuteReader()) {
                             while(reader.Read()) {
@@ -783,7 +821,7 @@ namespace Safety_System
                     isSyncing = false;
                 };
 
-                // 🟢 實作排序與拖曳核心事件
+                // 🟢 實作排序與拖曳核心事件 (針對 dgvItems 與 configs 的同步)
                 int dragFromIdx = -1;
                 int dragToIdx = -1;
                 Rectangle dragBox = Rectangle.Empty;
@@ -827,6 +865,7 @@ namespace Safety_System
                     if (targetIdx < 0) targetIdx = dgvItems.Rows.Count - 1;
 
                     if (dragFromIdx >= 0 && dragFromIdx != targetIdx) {
+                        // 同步調整 List 記憶體順序
                         var item = configs[dragFromIdx];
                         configs.RemoveAt(dragFromIdx);
                         configs.Insert(targetIdx, item);
@@ -848,11 +887,13 @@ namespace Safety_System
                     if (dragToIdx >= 0 && dragToIdx < dgvItems.Rows.Count) {
                         Rectangle r = dgvItems.GetRowDisplayRectangle(dragToIdx, false);
                         using (Pen pen = new Pen(Color.Red, 3)) {
+                            // 在目標列的上方畫出紅色分割線
                             e.Graphics.DrawLine(pen, r.Left, r.Top, r.Right, r.Top);
                         }
                     }
                 };
 
+                // 🟢 實作上下按鈕事件
                 btnUp.Click += (s, e) => {
                     if (dgvItems.SelectedRows.Count > 0) {
                         int idx = dgvItems.SelectedRows[0].Index;
@@ -937,9 +978,11 @@ namespace Safety_System
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
                             using (var trans = conn.BeginTransaction()) {
+                                // 🟢 刪除舊資料時，嚴格綁定 ThemeId 避免誤刪其他主題的資料
                                 new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn, trans).ExecuteNonQuery();
                                 
                                 string sql = $"INSERT INTO {TblConfigs} (ThemeId, ItemName, FormulaTemplate) VALUES ({ui.ThemeId}, @N, @F)";
+                                // 依據 Grid 目前的順序寫入資料庫，確保儲存的是調整後的順序
                                 foreach(DataGridViewRow dgvRow in dgvItems.Rows) {
                                     string currentName = dgvRow.Cells[0].Value.ToString();
                                     var targetConfig = configs.FirstOrDefault(c => c.Name == currentName);
