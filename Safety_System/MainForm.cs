@@ -75,11 +75,32 @@ namespace Safety_System
             });
         }
 
+        // 🟢 效能優化：秒關閉視窗，將收尾動作丟到背景執行
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            ForceEndCurrentEdit();
-            base.OnFormClosing(e);
-            Environment.Exit(0);
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true; 
+                this.Hide(); // 立即隱藏視窗，讓使用者覺得「秒關」
+
+                Task.Run(() => 
+                {
+                    try {
+                        if (this.InvokeRequired) {
+                            this.Invoke(new Action(() => ForceEndCurrentEdit()));
+                        } else {
+                            ForceEndCurrentEdit();
+                        }
+                    } catch { }
+                    finally {
+                        Environment.Exit(0); // 強制終止所有背景執行緒與釋放記憶體
+                    }
+                });
+            }
+            else
+            {
+                base.OnFormClosing(e);
+            }
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -108,27 +129,41 @@ namespace Safety_System
             return null;
         }
 
+        // 🟢 效能優化：停止無意義的深層尋找，減少關閉或存檔時的卡頓
         private void ForceEndCurrentEdit()
         {
-            this.Validate();
-            
-            void SearchAndEndEdit(Control parent)
-            {
-                foreach (Control c in parent.Controls)
+            try {
+                this.Validate();
+                
+                void SearchAndEndEdit(Control parent)
                 {
-                    if (c is DataGridView dgv && dgv.IsCurrentCellInEditMode)
+                    if (parent == null || parent.IsDisposed) return;
+
+                    foreach (Control c in parent.Controls)
                     {
-                        dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
-                        dgv.EndEdit();
-                    }
-                    else if (c.HasChildren)
-                    {
-                        SearchAndEndEdit(c);
+                        if (c is DataGridView dgv)
+                        {
+                            if (dgv.IsCurrentCellInEditMode)
+                            {
+                                dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                                dgv.EndEdit();
+                            }
+                            if (dgv.BindingContext != null && dgv.DataSource != null) 
+                            {
+                                dgv.BindingContext[dgv.DataSource].EndCurrentEdit();
+                            }
+                        }
+                        else if (c.HasChildren)
+                        {
+                            SearchAndEndEdit(c);
+                        }
                     }
                 }
-            }
-            
-            SearchAndEndEdit(_contentPanel);
+                
+                _contentPanel.SuspendLayout();
+                SearchAndEndEdit(_contentPanel);
+                _contentPanel.ResumeLayout(false);
+            } catch { }
         }
 
         private void BuildMenu()
@@ -303,7 +338,7 @@ namespace Safety_System
 
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
-            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView())); // 🟢 註冊新的統計看板
+            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
@@ -356,7 +391,7 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this); // 🟢 修正的 _mainMenu 呼叫
+                    new App_PermissionManager(_mainMenu).ShowDialog(this); 
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
@@ -912,13 +947,21 @@ namespace Safety_System
             if (moduleControl == null) return;
 
             try {
+                // 🟢 徹底消除殘留的 DataSource，釋放資源
                 _contentPanel.SuspendLayout();
                 
                 while (_contentPanel.Controls.Count > 0)
                 {
                     Control ctrl = _contentPanel.Controls[0];
                     _contentPanel.Controls.Remove(ctrl);
-                    ctrl.Dispose();
+                    
+                    // 若是舊有的 DataGridView 確保清空綁定
+                    if (ctrl is DataGridView dgv) {
+                        dgv.DataSource = null;
+                        dgv.Dispose();
+                    } else {
+                        ctrl.Dispose();
+                    }
                 }
                 
                 moduleControl.Dock = DockStyle.Fill;
