@@ -624,6 +624,7 @@ namespace Safety_System
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
+            // 🟢 Form 加寬至 1380 容納變數產生器的新寬度
             using (Form f = new Form { Text = $"⚙️ 設定顯示與公式 - {ui.ThemeName}", Size = new Size(1380, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -673,38 +674,37 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 變數產生器 加寬為 1000
-                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 100, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
+                // 🟢 變數產生器 高度設定為 120 (加高) 以容納第二排
+                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 120, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、數值欄、日期欄 (🟢 調整間距)
-                pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbDb = new ComboBox { Location = new Point(45, 17), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第一排：庫、表、數值欄、日期欄 (🟢 調整 Y 座標與間距)
+                pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbDb = new ComboBox { Location = new Point(45, 12), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDb);
 
-                pnlBuilder.Controls.Add(new Label { Text = "表:", Location = new Point(195, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbTb = new ComboBox { Location = new Point(230, 17), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "表:", Location = new Point(195, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbTb = new ComboBox { Location = new Point(230, 12), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbTb);
 
-                pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(440, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                // 🟢 +20px 間距 (440 -> 525)
-                ComboBox cbCol = new ComboBox { Location = new Point(525, 17), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(440, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                // 🟢 +20px 間距
+                ComboBox cbCol = new ComboBox { Location = new Point(515, 12), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbCol);
 
-                // 🟢 往後推擠 (675 -> 695)
-                pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(695, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                // 🟢 +20px 間距 (695 -> 780)
-                ComboBox cbDateCol = new ComboBox { Location = new Point(780, 17), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(685, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                // 🟢 +20px 間距
+                ComboBox cbDateCol = new ComboBox { Location = new Point(760, 12), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDateCol);
 
-                // 第二排：動作、插入按鈕
-                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbAction = new ComboBox { Location = new Point(65, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第二排：動作、插入按鈕 (🟢 調整 Y 座標使其可見)
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbAction = new ComboBox { Location = new Point(65, 57), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
                 cbAction.SelectedIndex = 0;
                 pnlBuilder.Controls.Add(cbAction);
 
-                Button btnInsert = new Button { Text = "插入 ⬇️", Width = 90, Height = 32, Location = new Point(220, 63), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 120, Height = 35, Location = new Point(220, 56), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 pnlBuilder.Controls.Add(btnInsert);
 
@@ -750,7 +750,7 @@ namespace Safety_System
                 // 🟢 同步加寬快捷鍵與輸入框 (920 -> 1000)
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=1000, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
-                RichTextBox rtbFormula = new RichTextBox { Width=1000, Height=210, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                RichTextBox rtbFormula = new RichTextBox { Width=1000, Height=190, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
                 
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 45, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand, BackColor=Color.WhiteSmoke };
