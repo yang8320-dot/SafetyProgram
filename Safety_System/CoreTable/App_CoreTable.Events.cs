@@ -1,4 +1,3 @@
-/// FILE: Safety_System/CoreTable/App_CoreTable.Events.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -1059,7 +1058,10 @@ namespace Safety_System
                 else 
                 {
                     string prefix = $"{_tableName}|{colName}|";
-                    if (App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(prefix)))
+                    bool isSingleDropdown = App_DropdownManager.DropdownCache.Keys.Any(k => k.StartsWith(prefix));
+                    bool isReferenceDropdown = App_DropdownManager.ReferenceCache.ContainsKey($"{_dbName}|{_tableName}|{colName}"); // 🟢 新增跨表判斷
+
+                    if (isSingleDropdown || isReferenceDropdown)
                     {
                         ShowCustomDropdown(e.RowIndex, e.ColumnIndex);
                     }
@@ -1097,17 +1099,31 @@ namespace Safety_System
 
             List<DropdownItemDef> items = new List<DropdownItemDef>();
 
-            if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName)) {
-                string parentVal = _dgv.Rows[rowIndex].Cells[parentColName].Value?.ToString() ?? "";
-                string key = $"{_tableName}|{colName}|{parentColName}|{parentVal}";
-                if (App_DropdownManager.DropdownCache.ContainsKey(key)) {
-                    items = App_DropdownManager.DropdownCache[key];
+            // 🟢 新增：優先檢查是否為跨表參照
+            string refKey = $"{_dbName}|{_tableName}|{colName}";
+            if (App_DropdownManager.ReferenceCache.ContainsKey(refKey)) 
+            {
+                var refOpts = App_DropdownManager.GetReferenceOptions(_dbName, _tableName, colName);
+                if (refOpts != null) {
+                    foreach(var opt in refOpts) {
+                        items.Add(new DropdownItemDef { Text = opt, IconBase64 = "" }); // 跨表暫無圖示
+                    }
                 }
-            } else {
-                string prefix = $"{_tableName}|{colName}|";
-                foreach(var kvp in App_DropdownManager.DropdownCache) {
-                    if (kvp.Key.StartsWith(prefix)) {
-                        items.AddRange(kvp.Value);
+            }
+            else 
+            {
+                if (!string.IsNullOrEmpty(parentColName) && _dgv.Columns.Contains(parentColName)) {
+                    string parentVal = _dgv.Rows[rowIndex].Cells[parentColName].Value?.ToString() ?? "";
+                    string key = $"{_tableName}|{colName}|{parentColName}|{parentVal}";
+                    if (App_DropdownManager.DropdownCache.ContainsKey(key)) {
+                        items = App_DropdownManager.DropdownCache[key];
+                    }
+                } else {
+                    string prefix = $"{_tableName}|{colName}|";
+                    foreach(var kvp in App_DropdownManager.DropdownCache) {
+                        if (kvp.Key.StartsWith(prefix)) {
+                            items.AddRange(kvp.Value);
+                        }
                     }
                 }
             }
