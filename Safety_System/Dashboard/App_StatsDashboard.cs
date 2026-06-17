@@ -153,7 +153,8 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            int defaultW = _flpThemesContainer.Width > 0 ? _flpThemesContainer.Width - 10 : 1000;
+            // 🟢 修正錯誤：將 _flpThemesContainer 改為 _tlpThemesContainer
+            int defaultW = _tlpThemesContainer.Width > 0 ? _tlpThemesContainer.Width - 10 : 1000;
 
             ui.MainBox = new GroupBox { 
                 Text = $"📌 {themeName}", 
@@ -178,7 +179,7 @@ namespace Safety_System
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            // ====== 第一行：操作列 (🟢 修正：精確的對齊 Margin 設定) ======
+            // ====== 第一行：操作列 ======
             FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 5, 0, 15) };
             
             ui.CboStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 90, Margin = new Padding(10, 6, 5, 0) };
@@ -190,7 +191,6 @@ namespace Safety_System
             for (int i = currY - 10; i <= currY + 1; i++) { ui.CboStartYear.Items.Add(i.ToString()); ui.CboEndYear.Items.Add(i.ToString()); }
             for (int i = 1; i <= 12; i++) { ui.CboStartMonth.Items.Add(i.ToString("D2")); ui.CboEndMonth.Items.Add(i.ToString("D2")); }
             
-            // 🟢 修正：預設帶入上個月
             DateTime prevMonth = DateTime.Today.AddMonths(-1);
             ui.CboStartYear.SelectedItem = prevMonth.Year.ToString(); 
             ui.CboStartMonth.SelectedItem = prevMonth.Month.ToString("D2");
@@ -203,7 +203,6 @@ namespace Safety_System
             Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, 36), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnPdf.FlatAppearance.BorderSize = 0;
             Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(130, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
 
-            // 🟢 修正：加大刪除按鈕寬度，避免圖示被截斷
             Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(50, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
             flpControls.Controls.AddRange(new Control[] {
@@ -232,7 +231,6 @@ namespace Safety_System
             ui.Dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.WhiteSmoke;
             ui.Dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
-            // 🟢 修正：更新欄位標題文字
             ui.Dgv.Columns.Add("項目", "項目"); ui.Dgv.Columns["項目"].ReadOnly = true; ui.Dgv.Columns["項目"].FillWeight = 20;
             ui.Dgv.Columns.Add("數據", "數據資料"); ui.Dgv.Columns["數據"].ReadOnly = true; ui.Dgv.Columns["數據"].FillWeight = 40;
             ui.Dgv.Columns.Add("附件檔案", "附件檔案"); ui.Dgv.Columns["附件檔案"].ReadOnly = true; ui.Dgv.Columns["附件檔案"].FillWeight = 20;
@@ -491,7 +489,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 設定視窗 (修正：載入與儲存邏輯)
+        // 設定視窗 (自訂項目與公式)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -538,8 +536,6 @@ namespace Safety_System
                 
                 Panel pName = new Panel { Width = 950, Height = 45 };
                 pName.Controls.Add(new Label { Text = "項目名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                
-                // 🟢 修正：增加間隔 (+20px => X=120)
                 TextBox txtName = new TextBox { Width = 350, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
@@ -613,7 +609,6 @@ namespace Safety_System
                 pnlBottom.Controls.Add(btnImp); pnlBottom.Controls.Add(btnExp); pnlBottom.Controls.Add(btnSaveAll);
                 f.Controls.Add(tlp); f.Controls.Add(pnlBottom);
 
-                // 🟢 修正：使用自訂類別，防止 Tuples 參考更新遺失
                 var configs = new List<EditingConfig>();
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -629,7 +624,6 @@ namespace Safety_System
 
                 bool isSyncing = false;
 
-                // 🟢 修正：確保 ListBox 載入後正確觸發選擇事件
                 Action refreshList = () => { 
                     isSyncing = true;
                     dgvItems.Rows.Clear(); 
@@ -691,7 +685,6 @@ namespace Safety_System
                             using (var trans = conn.BeginTransaction()) {
                                 new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn, trans).ExecuteNonQuery();
                                 
-                                // 依照拖曳後的 DGV 順序寫入資料庫
                                 string sql = $"INSERT INTO {TblConfigs} (ThemeId, ItemName, FormulaTemplate) VALUES ({ui.ThemeId}, @N, @F)";
                                 foreach(DataGridViewRow dgvRow in dgvItems.Rows) {
                                     string currentName = dgvRow.Cells[0].Value.ToString();
