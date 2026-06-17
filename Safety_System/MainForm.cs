@@ -303,9 +303,7 @@ namespace Safety_System
 
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
-            
-            // 🟢 註冊新的統計看板
-            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView())); // 🟢 註冊新的統計看板
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
@@ -358,7 +356,7 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenuRef).ShowDialog(this); 
+                    new App_PermissionManager(_mainMenu).ShowDialog(this); // 🟢 修正的 _mainMenu 呼叫
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
