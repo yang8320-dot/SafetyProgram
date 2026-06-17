@@ -153,7 +153,6 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            // 🟢 修正錯誤：將 _flpThemesContainer 改為 _tlpThemesContainer
             int defaultW = _tlpThemesContainer.Width > 0 ? _tlpThemesContainer.Width - 10 : 1000;
 
             ui.MainBox = new GroupBox { 
@@ -489,7 +488,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 設定視窗 (自訂項目與公式)
+        // 🟢 設定視窗 (修正：載入與儲存邏輯)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -536,6 +535,8 @@ namespace Safety_System
                 
                 Panel pName = new Panel { Width = 950, Height = 45 };
                 pName.Controls.Add(new Label { Text = "項目名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                
+                // 🟢 修正：增加間隔 (+20px => X=120)
                 TextBox txtName = new TextBox { Width = 350, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
@@ -609,6 +610,7 @@ namespace Safety_System
                 pnlBottom.Controls.Add(btnImp); pnlBottom.Controls.Add(btnExp); pnlBottom.Controls.Add(btnSaveAll);
                 f.Controls.Add(tlp); f.Controls.Add(pnlBottom);
 
+                // 🟢 修正：使用自訂類別，防止 Tuples 參考更新遺失
                 var configs = new List<EditingConfig>();
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -624,6 +626,7 @@ namespace Safety_System
 
                 bool isSyncing = false;
 
+                // 🟢 修正：確保 ListBox 載入後正確觸發選擇事件
                 Action refreshList = () => { 
                     isSyncing = true;
                     dgvItems.Rows.Clear(); 
@@ -678,13 +681,15 @@ namespace Safety_System
                 };
 
                 btnSaveAll.Click += (s, e) => {
-                    btnSaveAll.Focus(); 
+                    btnSaveAll.Focus(); // 強制失去焦點，觸發 TextChanged
+                    
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
                             using (var trans = conn.BeginTransaction()) {
                                 new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn, trans).ExecuteNonQuery();
                                 
+                                // 依照拖曳後的 DGV 順序寫入資料庫
                                 string sql = $"INSERT INTO {TblConfigs} (ThemeId, ItemName, FormulaTemplate) VALUES ({ui.ThemeId}, @N, @F)";
                                 foreach(DataGridViewRow dgvRow in dgvItems.Rows) {
                                     string currentName = dgvRow.Cells[0].Value.ToString();
