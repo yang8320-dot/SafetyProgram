@@ -18,7 +18,10 @@ namespace Safety_System
     {
         private string _menuDbName; 
         private Panel _mainScrollPanel;
-        private FlowLayoutPanel _flpThemesContainer;
+        
+        // 🟢 將原本的 FlowLayoutPanel 改為絕對穩定的 TableLayoutPanel，確保 100% 橫向撐滿
+        private TableLayoutPanel _tlpThemesContainer; 
+        
         private Dictionary<string, (string ChDbName, Dictionary<string, string> Tables)> _dbMap;
 
         // 資料庫表名
@@ -52,11 +55,8 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    // 主題表
                     new SQLiteCommand($"CREATE TABLE IF NOT EXISTS [{TblThemes}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, MenuName TEXT, ThemeName TEXT);", conn).ExecuteNonQuery();
-                    // 設定表 (項目與公式)
                     new SQLiteCommand($"CREATE TABLE IF NOT EXISTS [{TblConfigs}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, ThemeId INTEGER, ItemName TEXT, FormulaTemplate TEXT);", conn).ExecuteNonQuery();
-                    // 存檔紀錄表 (綁定區間與項目)
                     new SQLiteCommand($"CREATE TABLE IF NOT EXISTS [{TblRecords}] (Id INTEGER PRIMARY KEY AUTOINCREMENT, ThemeId INTEGER, PeriodStart TEXT, PeriodEnd TEXT, ItemName TEXT, DataValue TEXT, Attachment TEXT, Remarks TEXT);", conn).ExecuteNonQuery();
                 }
             } catch { }
@@ -68,9 +68,13 @@ namespace Safety_System
 
             _mainScrollPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.WhiteSmoke, AutoScroll = true, Padding = new Padding(20) };
 
+            TableLayoutPanel masterLayout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2, Margin = new Padding(0) };
+            masterLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); // 確保母容器撐滿
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
             // ================= Header =================
-            Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 70, Margin = new Padding(0,0,0,20) };
-            
+            Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0,0,0,10) };
             Label lblTitle = new Label { Text = "📊 動態統計看板管理系統", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Left, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
             Button btnAddTheme = new Button { Text = "➕ 新增主題統計區塊", Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
@@ -79,26 +83,19 @@ namespace Safety_System
 
             pnlHeader.Controls.Add(btnAddTheme);
             pnlHeader.Controls.Add(lblTitle);
+            masterLayout.Controls.Add(pnlHeader, 0, 0);
 
-            // ================= Container =================
-            _flpThemesContainer = new FlowLayoutPanel { 
-                Dock = DockStyle.Top, 
+            // ================= Container (🟢 修正擠壓問題的關鍵) =================
+            _tlpThemesContainer = new TableLayoutPanel { 
+                Dock = DockStyle.Fill, 
                 AutoSize = true, 
-                FlowDirection = FlowDirection.TopDown, 
-                WrapContents = false 
+                ColumnCount = 1,
+                Padding = new Padding(0)
             };
-            
-            // 🟢 確保寬度動態跟隨，防止 UI 擠壓
-            _mainScrollPanel.Resize += (s, e) => {
-                _flpThemesContainer.Width = _mainScrollPanel.ClientSize.Width - _mainScrollPanel.Padding.Left - _mainScrollPanel.Padding.Right;
-                foreach (Control c in _flpThemesContainer.Controls) {
-                    c.Width = _flpThemesContainer.ClientSize.Width - 10;
-                }
-            };
+            _tlpThemesContainer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); // 強制 100% 寬度
 
-            // 必須先加 Container，再加 Header，確保 Header 保持在最上方 (DockStyle.Top 邏輯)
-            _mainScrollPanel.Controls.Add(_flpThemesContainer);
-            _mainScrollPanel.Controls.Add(pnlHeader);
+            masterLayout.Controls.Add(_tlpThemesContainer, 0, 1);
+            _mainScrollPanel.Controls.Add(masterLayout);
 
             LoadThemes();
 
@@ -125,7 +122,8 @@ namespace Safety_System
 
         private void LoadThemes()
         {
-            _flpThemesContainer.Controls.Clear();
+            _tlpThemesContainer.Controls.Clear();
+            _tlpThemesContainer.RowStyles.Clear();
 
             DataTable dtThemes = new DataTable();
             try {
@@ -139,7 +137,7 @@ namespace Safety_System
             } catch { return; }
 
             if (dtThemes.Rows.Count == 0) {
-                _flpThemesContainer.Controls.Add(new Label { Text = "目前沒有任何統計主題，請點擊上方按鈕新增。", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Margin = new Padding(20) });
+                _tlpThemesContainer.Controls.Add(new Label { Text = "目前沒有任何統計主題，請點擊上方按鈕新增。", ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 12F), AutoSize = true, Margin = new Padding(20) });
                 return;
             }
 
@@ -152,10 +150,17 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            // 🟢 設定預設寬度防縮小
-            int defaultW = _flpThemesContainer.Width > 0 ? _flpThemesContainer.Width - 10 : 1000;
-
-            ui.MainBox = new GroupBox { Text = $"📌 {themeName}", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15), Margin = new Padding(0, 0, 0, 25), AutoSize = true, Width = defaultW };
+            // 🟢 將 GroupBox 設定為 DockStyle.Fill，配合外層 TLP 的 100% 寬度，徹底解決擠壓問題
+            ui.MainBox = new GroupBox { 
+                Text = $"📌 {themeName}", 
+                Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
+                ForeColor = Color.DarkSlateBlue, 
+                Padding = new Padding(15), 
+                Margin = new Padding(0, 0, 0, 25), 
+                AutoSize = true,
+                Dock = DockStyle.Fill 
+            };
+            
             ui.MainBox.Paint += (s, e) => {
                 if (ui.Dgv != null) {
                     int gridH = ui.Dgv.ColumnHeadersHeight;
@@ -164,7 +169,6 @@ namespace Safety_System
                 }
             };
 
-            // 🟢 加入 ColumnStyles 避免內部擠壓
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -230,7 +234,10 @@ namespace Safety_System
 
             tlp.Controls.Add(ui.Dgv, 0, 1);
             ui.MainBox.Controls.Add(tlp);
-            _flpThemesContainer.Controls.Add(ui.MainBox);
+            
+            // 🟢 加入到 TableLayoutPanel 容器
+            _tlpThemesContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _tlpThemesContainer.Controls.Add(ui.MainBox);
 
             // ====== 綁定事件 ======
             btnSearch.Click += async (s, e) => await CalculateAndLoadGrid(ui);
