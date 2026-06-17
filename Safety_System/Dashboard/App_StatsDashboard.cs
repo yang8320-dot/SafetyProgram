@@ -205,7 +205,7 @@ namespace Safety_System
             Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(130, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
 
             // 🟢 寬度加寬至 55 避免遮住
-            Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(55, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
+            Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(100, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
             flpControls.Controls.AddRange(new Control[] {
                 new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 10, 0, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
