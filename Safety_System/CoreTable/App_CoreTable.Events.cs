@@ -1,3 +1,4 @@
+/// FILE: Safety_System/CoreTable/App_CoreTable.Events.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
