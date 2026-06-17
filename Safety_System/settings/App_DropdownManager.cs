@@ -1,4 +1,3 @@
-/// FILE: Safety_System/settings/App_DropdownManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -32,6 +31,13 @@ namespace Safety_System
         }
     }
 
+    public class ReferenceDef 
+    {
+        public string SourceDb { get; set; }
+        public string SourceTb { get; set; }
+        public string SourceCol { get; set; }
+    }
+
     public class App_DropdownManager : Form
     {
         private TabControl _tabControl;
@@ -46,12 +52,12 @@ namespace Safety_System
         private Dictionary<string, bool> _configuredDbs = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredTables = new Dictionary<string, bool>();
         private Dictionary<string, bool> _configuredCols = new Dictionary<string, bool>();
-        // 🟢 新增：用於記錄連動下拉選單的「層級 (1~4層)」
         private Dictionary<string, int> _configuredColLevels = new Dictionary<string, int>();
 
         private bool _isRevertingDb = false;
         private bool _isRevertingCol = false;
         private bool _isRevertingMultiCol = false;
+        private bool _isRevertingRefCol = false;
 
         // ================= Tab 2: 複選組合文字控制項 =================
         private ComboBox _cboDbMulti, _cboTableMulti, _cboColMulti;
@@ -59,6 +65,13 @@ namespace Safety_System
         private Button _btnSaveMulti, _btnDelMulti;
         private FlowLayoutPanel _flpMultiConfigured;
         private Panel _selectedMultiItemPanel = null; 
+
+        // ================= Tab 3: 跨表參照下拉選單控制項 =================
+        private ComboBox _cboRefTargetDb, _cboRefTargetTb, _cboRefTargetCol;
+        private ComboBox _cboRefSourceDb, _cboRefSourceTb, _cboRefSourceCol;
+        private Button _btnSaveRef, _btnDelRef;
+        private FlowLayoutPanel _flpRefConfigured;
+        private Panel _selectedRefItemPanel = null;
 
         // 🟢 拖曳排版的狀態變數
         private int _dragFromRowIndex = -1;
@@ -75,25 +88,78 @@ namespace Safety_System
 
         public static Dictionary<string, List<DropdownItemDef>> DropdownCache = new Dictionary<string, List<DropdownItemDef>>();
         public static Dictionary<string, List<DropdownItemDef>> MultiSelectCache = new Dictionary<string, List<DropdownItemDef>>();
+        public static Dictionary<string, ReferenceDef> ReferenceCache = new Dictionary<string, ReferenceDef>();
 
         public App_DropdownManager()
         {
             try 
             {
-                string sql = "CREATE TABLE IF NOT EXISTS [MultiSelectConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));";
-                DataManager.InitTable("SystemConfig", "MultiSelectConfigs", sql);
+                string sqlMulti = "CREATE TABLE IF NOT EXISTS [MultiSelectConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));";
+                DataManager.InitTable("SystemConfig", "MultiSelectConfigs", sqlMulti);
+
+                string sqlRef = "CREATE TABLE IF NOT EXISTS [ReferenceDropdownConfigs] (Id INTEGER PRIMARY KEY AUTOINCREMENT, TargetDb TEXT, TargetTb TEXT, TargetCol TEXT, SourceDb TEXT, SourceTb TEXT, SourceCol TEXT, UNIQUE(TargetDb, TargetTb, TargetCol));";
+                DataManager.InitTable("SystemConfig", "ReferenceDropdownConfigs", sqlRef);
 
                 _dbMap = App_DbConfig.GetDbMapCache();
                 RefreshConfiguredCache();
                 InitializeComponent();
+                
                 LoadDropdownConfigs();
                 LoadMultiSelectConfigs();
+                LoadReferenceConfigs();
+
                 RefreshMultiConfiguredList();
+                RefreshRefConfiguredList();
             } 
             catch (Exception ex) 
             {
                 MessageBox.Show($"初始化連動選單管理介面時發生嚴重錯誤：\n{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        public static void LoadReferenceConfigs()
+        {
+            ReferenceCache.Clear();
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT TargetDb, TargetTb, TargetCol, SourceDb, SourceTb, SourceCol FROM ReferenceDropdownConfigs", conn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        while (reader.Read()) {
+                            string key = $"{reader["TargetDb"]}|{reader["TargetTb"]}|{reader["TargetCol"]}";
+                            ReferenceCache[key] = new ReferenceDef {
+                                SourceDb = reader["SourceDb"].ToString(),
+                                SourceTb = reader["SourceTb"].ToString(),
+                                SourceCol = reader["SourceCol"].ToString()
+                            };
+                        }
+                    }
+                }
+            } catch { }
+        }
+
+        public static string[] GetReferenceOptions(string targetDb, string targetTb, string targetCol)
+        {
+            string key = $"{targetDb}|{targetTb}|{targetCol}";
+            if (!ReferenceCache.ContainsKey(key)) return null;
+
+            var def = ReferenceCache[key];
+            HashSet<string> uniqueValues = new HashSet<string> { "" }; 
+            
+            try {
+                DataTable dt = DataManager.GetTableData(def.SourceDb, def.SourceTb, "", "", "");
+                if (dt != null && dt.Columns.Contains(def.SourceCol)) {
+                    foreach (DataRow r in dt.Rows) {
+                        if (r.RowState == DataRowState.Deleted) continue;
+                        string val = r[def.SourceCol]?.ToString().Trim() ?? "";
+                        if (!string.IsNullOrEmpty(val)) {
+                            uniqueValues.Add(val);
+                        }
+                    }
+                }
+            } catch { }
+
+            return uniqueValues.ToArray();
         }
 
         private List<string> GetColumnsSafe(string dbName, string tbName)
@@ -128,6 +194,20 @@ namespace Safety_System
                 if (key.StartsWith(prefix)) return true;
             }
             return false;
+        }
+
+        private string CheckColumnConflict(string dbName, string tbName, string colName, string currentTab)
+        {
+            if (currentTab != "TabSingle" && IsColumnInDropdownCache(tbName, colName)) 
+                return "「一、單選下拉與多層連動」";
+                
+            if (currentTab != "TabMulti" && MultiSelectCache.ContainsKey($"{tbName}|{colName}")) 
+                return "「二、組合文字 (複選)」";
+                
+            if (currentTab != "TabRef" && ReferenceCache.ContainsKey($"{dbName}|{tbName}|{colName}")) 
+                return "「三、跨表參照下拉選單」";
+
+            return null;
         }
 
         private void RefreshConfiguredCache()
@@ -171,7 +251,6 @@ namespace Safety_System
                     }
                 }
                 
-                // 🟢 計算層級與連動狀態
                 foreach (string colKey in allConfigured) 
                 {
                     bool isLinked = parentMap.ContainsKey(colKey) || parentMap.Values.Contains(colKey);
@@ -185,7 +264,6 @@ namespace Safety_System
                         int level = 1;
                         string curr = colKey;
                         int safeguard = 0;
-                        // 往上追朔父層，計算自己在第幾層
                         while (parentMap.ContainsKey(curr)) 
                         {
                             level++;
@@ -217,7 +295,7 @@ namespace Safety_System
 
         private void InitializeComponent()
         {
-            this.Text = "下拉選單與組合文字(複選)管理中心";
+            this.Text = "下拉選單與組合文字管理中心";
             this.Size = new Size(1650, 900);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.Sizable;
@@ -234,8 +312,14 @@ namespace Safety_System
             tabMulti.BackColor = Color.WhiteSmoke;
             BuildTabMulti(tabMulti);
 
+            TabPage tabRef = new TabPage("三、跨表參照下拉選單設定");
+            tabRef.BackColor = Color.WhiteSmoke;
+            BuildTabReference(tabRef);
+
             _tabControl.TabPages.Add(tabSingle);
             _tabControl.TabPages.Add(tabMulti);
+            _tabControl.TabPages.Add(tabRef);
+            
             this.Controls.Add(_tabControl);
         }
 
@@ -408,9 +492,6 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        // =======================================================
-        // 🟢 DataGridView 拖曳與排序邏輯
-        // =======================================================
         private void DgvOptions_MouseDown(object sender, MouseEventArgs e)
         {
             DataGridView dgv = (DataGridView)sender;
@@ -507,7 +588,6 @@ namespace Safety_System
                 }
             }
         }
-        // =======================================================
 
         private void DgvOptions_CellContentClick(object sender, DataGridViewCellEventArgs e, int gridIndex, bool isMulti)
         {
@@ -706,27 +786,9 @@ namespace Safety_System
                 }
             };
 
-            _cboColMulti.SelectedIndexChanged += (s, e) => {
-                if (_isRevertingMultiCol) return;
-
-                _dgvOptionsMulti.Rows.Clear();
-                var tb = _cboTableMulti.SelectedItem as ItemMap;
-                if (tb != null && _cboColMulti.SelectedItem != null) {
-                    string colName = _cboColMulti.SelectedItem.ToString();
-                    
-                    if (IsColumnInDropdownCache(tb.EnName, colName)) {
-                        MessageBox.Show($"此欄位【{colName}】已在「一、單選下拉與多層連動」中設定過！\n為避免系統判斷異常，同一欄位不可同時設定單選與複選。\n\n若要設定為組合文字，請先至第一分頁刪除該欄位的設定。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        _isRevertingMultiCol = true;
-                        _cboColMulti.SelectedIndex = -1; 
-                        _isRevertingMultiCol = false;
-                        return;
-                    }
-
-                    LoadOptionsToGrid(tb.EnName, colName, "", "", _dgvOptionsMulti, true);
-                }
-            };
+            // 🟢 在建構 Tab2 時改用新的防呆檢查，所以修改原本的事件
+            _cboColMulti.SelectedIndexChanged += CboColMulti_SelectedIndexChanged_Event;
         }
-
         private void ExtractDataFromDB(int colIndex, bool isMulti)
         {
             string db = isMulti ? ((ItemMap)_cboDbMulti.SelectedItem)?.EnName : ((ItemMap)_cboDb.SelectedItem)?.EnName;
@@ -811,11 +873,11 @@ namespace Safety_System
             DrawComboBoxItem(_cboTable, e, isConfig, isLinked, false);
         }
 
-        // 🟢 修改點：支援讀取 level，並傳入繪圖引擎
         private void CboCols_DrawItem(object sender, DrawItemEventArgs e, int colIndex) {
             if (e.Index < 0) return;
             string colName = _cboCols[colIndex].Items[e.Index].ToString();
             string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName ?? "";
+            string dbName = ((ItemMap)_cboDb.SelectedItem)?.EnName ?? "";
             
             bool isConfig = false;
             bool isLinked = false;
@@ -830,14 +892,13 @@ namespace Safety_System
                     level = _configuredColLevels[key];
                 }
             } else if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(colName)) {
-                if (MultiSelectCache.ContainsKey($"{tbName}|{colName}")) {
+                if (MultiSelectCache.ContainsKey($"{tbName}|{colName}") || ReferenceCache.ContainsKey($"{dbName}|{tbName}|{colName}")) {
                     isOtherConfig = true;
                 }
             }
             DrawComboBoxItem(_cboCols[colIndex], e, isConfig, isLinked, isOtherConfig, level);
         }
 
-        // 🟢 修改點：加入 level 參數，並在 isLinked 狀態下動態附加 (第 X 層)
         private void DrawComboBoxItem(ComboBox cbo, DrawItemEventArgs e, bool isConfigured, bool isLinked, bool isOtherConfigured, int level = 0) {
             if (e.Index < 0) return;
 
@@ -898,15 +959,16 @@ namespace Safety_System
         private void CboColMulti_DrawItem(object sender, DrawItemEventArgs e) {
             if (e.Index < 0) return;
             string col = _cboColMulti.Items[e.Index].ToString();
+            var db = _cboDbMulti.SelectedItem as ItemMap;
             var tb = _cboTableMulti.SelectedItem as ItemMap;
             bool isConfig = false;
             bool isOtherConfig = false; 
 
-            if (tb != null && !string.IsNullOrEmpty(tb.EnName) && !string.IsNullOrEmpty(col)) {
+            if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName) && !string.IsNullOrEmpty(col)) {
                 string key = $"{tb.EnName}|{col}";
                 if (MultiSelectCache.ContainsKey(key)) {
                     isConfig = true;
-                } else if (IsColumnInDropdownCache(tb.EnName, col)) {
+                } else if (IsColumnInDropdownCache(tb.EnName, col) || ReferenceCache.ContainsKey($"{db.EnName}|{tb.EnName}|{col}")) {
                     isOtherConfig = true;
                 }
             }
@@ -1053,45 +1115,6 @@ namespace Safety_System
             _isRevertingCol = false;
         }
 
-        private void HandleColSelectionChanged(int colIndex) {
-            if (_isRevertingCol) return;
-            string selectedCol = _cboCols[colIndex].Text;
-            string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName;
-            
-            if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
-                string multiKey = $"{tbName}|{selectedCol}";
-                if (MultiSelectCache.ContainsKey(multiKey)) {
-                    MessageBox.Show($"此欄位【{selectedCol}】已在「二、組合文字 (複選)」中設定過！\n為避免系統判斷異常，同一欄位不可同時設定單選與複選。\n\n若要設定為單選連動，請先至第二分頁刪除該欄位的設定。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    _isRevertingCol = true;
-                    _cboCols[colIndex].SelectedIndex = 0; 
-                    _isRevertingCol = false;
-                    return;
-                }
-
-                for (int i = 0; i < 4; i++) {
-                    if (i != colIndex && _cboCols[i].Text == selectedCol) {
-                        MessageBox.Show("此欄位已在其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        _isRevertingCol = true;
-                        _cboCols[colIndex].SelectedIndex = 0; 
-                        _isRevertingCol = false;
-                        return;
-                    }
-                }
-            }
-
-            try {
-                if (colIndex == 0) {
-                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
-                        LoadOptionsToGrid(tbName, selectedCol, "", "", _dgvOptions[0], false);
-                        UpdateChildParentVals(1, _dgvOptions[0]);
-                    } else {
-                        _dgvOptions[0].Rows.Clear();
-                        UpdateChildParentVals(1, _dgvOptions[0]);
-                    }
-                }
-            } catch { }
-        }
-
         private void HandleParentValChanged(int colIndex) {
             try {
                 if (colIndex <= 0 || colIndex >= 4) return;
@@ -1203,12 +1226,16 @@ namespace Safety_System
             }
 
             string tbName = ((ItemMap)_cboTable.SelectedItem).EnName;
+            string dbName = ((ItemMap)_cboDb.SelectedItem).EnName;
 
             for (int i = 0; i < 4; i++) {
                 string colName = _cboCols[i].Text;
-                if (!string.IsNullOrEmpty(colName) && MultiSelectCache.ContainsKey($"{tbName}|{colName}")) {
-                    MessageBox.Show($"欄位【{colName}】已設定為「組合文字(複選)」，為避免系統錯亂，無法將其儲存為單選連動！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                    return;
+                if (!string.IsNullOrEmpty(colName)) {
+                    string conflict = CheckColumnConflict(dbName, tbName, colName, "TabSingle");
+                    if (conflict != null) {
+                        MessageBox.Show($"欄位【{colName}】已在 {conflict} 中設定過！\n為避免系統錯亂，不可同時設定為多種選單模式，無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                        return;
+                    }
                 }
             }
 
@@ -1392,21 +1419,21 @@ namespace Safety_System
             return allOpts.ToArray();
         }
 
-        // =========================================================
-        // Tab 2 事件邏輯 (組合文字/複選) 
-        // =========================================================
         private void BtnSaveMulti_Click(object sender, EventArgs e)
         {
+            var db = _cboDbMulti.SelectedItem as ItemMap;
             var tb = _cboTableMulti.SelectedItem as ItemMap;
-            if (tb == null || _cboColMulti.SelectedItem == null || _dgvOptionsMulti.Rows.Count <= 1) {
-                MessageBox.Show("請確認資料表、欄位與選項內容皆已填寫！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+            if (db == null || tb == null || _cboColMulti.SelectedItem == null || _dgvOptionsMulti.Rows.Count <= 1) {
+                MessageBox.Show("請確認資料庫、資料表、欄位與選項內容皆已填寫！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
             }
 
+            string dbName = db.EnName;
             string tblName = tb.EnName;
             string colName = _cboColMulti.SelectedItem.ToString();
             
-            if (IsColumnInDropdownCache(tblName, colName)) {
-                MessageBox.Show($"欄位【{colName}】已在「單選下拉與多層連動」設定中！\n為避免系統錯亂，不可同時設定單選與複選，無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+            string conflict = CheckColumnConflict(dbName, tblName, colName, "TabMulti");
+            if (conflict != null) {
+                MessageBox.Show($"欄位【{colName}】已在 {conflict} 中設定過！無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return;
             }
 
