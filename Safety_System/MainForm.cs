@@ -75,13 +75,12 @@ namespace Safety_System
             });
         }
 
-        // 🟢 效能優化：秒關閉視窗，將收尾動作丟到背景執行
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true; 
-                this.Hide(); // 立即隱藏視窗，讓使用者覺得「秒關」
+                this.Hide(); 
 
                 Task.Run(() => 
                 {
@@ -93,7 +92,7 @@ namespace Safety_System
                         }
                     } catch { }
                     finally {
-                        Environment.Exit(0); // 強制終止所有背景執行緒與釋放記憶體
+                        Environment.Exit(0); 
                     }
                 });
             }
@@ -129,7 +128,6 @@ namespace Safety_System
             return null;
         }
 
-        // 🟢 效能優化：停止無意義的深層尋找，減少關閉或存檔時的卡頓
         private void ForceEndCurrentEdit()
         {
             try {
@@ -336,10 +334,12 @@ namespace Safety_System
             memReleaseItem.Click += (s, e) => MemoryOptimizer.Execute();
             menuApp.DropDownItems.Add(memReleaseItem);
 
+            // 🟢 修改點：調整「選單1」的排列順序
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
-            _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
             _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView()));
-
+            _menu1.DropDownItems.Add(new ToolStripSeparator());
+            _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
+            
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
@@ -899,55 +899,12 @@ namespace Safety_System
             return item;
         }
 
-        private ToolStripMenuItem CreateLawItem(string dbName, string tableName)
-        {
-            var item = new ToolStripMenuItem(tableName);
-            item.Click += async (s, e) => {
-                if (_contentPanel.Controls.Count > 0 && _contentPanel.Controls[0] is Label && _contentPanel.Controls[0].Text.Contains("載入中")) return;
-
-                Application.UseWaitCursor = true;
-
-                try {
-                    ForceEndCurrentEdit();
-                    
-                    _contentPanel.SuspendLayout();
-                    _contentPanel.Controls.Clear();
-                    Label lblLoading = new Label {
-                        Text = $"⏳ 正在為您準備【{tableName}】的資料與畫面，請稍候...",
-                        Font = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold),
-                        ForeColor = Color.DimGray,
-                        Dock = DockStyle.Fill,
-                        TextAlign = ContentAlignment.MiddleCenter
-                    };
-                    _contentPanel.Controls.Add(lblLoading);
-                    _contentPanel.ResumeLayout(true);
-
-                    _contentPanel.Update();
-                    Application.DoEvents();
-                    await Task.Delay(30);
-
-                    Control view = new App_CoreTable(dbName, tableName, tableName, new LawLogic()).GetView();
-                    if (view != null) {
-                        LoadModule(view);
-                    }
-                } 
-                catch (Exception ex) { 
-                    MessageBox.Show($"載入模組失敗：\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); 
-                }
-                finally { 
-                    Application.UseWaitCursor = false;
-                }
-            };
-            return item;
-        }
-
         public void LoadModule(Control moduleControl)
         {
             if (this.InvokeRequired) { this.Invoke(new Action(() => LoadModule(moduleControl))); return; }
             if (moduleControl == null) return;
 
             try {
-                // 🟢 徹底消除殘留的 DataSource，釋放資源
                 _contentPanel.SuspendLayout();
                 
                 while (_contentPanel.Controls.Count > 0)
@@ -955,7 +912,6 @@ namespace Safety_System
                     Control ctrl = _contentPanel.Controls[0];
                     _contentPanel.Controls.Remove(ctrl);
                     
-                    // 若是舊有的 DataGridView 確保清空綁定
                     if (ctrl is DataGridView dgv) {
                         dgv.DataSource = null;
                         dgv.Dispose();
