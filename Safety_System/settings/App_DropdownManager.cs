@@ -73,7 +73,7 @@ namespace Safety_System
         private FlowLayoutPanel _flpRefConfigured;
         private Panel _selectedRefItemPanel = null;
 
-        // 🟢 拖曳排版的狀態變數
+        // 拖曳排版的狀態變數
         private int _dragFromRowIndex = -1;
         private Rectangle _dragBox = Rectangle.Empty;
 
@@ -117,6 +117,9 @@ namespace Safety_System
             }
         }
 
+        // ========================================================
+        // 快取讀取與提供邏輯區
+        // ========================================================
         public static void LoadReferenceConfigs()
         {
             ReferenceCache.Clear();
@@ -492,150 +495,6 @@ namespace Safety_System
             _cboTable.SelectedIndexChanged += CboTable_SelectedIndexChanged;
         }
 
-        private void DgvOptions_MouseDown(object sender, MouseEventArgs e)
-        {
-            DataGridView dgv = (DataGridView)sender;
-            var hit = dgv.HitTest(e.X, e.Y);
-            
-            if (hit.RowIndex >= 0 && hit.ColumnIndex == -1 && !dgv.Rows[hit.RowIndex].IsNewRow)
-            {
-                _dragFromRowIndex = hit.RowIndex;
-                Size dragSize = SystemInformation.DragSize;
-                _dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2), e.Y - (dragSize.Height / 2)), dragSize);
-            }
-            else
-            {
-                _dragBox = Rectangle.Empty;
-            }
-        }
-
-        private void DgvOptions_MouseMove(object sender, MouseEventArgs e)
-        {
-            if ((e.Button & MouseButtons.Left) == MouseButtons.Left)
-            {
-                if (_dragBox != Rectangle.Empty && !_dragBox.Contains(e.X, e.Y))
-                {
-                    DataGridView dgv = (DataGridView)sender;
-                    dgv.DoDragDrop(dgv.Rows[_dragFromRowIndex], DragDropEffects.Move);
-                }
-            }
-        }
-
-        private void DgvOptions_DragOver(object sender, DragEventArgs e)
-        {
-            e.Effect = DragDropEffects.Move;
-        }
-
-        private void DgvOptions_DragDrop(object sender, DragEventArgs e)
-        {
-            DataGridView dgv = (DataGridView)sender;
-            Point clientPoint = dgv.PointToClient(new Point(e.X, e.Y));
-            var hit = dgv.HitTest(clientPoint.X, clientPoint.Y);
-            
-            int targetRowIndex = hit.RowIndex;
-
-            if (targetRowIndex < 0 || targetRowIndex >= dgv.Rows.Count - 1) 
-            {
-                targetRowIndex = dgv.Rows.Count - 2; 
-            }
-
-            if (e.Data.GetDataPresent(typeof(DataGridViewRow)))
-            {
-                DataGridViewRow dragRow = (DataGridViewRow)e.Data.GetData(typeof(DataGridViewRow));
-                int sourceRowIndex = dragRow.Index;
-
-                if (sourceRowIndex != targetRowIndex && targetRowIndex >= 0 && sourceRowIndex >= 0)
-                {
-                    dgv.EndEdit(); 
-                    dgv.Rows.RemoveAt(sourceRowIndex);
-                    dgv.Rows.Insert(targetRowIndex, dragRow);
-                    dgv.ClearSelection();
-                    dgv.CurrentCell = dgv[0, targetRowIndex];
-                }
-            }
-        }
-
-        private void MoveRowUp(DataGridView dgv)
-        {
-            if (dgv.CurrentCell != null)
-            {
-                int idx = dgv.CurrentCell.RowIndex;
-                int colIdx = dgv.CurrentCell.ColumnIndex;
-                if (idx > 0 && !dgv.Rows[idx].IsNewRow)
-                {
-                    dgv.EndEdit();
-                    DataGridViewRow row = dgv.Rows[idx];
-                    dgv.Rows.RemoveAt(idx);
-                    dgv.Rows.Insert(idx - 1, row);
-                    dgv.CurrentCell = dgv[colIdx, idx - 1];
-                }
-            }
-        }
-
-        private void MoveRowDown(DataGridView dgv)
-        {
-            if (dgv.CurrentCell != null)
-            {
-                int idx = dgv.CurrentCell.RowIndex;
-                int colIdx = dgv.CurrentCell.ColumnIndex;
-                if (idx < dgv.Rows.Count - 2 && !dgv.Rows[idx].IsNewRow)
-                {
-                    dgv.EndEdit();
-                    DataGridViewRow row = dgv.Rows[idx];
-                    dgv.Rows.RemoveAt(idx);
-                    dgv.Rows.Insert(idx + 1, row);
-                    dgv.CurrentCell = dgv[colIdx, idx + 1];
-                }
-            }
-        }
-
-        private void DgvOptions_CellContentClick(object sender, DataGridViewCellEventArgs e, int gridIndex, bool isMulti)
-        {
-            if (e.RowIndex < 0) return;
-            DataGridView dgv = isMulti ? _dgvOptionsMulti : _dgvOptions[gridIndex];
-
-            if (dgv.Columns[e.ColumnIndex].Name == "Upload")
-            {
-                using (OpenFileDialog ofd = new OpenFileDialog { Filter = "圖片檔案 (*.png;*.jpg;*.jpeg;*.ico)|*.png;*.jpg;*.jpeg;*.ico", Title = "選擇小圖示 (建議正方形)" })
-                {
-                    if (ofd.ShowDialog() == DialogResult.OK)
-                    {
-                        try
-                        {
-                            using (Image img = Image.FromFile(ofd.FileName))
-                            {
-                                using (Bitmap bmp = new Bitmap(24, 24))
-                                {
-                                    using (Graphics g = Graphics.FromImage(bmp))
-                                    {
-                                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                                        g.SmoothingMode = SmoothingMode.AntiAlias;
-                                        g.DrawImage(img, 0, 0, 24, 24);
-                                    }
-                                    using (MemoryStream ms = new MemoryStream())
-                                    {
-                                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                                        string base64 = Convert.ToBase64String(ms.ToArray());
-                                        dgv.Rows[e.RowIndex].Cells["Icon"].Tag = base64; 
-                                        dgv.Rows[e.RowIndex].Cells["Icon"].Value = Image.FromStream(new MemoryStream(ms.ToArray())); 
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show("圖片處理失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        }
-                    }
-                }
-            }
-            else if (dgv.Columns[e.ColumnIndex].Name == "Clear")
-            {
-                dgv.Rows[e.RowIndex].Cells["Icon"].Tag = null;
-                dgv.Rows[e.RowIndex].Cells["Icon"].Value = null;
-            }
-        }
-
         private void BuildTabMulti(TabPage page)
         {
             Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20) };
@@ -786,9 +645,405 @@ namespace Safety_System
                 }
             };
 
-            // 🟢 在建構 Tab2 時改用新的防呆檢查，所以修改原本的事件
             _cboColMulti.SelectedIndexChanged += CboColMulti_SelectedIndexChanged_Event;
         }
+
+        private void BuildTabReference(TabPage page)
+        {
+            Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 95, BackColor = Color.White, Padding = new Padding(20) };
+            pnlBottom.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlBottom.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+
+            _btnSaveRef = new Button { Text = "💾 儲存跨表參照設定", Width = 230, Height = 50, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnSaveRef.Click += BtnSaveRef_Click;
+
+            _btnDelRef = new Button { Text = "🗑️ 刪除此欄位設定", Width = 230, Height = 50, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+            _btnDelRef.Click += BtnDelRef_Click;
+
+            Label lblHintRef = new Label { Text = "※ 此功能可讓下拉選單「動態」讀取另一個資料表的特定欄位內容。\n※ 例如：讓下拉選單直接呈現所有已經建檔的【單號】或【組合文字】，無須手動輸入。", Dock = DockStyle.Left, AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Microsoft JhengHei UI", 11F), Padding = new Padding(0) };
+            
+            pnlBottom.Controls.Add(lblHintRef);
+
+            FlowLayoutPanel flpBtnBottom = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false };
+            flpBtnBottom.Controls.Add(_btnSaveRef);
+            flpBtnBottom.Controls.Add(new Panel { Width = 15, Height = 10 });
+            flpBtnBottom.Controls.Add(_btnDelRef);
+            
+            pnlBottom.Controls.Add(flpBtnBottom);
+            page.Controls.Add(pnlBottom);
+
+            Panel pnlTop = new Panel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 110), BackColor = Color.White, Padding = new Padding(20) };
+            pnlTop.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlTop.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+
+            FlowLayoutPanel flpTopMain = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
+            Label lblTitle = new Label { Text = "🔗 跨表參照下拉選單設定區", Font = new Font("Microsoft JhengHei UI", 18F, FontStyle.Bold), ForeColor = Color.SaddleBrown, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
+
+            flpTopMain.Controls.Add(lblTitle);
+            pnlTop.Controls.Add(flpTopMain);
+            page.Controls.Add(pnlTop);
+
+            TableLayoutPanel tlpMain = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(10, 15, 10, 15) };
+            tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+
+            // 左側：設定區
+            Panel pnlLeftBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(25) };
+            pnlLeftBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlLeftBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+            
+            FlowLayoutPanel flpSettings = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
+
+            // 1. 目標欄位設定 (我要改變誰)
+            Label lTargetTitle = new Label { Text = "🎯 目標欄位 (我要在哪裡產生下拉選單？)", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkBlue, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
+            
+            _cboRefTargetDb = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboRefTargetTb = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboRefTargetCol = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            flpSettings.Controls.Add(lTargetTitle);
+            flpSettings.Controls.Add(CreateRefRow("目標資料庫：", _cboRefTargetDb));
+            flpSettings.Controls.Add(CreateRefRow("目標資料表：", _cboRefTargetTb));
+            flpSettings.Controls.Add(CreateRefRow("目標欄位：", _cboRefTargetCol));
+
+            flpSettings.Controls.Add(new Panel { Width = 500, Height = 2, BackColor = Color.LightGray, Margin = new Padding(0, 20, 0, 20) });
+
+            // 2. 來源欄位設定 (我要去哪裡抓資料)
+            Label lSourceTitle = new Label { Text = "📦 來源資料 (下拉選單的選項要從哪裡抓？)", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.DarkGreen, AutoSize = true, Margin = new Padding(0, 0, 0, 15) };
+            
+            _cboRefSourceDb = new ComboBox { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboRefSourceTb = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboRefSourceCol = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            flpSettings.Controls.Add(lSourceTitle);
+            flpSettings.Controls.Add(CreateRefRow("來源資料庫：", _cboRefSourceDb));
+            flpSettings.Controls.Add(CreateRefRow("來源資料表：", _cboRefSourceTb));
+            flpSettings.Controls.Add(CreateRefRow("來源欄位：", _cboRefSourceCol));
+
+            pnlLeftBorder.Controls.Add(flpSettings);
+
+            // 右側：已設定清單區
+            Panel pnlRightBorder = new Panel { Dock = DockStyle.Fill, Margin = new Padding(5, 0, 5, 0), BackColor = Color.White, Padding = new Padding(15) };
+            pnlRightBorder.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pnlRightBorder.ClientRectangle, Color.LightGray, ButtonBorderStyle.Solid);
+
+            Label lListTitle = new Label { Text = "已設定之跨表參照清單：", Dock = DockStyle.Top, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.SaddleBrown, Margin = new Padding(0, 0, 0, 10), Height = 30 };
+            _flpRefConfigured = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(5) };
+            
+            pnlRightBorder.Controls.Add(_flpRefConfigured);
+            pnlRightBorder.Controls.Add(lListTitle);
+
+            tlpMain.Controls.Add(pnlLeftBorder, 0, 0);
+            tlpMain.Controls.Add(pnlRightBorder, 1, 0);
+
+            page.Controls.Add(tlpMain);
+            tlpMain.BringToFront();
+
+            BindRefComboBoxEvents();
+        }
+
+       private Panel CreateRefRow(string labelText, ComboBox cbo)
+        {
+            Panel p = new Panel { Width = 600, Height = 45, Margin = new Padding(0, 0, 0, 5) };
+            Label l = new Label { Text = labelText, Location = new Point(0, 5), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) };
+            cbo.Location = new Point(140, 2);
+            p.Controls.Add(l); p.Controls.Add(cbo);
+            return p;
+        }
+
+        private void BindRefComboBoxEvents()
+        {
+            _cboRefTargetDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            _cboRefSourceDb.Items.Add(new ItemMap { EnName = "", ChName = "" });
+            if (_dbMap != null) { 
+                foreach (var kvp in _dbMap) {
+                    _cboRefTargetDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                    _cboRefSourceDb.Items.Add(new ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
+                }
+            }
+
+            // Target Events
+            _cboRefTargetDb.SelectedIndexChanged += (s, e) => {
+                _cboRefTargetTb.Items.Clear(); _cboRefTargetTb.Items.Add(new ItemMap { EnName = "", ChName = "" }); _cboRefTargetCol.Items.Clear();
+                var db = _cboRefTargetDb.SelectedItem as ItemMap;
+                if (db != null && !string.IsNullOrEmpty(db.EnName)) {
+                    foreach (var tbl in _dbMap[db.EnName].Tables) _cboRefTargetTb.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                }
+            };
+            
+            _cboRefTargetTb.SelectedIndexChanged += (s, e) => {
+                _cboRefTargetCol.Items.Clear();
+                var db = _cboRefTargetDb.SelectedItem as ItemMap; var tb = _cboRefTargetTb.SelectedItem as ItemMap;
+                if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
+                    var cols = GetColumnsSafe(db.EnName, tb.EnName).Where(c => c != "Id" && c != "附件檔案");
+                    foreach (var c in cols) _cboRefTargetCol.Items.Add(c);
+                }
+            };
+
+            _cboRefTargetCol.SelectedIndexChanged += (s, e) => {
+                if (_isRevertingRefCol) return;
+                var db = _cboRefTargetDb.SelectedItem as ItemMap; var tb = _cboRefTargetTb.SelectedItem as ItemMap;
+                if (db != null && tb != null && _cboRefTargetCol.SelectedItem != null) {
+                    string colName = _cboRefTargetCol.SelectedItem.ToString();
+                    
+                    // 🟢 檢查防呆
+                    string conflict = CheckColumnConflict(db.EnName, tb.EnName, colName, "TabRef");
+                    if (conflict != null) {
+                        MessageBox.Show($"此欄位【{colName}】已在 {conflict} 中設定過！\n為避免系統判斷異常，同一欄位不可重複設定為不同型態。\n\n請先前往該分頁刪除設定後再試。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        _isRevertingRefCol = true;
+                        _cboRefTargetCol.SelectedIndex = -1; 
+                        _isRevertingRefCol = false;
+                        return;
+                    }
+                }
+            };
+
+            // Source Events
+            _cboRefSourceDb.SelectedIndexChanged += (s, e) => {
+                _cboRefSourceTb.Items.Clear(); _cboRefSourceTb.Items.Add(new ItemMap { EnName = "", ChName = "" }); _cboRefSourceCol.Items.Clear();
+                var db = _cboRefSourceDb.SelectedItem as ItemMap;
+                if (db != null && !string.IsNullOrEmpty(db.EnName)) {
+                    foreach (var tbl in _dbMap[db.EnName].Tables) _cboRefSourceTb.Items.Add(new ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                }
+            };
+            
+            _cboRefSourceTb.SelectedIndexChanged += (s, e) => {
+                _cboRefSourceCol.Items.Clear();
+                var db = _cboRefSourceDb.SelectedItem as ItemMap; var tb = _cboRefSourceTb.SelectedItem as ItemMap;
+                if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
+                    var cols = GetColumnsSafe(db.EnName, tb.EnName).Where(c => c != "Id" && c != "附件檔案");
+                    foreach (var c in cols) _cboRefSourceCol.Items.Add(c);
+                }
+            };
+        }
+
+        private void BtnSaveRef_Click(object sender, EventArgs e)
+        {
+            var tDb = _cboRefTargetDb.SelectedItem as ItemMap; var tTb = _cboRefTargetTb.SelectedItem as ItemMap;
+            var sDb = _cboRefSourceDb.SelectedItem as ItemMap; var sTb = _cboRefSourceTb.SelectedItem as ItemMap;
+
+            if (tDb == null || tTb == null || _cboRefTargetCol.SelectedItem == null ||
+                sDb == null || sTb == null || _cboRefSourceCol.SelectedItem == null ||
+                string.IsNullOrEmpty(tDb.EnName) || string.IsNullOrEmpty(tTb.EnName) ||
+                string.IsNullOrEmpty(sDb.EnName) || string.IsNullOrEmpty(sTb.EnName)) 
+            {
+                MessageBox.Show("請確認目標欄位與來源欄位皆已完整選擇！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); 
+                return;
+            }
+
+            string tCol = _cboRefTargetCol.SelectedItem.ToString();
+            string sCol = _cboRefSourceCol.SelectedItem.ToString();
+            
+            string conflict = CheckColumnConflict(tDb.EnName, tTb.EnName, tCol, "TabRef");
+            if (conflict != null) {
+                MessageBox.Show($"欄位【{tCol}】已在 {conflict} 中設定過！無法儲存！", "儲存攔截", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                return;
+            }
+
+            try {
+                using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                    conn.Open();
+                    string sql = @"INSERT INTO ReferenceDropdownConfigs (TargetDb, TargetTb, TargetCol, SourceDb, SourceTb, SourceCol) 
+                                   VALUES (@TD, @TT, @TC, @SD, @ST, @SC) 
+                                   ON CONFLICT(TargetDb, TargetTb, TargetCol) DO UPDATE SET SourceDb=@SD, SourceTb=@ST, SourceCol=@SC";
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        cmd.Parameters.AddWithValue("@TD", tDb.EnName);
+                        cmd.Parameters.AddWithValue("@TT", tTb.EnName);
+                        cmd.Parameters.AddWithValue("@TC", tCol);
+                        cmd.Parameters.AddWithValue("@SD", sDb.EnName);
+                        cmd.Parameters.AddWithValue("@ST", sTb.EnName);
+                        cmd.Parameters.AddWithValue("@SC", sCol);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                MessageBox.Show("跨表參照設定儲存成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LoadReferenceConfigs();
+                RefreshRefConfiguredList();
+            } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message, "錯誤"); }
+        }
+
+        private void BtnDelRef_Click(object sender, EventArgs e)
+        {
+            var tDb = _cboRefTargetDb.SelectedItem as ItemMap; 
+            var tTb = _cboRefTargetTb.SelectedItem as ItemMap;
+            if (tDb == null || tTb == null || _cboRefTargetCol.SelectedItem == null) return;
+
+            if (MessageBox.Show("確定要刪除此欄位的跨表參照設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                try {
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        conn.Open();
+                        using (var cmd = new SQLiteCommand("DELETE FROM ReferenceDropdownConfigs WHERE TargetDb=@TD AND TargetTb=@TT AND TargetCol=@TC", conn)) {
+                            cmd.Parameters.AddWithValue("@TD", tDb.EnName);
+                            cmd.Parameters.AddWithValue("@TT", tTb.EnName);
+                            cmd.Parameters.AddWithValue("@TC", _cboRefTargetCol.SelectedItem.ToString());
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    LoadReferenceConfigs();
+                    RefreshRefConfiguredList();
+                    MessageBox.Show("刪除成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } catch (Exception ex) { MessageBox.Show("刪除失敗：" + ex.Message, "錯誤"); }
+            }
+        }
+
+        private void RefreshRefConfiguredList()
+        {
+            if (_flpRefConfigured == null) return;
+            _flpRefConfigured.Controls.Clear();
+            _selectedRefItemPanel = null; 
+            
+            if (ReferenceCache.Count == 0) {
+                _flpRefConfigured.Controls.Add(new Label { Text = "尚無任何設定。", ForeColor = Color.DimGray, AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F) });
+                return;
+            }
+
+            foreach (var kvp in ReferenceCache) {
+                string[] parts = kvp.Key.Split('|');
+                if (parts.Length != 3) continue;
+
+                string tDbName = parts[0];
+                string tTbName = parts[1];
+                string tColName = parts[2];
+                var srcDef = kvp.Value;
+
+                string chTTbName = tTbName;
+                string chSTbName = srcDef.SourceTb;
+
+                if (_dbMap.ContainsKey(tDbName) && _dbMap[tDbName].Tables.ContainsKey(tTbName)) chTTbName = _dbMap[tDbName].Tables[tTbName];
+                if (_dbMap.ContainsKey(srcDef.SourceDb) && _dbMap[srcDef.SourceDb].Tables.ContainsKey(srcDef.SourceTb)) chSTbName = _dbMap[srcDef.SourceDb].Tables[srcDef.SourceTb];
+
+                Panel pItem = new Panel { Width = 700, Height = 65, BackColor = Color.Honeydew, Margin = new Padding(5), Cursor = Cursors.Hand };
+                pItem.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, pItem.ClientRectangle, Color.LightGreen, ButtonBorderStyle.Solid);
+                
+                Button btnDel = new Button { 
+                    Text = "❌", Location = new Point(10, 15), Size = new Size(30, 30), 
+                    FlatStyle = FlatStyle.Flat, ForeColor = Color.IndianRed, BackColor = Color.Transparent, Cursor = Cursors.Hand
+                };
+                btnDel.FlatAppearance.BorderSize = 0;
+                
+                btnDel.Click += (s, e) => {
+                    if (MessageBox.Show($"確定要刪除【{chTTbName} - {tColName}】的跨表設定嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
+                        try {
+                            using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                                conn.Open();
+                                using (var cmd = new SQLiteCommand("DELETE FROM ReferenceDropdownConfigs WHERE TargetDb=@TD AND TargetTb=@TT AND TargetCol=@TC", conn)) {
+                                    cmd.Parameters.AddWithValue("@TD", tDbName);
+                                    cmd.Parameters.AddWithValue("@TT", tTbName);
+                                    cmd.Parameters.AddWithValue("@TC", tColName);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                            LoadReferenceConfigs();
+                            RefreshRefConfiguredList();
+                        } catch { }
+                    }
+                };
+
+                Label lTarget = new Label { Text = $"🎯 目標：{chTTbName} [{tColName}]", Location = new Point(50, 10), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkBlue, Cursor = Cursors.Hand };
+                Label lSource = new Label { Text = $"📦 來源：{chSTbName} [{srcDef.SourceCol}]", Location = new Point(50, 35), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), ForeColor = Color.DarkGreen, Cursor = Cursors.Hand };
+
+                Action selectAction = () => {
+                    if (_selectedRefItemPanel != null && _selectedRefItemPanel != pItem) {
+                        _selectedRefItemPanel.BackColor = Color.Honeydew; 
+                    }
+                    pItem.BackColor = Color.PaleGreen; 
+                    _selectedRefItemPanel = pItem;
+
+                    foreach (ItemMap item in _cboRefTargetDb.Items) { if (item.EnName == tDbName) { _cboRefTargetDb.SelectedItem = item; break; } }
+                    foreach (ItemMap item in _cboRefTargetTb.Items) { if (item.EnName == tTbName) { _cboRefTargetTb.SelectedItem = item; break; } }
+                    if (_cboRefTargetCol.Items.Contains(tColName)) _cboRefTargetCol.SelectedItem = tColName;
+
+                    foreach (ItemMap item in _cboRefSourceDb.Items) { if (item.EnName == srcDef.SourceDb) { _cboRefSourceDb.SelectedItem = item; break; } }
+                    foreach (ItemMap item in _cboRefSourceTb.Items) { if (item.EnName == srcDef.SourceTb) { _cboRefSourceTb.SelectedItem = item; break; } }
+                    if (_cboRefSourceCol.Items.Contains(srcDef.SourceCol)) _cboRefSourceCol.SelectedItem = srcDef.SourceCol;
+                };
+
+                pItem.Click += (s, e) => selectAction();
+                lTarget.Click += (s, e) => selectAction();
+                lSource.Click += (s, e) => selectAction();
+
+                pItem.Controls.Add(btnDel);
+                pItem.Controls.Add(lTarget);
+                pItem.Controls.Add(lSource);
+                _flpRefConfigured.Controls.Add(pItem);
+            }
+            
+            _flpRefConfigured.Resize -= FlpRefConfigured_Resize; 
+            _flpRefConfigured.Resize += FlpRefConfigured_Resize;
+        }
+
+        private void FlpRefConfigured_Resize(object sender, EventArgs e)
+        {
+            foreach (Control ctrl in _flpRefConfigured.Controls)
+            {
+                if (ctrl is Panel pnl)
+                {
+                    pnl.Width = _flpRefConfigured.ClientSize.Width - 20;
+                }
+            }
+        }
+
+        private void HandleColSelectionChanged(int colIndex) {
+            if (_isRevertingCol) return;
+            string selectedCol = _cboCols[colIndex].Text;
+            string tbName = ((ItemMap)_cboTable.SelectedItem)?.EnName ?? "";
+            string dbName = ((ItemMap)_cboDb.SelectedItem)?.EnName ?? "";
+            
+            if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
+                
+                // 🟢 加入通用防呆
+                string conflict = CheckColumnConflict(dbName, tbName, selectedCol, "TabSingle");
+                if (conflict != null) {
+                    MessageBox.Show($"此欄位【{selectedCol}】已在 {conflict} 中設定過！\n為避免系統判斷異常，同一欄位不可重複設定為不同型態。\n\n請先前往該分頁刪除設定後再試。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _isRevertingCol = true;
+                    _cboCols[colIndex].SelectedIndex = 0; 
+                    _isRevertingCol = false;
+                    return;
+                }
+
+                for (int i = 0; i < 4; i++) {
+                    if (i != colIndex && _cboCols[i].Text == selectedCol) {
+                        MessageBox.Show("此欄位已在本頁面其他層級被設定，為防止系統錯亂，請勿重複選擇！", "重複選擇防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        _isRevertingCol = true;
+                        _cboCols[colIndex].SelectedIndex = 0; 
+                        _isRevertingCol = false;
+                        return;
+                    }
+                }
+            }
+
+            try {
+                if (colIndex == 0) {
+                    if (!string.IsNullOrEmpty(tbName) && !string.IsNullOrEmpty(selectedCol)) {
+                        LoadOptionsToGrid(tbName, selectedCol, "", "", _dgvOptions[0], false);
+                        UpdateChildParentVals(1, _dgvOptions[0]);
+                    } else {
+                        _dgvOptions[0].Rows.Clear();
+                        UpdateChildParentVals(1, _dgvOptions[0]);
+                    }
+                }
+            } catch { }
+        }
+
+        private void CboColMulti_SelectedIndexChanged_Event(object sender, EventArgs e) {
+            if (_isRevertingMultiCol) return;
+
+            _dgvOptionsMulti.Rows.Clear();
+            var db = _cboDbMulti.SelectedItem as ItemMap;
+            var tb = _cboTableMulti.SelectedItem as ItemMap;
+            if (db != null && tb != null && _cboColMulti.SelectedItem != null) {
+                string colName = _cboColMulti.SelectedItem.ToString();
+                
+                // 🟢 加入通用防呆
+                string conflict = CheckColumnConflict(db.EnName, tb.EnName, colName, "TabMulti");
+                if (conflict != null) {
+                    MessageBox.Show($"此欄位【{colName}】已在 {conflict} 中設定過！\n為避免系統判斷異常，同一欄位不可重複設定為不同型態。\n\n請先前往該分頁刪除設定後再試。", "防呆攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _isRevertingMultiCol = true;
+                    _cboColMulti.SelectedIndex = -1; 
+                    _isRevertingMultiCol = false;
+                    return;
+                }
+
+                LoadOptionsToGrid(tb.EnName, colName, "", "", _dgvOptionsMulti, true);
+            }
+        }
+
         private void ExtractDataFromDB(int colIndex, bool isMulti)
         {
             string db = isMulti ? ((ItemMap)_cboDbMulti.SelectedItem)?.EnName : ((ItemMap)_cboDb.SelectedItem)?.EnName;
