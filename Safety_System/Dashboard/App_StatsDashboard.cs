@@ -132,7 +132,6 @@ namespace Safety_System
             try {
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
-                    // 🟢 嚴格綁定 MenuName，確保不同主選單間的主題隔離
                     using (var cmd = new SQLiteCommand($"SELECT * FROM {TblThemes} WHERE MenuName=@M", conn)) {
                         cmd.Parameters.AddWithValue("@M", _menuDbName);
                         using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtThemes);
@@ -177,8 +176,8 @@ namespace Safety_System
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            // ====== 第一行：操作列 ======
-            FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(0, 5, 0, 15) };
+            // ====== 第一行：操作列 (🟢 WrapContents 改為 true 解決按鈕超出螢幕被截斷問題) ======
+            FlowLayoutPanel flpControls = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Padding = new Padding(0, 5, 0, 15) };
             
             ui.CboStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 90, Margin = new Padding(10, 6, 5, 0) };
             ui.CboStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60, Margin = new Padding(0, 6, 5, 0) };
@@ -196,16 +195,15 @@ namespace Safety_System
             ui.CboEndMonth.SelectedItem = prevMonth.Month.ToString("D2");
 
             Button btnSearch = new Button { Text = "🔍 讀取", Size = new Size(100, 36), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSearch.FlatAppearance.BorderSize = 0;
-            // 🟢 重新統計按鈕加寬至 165
-            Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(165, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
+            Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(145, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
             Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
             Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
             
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, 36), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnPdf.FlatAppearance.BorderSize = 0;
-            Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(130, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
+            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(135, 36), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnPdf.FlatAppearance.BorderSize = 0;
+            Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(140, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
 
-            // 🟢 刪除按鍵總寬度固定為 80
-            Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(80, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
+            // 🟢 刪除按鍵總寬度固定為 60 (節省空間)
+            Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(60, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
             flpControls.Controls.AddRange(new Control[] {
                 new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 10, 0, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
@@ -260,7 +258,6 @@ namespace Safety_System
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
-                            // 🟢 刪除也嚴格綁定 ThemeId，互不干擾
                             new SQLiteCommand($"DELETE FROM {TblThemes} WHERE Id={themeId}", conn).ExecuteNonQuery();
                             new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={themeId}", conn).ExecuteNonQuery();
                             new SQLiteCommand($"DELETE FROM {TblRecords} WHERE ThemeId={themeId}", conn).ExecuteNonQuery();
@@ -372,7 +369,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 讀取模式 (區間交集演算法：合併附件與備註)
+        // 讀取模式 (區間交集演算法：合併附件與備註)
         // ==========================================
         private async Task CalculateAndLoadGrid(ThemeSectionUI ui)
         {
@@ -389,13 +386,11 @@ namespace Safety_System
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
-                        // 🟢 嚴格綁定 ThemeId，確保不同主題間不會互相讀取
                         using (var cmd = new SQLiteCommand($"SELECT * FROM {TblConfigs} WHERE ThemeId=@T", conn)) {
                             cmd.Parameters.AddWithValue("@T", ui.ThemeId);
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtConfigs);
                         }
                         
-                        // 🟢 抓取該主題下的「所有歷史紀錄」，我們在記憶體中進行交集篩選
                         using (var cmd = new SQLiteCommand($"SELECT * FROM {TblRecords} WHERE ThemeId=@T", conn)) {
                             cmd.Parameters.AddWithValue("@T", ui.ThemeId);
                             using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtRecords);
@@ -403,7 +398,6 @@ namespace Safety_System
                     }
                 } catch { return; }
 
-                // 🟢 使用 Dictionary + HashSet 自動過濾重複的附件與備註
                 Dictionary<string, (HashSet<string> Atts, HashSet<string> Rems)> mergedHistory = new Dictionary<string, (HashSet<string>, HashSet<string>)>();
 
                 foreach (DataRow r in dtRecords.Rows) {
@@ -411,14 +405,12 @@ namespace Safety_System
                     string recE = r["PeriodEnd"].ToString();
                     string itemName = r["ItemName"].ToString();
 
-                    // 判斷日期區間是否有交集 (Overlap: recStart <= queryEnd AND recEnd >= queryStart)
                     if (string.Compare(recS, endYM) <= 0 && string.Compare(recE, startYM) >= 0) {
                         
                         if (!mergedHistory.ContainsKey(itemName)) {
                             mergedHistory[itemName] = (new HashSet<string>(), new HashSet<string>());
                         }
 
-                        // 合併附件
                         string att = r["Attachment"]?.ToString() ?? "";
                         if (!string.IsNullOrWhiteSpace(att)) {
                             foreach (string p in att.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)) {
@@ -426,7 +418,6 @@ namespace Safety_System
                             }
                         }
 
-                        // 合併備註
                         string rem = r["Remarks"]?.ToString() ?? "";
                         if (!string.IsNullOrWhiteSpace(rem)) {
                             mergedHistory[itemName].Rems.Add(rem.Trim());
@@ -441,10 +432,8 @@ namespace Safety_System
                     string itemName = cfgRow["ItemName"].ToString();
                     string template = cfgRow["FormulaTemplate"].ToString();
 
-                    // 呼叫共用的公式運算引擎，計算最新數據
                     string evalText = EvaluateStatsFormula(template, startYM, endYM, tableCache);
 
-                    // 🟢 寫入合併後的附件與備註
                     string finalAttach = "";
                     string finalRemarks = "";
                     if (mergedHistory.ContainsKey(itemName)) {
@@ -465,7 +454,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 重新統計模式 (保留 Grid 上編輯中的備註與附件，僅重算數據)
+        // 重新統計模式 (保留 Grid 上編輯中的備註與附件，僅重算數據)
         // ==========================================
         private async Task RecalculateGridData(ThemeSectionUI ui)
         {
@@ -532,7 +521,6 @@ namespace Safety_System
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
                         
-                        // 🟢 刪除舊資料時，嚴格綁定 ThemeId 避免誤刪其他主題的資料
                         new SQLiteCommand($"DELETE FROM {TblRecords} WHERE ThemeId={ui.ThemeId} AND PeriodStart='{startYM}' AND PeriodEnd='{endYM}'", conn, trans).ExecuteNonQuery();
 
                         string sql = $"INSERT INTO {TblRecords} (ThemeId, PeriodStart, PeriodEnd, ItemName, DataValue, Attachment, Remarks) VALUES (@T, @PS, @PE, @IN, @DV, @A, @R)";
@@ -584,7 +572,6 @@ namespace Safety_System
                 if (ui.Dgv.Columns[e.ColumnIndex].Name == "附件檔案") 
                 {
                     string currentVal = ui.Dgv[e.ColumnIndex, e.RowIndex].Value?.ToString() ?? "";
-                    // 🟢 附件資料夾結構加入日期區間以確保 Traceability
                     string targetFolder = $"{ui.ThemeId}/{ui.CboStartYear.Text}-{ui.CboStartMonth.Text}_{ui.CboEndYear.Text}-{ui.CboEndMonth.Text}"; 
                     
                     using (var frm = new AttachmentManagerUI(currentVal, "StatsDashboard", ui.ThemeId.ToString(), targetFolder, delegate(string path) { DeletePhysicalFile(path, ui.Dgv, e.RowIndex); })) {
@@ -620,11 +607,10 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 設定視窗：套用尺寸與間距優化，加入排序功能
+        // 🟢 設定視窗：解決高度重疊與間距調整
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
-            // 🟢 Form 加寬至 1380 容納變數產生器的新寬度
             using (Form f = new Form { Text = $"⚙️ 設定顯示與公式 - {ui.ThemeName}", Size = new Size(1380, 750), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -638,13 +624,11 @@ namespace Safety_System
 
                 Label l1 = new Label { Text = "清單項目 (拖曳可排序)", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35, Padding = new Padding(0,10,0,0) };
                 
-                // 🟢 左側選單：增加雙緩衝防閃爍，並允許滑鼠拖放排序
                 DataGridView dgvItems = new DataGridView { Dock = DockStyle.Fill, AllowUserToAddRows=false, RowHeadersVisible=false, ColumnHeadersVisible=false, SelectionMode=DataGridViewSelectionMode.FullRowSelect, BackgroundColor=Color.White, AllowDrop=true, MultiSelect=false };
                 dgvItems.Columns.Add("Name", "Name"); dgvItems.Columns["Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; dgvItems.Columns["Name"].ReadOnly = true;
                 
                 typeof(DataGridView).InvokeMember("DoubleBuffered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, null, dgvItems, new object[] { true });
 
-                // ======= 下方按鈕區塊 (包含 上移、下移、刪除) =======
                 Panel pnlLeftActions = new Panel { Dock = DockStyle.Bottom, Height = 120, Padding = new Padding(0, 10, 0, 0) };
                 Button btnDown = new Button { Text = "↓ 下移", Dock = DockStyle.Top, Height = 35, BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 5 }; 
@@ -667,44 +651,43 @@ namespace Safety_System
 
                 FlowLayoutPanel flpEditor = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
                 
-                // 🟢 加寬上方容器
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "項目名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
                 TextBox txtName = new TextBox { Width = 350, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 變數產生器 高度設定為 120 (加高) 以容納第二排
-                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 120, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
+                // 🟢 變數產生器：高度加高至 135 確保第二排的 ComboBox 顯示正常
+                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 135, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、數值欄、日期欄 (🟢 調整 Y 座標與間距)
-                pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbDb = new ComboBox { Location = new Point(45, 12), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第一排：庫、表、數值欄、日期欄 (Y=20/22)
+                pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbDb = new ComboBox { Location = new Point(45, 22), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDb);
 
-                pnlBuilder.Controls.Add(new Label { Text = "表:", Location = new Point(195, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbTb = new ComboBox { Location = new Point(230, 12), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "表:", Location = new Point(195, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbTb = new ComboBox { Location = new Point(230, 22), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbTb);
 
-                pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(440, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(440, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 // 🟢 +20px 間距
-                ComboBox cbCol = new ComboBox { Location = new Point(515, 12), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbCol = new ComboBox { Location = new Point(515, 22), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbCol);
 
-                pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(685, 15), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(685, 25), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 // 🟢 +20px 間距
-                ComboBox cbDateCol = new ComboBox { Location = new Point(760, 12), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbDateCol = new ComboBox { Location = new Point(760, 22), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDateCol);
 
-                // 第二排：動作、插入按鈕 (🟢 調整 Y 座標使其可見)
-                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbAction = new ComboBox { Location = new Point(65, 57), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第二排：動作、插入按鈕 (Y=75/72) 🟢 下拉避免與上排重疊
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 75), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbAction = new ComboBox { Location = new Point(65, 72), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
                 cbAction.SelectedIndex = 0;
                 pnlBuilder.Controls.Add(cbAction);
 
-                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 120, Height = 35, Location = new Point(220, 56), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Button btnInsert = new Button { Text = "插入 ⬇️", Width = 90, Height = 32, Location = new Point(220, 70), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 pnlBuilder.Controls.Add(btnInsert);
 
@@ -747,10 +730,9 @@ namespace Safety_System
 
                 Label lblDesc = new Label { Text = "混合圖文公式編輯區：\n(請將純文字打在外面，將要數學計算的聚合公式包在 { 大括號 } 裡面)", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0,10,0,5), ForeColor=Color.DarkMagenta };
                 
-                // 🟢 同步加寬快捷鍵與輸入框 (920 -> 1000)
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=1000, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
-                RichTextBox rtbFormula = new RichTextBox { Width=1000, Height=190, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                RichTextBox rtbFormula = new RichTextBox { Width=1000, Height=210, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
                 
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 45, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand, BackColor=Color.WhiteSmoke };
@@ -802,7 +784,6 @@ namespace Safety_System
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
-                        // 🟢 載入設定時，嚴格綁定 ThemeId
                         using (var cmd = new SQLiteCommand($"SELECT ItemName, FormulaTemplate FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn))
                         using (var reader = cmd.ExecuteReader()) {
                             while(reader.Read()) {
@@ -821,7 +802,6 @@ namespace Safety_System
                     isSyncing = false;
                 };
 
-                // 🟢 實作排序與拖曳核心事件 (針對 dgvItems 與 configs 的同步)
                 int dragFromIdx = -1;
                 int dragToIdx = -1;
                 Rectangle dragBox = Rectangle.Empty;
@@ -865,7 +845,6 @@ namespace Safety_System
                     if (targetIdx < 0) targetIdx = dgvItems.Rows.Count - 1;
 
                     if (dragFromIdx >= 0 && dragFromIdx != targetIdx) {
-                        // 同步調整 List 記憶體順序
                         var item = configs[dragFromIdx];
                         configs.RemoveAt(dragFromIdx);
                         configs.Insert(targetIdx, item);
@@ -887,13 +866,11 @@ namespace Safety_System
                     if (dragToIdx >= 0 && dragToIdx < dgvItems.Rows.Count) {
                         Rectangle r = dgvItems.GetRowDisplayRectangle(dragToIdx, false);
                         using (Pen pen = new Pen(Color.Red, 3)) {
-                            // 在目標列的上方畫出紅色分割線
                             e.Graphics.DrawLine(pen, r.Left, r.Top, r.Right, r.Top);
                         }
                     }
                 };
 
-                // 🟢 實作上下按鈕事件
                 btnUp.Click += (s, e) => {
                     if (dgvItems.SelectedRows.Count > 0) {
                         int idx = dgvItems.SelectedRows[0].Index;
@@ -978,11 +955,9 @@ namespace Safety_System
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                             conn.Open();
                             using (var trans = conn.BeginTransaction()) {
-                                // 🟢 刪除舊資料時，嚴格綁定 ThemeId 避免誤刪其他主題的資料
                                 new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn, trans).ExecuteNonQuery();
                                 
                                 string sql = $"INSERT INTO {TblConfigs} (ThemeId, ItemName, FormulaTemplate) VALUES ({ui.ThemeId}, @N, @F)";
-                                // 依據 Grid 目前的順序寫入資料庫，確保儲存的是調整後的順序
                                 foreach(DataGridViewRow dgvRow in dgvItems.Rows) {
                                     string currentName = dgvRow.Cells[0].Value.ToString();
                                     var targetConfig = configs.FirstOrDefault(c => c.Name == currentName);
