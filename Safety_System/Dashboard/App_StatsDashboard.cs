@@ -196,13 +196,16 @@ namespace Safety_System
             ui.CboEndYear.SelectedItem = prevMonth.Year.ToString(); 
             ui.CboEndMonth.SelectedItem = prevMonth.Month.ToString("D2");
 
-            Button btnSearch = new Button { Text = "🔍 讀取 / 結算", Size = new Size(130, 36), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSearch.FlatAppearance.BorderSize = 0;
-            Button btnSave = new Button { Text = "💾 儲存表格資料", Size = new Size(150, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
-            Button btnSettings = new Button { Text = "⚙️ 顯示與公式設定", Size = new Size(170, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
+            // 🟢 文字與寬度修正
+            Button btnSearch = new Button { Text = "🔍 讀取", Size = new Size(100, 36), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSearch.FlatAppearance.BorderSize = 0;
+            Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
+            Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
+            
             Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(120, 36), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnPdf.FlatAppearance.BorderSize = 0;
             Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(130, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
 
-            Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(50, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
+            // 🟢 寬度加寬至 55 避免遮住
+            Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(55, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
             flpControls.Controls.AddRange(new Control[] {
                 new Label { Text = "查詢區間:", AutoSize = true, Margin = new Padding(0, 10, 0, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
@@ -488,7 +491,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 設定視窗 (修正：載入與儲存邏輯)
+        // 設定視窗 (自訂項目與公式)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -535,8 +538,6 @@ namespace Safety_System
                 
                 Panel pName = new Panel { Width = 950, Height = 45 };
                 pName.Controls.Add(new Label { Text = "項目名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                
-                // 🟢 修正：增加間隔 (+20px => X=120)
                 TextBox txtName = new TextBox { Width = 350, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
@@ -610,7 +611,6 @@ namespace Safety_System
                 pnlBottom.Controls.Add(btnImp); pnlBottom.Controls.Add(btnExp); pnlBottom.Controls.Add(btnSaveAll);
                 f.Controls.Add(tlp); f.Controls.Add(pnlBottom);
 
-                // 🟢 修正：使用自訂類別，防止 Tuples 參考更新遺失
                 var configs = new List<EditingConfig>();
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -626,7 +626,6 @@ namespace Safety_System
 
                 bool isSyncing = false;
 
-                // 🟢 修正：確保 ListBox 載入後正確觸發選擇事件
                 Action refreshList = () => { 
                     isSyncing = true;
                     dgvItems.Rows.Clear(); 
@@ -681,7 +680,7 @@ namespace Safety_System
                 };
 
                 btnSaveAll.Click += (s, e) => {
-                    btnSaveAll.Focus(); // 強制失去焦點，觸發 TextChanged
+                    btnSaveAll.Focus(); 
                     
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -689,7 +688,6 @@ namespace Safety_System
                             using (var trans = conn.BeginTransaction()) {
                                 new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn, trans).ExecuteNonQuery();
                                 
-                                // 依照拖曳後的 DGV 順序寫入資料庫
                                 string sql = $"INSERT INTO {TblConfigs} (ThemeId, ItemName, FormulaTemplate) VALUES ({ui.ThemeId}, @N, @F)";
                                 foreach(DataGridViewRow dgvRow in dgvItems.Rows) {
                                     string currentName = dgvRow.Cells[0].Value.ToString();
@@ -710,7 +708,6 @@ namespace Safety_System
                     } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
                 };
 
-                // 匯出匯入邏輯
                 btnExp.Click += (s, e) => {
                     using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = $"統計設定_{ui.ThemeName}_{DateTime.Now:yyyyMMdd}" }) {
                         if (sfd.ShowDialog() == DialogResult.OK) {
