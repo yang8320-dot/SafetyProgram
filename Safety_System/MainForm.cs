@@ -242,13 +242,16 @@ namespace Safety_System
             var menuTest = new ToolStripMenuItem("檢測數據");
             menuTest.DropDownItems.Add(CreateItem("G11 檢測數據看版", () => new App_TestDashboard().GetView()));
             menuTest.DropDownItems.Add(CreateItem("G12 量測項目一覽表", () => new App_TestMeasurementSummary().GetView())); 
-            menuTest.DropDownItems.Add(CreateItem("G13 檢測報告分析評估表", () => new App_TestReportEvaluation().GetView()));
+            
+            // 🟢 新增：G13 環測數據一覽表
+            menuTest.DropDownItems.Add(CreateItem("G13 環測數據一覽表", () => new App_EnvTestSummary().GetView())); 
+            
+            // 🟢 修正：G13 變更為 G19
+            menuTest.DropDownItems.Add(CreateItem("G19 檢測報告分析評估表", () => new App_TestReportEvaluation().GetView()));
             
             menuTest.DropDownItems.Add(new ToolStripSeparator());
             menuTest.DropDownItems.Add(CreateItem("G21 環境監測", () => new App_CoreTable("TestData", "EnvMonitor", "環境監測", new DefaultLogic()).GetView()));
-            // 🟢 新增：G21.1 相似暴露族群劃分表
             menuTest.DropDownItems.Add(CreateItem("G21.1 相似暴露族群劃分表", () => new App_CoreTable("TestData", "SimilarExposureGroup", "相似暴露族群劃分表", new DefaultLogic()).GetView()));
-            
             menuTest.DropDownItems.Add(CreateItem("G22 廢水定申檢", () => new App_CoreTable("TestData", "WastewaterPeriodic", "廢水定申檢", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G23 飲用水檢測", () => new App_CoreTable("TestData", "DrinkingWater", "飲用水檢測", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G24 工業區檢驗", () => new App_CoreTable("TestData", "IndustrialZoneTest", "工業區檢驗", new DefaultLogic()).GetView()));
@@ -357,7 +360,6 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    // 🟢 [修正完成] 使用 _mainMenu 取代原本錯誤的 _mainMenuRef
                     new App_PermissionManager(_mainMenu).ShowDialog(this); 
                 }
             };
