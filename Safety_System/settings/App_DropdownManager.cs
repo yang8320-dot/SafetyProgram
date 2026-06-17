@@ -2031,5 +2031,151 @@ namespace Safety_System
             if (MultiSelectCache.ContainsKey(key)) return MultiSelectCache[key].Select(d => d.Text).ToArray();
             return null;
         }
+        // =======================================================
+        // DataGridView 拖曳與排序邏輯 (遺漏的事件補回)
+        // =======================================================
+        private void DgvOptions_MouseDown(object sender, MouseEventArgs e)
+        {
+            DataGridView dgv = (DataGridView)sender;
+            var hit = dgv.HitTest(e.X, e.Y);
+            
+            if (hit.RowIndex >= 0 && hit.ColumnIndex == -1 && !dgv.Rows[hit.RowIndex].IsNewRow)
+            {
+                _dragFromRowIndex = hit.RowIndex;
+                Size dragSize = SystemInformation.DragSize;
+                _dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2), e.Y - (dragSize.Height / 2)), dragSize);
+            }
+            else
+            {
+                _dragBox = Rectangle.Empty;
+            }
+        }
+
+        private void DgvOptions_MouseMove(object sender, MouseEventArgs e)
+        {
+            if ((e.Button & MouseButtons.Left) == MouseButtons.Left)
+            {
+                if (_dragBox != Rectangle.Empty && !_dragBox.Contains(e.X, e.Y))
+                {
+                    DataGridView dgv = (DataGridView)sender;
+                    dgv.DoDragDrop(dgv.Rows[_dragFromRowIndex], DragDropEffects.Move);
+                }
+            }
+        }
+
+        private void DgvOptions_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effect = DragDropEffects.Move;
+        }
+
+        private void DgvOptions_DragDrop(object sender, DragEventArgs e)
+        {
+            DataGridView dgv = (DataGridView)sender;
+            Point clientPoint = dgv.PointToClient(new Point(e.X, e.Y));
+            var hit = dgv.HitTest(clientPoint.X, clientPoint.Y);
+            
+            int targetRowIndex = hit.RowIndex;
+
+            if (targetRowIndex < 0 || targetRowIndex >= dgv.Rows.Count - 1) 
+            {
+                targetRowIndex = dgv.Rows.Count - 2; 
+            }
+
+            if (e.Data.GetDataPresent(typeof(DataGridViewRow)))
+            {
+                DataGridViewRow dragRow = (DataGridViewRow)e.Data.GetData(typeof(DataGridViewRow));
+                int sourceRowIndex = dragRow.Index;
+
+                if (sourceRowIndex != targetRowIndex && targetRowIndex >= 0 && sourceRowIndex >= 0)
+                {
+                    dgv.EndEdit(); 
+                    dgv.Rows.RemoveAt(sourceRowIndex);
+                    dgv.Rows.Insert(targetRowIndex, dragRow);
+                    dgv.ClearSelection();
+                    dgv.CurrentCell = dgv[0, targetRowIndex];
+                }
+            }
+        }
+
+        private void MoveRowUp(DataGridView dgv)
+        {
+            if (dgv.CurrentCell != null)
+            {
+                int idx = dgv.CurrentCell.RowIndex;
+                int colIdx = dgv.CurrentCell.ColumnIndex;
+                if (idx > 0 && !dgv.Rows[idx].IsNewRow)
+                {
+                    dgv.EndEdit();
+                    DataGridViewRow row = dgv.Rows[idx];
+                    dgv.Rows.RemoveAt(idx);
+                    dgv.Rows.Insert(idx - 1, row);
+                    dgv.CurrentCell = dgv[colIdx, idx - 1];
+                }
+            }
+        }
+
+        private void MoveRowDown(DataGridView dgv)
+        {
+            if (dgv.CurrentCell != null)
+            {
+                int idx = dgv.CurrentCell.RowIndex;
+                int colIdx = dgv.CurrentCell.ColumnIndex;
+                if (idx < dgv.Rows.Count - 2 && !dgv.Rows[idx].IsNewRow)
+                {
+                    dgv.EndEdit();
+                    DataGridViewRow row = dgv.Rows[idx];
+                    dgv.Rows.RemoveAt(idx);
+                    dgv.Rows.Insert(idx + 1, row);
+                    dgv.CurrentCell = dgv[colIdx, idx + 1];
+                }
+            }
+        }
+
+        private void DgvOptions_CellContentClick(object sender, DataGridViewCellEventArgs e, int gridIndex, bool isMulti)
+        {
+            if (e.RowIndex < 0) return;
+            DataGridView dgv = isMulti ? _dgvOptionsMulti : _dgvOptions[gridIndex];
+
+            if (dgv.Columns[e.ColumnIndex].Name == "Upload")
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog { Filter = "圖片檔案 (*.png;*.jpg;*.jpeg;*.ico)|*.png;*.jpg;*.jpeg;*.ico", Title = "選擇小圖示 (建議正方形)" })
+                {
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                        try
+                        {
+                            using (Image img = Image.FromFile(ofd.FileName))
+                            {
+                                using (Bitmap bmp = new Bitmap(24, 24))
+                                {
+                                    using (Graphics g = Graphics.FromImage(bmp))
+                                    {
+                                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                                        g.SmoothingMode = SmoothingMode.AntiAlias;
+                                        g.DrawImage(img, 0, 0, 24, 24);
+                                    }
+                                    using (MemoryStream ms = new MemoryStream())
+                                    {
+                                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                        string base64 = Convert.ToBase64String(ms.ToArray());
+                                        dgv.Rows[e.RowIndex].Cells["Icon"].Tag = base64; 
+                                        dgv.Rows[e.RowIndex].Cells["Icon"].Value = Image.FromStream(new MemoryStream(ms.ToArray())); 
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("圖片處理失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+            }
+            else if (dgv.Columns[e.ColumnIndex].Name == "Clear")
+            {
+                dgv.Rows[e.RowIndex].Cells["Icon"].Tag = null;
+                dgv.Rows[e.RowIndex].Cells["Icon"].Value = null;
+            }
+        }
     }
 }
