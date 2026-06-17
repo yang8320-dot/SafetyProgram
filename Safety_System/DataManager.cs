@@ -59,6 +59,12 @@ namespace Safety_System
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);"; cmd.ExecuteNonQuery();
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS System_DeleteLogs (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, RecordId INTEGER, DeletedBy TEXT, DeletedTime TEXT);"; cmd.ExecuteNonQuery();
 
+                    // 🟢 修正：強制將 MultiSelectConfigs (組合文字) 寫入正確的系統設定檔
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS MultiSelectConfigs (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));"; cmd.ExecuteNonQuery();
+                    
+                    // 🟢 修正：強制將 ReferenceDropdownConfigs (跨表參照) 寫入正確的系統設定檔
+                    cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ReferenceDropdownConfigs (Id INTEGER PRIMARY KEY AUTOINCREMENT, TargetDb TEXT, TargetTb TEXT, TargetCol TEXT, SourceDb TEXT, SourceTb TEXT, SourceCol TEXT, UNIQUE(TargetDb, TargetTb, TargetCol));"; cmd.ExecuteNonQuery();
+
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);"; 
                     cmd.ExecuteNonQuery();
 
@@ -331,9 +337,6 @@ namespace Safety_System
             } catch { }
         }
 
-        // =========================================================================
-        // 🟢 寫入引擎核心修復：全面採用「參數索引映射 (p0, p1...)」徹底解決 % 崩潰
-        // =========================================================================
         public static bool BulkSaveTable(string dbName, string tableName, DataTable dt, IProgress<int> progInt = null, IProgress<string> progStr = null)
         {
             if (dt == null || dt.Rows.Count == 0) return true; 
@@ -380,7 +383,6 @@ namespace Safety_System
 
                             int existingId = -1;
                             
-                            // 🟢 檢查防重寫，參數全面改用索引命名 (k0, k1...)
                             if (activeKeys.Count > 0) {
                                 List<string> whereClauses = new List<string>();
                                 for (int kIdx = 0; kIdx < activeKeys.Count; kIdx++) {
@@ -403,7 +405,6 @@ namespace Safety_System
                             using (var cmd = new SQLiteCommand(conn)) {
                                 cmd.Transaction = trans;
                                 
-                                // 🟢 參數全面改用索引命名 (p0, p1...)
                                 if (isUpdate) {
                                     int targetId = existingId != -1 ? existingId : Convert.ToInt32(row["Id"]);
                                     List<string> sqlParts = new List<string>();
@@ -478,7 +479,6 @@ namespace Safety_System
 
                 var cmd = new SQLiteCommand(conn);
                 
-                // 🟢 單筆寫入引擎也同步升級參數索引映射
                 if (isUpdate) {
                     List<string> sets = new List<string>();
                     int pIdx = 0;
