@@ -116,13 +116,11 @@ namespace Safety_System
 
             FlowLayoutPanel flpFormulaBlock = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(15, 10, 10, 15) };
 
-            // 🟢 公式編輯器提示字眼動態變更
             Label lblFormula = new Label { 
                 Text = "編輯公式：", 
                 AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 10), ForeColor = Color.DarkCyan 
             };
 
-            // 🟢 UI 連動邏輯：開啟對應的工具列與提示
             _cboFormulaType.SelectedIndexChanged += (s, e) => {
                 string selType = _cboFormulaType.SelectedItem.ToString();
                 bool showMathTools = (selType == "數學運算" || selType == "運算+文字");
@@ -147,7 +145,6 @@ namespace Safety_System
             FlowLayoutPanel pnlActionTools = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 10) };
             
             _pnlOps = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
-            // 🟢 運算子加入大括號，方便使用者快速插入
             string[] ops = { "+", "-", "*", "/", "(", ")", "{", "}" };
             foreach (string op in ops) {
                 Button b = new Button { Text = op, Width = 45, Height = 35, Font = new Font("Consolas", 14F, FontStyle.Bold), Cursor = Cursors.Hand, BackColor = Color.WhiteSmoke };
@@ -465,6 +462,284 @@ namespace Safety_System
             if (MessageBox.Show($"公式已儲存。\n\n是否要立即在背景重新計算【{tableName}】的所有歷史資料？\n\n(系統將以低記憶體消耗方式逐筆刷新，並自動觸發相關的資料同步)", "背景重算確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
                 await RunBackgroundRecalculation(dbName, tableName);
             }
+        }
+
+        private async Task RunBackgroundRecalculation(string dbName, string tableName)
+        {
+            bool hasChanges = false;
+            using (ProgressForm progForm = new ProgressForm("重新計算歷史資料中..."))
+            {
+                await progForm.ExecuteAsync(async delegate(IProgress<int> progInt, IProgress<string> progStr)
+                {
+                    await Task.Run(() =>
+                    {
+                        progStr.Report($"正在讀取資料表：{tableName} ...");
+                        progInt.Report(5);
+                        
+                        DataTable dt = DataManager.GetTableData(dbName, tableName, "", "", "");
+                        if (dt == null || dt.Rows.Count == 0) return;
+
+                        DataTable dtFormulas = new DataTable();
+                        using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                            conn.Open();
+                            using (var cmd = new SQLiteCommand("SELECT * FROM ColumnFormulas WHERE DbName=@DB AND TableName=@TB", conn)) {
+                                cmd.Parameters.AddWithValue("@DB", dbName); cmd.Parameters.AddWithValue("@TB", tableName);
+                                using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtFormulas);
+                            }
+                        }
+                        if (dtFormulas.Rows.Count == 0) return;
+
+                        Regex priceRegex = new Regex(@"PRICE\((?<cat>[^\)]+)\)");
+                        Regex fieldRegex = new Regex(@"\[(.*?)\]");
+                        Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
+                        Regex mathBlockRegex = new Regex(@"\{(?<expr>[^\}]+)\}");
+
+                        Dictionary<string, DataTable> foreignTablesCache = new Dictionary<string, DataTable>();
+                        foreach (DataRow fRow in dtFormulas.Rows) {
+                            if (fRow["FormulaType"].ToString() == "運算+文字") {
+                                var matches = crossRegex.Matches(fRow["Formula"].ToString());
+                                foreach (Match m in matches) {
+                                    string fDb = m.Groups["db"].Value; string fTb = m.Groups["tb"].Value;
+                                    string cacheKey = $"{fDb}|{fTb}";
+                                    if (!foreignTablesCache.ContainsKey(cacheKey)) {
+                                        foreignTablesCache[cacheKey] = DataManager.GetTableData(fDb, fTb, "", "", "");
+                                    }
+                                }
+                            }
+                        }
+
+                        int totalRows = dt.Rows.Count;
+
+                        using (DataTable dtMath = new DataTable())
+                        {
+                            for (int i = 0; i < totalRows; i++)
+                            {
+                                if (i % 50 == 0 || i == totalRows - 1) {
+                                    progInt.Report(5 + (int)((double)(i + 1) / totalRows * 80)); 
+                                    progStr.Report($"正在計算與更新資料： 第 {i + 1} 筆 / 共 {totalRows} 筆");
+                                }
+
+                                DataRow row = dt.Rows[i];
+                                bool rowChanged = false;
+
+                                foreach (DataRow fRow in dtFormulas.Rows)
+                                {
+                                    string tCol = fRow["TargetCol"].ToString();
+                                    string mCol = fRow["MatchCol"].ToString();
+                                    string sDate = fRow["StartDate"].ToString();
+                                    string eDate = fRow["EndDate"].ToString();
+                                    string fType = fRow.Table.Columns.Contains("FormulaType") ? fRow["FormulaType"].ToString() : "數學運算";
+                                    string rawFormula = fRow["Formula"].ToString();
+                                    
+                                    int decPlaces = fRow["DecimalPlaces"] == DBNull.Value ? 4 : Convert.ToInt32(fRow["DecimalPlaces"]);
+                                    string rMode = fRow["RoundingMode"].ToString() == "" ? "四捨五入" : fRow["RoundingMode"].ToString();
+
+                                    if (!dt.Columns.Contains(tCol)) continue;
+
+                                    if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
+                                        string rDate = row[mCol]?.ToString().Trim() ?? "";
+                                        if (string.IsNullOrEmpty(rDate)) continue;
+                                        if (string.Compare(rDate, sDate) < 0 || string.Compare(rDate, eDate) > 0) continue;
+                                    }
+
+                                    string evalFormula = rawFormula;
+
+                                    if (fType == "組合文字") {
+                                        var fieldMatches = fieldRegex.Matches(evalFormula);
+                                        foreach (Match m in fieldMatches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (dt.Columns.Contains(colName)) {
+                                                string val = row[colName]?.ToString().Trim() ?? "";
+                                                evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                            }
+                                        }
+                                        if (row[tCol]?.ToString() != evalFormula) {
+                                            row[tCol] = evalFormula; rowChanged = true;
+                                        }
+                                    } 
+                                    else if (fType == "運算+文字") {
+                                        var mathBlocks = mathBlockRegex.Matches(evalFormula);
+                                        foreach (Match mBlock in mathBlocks) {
+                                            string expr = mBlock.Groups["expr"].Value;
+                                            var crossMatches = crossRegex.Matches(expr);
+                                            foreach (Match m in crossMatches) {
+                                                string agg = m.Groups["agg"].Value;
+                                                string fDb = m.Groups["db"].Value;
+                                                string fTb = m.Groups["tb"].Value;
+                                                string fCol = m.Groups["col"].Value;
+
+                                                string cacheKey = $"{fDb}|{fTb}";
+                                                double computedVal = 0;
+
+                                                if (foreignTablesCache.ContainsKey(cacheKey)) {
+                                                    DataTable fDt = foreignTablesCache[cacheKey];
+                                                    if (fDt != null && fDt.Columns.Contains(fCol)) {
+                                                        string fDateCol = fDt.Columns.Contains("日期") ? "日期" : (fDt.Columns.Contains("年月") ? "年月" : (fDt.Columns.Contains("年度") ? "年度" : ""));
+                                                        
+                                                        string rDate = "";
+                                                        if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
+                                                            rDate = row[mCol]?.ToString().Trim() ?? "";
+                                                        }
+
+                                                        var matchedRows = fDt.Rows.Cast<DataRow>().Where(fr => {
+                                                            if (fr.RowState == DataRowState.Deleted) return false;
+                                                            if (string.IsNullOrEmpty(rDate) || string.IsNullOrEmpty(fDateCol)) return true;
+                                                            string fd = fr[fDateCol]?.ToString().Trim() ?? "";
+                                                            return fd.StartsWith(rDate); 
+                                                        });
+
+                                                        List<double> vals = new List<double>();
+                                                        foreach (var fr in matchedRows) {
+                                                            if (double.TryParse(fr[fCol]?.ToString().Replace(",", ""), out double v)) vals.Add(v);
+                                                        }
+
+                                                        if (vals.Count > 0 || agg == "COUNT") {
+                                                            if (agg == "SUM") computedVal = vals.Sum();
+                                                            else if (agg == "AVG") computedVal = vals.Average();
+                                                            else if (agg == "MAX") computedVal = vals.Max();
+                                                            else if (agg == "MIN") computedVal = vals.Min();
+                                                            else if (agg == "COUNT") computedVal = vals.Count;
+                                                        }
+                                                    }
+                                                }
+                                                expr = expr.Replace(m.Value, computedVal.ToString());
+                                            }
+
+                                            if (expr.Contains("PRICE(")) {
+                                                DateTime targetDate = DateTime.Today; 
+                                                if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
+                                                    string dateStr = row[mCol]?.ToString().Trim() ?? "";
+                                                    if (dateStr.Length == 7 && dateStr.Contains("-")) DateTime.TryParse(dateStr + "-01", out targetDate);
+                                                    else DateTime.TryParse(dateStr, out targetDate);
+                                                }
+                                                var priceMatches = priceRegex.Matches(expr);
+                                                foreach (Match m in priceMatches) {
+                                                    string category = m.Groups["cat"].Value.Trim();
+                                                    double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                                    expr = expr.Replace(m.Value, unitPrice.ToString());
+                                                }
+                                            }
+
+                                            bool canExprCompute = true;
+                                            var fieldMatchesInExpr = fieldRegex.Matches(expr);
+                                            foreach (Match fm in fieldMatchesInExpr) {
+                                                string colName = fm.Groups[1].Value;
+                                                if (dt.Columns.Contains(colName)) {
+                                                    string val = row[colName]?.ToString().Replace(",", "").Trim();
+                                                    if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) val = "0"; 
+                                                    expr = expr.Replace($"[{colName}]", val);
+                                                } else {
+                                                    canExprCompute = false; break;
+                                                }
+                                            }
+
+                                            if (canExprCompute) {
+                                                try {
+                                                    object result = dtMath.Compute(expr, null);
+                                                    if (result != DBNull.Value) {
+                                                        double dRes = Convert.ToDouble(result);
+                                                        double multiplier = Math.Pow(10, decPlaces);
+                                                        double adjusted = dRes * multiplier;
+                                                        
+                                                        if (rMode == "無條件進位") adjusted = Math.Ceiling(adjusted);
+                                                        else if (rMode == "無條件捨去") adjusted = Math.Floor(adjusted);
+                                                        else adjusted = Math.Round(adjusted); 
+                                                        
+                                                        dRes = adjusted / multiplier;
+                                                        string formatStr = decPlaces > 0 ? $"F{decPlaces}" : "F0";
+                                                        
+                                                        evalFormula = evalFormula.Replace(mBlock.Value, dRes.ToString(formatStr));
+                                                    }
+                                                } catch {
+                                                    evalFormula = evalFormula.Replace(mBlock.Value, "NaN");
+                                                }
+                                            }
+                                        }
+
+                                        var fieldMatches = fieldRegex.Matches(evalFormula);
+                                        foreach (Match m in fieldMatches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (dt.Columns.Contains(colName)) {
+                                                string val = row[colName]?.ToString().Trim() ?? "";
+                                                evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                            }
+                                        }
+
+                                        if (row[tCol]?.ToString() != evalFormula) {
+                                            row[tCol] = evalFormula; rowChanged = true;
+                                        }
+                                    }
+                                    else {
+                                        bool canCompute = true;
+                                        if (evalFormula.Contains("PRICE(")) {
+                                            DateTime targetDate = DateTime.Today;
+                                            if (!string.IsNullOrEmpty(mCol) && dt.Columns.Contains(mCol)) {
+                                                string dateStr = row[mCol]?.ToString().Trim() ?? "";
+                                                if (dateStr.Length == 7 && dateStr.Contains("-")) DateTime.TryParse(dateStr + "-01", out targetDate);
+                                                else DateTime.TryParse(dateStr, out targetDate);
+                                            }
+                                            var priceMatches = priceRegex.Matches(evalFormula);
+                                            foreach (Match m in priceMatches) {
+                                                string category = m.Groups["cat"].Value.Trim();
+                                                double unitPrice = DataManager.GetUnitPrice(category, targetDate);
+                                                evalFormula = evalFormula.Replace(m.Value, unitPrice.ToString());
+                                            }
+                                        }
+
+                                        var fieldMatches = fieldRegex.Matches(evalFormula);
+                                        foreach (Match m in fieldMatches) {
+                                            string colName = m.Groups[1].Value;
+                                            if (dt.Columns.Contains(colName)) {
+                                                string val = row[colName]?.ToString().Replace(",", "").Trim();
+                                                if (string.IsNullOrEmpty(val) || !double.TryParse(val, out _)) val = "0";
+                                                evalFormula = evalFormula.Replace($"[{colName}]", val);
+                                            } else { canCompute = false; break; }
+                                        }
+
+                                        if (canCompute) {
+                                            try {
+                                                object result = dtMath.Compute(evalFormula, null);
+                                                if (result != DBNull.Value) {
+                                                    double dRes = Convert.ToDouble(result);
+                                                    
+                                                    double multiplier = Math.Pow(10, decPlaces);
+                                                    double adjusted = dRes * multiplier;
+                                                    
+                                                    if (rMode == "無條件進位") adjusted = Math.Ceiling(adjusted);
+                                                    else if (rMode == "無條件捨去") adjusted = Math.Floor(adjusted);
+                                                    else adjusted = Math.Round(adjusted);
+                                                    
+                                                    dRes = adjusted / multiplier;
+                                                    string formatStr = decPlaces > 0 ? $"F{decPlaces}" : "F0";
+                                                    string strRes = dRes.ToString(formatStr);
+                                                    
+                                                    if (row[tCol]?.ToString() != strRes) {
+                                                        row[tCol] = strRes; rowChanged = true;
+                                                    }
+                                                }
+                                            } catch {
+                                                if (row[tCol]?.ToString() != "") { row[tCol] = ""; rowChanged = true; }
+                                            }
+                                        }
+                                    }
+                                }
+                                if (!rowChanged) row.AcceptChanges();
+                            }
+                        }
+
+                        progStr.Report("正在將計算結果寫入資料庫並觸發跨表同步...");
+                        progInt.Report(90);
+
+                        DataTable dtChanges = dt.GetChanges();
+                        if (dtChanges != null && dtChanges.Rows.Count > 0) {
+                            DataManager.BulkSaveTable(dbName, tableName, dtChanges, progInt, progStr);
+                            hasChanges = true;
+                        }
+                    });
+                });
+            }
+            if (hasChanges) MessageBox.Show("歷史資料重新計算與同步已完成！", "背景運算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            else MessageBox.Show("運算完成，所有歷史資料均為最新，無須更新。", "背景運算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void RefreshAllFormulasList()
