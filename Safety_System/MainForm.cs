@@ -256,6 +256,10 @@ namespace Safety_System
             menuTest.DropDownItems.Add(CreateItem("G29 TCLP", () => new App_CoreTable("TestData", "TCLP", "TCLP毒性特性溶出", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G30 水表校正", () => new App_CoreTable("TestData", "WaterMeterCalibration", "水錶校正", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G31 其它檢測數據", () => new App_CoreTable("TestData", "OtherTests", "其它檢測數據", new DefaultLogic()).GetView()));
+            
+            // 🟢 新增：G21.1 相似暴露族群劃分表
+            menuTest.DropDownItems.Add(new ToolStripSeparator());
+            menuTest.DropDownItems.Add(CreateItem("G21.1 相似暴露族群劃分表", () => new App_CoreTable("TestData", "SimilarExposureGroup", "相似暴露族群劃分表", new DefaultLogic()).GetView()));
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("H11 教育訓練看板", () => new App_EduDashboard().GetView()));
@@ -337,7 +341,6 @@ namespace Safety_System
             };
             menuSettings.DropDownItems.Add(menuManagerItem);
             
-            // 🟢 取消了「下拉選單與連動設定」的密碼驗證
             var dropdownItem = new ToolStripMenuItem("Z14 下拉選單與連動設定");
             dropdownItem.Click += (s, e) => {
                 try {
@@ -354,14 +357,13 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenu).ShowDialog(this); 
+                    new App_PermissionManager(_mainMenuRef).ShowDialog(this); 
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator()); 
 
-            // 🟢 取消了「系統提醒設定」的密碼驗證
             var reminderSettingItem = new ToolStripMenuItem("Z16 系統提醒設定");
             reminderSettingItem.Click += (s, e) => {
                 try {
@@ -374,7 +376,6 @@ namespace Safety_System
 
             menuSettings.DropDownItems.Add(new ToolStripSeparator());
 
-            // 🟢 取消了「應用連結設定」的密碼驗證
             var appLinkSettingItem = new ToolStripMenuItem("Z17 應用連結設定");
             appLinkSettingItem.Click += (s, e) => {
                 try {
