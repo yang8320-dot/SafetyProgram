@@ -106,6 +106,8 @@ namespace Safety_System
             { "OtherTests", "[日期] TEXT, [時間] TEXT, [檢測點] TEXT, [檢測項目] TEXT, [檢測數據] TEXT, [管制值] TEXT, [測定方法] TEXT, [檢驗機構] TEXT, [測定用途] TEXT, [符合度] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             // 檢測報告分析評估表
             { "TestReportEvaluations", "[資料庫] TEXT, [資料表] TEXT, [測定日期] TEXT, [檢測名稱] TEXT, [評估日期] TEXT, [符合度] TEXT, [測定用途] TEXT, [分析與結果說明] TEXT, [最後修改人] TEXT, [修改時間] TEXT" },
+            // 相似暴露族群劃分表
+            { "SimilarExposureGroup", "[SEG代碼] TEXT, [部門編號] TEXT, [部門名稱] TEXT, [工作區域編號] TEXT, [工作區域名稱] TEXT, [作業編號] TEXT, [作業名稱] TEXT, [工作區工作人數] TEXT, [暴露危害項目編號] TEXT, [暴露危害項目名稱] TEXT, [附件檔案] TEXT, [備註] TEXT" },
 			
             { "HealthPromotion", "[日期] TEXT, [活動名稱] TEXT, [參與人數] TEXT, [執行單位] TEXT, [成果摘要] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "PurchaseData", "[日期] TEXT, [開單單位] TEXT, [請購單號] TEXT, [項次] TEXT, [料號] TEXT, [料名] TEXT, [規格] TEXT, [用途] TEXT, [ESG分類] TEXT, [數量] TEXT, [未稅單價] TEXT, [結案日期] TEXT, [測定用途] TEXT, [附件檔案] TEXT, [備註] TEXT" },
