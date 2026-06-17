@@ -246,6 +246,9 @@ namespace Safety_System
             
             menuTest.DropDownItems.Add(new ToolStripSeparator());
             menuTest.DropDownItems.Add(CreateItem("G21 環境監測", () => new App_CoreTable("TestData", "EnvMonitor", "環境監測", new DefaultLogic()).GetView()));
+            // 🟢 新增：G21.1 相似暴露族群劃分表
+            menuTest.DropDownItems.Add(CreateItem("G21.1 相似暴露族群劃分表", () => new App_CoreTable("TestData", "SimilarExposureGroup", "相似暴露族群劃分表", new DefaultLogic()).GetView()));
+            
             menuTest.DropDownItems.Add(CreateItem("G22 廢水定申檢", () => new App_CoreTable("TestData", "WastewaterPeriodic", "廢水定申檢", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G23 飲用水檢測", () => new App_CoreTable("TestData", "DrinkingWater", "飲用水檢測", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G24 工業區檢驗", () => new App_CoreTable("TestData", "IndustrialZoneTest", "工業區檢驗", new DefaultLogic()).GetView()));
@@ -255,11 +258,8 @@ namespace Safety_System
             menuTest.DropDownItems.Add(CreateItem("G28 循環水檢測(自評)", () => new App_CoreTable("TestData", "CoolingWaterSelf", "循環水檢測(自評)", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G29 TCLP", () => new App_CoreTable("TestData", "TCLP", "TCLP毒性特性溶出", new DefaultLogic()).GetView()));
             menuTest.DropDownItems.Add(CreateItem("G30 水表校正", () => new App_CoreTable("TestData", "WaterMeterCalibration", "水錶校正", new DefaultLogic()).GetView()));
-            menuTest.DropDownItems.Add(CreateItem("G31 其它檢測數據", () => new App_CoreTable("TestData", "OtherTests", "其它檢測數據", new DefaultLogic()).GetView()));
-            
-            // 🟢 新增：G21.1 相似暴露族群劃分表
             menuTest.DropDownItems.Add(new ToolStripSeparator());
-            menuTest.DropDownItems.Add(CreateItem("G21.1 相似暴露族群劃分表", () => new App_CoreTable("TestData", "SimilarExposureGroup", "相似暴露族群劃分表", new DefaultLogic()).GetView()));
+            menuTest.DropDownItems.Add(CreateItem("G31 其它檢測數據", () => new App_CoreTable("TestData", "OtherTests", "其它檢測數據", new DefaultLogic()).GetView()));
 
             var menuEdu = new ToolStripMenuItem("教育訓練");
             menuEdu.DropDownItems.Add(CreateItem("H11 教育訓練看板", () => new App_EduDashboard().GetView()));
@@ -357,7 +357,8 @@ namespace Safety_System
             permissionItem.Click += (s, e) => {
                 string prompt = "管理系統權限需要系統管理者權限\n請輸入【Lv3系統管理者】\n密碼進行授權：";
                 if (AuthManager.VerifyLv3Only(prompt)) {
-                    new App_PermissionManager(_mainMenuRef).ShowDialog(this); 
+                    // 🟢 [修正完成] 使用 _mainMenu 取代原本錯誤的 _mainMenuRef
+                    new App_PermissionManager(_mainMenu).ShowDialog(this); 
                 }
             };
             menuSettings.DropDownItems.Add(permissionItem);
