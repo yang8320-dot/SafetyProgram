@@ -41,7 +41,6 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName;
         }
 
-        // 專門用於設定對話框的資料模型
         private class EditingConfig {
             public string Name { get; set; }
             public string Formula { get; set; }
@@ -76,7 +75,6 @@ namespace Safety_System
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            // ================= Header =================
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0,0,0,10) };
             Label lblTitle = new Label { Text = "📊 動態統計看板管理系統", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Left, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
@@ -88,7 +86,6 @@ namespace Safety_System
             pnlHeader.Controls.Add(lblTitle);
             masterLayout.Controls.Add(pnlHeader, 0, 0);
 
-            // ================= Container =================
             _tlpThemesContainer = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 AutoSize = true, 
@@ -195,6 +192,8 @@ namespace Safety_System
             ui.CboEndMonth.SelectedItem = prevMonth.Month.ToString("D2");
 
             Button btnSearch = new Button { Text = "🔍 讀取", Size = new Size(100, 36), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSearch.FlatAppearance.BorderSize = 0;
+            // 🟢 新增重新統計按鈕
+            Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(125, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
             Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
             Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
             
@@ -209,7 +208,7 @@ namespace Safety_System
                 ui.CboStartMonth, new Label { Text = "月 ~ ", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 ui.CboEndYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 ui.CboEndMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 10, 20, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
-                btnSearch, btnSave, btnSettings, btnPdf, btnExcel, btnDelTheme
+                btnSearch, btnRecalc, btnSave, btnSettings, btnPdf, btnExcel, btnDelTheme
             });
             tlp.Controls.Add(flpControls, 0, 0);
 
@@ -246,6 +245,7 @@ namespace Safety_System
 
             // ====== 綁定事件 ======
             btnSearch.Click += async (s, e) => await CalculateAndLoadGrid(ui);
+            btnRecalc.Click += async (s, e) => await RecalculateGridData(ui); // 🟢 綁定新功能
             btnSave.Click += (s, e) => SaveGridData(ui);
             btnSettings.Click += (s, e) => { OpenSettingsDialog(ui); _ = CalculateAndLoadGrid(ui); };
             btnPdf.Click += (s, e) => ExportToPdf(ui);
@@ -266,7 +266,107 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心：表格計算與存讀取邏輯
+        // 🟢 核心公式運算引擎 (抽離出獨立方法供兩顆按鈕共用)
+        // ==========================================
+        private string EvaluateStatsFormula(string template, string startYM, string endYM, Dictionary<string, DataTable> tableCache)
+        {
+            string evalText = template;
+            Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\](?:\.\[(?<dateCol>[^\]]+)\])?\)");
+            Regex mathBlockRegex = new Regex(@"\{(?<expr>[^\}]+)\}");
+
+            var mathBlocks = mathBlockRegex.Matches(evalText);
+            foreach (Match mBlock in mathBlocks)
+            {
+                string expr = mBlock.Groups["expr"].Value;
+                var crossMatches = crossRegex.Matches(expr);
+                
+                foreach (Match mCross in crossMatches) {
+                    string agg = mCross.Groups["agg"].Value;
+                    string fDb = mCross.Groups["db"].Value;
+                    string fTb = mCross.Groups["tb"].Value;
+                    string fCol = mCross.Groups["col"].Value;
+                    string formulaDateCol = mCross.Groups["dateCol"].Success ? mCross.Groups["dateCol"].Value : ""; 
+
+                    string cacheKey = $"{fDb}|{fTb}";
+                    if (!tableCache.ContainsKey(cacheKey)) {
+                        tableCache[cacheKey] = DataManager.GetTableData(fDb, fTb, "", "", "");
+                    }
+
+                    double computedVal = 0;
+                    DataTable fDt = tableCache[cacheKey];
+                    
+                    if (fDt != null && fDt.Columns.Contains(fCol)) {
+                        
+                        string dateCol = "";
+                        if (!string.IsNullOrEmpty(formulaDateCol) && fDt.Columns.Contains(formulaDateCol)) {
+                            dateCol = formulaDateCol;
+                        } else {
+                            dateCol = fDt.Columns.Contains("日期") ? "日期" :
+                                      (fDt.Columns.Contains("清運日期") ? "清運日期" :
+                                      (fDt.Columns.Contains("年月") ? "年月" :
+                                      (fDt.Columns.Contains("年度") ? "年度" : "")));
+                        }
+
+                        var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
+                            if (r.RowState == DataRowState.Deleted) return false;
+                            if (string.IsNullOrEmpty(dateCol)) return true; 
+
+                            string dVal = r[dateCol]?.ToString().Trim() ?? "";
+                            if (string.IsNullOrEmpty(dVal)) return false;
+                            
+                            if (dateCol == "年度") {
+                                string yearVal = dVal.Replace("年", "").Trim();
+                                string sYear = startYM.Substring(0, 4);
+                                string eYear = endYM.Substring(0, 4);
+                                return string.Compare(yearVal, sYear) >= 0 && string.Compare(yearVal, eYear) <= 0;
+                            }
+                            else {
+                                dVal = dVal.Replace("/", "-");
+                                string compYm = "";
+                                var parts = dVal.Split('-');
+                                if (parts.Length >= 2) {
+                                    compYm = $"{parts[0]}-{parts[1].PadLeft(2, '0')}";
+                                } else if (dVal.Length == 6 && !dVal.Contains("-")) { 
+                                    compYm = $"{dVal.Substring(0,4)}-{dVal.Substring(4,2)}";
+                                } else {
+                                    compYm = dVal.Length >= 7 ? dVal.Substring(0, 7) : dVal;
+                                }
+                                return (string.Compare(compYm, startYM) >= 0 && string.Compare(compYm, endYM) <= 0);
+                            }
+                        });
+
+                        List<double> vals = new List<double>();
+                        foreach (var fr in matchedRows) {
+                            if (double.TryParse(fr[fCol]?.ToString().Replace(",", ""), out double v)) vals.Add(v);
+                        }
+
+                        if (vals.Count > 0 || agg == "COUNT") {
+                            if (agg == "SUM") computedVal = vals.Sum();
+                            else if (agg == "AVG") computedVal = vals.Average();
+                            else if (agg == "MAX") computedVal = vals.Max();
+                            else if (agg == "MIN") computedVal = vals.Min();
+                            else if (agg == "COUNT") computedVal = vals.Count;
+                        }
+                    }
+                    expr = expr.Replace(mCross.Value, computedVal.ToString());
+                }
+
+                try {
+                    DataTable dtMath = new DataTable();
+                    object result = dtMath.Compute(expr, null);
+                    if (result != DBNull.Value) {
+                        double dRes = Convert.ToDouble(result);
+                        evalText = evalText.Replace(mBlock.Value, Math.Round(dRes, 2).ToString("0.##"));
+                    }
+                } catch {
+                    evalText = evalText.Replace(mBlock.Value, "NaN");
+                }
+            }
+            return evalText;
+        }
+
+        // ==========================================
+        // 🟢 讀取模式 (重置 Grid，載入資料庫內已存的備註與附件)
         // ==========================================
         private async Task CalculateAndLoadGrid(ThemeSectionUI ui)
         {
@@ -296,10 +396,6 @@ namespace Safety_System
                     }
                 } catch { return; }
 
-                // 🟢 Regex 更新：支援第四個可選的自訂日期欄位 => SUM([庫].[表].[數值欄].[日期欄]) 或 SUM([庫].[表].[數值欄])
-                Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\](?:\.\[(?<dateCol>[^\]]+)\])?\)");
-                Regex mathBlockRegex = new Regex(@"\{(?<expr>[^\}]+)\}");
-
                 Dictionary<string, DataTable> tableCache = new Dictionary<string, DataTable>();
 
                 foreach (DataRow cfgRow in dtConfigs.Rows)
@@ -312,100 +408,8 @@ namespace Safety_System
                         if (r["ItemName"].ToString() == itemName) { savedRecord = r; break; }
                     }
 
-                    string evalText = template;
-
-                    var mathBlocks = mathBlockRegex.Matches(evalText);
-                    foreach (Match mBlock in mathBlocks)
-                    {
-                        string expr = mBlock.Groups["expr"].Value;
-                        var crossMatches = crossRegex.Matches(expr);
-                        
-                        foreach (Match mCross in crossMatches) {
-                            string agg = mCross.Groups["agg"].Value;
-                            string fDb = mCross.Groups["db"].Value;
-                            string fTb = mCross.Groups["tb"].Value;
-                            string fCol = mCross.Groups["col"].Value;
-                            string formulaDateCol = mCross.Groups["dateCol"].Success ? mCross.Groups["dateCol"].Value : ""; // 🟢 萃取自訂日期
-
-                            string cacheKey = $"{fDb}|{fTb}";
-                            if (!tableCache.ContainsKey(cacheKey)) {
-                                tableCache[cacheKey] = DataManager.GetTableData(fDb, fTb, "", "", "");
-                            }
-
-                            double computedVal = 0;
-                            DataTable fDt = tableCache[cacheKey];
-                            
-                            if (fDt != null && fDt.Columns.Contains(fCol)) {
-                                
-                                string dateCol = "";
-                                // 🟢 日期欄位判斷邏輯升級
-                                if (!string.IsNullOrEmpty(formulaDateCol) && fDt.Columns.Contains(formulaDateCol)) {
-                                    dateCol = formulaDateCol;
-                                } else {
-                                    dateCol = fDt.Columns.Contains("日期") ? "日期" :
-                                              (fDt.Columns.Contains("清運日期") ? "清運日期" :
-                                              (fDt.Columns.Contains("年月") ? "年月" :
-                                              (fDt.Columns.Contains("年度") ? "年度" : "")));
-                                }
-
-                                var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
-                                    if (r.RowState == DataRowState.Deleted) return false;
-                                    if (string.IsNullOrEmpty(dateCol)) return true; 
-                                    
-                                    string dVal = r[dateCol]?.ToString().Trim() ?? "";
-                                    if (string.IsNullOrEmpty(dVal)) return false;
-                                    
-                                    // 🟢 針對純年度欄位 (如: "2024", "2024年") 的判斷優化
-                                    if (dateCol == "年度") {
-                                        string yearVal = dVal.Replace("年", "").Trim();
-                                        string sYear = startYM.Substring(0, 4);
-                                        string eYear = endYM.Substring(0, 4);
-                                        return string.Compare(yearVal, sYear) >= 0 && string.Compare(yearVal, eYear) <= 0;
-                                    }
-                                    else {
-                                        // 🟢 標準化解析為 yyyy-MM 以利字串比對
-                                        dVal = dVal.Replace("/", "-");
-                                        string compYm = "";
-                                        var parts = dVal.Split('-');
-                                        if (parts.Length >= 2) {
-                                            compYm = $"{parts[0]}-{parts[1].PadLeft(2, '0')}";
-                                        } else if (dVal.Length == 6 && !dVal.Contains("-")) { 
-                                            // 處理 202401 這種無分隔符號的格式
-                                            compYm = $"{dVal.Substring(0,4)}-{dVal.Substring(4,2)}";
-                                        } else {
-                                            compYm = dVal.Length >= 7 ? dVal.Substring(0, 7) : dVal;
-                                        }
-                                        return (string.Compare(compYm, startYM) >= 0 && string.Compare(compYm, endYM) <= 0);
-                                    }
-                                });
-
-                                List<double> vals = new List<double>();
-                                foreach (var fr in matchedRows) {
-                                    if (double.TryParse(fr[fCol]?.ToString().Replace(",", ""), out double v)) vals.Add(v);
-                                }
-
-                                if (vals.Count > 0 || agg == "COUNT") {
-                                    if (agg == "SUM") computedVal = vals.Sum();
-                                    else if (agg == "AVG") computedVal = vals.Average();
-                                    else if (agg == "MAX") computedVal = vals.Max();
-                                    else if (agg == "MIN") computedVal = vals.Min();
-                                    else if (agg == "COUNT") computedVal = vals.Count;
-                                }
-                            }
-                            expr = expr.Replace(mCross.Value, computedVal.ToString());
-                        }
-
-                        try {
-                            DataTable dtMath = new DataTable();
-                            object result = dtMath.Compute(expr, null);
-                            if (result != DBNull.Value) {
-                                double dRes = Convert.ToDouble(result);
-                                evalText = evalText.Replace(mBlock.Value, Math.Round(dRes, 2).ToString("0.##"));
-                            }
-                        } catch {
-                            evalText = evalText.Replace(mBlock.Value, "NaN");
-                        }
-                    }
+                    // 呼叫共用的公式運算引擎
+                    string evalText = EvaluateStatsFormula(template, startYM, endYM, tableCache);
 
                     string attach = savedRecord != null ? savedRecord["Attachment"].ToString() : "";
                     string remarks = savedRecord != null ? savedRecord["Remarks"].ToString() : "";
@@ -420,6 +424,66 @@ namespace Safety_System
 
             ui.MainBox.Invalidate(); 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+        }
+
+        // ==========================================
+        // 🟢 重新統計模式 (保留 Grid 上編輯中的備註與附件，僅重算數據)
+        // ==========================================
+        private async Task RecalculateGridData(ThemeSectionUI ui)
+        {
+            if (ui.Dgv.Rows.Count == 0) {
+                MessageBox.Show("目前表格沒有資料，請先點擊「🔍 讀取」。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+            ui.Dgv.EndEdit(); // 確保 UI 的編輯狀態寫入 Grid
+
+            string startYM = $"{ui.CboStartYear.Text}-{ui.CboStartMonth.Text}";
+            string endYM = $"{ui.CboEndYear.Text}-{ui.CboEndMonth.Text}";
+
+            Dictionary<string, string> newValues = new Dictionary<string, string>();
+
+            await Task.Run(() => {
+                DataTable dtConfigs = new DataTable();
+                try {
+                    using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
+                        conn.Open();
+                        using (var cmd = new SQLiteCommand($"SELECT * FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn))
+                        using (var da = new SQLiteDataAdapter(cmd)) da.Fill(dtConfigs);
+                    }
+                } catch { return; }
+
+                Dictionary<string, DataTable> tableCache = new Dictionary<string, DataTable>();
+
+                foreach (DataRow cfgRow in dtConfigs.Rows)
+                {
+                    string itemName = cfgRow["ItemName"].ToString();
+                    string template = cfgRow["FormulaTemplate"].ToString();
+                    
+                    // 呼叫共用的公式運算引擎
+                    newValues[itemName] = EvaluateStatsFormula(template, startYM, endYM, tableCache);
+                }
+            });
+
+            // 回到 UI 執行緒更新 DataGridView
+            Action updateGrid = () => {
+                foreach (DataGridViewRow row in ui.Dgv.Rows) {
+                    if (row.IsNewRow) continue;
+                    string itemName = row.Cells["項目"].Value?.ToString() ?? "";
+                    if (newValues.ContainsKey(itemName)) {
+                        row.Cells["數據"].Value = newValues[itemName];
+                    }
+                }
+            };
+
+            if (ui.Dgv.InvokeRequired) ui.Dgv.Invoke(updateGrid);
+            else updateGrid();
+
+            ui.MainBox.Invalidate();
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            
+            MessageBox.Show("重新統計完成！\n\n最新的運算數值已更新至「數據」欄位，您剛才手動建立的「附件與備註」均保持不變。\n若確認無誤，請點擊「💾 儲存」將最終結果寫入資料庫。", "統計更新完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void SaveGridData(ThemeSectionUI ui)
@@ -519,7 +583,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 設定視窗 (自訂項目與公式) - 🟢 新增日期下拉選單與介面優化
+        // 設定視窗 (自訂項目與公式)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -642,6 +706,7 @@ namespace Safety_System
 
                 Label lblDesc = new Label { Text = "混合圖文公式編輯區：\n(請將純文字打在外面，將要數學計算的聚合公式包在 { 大括號 } 裡面)", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0,10,0,5), ForeColor=Color.DarkMagenta };
                 
+                // 🟢 快捷鍵容器：加入 { }
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=920, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
                 RichTextBox rtbFormula = new RichTextBox { Width=920, Height=210, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
@@ -656,6 +721,7 @@ namespace Safety_System
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
                     if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、數值欄位！"); return; }
                     
+                    // 🟢 取出實際的英文運算子
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
                     if (actionText.Contains("SUM")) aggCode = "SUM";
