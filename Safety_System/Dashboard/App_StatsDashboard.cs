@@ -153,8 +153,6 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            int defaultW = _tlpThemesContainer.Width > 0 ? _tlpThemesContainer.Width - 10 : 1000;
-
             ui.MainBox = new GroupBox { 
                 Text = $"📌 {themeName}", 
                 Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
@@ -268,7 +266,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心：表格計算與存讀取邏輯 (🟢 更新日期篩選機制)
+        // 核心：表格計算與存讀取邏輯
         // ==========================================
         private async Task CalculateAndLoadGrid(ThemeSectionUI ui)
         {
@@ -298,7 +296,8 @@ namespace Safety_System
                     }
                 } catch { return; }
 
-                Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\]\)");
+                // 🟢 Regex 更新：支援第四個可選的自訂日期欄位 => SUM([庫].[表].[數值欄].[日期欄]) 或 SUM([庫].[表].[數值欄])
+                Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\](?:\.\[(?<dateCol>[^\]]+)\])?\)");
                 Regex mathBlockRegex = new Regex(@"\{(?<expr>[^\}]+)\}");
 
                 Dictionary<string, DataTable> tableCache = new Dictionary<string, DataTable>();
@@ -326,6 +325,7 @@ namespace Safety_System
                             string fDb = mCross.Groups["db"].Value;
                             string fTb = mCross.Groups["tb"].Value;
                             string fCol = mCross.Groups["col"].Value;
+                            string formulaDateCol = mCross.Groups["dateCol"].Success ? mCross.Groups["dateCol"].Value : ""; // 🟢 萃取自訂日期
 
                             string cacheKey = $"{fDb}|{fTb}";
                             if (!tableCache.ContainsKey(cacheKey)) {
@@ -336,20 +336,26 @@ namespace Safety_System
                             DataTable fDt = tableCache[cacheKey];
                             
                             if (fDt != null && fDt.Columns.Contains(fCol)) {
-                                // 🟢 強化日期欄位的判斷優先序
-                                string dateCol = fDt.Columns.Contains("日期") ? "日期" :
-                                                 (fDt.Columns.Contains("清運日期") ? "清運日期" :
-                                                 (fDt.Columns.Contains("年月") ? "年月" :
-                                                 (fDt.Columns.Contains("年度") ? "年度" : "")));
                                 
+                                string dateCol = "";
+                                // 🟢 日期欄位判斷邏輯升級
+                                if (!string.IsNullOrEmpty(formulaDateCol) && fDt.Columns.Contains(formulaDateCol)) {
+                                    dateCol = formulaDateCol;
+                                } else {
+                                    dateCol = fDt.Columns.Contains("日期") ? "日期" :
+                                              (fDt.Columns.Contains("清運日期") ? "清運日期" :
+                                              (fDt.Columns.Contains("年月") ? "年月" :
+                                              (fDt.Columns.Contains("年度") ? "年度" : "")));
+                                }
+
                                 var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
                                     if (r.RowState == DataRowState.Deleted) return false;
-                                    if (string.IsNullOrEmpty(dateCol)) return true; // 如果是沒有日期的基礎表，回傳全部
-
+                                    if (string.IsNullOrEmpty(dateCol)) return true; 
+                                    
                                     string dVal = r[dateCol]?.ToString().Trim() ?? "";
                                     if (string.IsNullOrEmpty(dVal)) return false;
                                     
-                                    // 🟢 處理年度邏輯 (例如 "2024" 或 "2024年")
+                                    // 🟢 針對純年度欄位 (如: "2024", "2024年") 的判斷優化
                                     if (dateCol == "年度") {
                                         string yearVal = dVal.Replace("年", "").Trim();
                                         string sYear = startYM.Substring(0, 4);
@@ -513,7 +519,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 設定視窗 (自訂項目與公式) - 🟢 增加大括號與修改中文介面
+        // 設定視窗 (自訂項目與公式) - 🟢 新增日期下拉選單與介面優化
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -564,21 +570,35 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 公式變數生成器
-                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width=920, Height = 100, Font=new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding=new Padding(10) };
+                // 🟢 調整：放大並重新排列變數產生器
+                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 920, Height = 100, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                // 🟢 替換：選項中文化
-                ComboBox cbAction = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(10, 20) };
-                cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); cbAction.SelectedIndex = 0;
-                pnlBuilder.Controls.Add(cbAction);
-                
-                ComboBox cbDb = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(165, 20) };
-                ComboBox cbTb = new ComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(325, 20) };
-                ComboBox cbCol = new ComboBox { Width = 210, DropDownStyle = ComboBoxStyle.DropDownList, Font=new Font("Microsoft JhengHei UI", 11F), Location = new Point(565, 20) };
-                pnlBuilder.Controls.AddRange(new Control[] { cbDb, cbTb, cbCol });
+                // 第一排：庫、表、數值欄、日期欄
+                pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbDb = new ComboBox { Location = new Point(45, 17), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(cbDb);
 
-                Button btnInsert = new Button { Text = "插入 ⬇️", Width = 90, Height = 32, BackColor = Color.DarkCyan, ForeColor=Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand, Location = new Point(785, 18) };
+                pnlBuilder.Controls.Add(new Label { Text = "表:", Location = new Point(195, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbTb = new ComboBox { Location = new Point(230, 17), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(cbTb);
+
+                pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(440, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbCol = new ComboBox { Location = new Point(505, 17), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(cbCol);
+
+                pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(675, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbDateCol = new ComboBox { Location = new Point(740, 17), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(cbDateCol);
+
+                // 第二排：動作、插入按鈕
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbAction = new ComboBox { Location = new Point(65, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
+                cbAction.SelectedIndex = 0;
+                pnlBuilder.Controls.Add(cbAction);
+
+                Button btnInsert = new Button { Text = "插入 ⬇️", Width = 90, Height = 32, Location = new Point(220, 63), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 pnlBuilder.Controls.Add(btnInsert);
 
@@ -595,10 +615,25 @@ namespace Safety_System
 
                 cbTb.SelectedIndexChanged += (s, e) => {
                     cbCol.Items.Clear();
+                    cbDateCol.Items.Clear();
+                    cbDateCol.Items.Add("[自動判斷]");
+
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
                     if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
                         var cols = DataManager.GetColumnNames(db.EnName, tb.EnName);
-                        foreach(var c in cols.Where(x => x != "Id" && !x.Contains("日期") && !x.Contains("年月"))) cbCol.Items.Add(c);
+                        
+                        foreach(var c in cols.Where(x => x != "Id" && !x.Contains("日期") && !x.Contains("年月"))) {
+                            cbCol.Items.Add(c);
+                        }
+
+                        foreach(var c in cols) cbDateCol.Items.Add(c);
+
+                        // 🟢 自動選取日期欄位邏輯
+                        if (cols.Contains("日期")) cbDateCol.SelectedItem = "日期";
+                        else if (cols.Contains("年月")) cbDateCol.SelectedItem = "年月";
+                        else if (cols.Contains("清運日期")) cbDateCol.SelectedItem = "清運日期";
+                        else if (cols.Contains("年度")) cbDateCol.SelectedItem = "年度";
+                        else cbDateCol.SelectedIndex = 0;
                     }
                 };
 
@@ -607,7 +642,6 @@ namespace Safety_System
 
                 Label lblDesc = new Label { Text = "混合圖文公式編輯區：\n(請將純文字打在外面，將要數學計算的聚合公式包在 { 大括號 } 裡面)", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0,10,0,5), ForeColor=Color.DarkMagenta };
                 
-                // 🟢 快捷鍵容器：加入 { }
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=920, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
                 RichTextBox rtbFormula = new RichTextBox { Width=920, Height=210, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
@@ -620,9 +654,8 @@ namespace Safety_System
 
                 btnInsert.Click += (s, e) => {
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
-                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、欄位！"); return; }
+                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、數值欄位！"); return; }
                     
-                    // 🟢 取出實際的英文運算子
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
                     if (actionText.Contains("SUM")) aggCode = "SUM";
@@ -631,8 +664,13 @@ namespace Safety_System
                     else if (actionText.Contains("MIN")) aggCode = "MIN";
                     else if (actionText.Contains("COUNT")) aggCode = "COUNT";
 
+                    string dateColSyntax = "";
+                    if (cbDateCol.SelectedItem != null && cbDateCol.SelectedItem.ToString() != "[自動判斷]") {
+                        dateColSyntax = $".[{(cbDateCol.SelectedItem)}]";
+                    }
+
                     rtbFormula.Focus();
-                    rtbFormula.SelectedText = $"{aggCode}([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}])";
+                    rtbFormula.SelectedText = $"{aggCode}([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}]{dateColSyntax})";
                 };
 
                 flpEditor.Controls.Add(lblDesc);
