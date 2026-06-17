@@ -1,4 +1,3 @@
-/// FILE: Safety_System/CoreTable/App_CoreTable.UI.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -61,7 +60,6 @@ namespace Safety_System
             _btnRead.FlatAppearance.BorderSize = 0;
             
             Label lblLatestCount = new Label { Text = "最近筆數:", AutoSize = true, Margin = new Padding(15, 8, 5, 0) };
-            // 🟢 需求修正：寬度從 50 加寬到 75 (+25px)
             _txtLatestCount = new TextBox { Width = 75, Text = "100", Margin = ctrlPad }; 
             
             Button bLimitRead = new Button { Text = "查詢", Size = new Size(80, btnHeight), Margin = btnPad, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 122, 255), ForeColor = Color.White };
@@ -242,6 +240,7 @@ namespace Safety_System
                 
                 App_DropdownManager.LoadDropdownConfigs();
                 App_DropdownManager.LoadMultiSelectConfigs(); 
+                App_DropdownManager.LoadReferenceConfigs(); // 🟢 確保重新讀取跨表快取
                 LoadVisibilitySettings();
                 LoadColumnWidths();
                 
@@ -251,10 +250,9 @@ namespace Safety_System
             pnlStatus.Controls.Add(btnRefresh);
             pnlStatus.Controls.Add(_lblStatus);
 
-            // 🟢 需求修正：允許自動根據內容撐開列高 (AllCells)，確保文字不被截斷
             _dgv = new DataGridView { 
                 Dock = DockStyle.Fill, BackgroundColor = Color.White, AllowUserToAddRows = true, AllowUserToResizeColumns = true, 
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 原本為 None，改為 AllCells
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
                 AllowUserToOrderColumns = true, Margin = new Padding(0, 10, 0, 10),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
@@ -379,7 +377,6 @@ namespace Safety_System
             SetupDropdownColumns();
             
             _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            // 🟢 需求修正：確保在套用樣式後，依然維持自動調整列高的設定
             _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells; 
 
             foreach (DataGridViewColumn col in _dgv.Columns) {
@@ -400,6 +397,9 @@ namespace Safety_System
             }
         }
 
+        // =========================================================
+        // 🟢 將單選、連動、跨表參照的 UI 設定邏輯全部集中處理
+        // =========================================================
         private void SetupDropdownColumns() 
         {
             List<DataGridViewColumn> cols = new List<DataGridViewColumn>();
@@ -409,14 +409,21 @@ namespace Safety_System
                 
                 string multiKey = $"{_tableName}|{col.Name}";
                 if (App_DropdownManager.MultiSelectCache.ContainsKey(multiKey)) {
-                    continue; 
+                    continue; // 複選有專屬 UI，跳過
                 }
 
+                // 1. 取得 TableLogic 的預設值
                 string[] items = _logic.GetDropdownList(_tableName, col.Name);
-                string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
                 
+                // 2. 取得單選連動的值
+                string[] dbItems = App_DropdownManager.GetAllOptionsForColumn(_tableName, col.Name);
                 if (dbItems != null && dbItems.Length > 1) { items = dbItems; }
 
+                // 3. 🟢 取得跨表參照的值 (若存在，權限最高，蓋過前面的)
+                string[] refItems = App_DropdownManager.GetReferenceOptions(_dbName, _tableName, col.Name);
+                if (refItems != null && refItems.Length > 0) { items = refItems; }
+
+                // 如果有任何來源提供選項清單，就把一般文字框轉為純唯讀觸發按鈕的形式
                 if (items != null && items.Length > 0 && !(_dgv.Columns[col.Name] is DataGridViewComboBoxColumn)) {
                     int colIndex = col.Index; 
                     _dgv.Columns.RemoveAt(colIndex);
@@ -433,6 +440,7 @@ namespace Safety_System
                     if (_columnVisibility.ContainsKey(col.Name)) txtCol.Visible = _columnVisibility[col.Name];
                     txtCol.DefaultCellStyle.WrapMode = DataGridViewTriState.True; 
                     
+                    // 背景設為特定顏色讓使用者知道它是一個選單
                     txtCol.DefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
                     
                     _dgv.Columns.Insert(colIndex, txtCol);
