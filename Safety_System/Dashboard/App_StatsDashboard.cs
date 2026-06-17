@@ -41,6 +41,7 @@ namespace Safety_System
             public override string ToString() => string.IsNullOrEmpty(ChName) ? " " : ChName;
         }
 
+        // 專門用於設定對話框的資料模型
         private class EditingConfig {
             public string Name { get; set; }
             public string Formula { get; set; }
@@ -75,6 +76,7 @@ namespace Safety_System
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             masterLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
+            // ================= Header =================
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0,0,0,10) };
             Label lblTitle = new Label { Text = "📊 動態統計看板管理系統", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Left, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
@@ -86,6 +88,7 @@ namespace Safety_System
             pnlHeader.Controls.Add(lblTitle);
             masterLayout.Controls.Add(pnlHeader, 0, 0);
 
+            // ================= Container =================
             _tlpThemesContainer = new TableLayoutPanel { 
                 Dock = DockStyle.Fill, 
                 AutoSize = true, 
@@ -192,7 +195,6 @@ namespace Safety_System
             ui.CboEndMonth.SelectedItem = prevMonth.Month.ToString("D2");
 
             Button btnSearch = new Button { Text = "🔍 讀取", Size = new Size(100, 36), BackColor = Color.SteelBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSearch.FlatAppearance.BorderSize = 0;
-            // 🟢 新增重新統計按鈕
             Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(125, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
             Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
             Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
@@ -245,7 +247,7 @@ namespace Safety_System
 
             // ====== 綁定事件 ======
             btnSearch.Click += async (s, e) => await CalculateAndLoadGrid(ui);
-            btnRecalc.Click += async (s, e) => await RecalculateGridData(ui); // 🟢 綁定新功能
+            btnRecalc.Click += async (s, e) => await RecalculateGridData(ui); 
             btnSave.Click += (s, e) => SaveGridData(ui);
             btnSettings.Click += (s, e) => { OpenSettingsDialog(ui); _ = CalculateAndLoadGrid(ui); };
             btnPdf.Click += (s, e) => ExportToPdf(ui);
@@ -266,7 +268,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 核心公式運算引擎 (抽離出獨立方法供兩顆按鈕共用)
+        // 核心公式運算引擎
         // ==========================================
         private string EvaluateStatsFormula(string template, string startYM, string endYM, Dictionary<string, DataTable> tableCache)
         {
@@ -366,7 +368,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 讀取模式 (重置 Grid，載入資料庫內已存的備註與附件)
+        // 讀取模式 (重置 Grid)
         // ==========================================
         private async Task CalculateAndLoadGrid(ThemeSectionUI ui)
         {
@@ -408,7 +410,6 @@ namespace Safety_System
                         if (r["ItemName"].ToString() == itemName) { savedRecord = r; break; }
                     }
 
-                    // 呼叫共用的公式運算引擎
                     string evalText = EvaluateStatsFormula(template, startYM, endYM, tableCache);
 
                     string attach = savedRecord != null ? savedRecord["Attachment"].ToString() : "";
@@ -427,7 +428,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 重新統計模式 (保留 Grid 上編輯中的備註與附件，僅重算數據)
+        // 重新統計模式 (保留備註與附件)
         // ==========================================
         private async Task RecalculateGridData(ThemeSectionUI ui)
         {
@@ -437,7 +438,7 @@ namespace Safety_System
             }
 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-            ui.Dgv.EndEdit(); // 確保 UI 的編輯狀態寫入 Grid
+            ui.Dgv.EndEdit(); 
 
             string startYM = $"{ui.CboStartYear.Text}-{ui.CboStartMonth.Text}";
             string endYM = $"{ui.CboEndYear.Text}-{ui.CboEndMonth.Text}";
@@ -460,13 +461,10 @@ namespace Safety_System
                 {
                     string itemName = cfgRow["ItemName"].ToString();
                     string template = cfgRow["FormulaTemplate"].ToString();
-                    
-                    // 呼叫共用的公式運算引擎
                     newValues[itemName] = EvaluateStatsFormula(template, startYM, endYM, tableCache);
                 }
             });
 
-            // 回到 UI 執行緒更新 DataGridView
             Action updateGrid = () => {
                 foreach (DataGridViewRow row in ui.Dgv.Rows) {
                     if (row.IsNewRow) continue;
@@ -583,7 +581,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 設定視窗 (自訂項目與公式)
+        // 🟢 設定視窗：新增清單排序功能
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -600,27 +598,28 @@ namespace Safety_System
 
                 Label l1 = new Label { Text = "清單項目 (拖曳可排序)", Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Dock = DockStyle.Top, Height = 35, Padding = new Padding(0,10,0,0) };
                 
+                // 🟢 左側選單：增加雙緩衝防閃爍，並允許滑鼠拖放排序
                 DataGridView dgvItems = new DataGridView { Dock = DockStyle.Fill, AllowUserToAddRows=false, RowHeadersVisible=false, ColumnHeadersVisible=false, SelectionMode=DataGridViewSelectionMode.FullRowSelect, BackgroundColor=Color.White, AllowDrop=true, MultiSelect=false };
                 dgvItems.Columns.Add("Name", "Name"); dgvItems.Columns["Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; dgvItems.Columns["Name"].ReadOnly = true;
                 
-                int dragFromIdx = -1; Rectangle dragBox = Rectangle.Empty;
-                dgvItems.MouseDown += (s, e) => { var hit = dgvItems.HitTest(e.X, e.Y); if (hit.RowIndex >= 0) { dragFromIdx = hit.RowIndex; dragBox = new Rectangle(new Point(e.X - 10, e.Y - 10), new Size(20,20)); } else dragBox = Rectangle.Empty; };
-                dgvItems.MouseMove += (s, e) => { if ((e.Button & MouseButtons.Left) == MouseButtons.Left && dragBox != Rectangle.Empty && !dragBox.Contains(e.X, e.Y)) dgvItems.DoDragDrop(dgvItems.Rows[dragFromIdx], DragDropEffects.Move); };
-                dgvItems.DragOver += (s, e) => e.Effect = DragDropEffects.Move;
-                dgvItems.DragDrop += (s, e) => {
-                    Point p = dgvItems.PointToClient(new Point(e.X, e.Y)); var hit = dgvItems.HitTest(p.X, p.Y);
-                    int targetIdx = hit.RowIndex; if (targetIdx < 0) targetIdx = dgvItems.Rows.Count - 1;
-                    if (dragFromIdx >= 0 && dragFromIdx != targetIdx) {
-                        var row = dgvItems.Rows[dragFromIdx]; dgvItems.Rows.RemoveAt(dragFromIdx); dgvItems.Rows.Insert(targetIdx, row); dgvItems.ClearSelection(); dgvItems.Rows[targetIdx].Selected = true;
-                    }
-                };
+                typeof(DataGridView).InvokeMember("DoubleBuffered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty, null, dgvItems, new object[] { true });
 
+                // ======= 下方按鈕區塊 (包含 上移、下移、刪除) =======
+                Panel pnlLeftActions = new Panel { Dock = DockStyle.Bottom, Height = 120, Padding = new Padding(0, 10, 0, 0) };
+                Button btnDown = new Button { Text = "↓ 下移", Dock = DockStyle.Top, Height = 35, BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Panel spacer1 = new Panel { Dock = DockStyle.Top, Height = 5 }; 
+                Button btnUp = new Button { Text = "↑ 上移", Dock = DockStyle.Top, Height = 35, BackColor = Color.WhiteSmoke, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
                 Button btnDel = new Button { Text = "❌ 刪除選取項目", Dock = DockStyle.Bottom, Height = 40, BackColor = Color.IndianRed, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-                
+
+                pnlLeftActions.Controls.Add(btnDown);
+                pnlLeftActions.Controls.Add(spacer1);
+                pnlLeftActions.Controls.Add(btnUp);
+                pnlLeftActions.Controls.Add(btnDel);
+
                 pnlLeft.Controls.Add(dgvItems);
                 pnlLeft.Controls.Add(l1);
                 pnlLeft.Controls.Add(btnAddNew);
-                pnlLeft.Controls.Add(btnDel);
+                pnlLeft.Controls.Add(pnlLeftActions);
 
                 // ============== 右側編輯區 ==============
                 Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
@@ -634,7 +633,6 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 調整：放大並重新排列變數產生器
                 GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 920, Height = 100, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
@@ -692,7 +690,6 @@ namespace Safety_System
 
                         foreach(var c in cols) cbDateCol.Items.Add(c);
 
-                        // 🟢 自動選取日期欄位邏輯
                         if (cols.Contains("日期")) cbDateCol.SelectedItem = "日期";
                         else if (cols.Contains("年月")) cbDateCol.SelectedItem = "年月";
                         else if (cols.Contains("清運日期")) cbDateCol.SelectedItem = "清運日期";
@@ -706,7 +703,6 @@ namespace Safety_System
 
                 Label lblDesc = new Label { Text = "混合圖文公式編輯區：\n(請將純文字打在外面，將要數學計算的聚合公式包在 { 大括號 } 裡面)", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0,10,0,5), ForeColor=Color.DarkMagenta };
                 
-                // 🟢 快捷鍵容器：加入 { }
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=920, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
                 RichTextBox rtbFormula = new RichTextBox { Width=920, Height=210, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
@@ -721,7 +717,6 @@ namespace Safety_System
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
                     if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、數值欄位！"); return; }
                     
-                    // 🟢 取出實際的英文運算子
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
                     if (actionText.Contains("SUM")) aggCode = "SUM";
@@ -758,6 +753,7 @@ namespace Safety_System
                 pnlBottom.Controls.Add(btnImp); pnlBottom.Controls.Add(btnExp); pnlBottom.Controls.Add(btnSaveAll);
                 f.Controls.Add(tlp); f.Controls.Add(pnlBottom);
 
+                // ================= 綁定記憶體模型資料 =================
                 var configs = new List<EditingConfig>();
                 try {
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -780,6 +776,110 @@ namespace Safety_System
                     isSyncing = false;
                 };
 
+                // 🟢 實作排序與拖曳核心事件 (針對 dgvItems 與 configs 的同步)
+                int dragFromIdx = -1;
+                int dragToIdx = -1;
+                Rectangle dragBox = Rectangle.Empty;
+
+                dgvItems.MouseDown += (s, e) => {
+                    var hit = dgvItems.HitTest(e.X, e.Y);
+                    if (hit.RowIndex >= 0) {
+                        dragFromIdx = hit.RowIndex;
+                        Size dragSize = SystemInformation.DragSize;
+                        dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2), e.Y - (dragSize.Height / 2)), dragSize);
+                    } else {
+                        dragBox = Rectangle.Empty;
+                    }
+                };
+
+                dgvItems.MouseMove += (s, e) => {
+                    if ((e.Button & MouseButtons.Left) == MouseButtons.Left) {
+                        if (dragBox != Rectangle.Empty && !dragBox.Contains(e.X, e.Y)) {
+                            dgvItems.DoDragDrop(dgvItems.Rows[dragFromIdx], DragDropEffects.Move);
+                        }
+                    }
+                };
+
+                dgvItems.DragOver += (s, e) => {
+                    e.Effect = DragDropEffects.Move;
+                    Point p = dgvItems.PointToClient(new Point(e.X, e.Y));
+                    var hit = dgvItems.HitTest(p.X, p.Y);
+                    int newToIdx = hit.RowIndex;
+                    if (newToIdx < 0) newToIdx = dgvItems.Rows.Count - 1;
+
+                    if (dragToIdx != newToIdx) {
+                        dragToIdx = newToIdx;
+                        dgvItems.Invalidate(); 
+                    }
+                };
+
+                dgvItems.DragDrop += (s, e) => {
+                    Point p = dgvItems.PointToClient(new Point(e.X, e.Y));
+                    var hit = dgvItems.HitTest(p.X, p.Y);
+                    int targetIdx = hit.RowIndex;
+                    if (targetIdx < 0) targetIdx = dgvItems.Rows.Count - 1;
+
+                    if (dragFromIdx >= 0 && dragFromIdx != targetIdx) {
+                        // 同步調整 List 記憶體順序
+                        var item = configs[dragFromIdx];
+                        configs.RemoveAt(dragFromIdx);
+                        configs.Insert(targetIdx, item);
+
+                        refreshList(); 
+                        dgvItems.ClearSelection();
+                        dgvItems.Rows[targetIdx].Selected = true;
+                    }
+                    dragToIdx = -1;
+                    dgvItems.Invalidate();
+                };
+
+                dgvItems.DragLeave += (s, e) => {
+                    dragToIdx = -1;
+                    dgvItems.Invalidate();
+                };
+
+                dgvItems.Paint += (s, e) => {
+                    if (dragToIdx >= 0 && dragToIdx < dgvItems.Rows.Count) {
+                        Rectangle r = dgvItems.GetRowDisplayRectangle(dragToIdx, false);
+                        using (Pen pen = new Pen(Color.Red, 3)) {
+                            // 在目標列的上方畫出紅色分割線
+                            e.Graphics.DrawLine(pen, r.Left, r.Top, r.Right, r.Top);
+                        }
+                    }
+                };
+
+                // 🟢 實作上下按鈕事件
+                btnUp.Click += (s, e) => {
+                    if (dgvItems.SelectedRows.Count > 0) {
+                        int idx = dgvItems.SelectedRows[0].Index;
+                        if (idx > 0) {
+                            var item = configs[idx];
+                            configs.RemoveAt(idx);
+                            configs.Insert(idx - 1, item);
+                            
+                            refreshList();
+                            dgvItems.ClearSelection();
+                            dgvItems.Rows[idx - 1].Selected = true;
+                        }
+                    }
+                };
+
+                btnDown.Click += (s, e) => {
+                    if (dgvItems.SelectedRows.Count > 0) {
+                        int idx = dgvItems.SelectedRows[0].Index;
+                        if (idx >= 0 && idx < configs.Count - 1) {
+                            var item = configs[idx];
+                            configs.RemoveAt(idx);
+                            configs.Insert(idx + 1, item);
+                            
+                            refreshList();
+                            dgvItems.ClearSelection();
+                            dgvItems.Rows[idx + 1].Selected = true;
+                        }
+                    }
+                };
+
+                // 原有的資料雙向綁定邏輯
                 dgvItems.SelectionChanged += (s, e) => {
                     if (isSyncing || dgvItems.SelectedRows.Count == 0) return;
                     int idx = dgvItems.SelectedRows[0].Index;
@@ -815,11 +915,12 @@ namespace Safety_System
 
                 btnDel.Click += (s, e) => {
                     if (dgvItems.SelectedRows.Count > 0) {
-                        configs.RemoveAt(dgvItems.SelectedRows[0].Index); 
+                        int idx = dgvItems.SelectedRows[0].Index;
+                        configs.RemoveAt(idx); 
                         refreshList();
                         
                         if (configs.Count > 0) {
-                            dgvItems.Rows[0].Selected = true;
+                            dgvItems.Rows[Math.Min(idx, configs.Count - 1)].Selected = true;
                         } else {
                             txtName.Clear(); rtbFormula.Clear();
                         }
@@ -836,6 +937,7 @@ namespace Safety_System
                                 new SQLiteCommand($"DELETE FROM {TblConfigs} WHERE ThemeId={ui.ThemeId}", conn, trans).ExecuteNonQuery();
                                 
                                 string sql = $"INSERT INTO {TblConfigs} (ThemeId, ItemName, FormulaTemplate) VALUES ({ui.ThemeId}, @N, @F)";
+                                // 依據 Grid 目前的順序寫入資料庫，確保儲存的是調整後的順序
                                 foreach(DataGridViewRow dgvRow in dgvItems.Rows) {
                                     string currentName = dgvRow.Cells[0].Value.ToString();
                                     var targetConfig = configs.FirstOrDefault(c => c.Name == currentName);
