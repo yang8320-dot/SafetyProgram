@@ -75,12 +75,12 @@ namespace Safety_System
                     { "CoolingWaterSelf", "循環水檢測(自評)" }, { "CoolingWaterVendor", "循環水檢測(廠商)" }, { "DrinkingWater", "飲用水檢測" }, 
                     { "EnvMonitor", "環境監測" }, { "IndustrialZoneTest", "工業區檢驗" }, { "OtherTests", "其它檢測數據" }, 
                     { "SoilGasTest", "土壤氣體檢測" }, { "TCLP", "TCLP毒性特性溶出" }, { "WastewaterPeriodic", "廢水定申檢" }, 
-                    { "WastewaterSelfTest", "廢水自主檢驗" }, { "WaterMeterCalibration", "水錶校正" }, { "TestReportEvaluations", "檢測報告分析評估表" }
+                    { "WastewaterSelfTest", "廢水自主檢驗" }, { "WaterMeterCalibration", "水錶校正" }, { "TestReportEvaluations", "檢測報告分析評估表" },
+                    { "SimilarExposureGroup", "相似暴露族群劃分表" }
                 })},
                 { "教育訓練", ("教育訓練", new Dictionary<string, string> { { "訓練時數", "教育訓練時數" } })},
                 { "法規", ("法規", new Dictionary<string, string> { { "環保法規", "環保法規" }, { "職安衛法規", "職安衛法規" }, { "消防法規", "消防法規" }, { "其它法規", "其它法規" } })}, 
                 
-                // 🟢 修改：將原本的 ESG_Indicator 移除，替換為這 4 個新表
                 { "ESG", ("ESG", new Dictionary<string, string> { 
                     { "ESG_Performance", "ESG績效管理" },
                     { "ESG_OccupationalSafety", "職業安全" },
