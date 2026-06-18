@@ -34,7 +34,7 @@ namespace Safety_System
             public GroupBox MainBox { get; set; }
             public ComboBox CboStartYear, CboStartMonth, CboEndYear, CboEndMonth;
             public DataGridView Dgv { get; set; }
-            public TableLayoutPanel Tlp { get; set; } // 🟢 記錄容器，方便後續精算高度
+            public TableLayoutPanel Tlp { get; set; } 
             public FlowLayoutPanel FlpControls { get; set; } 
         }
 
@@ -180,24 +180,34 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            // 🟢 徹底消除下方留白機制：取消 GroupBox 自帶的 AutoSize，改用手動精算高度
+            // 🟢 徹底消除空白 1/3：啟動 GroupBox 的 AutoSizeMode.GrowAndShrink (包裝收縮模式)
             ui.MainBox = new GroupBox { 
                 Text = $"📌 {themeName}", 
                 Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
                 ForeColor = Color.DarkSlateBlue, 
-                Padding = new Padding(10, 25, 10, 10), // 上方留給 Title 空間
-                Margin = new Padding(0, 0, 0, 25), 
-                AutoSize = false, // 關閉自動拉伸，避免 WinForms 誤判高度
+                Padding = new Padding(10, 20, 10, 5), 
+                Margin = new Padding(0, 0, 0, 20), 
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink, 
                 Dock = DockStyle.Top 
             };
 
-            ui.Tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2, Margin = new Padding(0), Padding = new Padding(0) };
+            // 🟢 徹底消除空白 2/3：TableLayoutPanel 同樣開啟包裝收縮模式
+            ui.Tlp = new TableLayoutPanel { 
+                Dock = DockStyle.Top, 
+                AutoSize = true, 
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 1, 
+                RowCount = 2, 
+                Margin = new Padding(0), 
+                Padding = new Padding(0) 
+            };
             ui.Tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             ui.Tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             ui.Tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             // ====== 第一行：操作列 ======
-            ui.FlpControls = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Padding = new Padding(0, 0, 0, 10), Margin = new Padding(0) };
+            ui.FlpControls = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Padding = new Padding(0, 5, 0, 10), Margin = new Padding(0) };
             
             ui.CboStartYear = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 90, Margin = new Padding(10, 6, 5, 0) };
             ui.CboStartMonth = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F), Width = 60, Margin = new Padding(0, 6, 5, 0) };
@@ -240,7 +250,7 @@ namespace Safety_System
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single,
-                ScrollBars = ScrollBars.None, // 關閉內部捲軸，強迫它向下長
+                ScrollBars = ScrollBars.None, // 確保關閉內部捲軸
                 Margin = new Padding(0)
             };
             ui.Dgv.EnableHeadersVisualStyles = false;
@@ -294,7 +304,7 @@ namespace Safety_System
             };
         }
 
-        // 🟢 徹底解決下方大片空白問題：手動計算精確高度並指派給外層容器
+        // 🟢 徹底消除空白 3/3：精準設定高度，並通知外層佈局重新排列
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null || ui.MainBox == null || ui.Tlp == null) return;
@@ -306,11 +316,11 @@ namespace Safety_System
                 dgvHeight += row.Height;
             }
             
-            // DGV 只保留 2 像素的邊框緩衝
+            // DGV 高度剛好等於 標頭 + 所有列總和 + 2px 邊框緩衝
             ui.Dgv.Height = dgvHeight > 0 ? dgvHeight + 2 : 50;
 
-            // 計算 GroupBox 的實際需要高度 = Tlp高度 + 上方標題列的空間(約25) + 下方底線空間(約10)
-            ui.MainBox.Height = ui.Tlp.Height + 35; 
+            // 因為 GroupBox 跟 TableLayoutPanel 都開了 AutoSizeMode = GrowAndShrink，
+            // 只要 DGV 高度改變，外面就會像保鮮膜一樣自動貼合收縮，不需再手動設定外層高度！
         }
 
         private void ApplyColumnWidths(ThemeSectionUI ui)
@@ -711,11 +721,10 @@ namespace Safety_System
         }
 
         // ==========================================
-        // ⚙️ 設定視窗
+        // ⚙️ 設定視窗 (修復跑版與絕對座標配置)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
-            // 🟢 修復 2：設定視窗的排版修正，採用 FlowLayoutPanel 搭配等寬控制
             using (Form f = new Form { Text = $"⚙️ 設定顯示與公式 - {ui.ThemeName}", Size = new Size(1380, 780), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false })
             {
                 TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -762,47 +771,68 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 修正 2：加寬變數產生器，並改用 FlowLayoutPanel 來支援 125% 縮放時自動換行不重疊
-                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1020, Height = 175, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
+                // 🟢 修正 2：加寬變數產生器，並改用 Panel 搭配精確座標，避免 125% 縮放時換行重疊
+                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 135, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 
-                FlowLayoutPanel flpBuilderInner = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
+                Panel pnlBuilderInner = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、被計算欄、日期欄
-                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
-                ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
-                ComboBox cbCol = new ComboBox { Width = 185, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
+                // 第一排：庫、表、被計算欄、日期欄 (Y=10)
+                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbCol.Items.Add("Id (無條件計數)");
-                ComboBox cbDateCol = new ComboBox { Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
+                ComboBox cbDateCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-                flpBuilderInner.Controls.AddRange(new Control[] {
-                    new Label { Text = "庫:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbDb,
-                    new Label { Text = "表:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbTb,
-                    new Label { Text = "被計算欄:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbCol,
-                    new Label { Text = "日期欄:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbDateCol
-                });
+                Label lblDb = new Label { Text = "庫:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Label lblTb = new Label { Text = "表:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Label lblCol = new Label { Text = "被計算欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Label lblDateCol = new Label { Text = "日期欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-                // 強制換行
-                flpBuilderInner.SetFlowBreak(cbDateCol, true);
-
-                // 第二排：篩選條件欄、指定內容、動作、插入按鈕
-                ComboBox cbRefCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
-                ComboBox cbFilterVal = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
+                // 第一排座標分配
+                lblDb.Location = new Point(5, 13);
+                cbDb.Location = new Point(40, 10);
                 
-                ComboBox cbAction = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Margin = new Padding(5, 5, 10, 10) };
+                lblTb.Location = new Point(190, 13);
+                cbTb.Location = new Point(225, 10);
+                
+                lblCol.Location = new Point(415, 13);
+                cbCol.Location = new Point(495, 10);
+                
+                lblDateCol.Location = new Point(685, 13);
+                cbDateCol.Location = new Point(750, 10);
+
+                pnlBuilderInner.Controls.AddRange(new Control[] { lblDb, cbDb, lblTb, cbTb, lblCol, cbCol, lblDateCol, cbDateCol });
+
+                // 第二排：篩選條件欄、內容、動作、插入按鈕 (Y=60)
+                ComboBox cbRefCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbFilterVal = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                
+                ComboBox cbAction = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
                 cbAction.SelectedIndex = 0;
 
-                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 120, Height = 35, BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Cursor = Cursors.Hand, Margin = new Padding(5, 4, 10, 10) };
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 120, Height = 34, BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
 
-                flpBuilderInner.Controls.AddRange(new Control[] {
-                    new Label { Text = "篩選欄:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbRefCol,
-                    new Label { Text = "內容:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbFilterVal,
-                    new Label { Text = "動作:", AutoSize = true, Margin = new Padding(5, 8, 0, 0), Font = new Font("Microsoft JhengHei UI", 11F) }, cbAction,
-                    btnInsert
-                });
+                Label lblRefCol = new Label { Text = "篩選條件欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Label lblFilterVal = new Label { Text = "內容:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Label lblAction = new Label { Text = "動作:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
 
-                boxBuilder.Controls.Add(flpBuilderInner);
+                // 第二排座標分配
+                lblRefCol.Location = new Point(5, 63);
+                cbRefCol.Location = new Point(100, 60);
+
+                lblFilterVal.Location = new Point(260, 63);
+                cbFilterVal.Location = new Point(310, 60);
+
+                lblAction.Location = new Point(480, 63);
+                cbAction.Location = new Point(530, 60);
+
+                btnInsert.Location = new Point(680, 58);
+
+                pnlBuilderInner.Controls.AddRange(new Control[] { lblRefCol, cbRefCol, lblFilterVal, cbFilterVal, lblAction, cbAction, btnInsert });
+
+                boxBuilder.Controls.Add(pnlBuilderInner);
 
                 // 綁定中英文對照
                 cbDb.Items.Add(new ItemMap { EnName="", ChName="" });
@@ -1199,7 +1229,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 全域 PDF / Excel 導出對話框與邏輯
+        // 🟢 全域 PDF / Excel 導出對話框與邏輯 (純文字繪製版)
         // ==========================================
         private List<ThemeSectionUI> GetSelectedThemesDialog()
         {
@@ -1256,7 +1286,6 @@ namespace Safety_System
             return selected;
         }
 
-        // 🟢 修正 4：改寫 BtnGlobalPdf_Click，套用純程式碼動態繪製 PDF，隱藏不必要的按鍵與背景顏色
         private void BtnGlobalPdf_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
@@ -1398,7 +1427,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修正 5：在匯出 Excel 的邏輯中，精準擷取 UI 寬度並等比例換算給 Excel
         private void BtnGlobalExcel_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
@@ -1445,7 +1473,7 @@ namespace Safety_System
                                 var ws = p.Workbook.Worksheets.Add(finalSheetName);
                                 ws.Cells["A1"].LoadFromDataTable(dt, true);
                                 
-                                // 🟢 套用等比例欄寬 (假定整張 A4 橫式 Excel 可容納大約 120 字元寬)
+                                // 套用等比例欄寬
                                 float totalGridWidth = sec.Dgv.Columns.Cast<DataGridViewColumn>().Sum(c => c.Width);
                                 for (int i = 0; i < sec.Dgv.Columns.Count; i++) {
                                     float excelWidth = (sec.Dgv.Columns[i].Width / totalGridWidth) * 120f;
