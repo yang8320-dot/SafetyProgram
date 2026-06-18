@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -35,43 +36,88 @@ namespace Safety_System
 
         static DataManager()
         {
-            // 🟢 核心機制：讀取「網路指向檔 (NetworkPath.txt)」
+            // 🟢 核心機制：網路指向檔 (NetworkPath.txt) 處理邏輯
             string pointerFilePath = Path.Combine(AppDir, "NetworkPath.txt");
             string activeRootDir = AppDir; // 預設使用本機目錄
+            string currentNetworkDir = "";
+            bool needPrompt = false;
 
+            // 1. 檢查並讀取指向檔
             if (File.Exists(pointerFilePath))
             {
                 try
                 {
-                    // 讀取檔案的所有行
                     string[] lines = File.ReadAllLines(pointerFilePath);
-                    
-                    // 過濾掉空白行與純註解行(以 # 或 // 開頭)
                     var validLines = lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.Trim().StartsWith("#") && !l.Trim().StartsWith("//")).ToList();
 
                     if (validLines.Count > 0)
                     {
-                        // 抓取第一行有效字串作為路徑 (這讓您可以把註解寫在它上面)
-                        string networkDir = validLines[0].Trim();
-                        
-                        // 檢查網路磁碟機/伺服器路徑是否有效
-                        if (Directory.Exists(networkDir))
-                        {
-                            activeRootDir = networkDir;
-                        }
-                        else
-                        {
-                            MessageBox.Show($"警告：無法連線至 NetworkPath.txt 中指定的網路路徑：\n{networkDir}\n\n可能原因：您不在公司區網內，或權限不足。\n系統將暫時切換回「本機單機模式」執行。", "網路連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        currentNetworkDir = validLines[0].Trim();
+                        // 檢查讀取到的路徑是否有效
+                        if (!Directory.Exists(currentNetworkDir)) {
+                            needPrompt = true; // 路徑失效，重新詢問
+                        } else {
+                            activeRootDir = currentNetworkDir;
                         }
                     }
+                    else
+                    {
+                        needPrompt = true; // 檔案內容為空，要求輸入
+                    }
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"讀取 NetworkPath.txt 失敗：{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                catch { needPrompt = true; }
+            }
+            else
+            {
+                needPrompt = true; // 檔案不存在 (初次啟動)，要求輸入
             }
 
-            // 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄 (網路或本機)
+            // 2. 如果需要引導使用者輸入
+            if (needPrompt)
+            {
+                // 彈出視窗詢問路徑 (預設帶入之前讀取到的無效路徑或一個範例)
+                string defaultSuggestion = string.IsNullOrEmpty(currentNetworkDir) ? @"\\192.168.1.112\工安共用" : currentNetworkDir;
+                string userInput = PromptForNetworkPath(defaultSuggestion);
+
+                if (!string.IsNullOrWhiteSpace(userInput) && Directory.Exists(userInput))
+                {
+                    activeRootDir = userInput; // 連線成功，使用網路路徑
+                }
+                else if (!string.IsNullOrWhiteSpace(userInput))
+                {
+                    // 使用者有輸入，但是路徑無效
+                    MessageBox.Show($"警告：您輸入的路徑無效或網路無法連線：\n{userInput}\n\n系統將暫時切換為「本機單機模式」執行。", "網路連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    activeRootDir = AppDir;
+                    userInput = ""; // 清空，稍後寫入 txt 時以空白(單機)表示
+                }
+                else
+                {
+                    // 使用者留空或點擊取消，走單機模式
+                    activeRootDir = AppDir;
+                    userInput = ""; 
+                }
+
+                // 3. 自動生成 / 覆寫 NetworkPath.txt，並加上預設註解
+                try
+                {
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("# ====================================================================");
+                    sb.AppendLine("# 【Safety System 網路資料庫與附件指向檔】");
+                    sb.AppendLine("# ====================================================================");
+                    sb.AppendLine("# 1. 系統啟動時會自動讀取此檔案，尋找第一行「沒有被 # 或 // 標記」的路徑。");
+                    sb.AppendLine("# 2. 透過此設定，您可以讓放置在本機的 .exe 程式，連線到公司伺服器的共用資料庫。");
+                    sb.AppendLine("# 3. 建議使用 UNC 絕對路徑 (例如 \\\\192.168.1.112\\工安共用)。");
+                    sb.AppendLine("# 4. 若要作為「單機版」執行，請將下方路徑保持空白即可。");
+                    sb.AppendLine("# ====================================================================");
+                    sb.AppendLine("");
+                    sb.AppendLine(userInput); // 寫入使用者輸入的路徑 (或空白)
+
+                    File.WriteAllText(pointerFilePath, sb.ToString(), Encoding.UTF8);
+                }
+                catch { } // 若在 C:\Program Files 權限不足則忽略
+            }
+
+            // 4. 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄
             SysConfigDbPath = Path.Combine(activeRootDir, "SystemConfig.sqlite");
             BasePath = Path.Combine(activeRootDir, "DB");
             AttachmentBasePath = Path.Combine(activeRootDir, "附件");
@@ -79,8 +125,78 @@ namespace Safety_System
             InitSysConfigDB();
         }
 
+        // 🟢 專為 DataManager 設計的輕量級輸入視窗
+        private static string PromptForNetworkPath(string defaultValue)
+        {
+            string result = "";
+            using (Form f = new Form())
+            {
+                f.Width = 550;
+                f.Height = 280;
+                f.Text = "初次啟動 - 網路資料庫共用路徑設定";
+                f.StartPosition = FormStartPosition.CenterScreen;
+                f.FormBorderStyle = FormBorderStyle.FixedDialog;
+                f.MaximizeBox = false;
+                f.MinimizeBox = false;
+                f.TopMost = true; // 確保在啟動時不會被擋住
+                f.BackColor = Color.White;
+
+                Label lbl = new Label { 
+                    Text = "系統偵測到未設定共用資料庫路徑，或原路徑已失效。\n請輸入共用伺服器路徑 (例如：\\\\192.168.1.112\\工安共用)\n\n※ 若要作為「單機版」執行，請直接點擊單機執行或保持空白。", 
+                    AutoSize = true, 
+                    Location = new Point(25, 25), 
+                    Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
+                    ForeColor = Color.DarkSlateBlue
+                };
+
+                TextBox txt = new TextBox { 
+                    Location = new Point(25, 110), 
+                    Width = 480, 
+                    Font = new Font("Microsoft JhengHei UI", 13F), 
+                    Text = defaultValue 
+                };
+
+                Button btnOk = new Button { 
+                    Text = "確認連線", 
+                    Location = new Point(280, 170), 
+                    Size = new Size(110, 45), 
+                    BackColor = Color.SteelBlue, 
+                    ForeColor = Color.White, 
+                    Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
+                    DialogResult = DialogResult.OK,
+                    Cursor = Cursors.Hand
+                };
+
+                Button btnCancel = new Button { 
+                    Text = "單機執行", 
+                    Location = new Point(400, 170), 
+                    Size = new Size(105, 45), 
+                    BackColor = Color.LightGray,
+                    Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
+                    DialogResult = DialogResult.Cancel,
+                    Cursor = Cursors.Hand
+                };
+
+                f.Controls.Add(lbl);
+                f.Controls.Add(txt);
+                f.Controls.Add(btnOk);
+                f.Controls.Add(btnCancel);
+                f.AcceptButton = btnOk;
+
+                if (f.ShowDialog() == DialogResult.OK) {
+                    result = txt.Text.Trim();
+                } else {
+                    result = ""; // 使用者選擇單機
+                }
+            }
+            return result;
+        }
+
         private static void InitSysConfigDB()
         {
+            string sysDbDir = Path.GetDirectoryName(SysConfigDbPath);
+            if (!Directory.Exists(sysDbDir)) Directory.CreateDirectory(sysDbDir);
+
             string connStr = $"Data Source={SysConfigDbPath};Version=3;";
             using (var conn = new SQLiteConnection(connStr))
             {
