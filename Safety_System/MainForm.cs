@@ -20,6 +20,9 @@ namespace Safety_System
         private ToolStripMenuItem _menu2;
         private ToolStripMenuItem _menu3;
         private ToolStripMenuItem _menu4;
+        
+        // 增加一個 Loading 標籤
+        private Label _lblStartupLoading;
 
         public MainForm()
         {
@@ -35,21 +38,10 @@ namespace Safety_System
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MinimumSize = new Size(1280, 720);
             this.Font = new Font("Microsoft JhengHei UI", 12F);
-            
-            DataManager.LoadConfig();
+            this.BackColor = Color.WhiteSmoke;
 
-            App_DropdownManager.LoadDropdownConfigs();
-            App_DropdownManager.LoadMultiSelectConfigs();
+            _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top, Visible = false }; // 先隱藏選單
             
-            Task.Run(() => {
-                try { BackupManager.RunAutoBackup(); } catch { }
-            });
-            
-            App_PasswordManager.InitDatabase();
-
-            _mainMenu = new MenuStrip { Font = new Font("Microsoft JhengHei UI", 12F), Dock = DockStyle.Top };
-            BuildMenu();
-
             _contentPanel = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -58,20 +50,47 @@ namespace Safety_System
                 AutoScroll = true
             };
 
+            // 啟動時的 Loading 畫面
+            _lblStartupLoading = new Label {
+                Text = "🚀 系統啟動中，正在載入資料庫與環境設定，請稍候...",
+                Font = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold),
+                ForeColor = Color.SteelBlue,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            _contentPanel.Controls.Add(_lblStartupLoading);
+
             this.Controls.Add(_contentPanel);
             this.Controls.Add(_mainMenu); 
             
             this.Shown += MainForm_Shown;
         }
 
-        private void MainForm_Shown(object sender, EventArgs e)
+        // 🟢 核心優化：將沉重的網路資料庫讀取全部移到畫面顯示之後 (非同步執行)
+        private async void MainForm_Shown(object sender, EventArgs e)
         {
+            Application.DoEvents(); // 讓 Loading 畫面先順利繪製出來
+
+            await Task.Run(() => 
+            {
+                // 將所有高頻繁讀寫資料庫的動作放在背景執行，不卡死 UI 執行緒
+                try { DataManager.LoadConfig(); } catch {}
+                try { App_DropdownManager.LoadDropdownConfigs(); } catch {}
+                try { App_DropdownManager.LoadMultiSelectConfigs(); } catch {}
+                try { App_PasswordManager.InitDatabase(); } catch {}
+            });
+
+            // 回到 UI 執行緒建立選單
+            BuildMenu();
+            _mainMenu.Visible = true; // 建立完畢後顯示選單
+
+            // 啟動首頁
             LoadWelcomeScreen();
             
-            Task.Delay(500).ContinueWith(_ => {
-                try {
-                    ReminderEngine.CheckAndShowReminders();
-                } catch { }
+            // 延遲執行系統提醒與備份，避開開機巔峰期
+            _ = Task.Delay(2000).ContinueWith(_ => {
+                try { BackupManager.RunAutoBackup(); } catch { }
+                try { ReminderEngine.CheckAndShowReminders(); } catch { }
             });
         }
 
@@ -219,7 +238,6 @@ namespace Safety_System
             menuNursing.DropDownItems.Add(new ToolStripSeparator());
             menuNursing.DropDownItems.Add(CreateItem("D21 健康促進活動", () => new App_CoreTable("Nursing", "HealthPromotion", "健康促進活動", new DefaultLogic()).GetView()));
             menuNursing.DropDownItems.Add(CreateItem("D22 職災申報紀錄", () => new App_CoreTable("Nursing", "WorkInjuryReport", "職災申報紀錄", new DefaultLogic()).GetView()));
-            // 🟢 新增：D23 員工健康關懷
             menuNursing.DropDownItems.Add(CreateItem("D23 員工健康關懷", () => new App_CoreTable("Nursing", "EmployeeHealthCare", "員工健康關懷", new DefaultLogic()).GetView()));
 
             var menuAirWaterWaste = new ToolStripMenuItem("空水廢");
@@ -342,12 +360,18 @@ namespace Safety_System
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
+            _menu2.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu2DB").GetView()));
+            _menu2.DropDownItems.Add(new ToolStripSeparator());
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu3 = new ToolStripMenuItem("選單3") { Visible = false };
+            _menu3.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu3DB").GetView()));
+            _menu3.DropDownItems.Add(new ToolStripSeparator());
             _menu3.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu3DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
+            _menu4.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu4DB").GetView()));
+            _menu4.DropDownItems.Add(new ToolStripSeparator());
             _menu4.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu4DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             var menuSettings = new ToolStripMenuItem("設定");
