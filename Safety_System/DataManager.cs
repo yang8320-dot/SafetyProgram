@@ -39,10 +39,65 @@ namespace Safety_System
             // 🟢 核心機制：網路指向檔 (NetworkPath.txt) 處理邏輯
             string pointerFilePath = Path.Combine(AppDir, "NetworkPath.txt");
             string activeRootDir = AppDir; // 預設使用本機目錄
+            string currentNetworkDir = "";
+            bool needPrompt = false;
 
-            // 1. 如果檔案不存在 (第一次啟動)，系統自動生成並寫入預設註解與路徑
-            if (!File.Exists(pointerFilePath))
+            // 1. 檢查並讀取指向檔
+            if (File.Exists(pointerFilePath))
             {
+                try
+                {
+                    string[] lines = File.ReadAllLines(pointerFilePath);
+                    var validLines = lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.Trim().StartsWith("#") && !l.Trim().StartsWith("//")).ToList();
+
+                    if (validLines.Count > 0)
+                    {
+                        currentNetworkDir = validLines[0].Trim();
+                        // 檢查讀取到的路徑是否有效 (若網路不通，Windows 這裡會等待幾秒鐘)
+                        if (!Directory.Exists(currentNetworkDir)) {
+                            needPrompt = true; // 路徑失效，重新詢問
+                        } else {
+                            activeRootDir = currentNetworkDir; // 連線成功
+                        }
+                    }
+                    else
+                    {
+                        needPrompt = true; // 檔案內容為空，要求輸入
+                    }
+                }
+                catch { needPrompt = true; }
+            }
+            else
+            {
+                needPrompt = true; // 檔案不存在 (初次啟動)，要求輸入
+            }
+
+            // 2. 如果需要引導使用者輸入 (初次啟動或網路連線失敗)
+            if (needPrompt)
+            {
+                // 彈出視窗詢問路徑 (預設帶入之前讀取到的無效路徑，或給予一個範例)
+                string defaultSuggestion = string.IsNullOrEmpty(currentNetworkDir) ? @"\\192.168.1.112\工安共用" : currentNetworkDir;
+                string userInput = PromptForNetworkPath(defaultSuggestion);
+
+                if (!string.IsNullOrWhiteSpace(userInput) && Directory.Exists(userInput))
+                {
+                    activeRootDir = userInput; // 連線成功，使用網路路徑
+                }
+                else if (!string.IsNullOrWhiteSpace(userInput))
+                {
+                    // 使用者有輸入，但是路徑無效
+                    MessageBox.Show($"警告：您輸入的路徑無效或網路無法連線：\n{userInput}\n\n系統將暫時切換為「本機單機模式」執行。", "網路連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    activeRootDir = AppDir;
+                    userInput = ""; // 清空，稍後寫入 txt 時以空白(單機)表示
+                }
+                else
+                {
+                    // 使用者留空或點擊取消，走單機模式
+                    activeRootDir = AppDir;
+                    userInput = ""; 
+                }
+
+                // 3. 自動生成 / 覆寫 NetworkPath.txt，並加上預設註解
                 try
                 {
                     StringBuilder sb = new StringBuilder();
@@ -51,50 +106,18 @@ namespace Safety_System
                     sb.AppendLine("# ====================================================================");
                     sb.AppendLine("# 1. 系統啟動時會自動讀取此檔案，尋找第一行「沒有被 # 或 // 標記」的路徑。");
                     sb.AppendLine("# 2. 透過此設定，您可以讓放置在本機的 .exe 程式，連線到公司伺服器的共用資料庫。");
-                    sb.AppendLine("# 3. 建議使用 UNC 絕對路徑 (例如 \\\\192.168.1.112\\工安共用)，避免同仁電腦磁碟代號不同(L槽/Z槽)導致錯誤。");
-                    sb.AppendLine("# 4. 若此檔案遭到刪除、路徑填寫空白、或網路伺服器無法連線，系統將自動退回「本機單機模式」。");
+                    sb.AppendLine("# 3. 建議使用 UNC 絕對路徑 (例如 \\\\192.168.1.112\\工安共用)。");
+                    sb.AppendLine("# 4. 若要作為「單機版」執行，請將下方路徑保持空白即可。");
                     sb.AppendLine("# ====================================================================");
                     sb.AppendLine("");
-                    sb.AppendLine(@"\\192.168.1.112\工安共用"); // 預設帶入公司的伺服器路徑
+                    sb.AppendLine(userInput); // 寫入使用者輸入的有效路徑 (或空白)
 
                     File.WriteAllText(pointerFilePath, sb.ToString(), Encoding.UTF8);
                 }
-                catch { } // 如果放在 C:\Program Files 權限不足可能無法建立，忽略讓它走單機模式
+                catch { } // 若在 C:\ 根目錄等受保護區域權限不足則忽略
             }
 
-            // 2. 讀取檔案內容
-            if (File.Exists(pointerFilePath))
-            {
-                try
-                {
-                    string[] lines = File.ReadAllLines(pointerFilePath);
-                    
-                    // 過濾掉空白行與純註解行(以 # 或 // 開頭)
-                    var validLines = lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.Trim().StartsWith("#") && !l.Trim().StartsWith("//")).ToList();
-
-                    if (validLines.Count > 0)
-                    {
-                        // 抓取第一行有效字串作為路徑
-                        string networkDir = validLines[0].Trim();
-                        
-                        // 檢查網路磁碟機/伺服器路徑是否有效
-                        if (Directory.Exists(networkDir))
-                        {
-                            activeRootDir = networkDir;
-                        }
-                        else
-                        {
-                            MessageBox.Show($"警告：無法連線至 NetworkPath.txt 中指定的網路路徑：\n{networkDir}\n\n可能原因：您不在公司區網內，或網路連線異常。\n系統將暫時切換回「本機單機模式」執行。", "網路連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"讀取 NetworkPath.txt 失敗：{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-
-            // 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄 (網路或本機)
+            // 4. 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄
             SysConfigDbPath = Path.Combine(activeRootDir, "SystemConfig.sqlite");
             BasePath = Path.Combine(activeRootDir, "DB");
             AttachmentBasePath = Path.Combine(activeRootDir, "附件");
@@ -102,7 +125,7 @@ namespace Safety_System
             InitSysConfigDB();
         }
 
-        // 🟢 專為 DataManager 設計的輕量級輸入視窗 (已針對 125% 縮放修正排版與間距)
+        // 🟢 專為 DataManager 設計的輸入視窗 (已針對 125% 縮放修正排版與文字換行)
         private static string PromptForNetworkPath(string defaultValue)
         {
             string result = "";
@@ -110,7 +133,7 @@ namespace Safety_System
             {
                 // 加大視窗寬高，給予 125% 縮放足夠的空間
                 f.Width = 620;
-                f.Height = 360;
+                f.Height = 380;
                 f.Text = "初次啟動 - 網路資料庫共用路徑設定";
                 f.StartPosition = FormStartPosition.CenterScreen;
                 f.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -122,16 +145,16 @@ namespace Safety_System
                 Label lbl = new Label { 
                     Text = "系統偵測到未設定共用資料庫路徑，或原路徑已失效。\n請輸入共用伺服器路徑 (例如：\\\\192.168.1.112\\工安共用)\n\n※ 若要作為「單機版」執行，請直接點擊單機執行或保持空白。", 
                     AutoSize = true, 
-                    // 設定 MaximumSize 強迫標籤文字在碰到 550px 寬度時自動往下換行，解決 125% 縮放被截斷的問題
+                    // 🟢 設定 MaximumSize 強迫標籤文字在碰到 550px 寬度時自動往下換行，解決 125% 縮放被截斷的問題
                     MaximumSize = new Size(550, 0), 
                     Location = new Point(25, 25), 
                     Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
                     ForeColor = Color.DarkSlateBlue
                 };
 
-                // 將 TextBox 與 Buttons 往下推，避免與變高後的 Label 重疊
+                // 🟢 將 TextBox 與 Buttons 往下推，避免與變高換行的 Label 重疊
                 TextBox txt = new TextBox { 
-                    Location = new Point(25, 150), 
+                    Location = new Point(25, 170), 
                     Width = 550, 
                     Font = new Font("Microsoft JhengHei UI", 13F), 
                     Text = defaultValue 
@@ -139,7 +162,7 @@ namespace Safety_System
 
                 Button btnOk = new Button { 
                     Text = "確認連線", 
-                    Location = new Point(330, 210), 
+                    Location = new Point(330, 230), 
                     Size = new Size(115, 45), 
                     BackColor = Color.SteelBlue, 
                     ForeColor = Color.White, 
@@ -150,7 +173,7 @@ namespace Safety_System
 
                 Button btnCancel = new Button { 
                     Text = "單機執行", 
-                    Location = new Point(460, 210), 
+                    Location = new Point(460, 230), 
                     Size = new Size(115, 45), 
                     BackColor = Color.LightGray,
                     Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), 
