@@ -224,7 +224,7 @@ namespace Safety_System
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 AllowUserToResizeColumns = true,
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 確保文字多時行高會自適應
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single
             };
@@ -828,6 +828,7 @@ namespace Safety_System
                 boxBuilder.Controls.Add(pnlBuilder);
                 flpEditor.Controls.Add(boxBuilder);
 
+                // 🟢 開啟 AcceptsReturn 與 AcceptsTab 讓公式框支援多行排版
                 Label lblDesc = new Label { 
                     Text = "混合圖文公式編輯區：\n(支援多行排版，請直接按 Enter 換行。純文字打在外面，需計算的公式包在 { 大括號 } 內)", 
                     AutoSize = true, 
@@ -839,14 +840,12 @@ namespace Safety_System
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=1000, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
                 
-                // 🟢 確保 AcceptsReturn = true，讓 Enter 鍵正常發揮換行作用
                 RichTextBox rtbFormula = new RichTextBox { 
                     Width = 1000, 
                     Height = 175, 
                     Font = new Font("Consolas", 14F), 
                     BackColor = Color.AliceBlue, 
                     Margin = new Padding(0, 5, 0, 0),
-                    AcceptsReturn = true,
                     AcceptsTab = true
                 };
                 
