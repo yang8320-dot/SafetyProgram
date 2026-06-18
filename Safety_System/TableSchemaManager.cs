@@ -63,6 +63,9 @@ namespace Safety_System
             { "AirPollution", "[年度] TEXT, [季度] TEXT, [排放量] TEXT, [繳費金額] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "HazardStats", "[年月] TEXT, [單位] TEXT, [品項] TEXT, [品項單位] TEXT, [數量] TEXT, [使用量] TEXT, [庫存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "WorkInjuryReport", "[年月] TEXT, [受僱勞工男性人數] TEXT, [非屬受僱勞工之其他工作者男性人數] TEXT, [受僱勞工女性人數] TEXT, [非屬受僱勞工之其他工作者女性人數] TEXT, [受僱勞工總計工作日數] TEXT, [非屬受僱勞工之其他工作者總計工作日數] TEXT, [受僱勞工總經歷工時] TEXT, [非屬受僱勞工之其他工作者總經歷工時] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            // 🟢 新增：員工健康關懷 Schema
+            { "EmployeeHealthCare", "[年月] TEXT, [基本關懷人數] TEXT, [臨時關懷人數] TEXT, [關懷人數小計] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+
             { "EnvTesting", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [分類] TEXT, [中文名稱] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "ExposureLimits", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [種類] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CASNO] TEXT, [容許濃度ppm] TEXT, [容許濃度mgm3] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "ToxicSubstances", "[日期] TEXT, [法規名稱] TEXT, [依據法條] TEXT, [內容] TEXT, [中文名稱] TEXT, [英文名稱] TEXT, [化學式] TEXT, [CASNO] TEXT, [管制濃度百分比] TEXT, [分級運作量kg] TEXT, [毒性分類] TEXT, [確認日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
