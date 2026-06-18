@@ -126,7 +126,6 @@ namespace Safety_System
                 
                 LoadThemes();
                 
-                // 🟢 修正：新增區塊後，連同舊區塊一起重新讀取資料，避免畫面跑回空殼的預設狀態
                 foreach (var ui in _sections) {
                     _ = CalculateAndLoadGrid(ui);
                 }
@@ -134,7 +133,6 @@ namespace Safety_System
             } catch (Exception ex) { MessageBox.Show("新增失敗：" + ex.Message); }
         }
 
-        // 管理所有的主題區塊，供自動讀取使用
         private List<ThemeSectionUI> _sections = new List<ThemeSectionUI>();
 
         private void LoadThemes()
@@ -222,9 +220,7 @@ namespace Safety_System
 
             // ====== 第二行：資料表格 ======
             ui.Dgv = new DataGridView {
-                Dock = DockStyle.Top, 
-                Height = 150, 
-                BackgroundColor = Color.White,
+                Dock = DockStyle.Top, Height = 100, BackgroundColor = Color.White,
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 AllowUserToResizeColumns = true,
@@ -245,7 +241,6 @@ namespace Safety_System
             ui.Dgv.Columns["附件檔案"].DefaultCellStyle.ForeColor = Color.Blue; ui.Dgv.Columns["附件檔案"].DefaultCellStyle.Font = new Font(ui.Dgv.Font, FontStyle.Underline);
             ui.Dgv.Columns.Add("備註", "備註"); 
 
-            // 🟢 修正：當使用者調整欄寬後，馬上觸發高度重算
             ui.Dgv.ColumnWidthChanged += (s, e) => {
                 if (e.Column != null && e.Column.Width > 0) {
                     DataManager.SaveGridConfig("StatsDashboard", ui.ThemeName, "Width", e.Column.Name, e.Column.Width.ToString());
@@ -286,17 +281,13 @@ namespace Safety_System
             };
         }
 
-        // 🟢 新增：專屬計算高度的方法，避免跟 Paint 事件衝突鎖死
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null) return;
-
             int totalHeight = ui.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in ui.Dgv.Rows) {
                 totalHeight += row.Height;
             }
-            
-            // 🟢 依照需求：整體資料表高度展開後底部 +30
             ui.Dgv.Height = totalHeight > 0 ? totalHeight + 30 : 100;
         }
 
@@ -319,12 +310,13 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心公式運算引擎 
+        // 核心公式運算引擎 (支援多重交叉與對照欄)
         // ==========================================
         private string EvaluateStatsFormula(string template, string startYM, string endYM, Dictionary<string, DataTable> tableCache)
         {
             string evalText = template;
-            Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\](?:\.\[(?<dateCol>[^\]]+)\])?\)");
+            
+            Regex crossRegex = new Regex(@"(?<agg>SUM|AVG|MAX|MIN|COUNT)\(\[(?<db>[^\]]+)\]\.\[(?<tb>[^\]]+)\]\.\[(?<col>[^\]]+)\](?:\.\[(?<dateCol>[^\]]+)\])?(?:\.\[(?<refCol>[^\]]+)\]\.\[(?<filterVal>[^\]]*)\])?\)");
             Regex mathBlockRegex = new Regex(@"\{(?<expr>[^\}]+)\}");
 
             var mathBlocks = mathBlockRegex.Matches(evalText);
@@ -338,7 +330,12 @@ namespace Safety_System
                     string fDb = mCross.Groups["db"].Value;
                     string fTb = mCross.Groups["tb"].Value;
                     string fCol = mCross.Groups["col"].Value;
+                    
                     string formulaDateCol = mCross.Groups["dateCol"].Success ? mCross.Groups["dateCol"].Value : ""; 
+                    if (formulaDateCol == "自動判斷") formulaDateCol = "";
+
+                    string refCol = mCross.Groups["refCol"].Success ? mCross.Groups["refCol"].Value : "";
+                    string filterVal = mCross.Groups["filterVal"].Success ? mCross.Groups["filterVal"].Value : "";
 
                     string cacheKey = $"{fDb}|{fTb}";
                     if (!tableCache.ContainsKey(cacheKey)) {
@@ -361,30 +358,38 @@ namespace Safety_System
 
                         var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
                             if (r.RowState == DataRowState.Deleted) return false;
-                            if (string.IsNullOrEmpty(dateCol)) return true; 
-
-                            string dVal = r[dateCol]?.ToString().Trim() ?? "";
-                            if (string.IsNullOrEmpty(dVal)) return false;
                             
-                            if (dateCol == "年度") {
-                                string yearVal = dVal.Replace("年", "").Trim();
-                                string sYear = startYM.Substring(0, 4);
-                                string eYear = endYM.Substring(0, 4);
-                                return string.Compare(yearVal, sYear) >= 0 && string.Compare(yearVal, eYear) <= 0;
-                            }
-                            else {
-                                dVal = dVal.Replace("/", "-");
-                                string compYm = "";
-                                var parts = dVal.Split('-');
-                                if (parts.Length >= 2) {
-                                    compYm = $"{parts[0]}-{parts[1].PadLeft(2, '0')}";
-                                } else if (dVal.Length == 6 && !dVal.Contains("-")) { 
-                                    compYm = $"{dVal.Substring(0,4)}-{dVal.Substring(4,2)}";
-                                } else {
-                                    compYm = dVal.Length >= 7 ? dVal.Substring(0, 7) : dVal;
+                            if (!string.IsNullOrEmpty(dateCol)) {
+                                string dVal = r[dateCol]?.ToString().Trim() ?? "";
+                                if (string.IsNullOrEmpty(dVal)) return false;
+                                
+                                if (dateCol == "年度") {
+                                    string yearVal = dVal.Replace("年", "").Trim();
+                                    string sYear = startYM.Substring(0, 4);
+                                    string eYear = endYM.Substring(0, 4);
+                                    if (string.Compare(yearVal, sYear) < 0 || string.Compare(yearVal, eYear) > 0) return false;
                                 }
-                                return (string.Compare(compYm, startYM) >= 0 && string.Compare(compYm, endYM) <= 0);
+                                else {
+                                    dVal = dVal.Replace("/", "-");
+                                    string compYm = "";
+                                    var parts = dVal.Split('-');
+                                    if (parts.Length >= 2) {
+                                        compYm = $"{parts[0]}-{parts[1].PadLeft(2, '0')}";
+                                    } else if (dVal.Length == 6 && !dVal.Contains("-")) { 
+                                        compYm = $"{dVal.Substring(0,4)}-{dVal.Substring(4,2)}";
+                                    } else {
+                                        compYm = dVal.Length >= 7 ? dVal.Substring(0, 7) : dVal;
+                                    }
+                                    if (string.Compare(compYm, startYM) < 0 || string.Compare(compYm, endYM) > 0) return false;
+                                }
                             }
+
+                            if (!string.IsNullOrEmpty(refCol) && fDt.Columns.Contains(refCol)) {
+                                string rowRefVal = r[refCol]?.ToString().Trim() ?? "";
+                                if (rowRefVal != filterVal) return false;
+                            }
+
+                            return true;
                         }).ToList();
 
                         if (agg == "COUNT") {
@@ -426,7 +431,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 讀取模式 (區間交集演算法：合併附件與備註)
+        // 讀取與計算
         // ==========================================
         private async Task CalculateAndLoadGrid(ThemeSectionUI ui)
         {
@@ -506,7 +511,6 @@ namespace Safety_System
                 }
             });
 
-            // 🟢 修正：讀取並套用欄寬設定後，呼叫重新計算行高的涵式
             if (ui.Dgv.InvokeRequired) {
                 ui.Dgv.Invoke(new Action(() => {
                     ApplyColumnWidths(ui);
@@ -521,9 +525,6 @@ namespace Safety_System
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
         }
 
-        // ==========================================
-        // 重新統計模式 (保留 Grid 上編輯中的備註與附件，僅重算數據)
-        // ==========================================
         private async Task RecalculateGridData(ThemeSectionUI ui)
         {
             if (ui.Dgv.Rows.Count == 0) {
@@ -567,7 +568,6 @@ namespace Safety_System
                         row.Cells["數據"].Value = newValues[itemName];
                     }
                 }
-                // 🟢 修正：重算數值可能會改變列高，因此必須呼叫調整高度的涵式
                 AdjustGridHeight(ui);
             };
 
@@ -677,7 +677,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 設定視窗：調整變數生成器排版與按鈕寬度
+        // ⚙️ 設定視窗 (支援變數條件過濾 + 多行編輯)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -730,6 +730,7 @@ namespace Safety_System
                 GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 145, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
+                // 第一排：庫、表、資料欄、日期欄
                 pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbDb = new ComboBox { Location = new Point(45, 17), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDb);
@@ -738,24 +739,35 @@ namespace Safety_System
                 ComboBox cbTb = new ComboBox { Location = new Point(220, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbTb);
 
-                pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(420, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                pnlBuilder.Controls.Add(new Label { Text = "資料欄:", Location = new Point(420, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbCol = new ComboBox { Location = new Point(490, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                cbCol.Items.Add("Id (無條件計數)");
                 pnlBuilder.Controls.Add(cbCol);
 
                 pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(690, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbDateCol = new ComboBox { Location = new Point(760, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDateCol);
 
-                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 72), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbAction = new ComboBox { Location = new Point(65, 69), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第二排：對照欄、條件、動作、插入按鈕
+                pnlBuilder.Controls.Add(new Label { Text = "對照欄:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbRefCol = new ComboBox { Location = new Point(75, 65), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(cbRefCol);
+
+                pnlBuilder.Controls.Add(new Label { Text = "條件:", Location = new Point(270, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbFilterVal = new ComboBox { Location = new Point(325, 65), Width = 180, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(cbFilterVal);
+
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(520, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbAction = new ComboBox { Location = new Point(570, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
                 cbAction.SelectedIndex = 0;
                 pnlBuilder.Controls.Add(cbAction);
 
-                Button btnInsert = new Button { Text = "插入公式 ⬇️", Width = 140, Height = 32, Location = new Point(220, 67), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 140, Height = 32, Location = new Point(730, 63), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 pnlBuilder.Controls.Add(btnInsert);
 
+                // 綁定中英文對照
                 cbDb.Items.Add(new ItemMap { EnName="", ChName="" });
                 foreach(var kvp in _dbMap) cbDb.Items.Add(new ItemMap { EnName=kvp.Key, ChName=kvp.Value.ChDbName });
 
@@ -768,9 +780,9 @@ namespace Safety_System
                 };
 
                 cbTb.SelectedIndexChanged += (s, e) => {
-                    cbCol.Items.Clear();
-                    cbDateCol.Items.Clear();
-                    cbDateCol.Items.Add("[自動判斷]");
+                    cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
+                    cbDateCol.Items.Clear(); cbDateCol.Items.Add("[自動判斷]");
+                    cbRefCol.Items.Clear(); cbRefCol.Items.Add("");
 
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
                     if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
@@ -780,7 +792,10 @@ namespace Safety_System
                             cbCol.Items.Add(c);
                         }
 
-                        foreach(var c in cols) cbDateCol.Items.Add(c);
+                        foreach(var c in cols) {
+                            cbDateCol.Items.Add(c);
+                            if (c != "Id") cbRefCol.Items.Add(c);
+                        }
 
                         if (cols.Contains("日期")) cbDateCol.SelectedItem = "日期";
                         else if (cols.Contains("年月")) cbDateCol.SelectedItem = "年月";
@@ -790,14 +805,50 @@ namespace Safety_System
                     }
                 };
 
+                cbRefCol.SelectedIndexChanged += (s, e) => {
+                    cbFilterVal.Items.Clear();
+                    cbFilterVal.Items.Add("");
+                    if (cbDb.SelectedItem != null && cbTb.SelectedItem != null && !string.IsNullOrEmpty(cbRefCol.Text)) {
+                        string db = ((ItemMap)cbDb.SelectedItem).EnName;
+                        string tb = ((ItemMap)cbTb.SelectedItem).EnName;
+                        string col = cbRefCol.Text;
+                        try {
+                            DataTable dt = DataManager.GetTableData(db, tb, "", "", "");
+                            if (dt != null && dt.Columns.Contains(col)) {
+                                var distinctVals = dt.Rows.Cast<DataRow>()
+                                    .Select(r => r[col]?.ToString().Trim())
+                                    .Where(str => !string.IsNullOrEmpty(str))
+                                    .Distinct();
+                                foreach (var v in distinctVals) cbFilterVal.Items.Add(v);
+                            }
+                        } catch { }
+                    }
+                };
+
                 boxBuilder.Controls.Add(pnlBuilder);
                 flpEditor.Controls.Add(boxBuilder);
 
-                Label lblDesc = new Label { Text = "混合圖文公式編輯區：\n(請將純文字打在外面，將要數學計算的聚合公式包在 { 大括號 } 裡面)", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0,10,0,5), ForeColor=Color.DarkMagenta };
+                Label lblDesc = new Label { 
+                    Text = "混合圖文公式編輯區：\n(支援多行排版，請直接按 Enter 換行。純文字打在外面，需計算的公式包在 { 大括號 } 內)", 
+                    AutoSize = true, 
+                    Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), 
+                    Margin = new Padding(0,10,0,5), 
+                    ForeColor=Color.DarkMagenta 
+                };
                 
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=1000, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
-                RichTextBox rtbFormula = new RichTextBox { Width=1000, Height=175, Font = new Font("Consolas", 14F), BackColor = Color.AliceBlue, Margin = new Padding(0, 5, 0, 0) };
+                
+                // 🟢 確保 AcceptsReturn = true，讓 Enter 鍵正常發揮換行作用
+                RichTextBox rtbFormula = new RichTextBox { 
+                    Width = 1000, 
+                    Height = 175, 
+                    Font = new Font("Consolas", 14F), 
+                    BackColor = Color.AliceBlue, 
+                    Margin = new Padding(0, 5, 0, 0),
+                    AcceptsReturn = true,
+                    AcceptsTab = true
+                };
                 
                 foreach (var k in keys) {
                     Button b = new Button { Text = k, Width = 45, Height = 35, Font=new Font("Consolas", 14F, FontStyle.Bold), Cursor=Cursors.Hand, BackColor=Color.WhiteSmoke };
@@ -807,7 +858,7 @@ namespace Safety_System
 
                 btnInsert.Click += (s, e) => {
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
-                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的跨表欄位來源！"); return; }
+                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的來源資料庫、資料表與資料欄位！"); return; }
                     
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
@@ -817,13 +868,19 @@ namespace Safety_System
                     else if (actionText.Contains("MIN")) aggCode = "MIN";
                     else if (actionText.Contains("COUNT")) aggCode = "COUNT";
 
-                    string dateColSyntax = "";
-                    if (cbDateCol.SelectedItem != null && cbDateCol.SelectedItem.ToString() != "[自動判斷]") {
-                        dateColSyntax = $".[{(cbDateCol.SelectedItem)}]";
+                    string baseStr = $"{aggCode}([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}]";
+                    string dateColStr = (cbDateCol.SelectedItem != null && cbDateCol.SelectedItem.ToString() != "[自動判斷]") ? $".[{(cbDateCol.SelectedItem)}]" : ".[自動判斷]";
+                    
+                    if (!string.IsNullOrEmpty(cbRefCol.Text)) {
+                        string filterStr = cbFilterVal.Text.Trim();
+                        baseStr += $"{dateColStr}.[{(cbRefCol.Text)}].[{filterStr}]";
+                    } else if (dateColStr != ".[自動判斷]") {
+                        baseStr += dateColStr;
                     }
 
+                    baseStr += ")";
                     rtbFormula.Focus();
-                    rtbFormula.SelectedText = $"{aggCode}([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}]{dateColSyntax})";
+                    rtbFormula.SelectedText = baseStr;
                 };
 
                 flpEditor.Controls.Add(lblDesc);
@@ -1087,7 +1144,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 匯出 PDF 與 Excel
+        // 匯出 PDF 與 Excel (使用 PdfHelper 通用引擎)
         // ==========================================
         private void ExportToPdf(ThemeSectionUI ui)
         {
