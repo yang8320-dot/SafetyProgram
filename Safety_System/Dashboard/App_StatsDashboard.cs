@@ -289,14 +289,19 @@ namespace Safety_System
             };
         }
 
+        // 🟢 修正：移除下方多餘的 30px 空白，讓 DataGridView 的高度更貼合內容
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null) return;
+            // 確保高度重算時是以換行後的實際高度為基準
+            ui.Dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+            
             int totalHeight = ui.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in ui.Dgv.Rows) {
                 totalHeight += row.Height;
             }
-            ui.Dgv.Height = totalHeight > 0 ? totalHeight + 30 : 100;
+            // 只保留 3 像素緩衝 (避免產生垂直卷軸與下方多餘空白)
+            ui.Dgv.Height = totalHeight > 0 ? totalHeight + 3 : 50;
         }
 
         private void ApplyColumnWidths(ThemeSectionUI ui)
@@ -922,7 +927,8 @@ namespace Safety_System
                 flpEditor.Controls.Add(pnlKeys);
                 flpEditor.Controls.Add(rtbFormula);
 
-                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 900, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 900, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat };
+                btnSaveRow.FlatAppearance.BorderSize = 0;
 
                 pnlRight.Controls.Add(flpEditor);
                 pnlRight.Controls.Add(l2);
@@ -1239,50 +1245,149 @@ namespace Safety_System
             return selected;
         }
 
+        // 🟢 改寫 BtnGlobalPdf_Click：套用純文字動態繪製，隱藏按鈕、背景色與導出日期
         private void BtnGlobalPdf_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
             if (selectedSections.Count == 0) return;
 
-            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
-
-            try 
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"統計看板綜合報表_{DateTime.Now:yyyyMMdd}" })
             {
-                Application.DoEvents(); 
-
-                List<Bitmap> bitmaps = new List<Bitmap>();
-                foreach (var sec in selectedSections) 
+                if (sfd.ShowDialog() == DialogResult.OK)
                 {
-                    GroupBox pnl = sec.MainBox; 
-                    int origHeight = pnl.Height;
-                    DataGridView dgv = sec.Dgv;
-                    
-                    if (dgv != null) {
-                        int exactGridHeight = dgv.ColumnHeadersHeight;
-                        foreach(DataGridViewRow r in dgv.Rows) exactGridHeight += r.Height;
-                        pnl.Height = exactGridHeight + 110; 
+                    if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+
+                    try 
+                    {
+                        PrintDocument pd = new PrintDocument();
+                        pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                        pd.PrinterSettings.PrintToFile = true;
+                        pd.PrinterSettings.PrintFileName = sfd.FileName;
+                        pd.DefaultPageSettings.Landscape = true;
+                        pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
+
+                        int currentSectionIdx = 0;
+                        int currentRowIdx = 0;
+                        int pageNumber = 1;
+                        bool drawSectionHeader = true;
+
+                        pd.PrintPage += (s, ev) => 
+                        {
+                            Graphics g = ev.Graphics;
+                            float x = ev.MarginBounds.Left;
+                            float y = ev.MarginBounds.Top;
+                            float w = ev.MarginBounds.Width;
+
+                            Font fTheme = new Font("Microsoft JhengHei UI", 16F, FontStyle.Bold);
+                            Font fPeriod = new Font("Microsoft JhengHei UI", 11F);
+                            Font fHead = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+                            Font fBody = new Font("Microsoft JhengHei UI", 10F);
+                            Font fFooter = new Font("Microsoft JhengHei UI", 10F);
+
+                            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                            StringFormat sfWrap = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                            while (currentSectionIdx < selectedSections.Count)
+                            {
+                                var sec = selectedSections[currentSectionIdx];
+                                var dgv = sec.Dgv;
+
+                                if (drawSectionHeader)
+                                {
+                                    if (y + 120 > ev.MarginBounds.Bottom) { ev.HasMorePages = true; return; }
+
+                                    // 印出主題名稱 (無背景色)
+                                    g.DrawString($"■ {sec.ThemeName}", fTheme, Brushes.DarkSlateBlue, x, y);
+                                    y += 30;
+
+                                    // 印出查詢區間
+                                    string startYM = $"{sec.CboStartYear.Text}/{sec.CboStartMonth.Text}";
+                                    string endYM = $"{sec.CboEndYear.Text}/{sec.CboEndMonth.Text}";
+                                    g.DrawString($"查詢區間: {startYM} ~ {endYM}", fPeriod, Brushes.DimGray, x + 10, y);
+                                    y += 30;
+
+                                    // 印出表頭 (灰色底、黑字)
+                                    float currX = x;
+                                    float[] colWidths = new float[dgv.Columns.Count];
+                                    float totalGridWidth = dgv.Columns.Cast<DataGridViewColumn>().Sum(c => c.Width);
+
+                                    for (int i = 0; i < dgv.Columns.Count; i++) {
+                                        colWidths[i] = (dgv.Columns[i].Width / totalGridWidth) * w;
+                                        RectangleF rHead = new RectangleF(currX, y, colWidths[i], 35);
+                                        g.FillRectangle(Brushes.LightGray, rHead);
+                                        g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
+                                        g.DrawString(dgv.Columns[i].HeaderText, fHead, Brushes.Black, rHead, sfCenter);
+                                        currX += colWidths[i];
+                                    }
+                                    y += 35;
+                                    drawSectionHeader = false;
+                                }
+
+                                // 重新計算欄寬以供資料列使用
+                                float[] cW = new float[dgv.Columns.Count];
+                                float tW = dgv.Columns.Cast<DataGridViewColumn>().Sum(c => c.Width);
+                                for (int i = 0; i < dgv.Columns.Count; i++) cW[i] = (dgv.Columns[i].Width / tW) * w;
+
+                                // 印出資料列 (自動斷行與計算高度)
+                                while (currentRowIdx < dgv.Rows.Count)
+                                {
+                                    DataGridViewRow row = dgv.Rows[currentRowIdx];
+                                    float maxH = 35;
+                                    
+                                    for (int i = 0; i < dgv.Columns.Count; i++) {
+                                        string val = row.Cells[i].Value?.ToString() ?? "";
+                                        SizeF sz = g.MeasureString(val, fBody, (int)cW[i], sfWrap);
+                                        if (sz.Height + 10 > maxH) maxH = sz.Height + 10;
+                                    }
+
+                                    if (y + maxH > ev.MarginBounds.Bottom - 30) {
+                                        g.DrawString($"- {pageNumber} -", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, w, 20), sfCenter);
+                                        pageNumber++;
+                                        ev.HasMorePages = true;
+                                        return;
+                                    }
+
+                                    float rX = x;
+                                    for (int i = 0; i < dgv.Columns.Count; i++) {
+                                        RectangleF rCell = new RectangleF(rX, y, cW[i], maxH);
+                                        g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
+                                        string val = row.Cells[i].Value?.ToString() ?? "";
+                                        RectangleF textRect = new RectangleF(rCell.X + 2, rCell.Y + 2, rCell.Width - 4, rCell.Height - 4);
+                                        g.DrawString(val, fBody, Brushes.Black, textRect, sfWrap);
+                                        rX += cW[i];
+                                    }
+
+                                    y += maxH;
+                                    currentRowIdx++;
+                                }
+
+                                y += 30; // 每個主題間距
+                                currentSectionIdx++;
+                                currentRowIdx = 0;
+                                drawSectionHeader = true;
+                            }
+
+                            // 頁腳 (頁碼)
+                            g.DrawString($"- {pageNumber} -", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, w, 20), sfCenter);
+                            ev.HasMorePages = false;
+                        };
+
+                        pd.Print();
+                        MessageBox.Show("PDF 報表匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } 
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
-
-                    Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
-                    pnl.DrawToBitmap(bmp, new Rectangle(0, 0, pnl.Width, pnl.Height));
-                    bitmaps.Add(bmp);
-
-                    pnl.Height = origHeight;
+                    finally
+                    {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
                 }
-
-                string dateStr = $"導出日期：{DateTime.Now:yyyy/MM/dd HH:mm}";
-                PdfHelper.ExportDashboardToPdf(bitmaps, "統計看板綜合報表", dateStr, "統計看板綜合報表");
-            } 
-            catch (Exception ex)
-            {
-                MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
             }
         }
 
+        // 🟢 修改 BtnGlobalExcel_Click：按比例換算 UI 欄寬到 Excel 儲存格寬度
         private void BtnGlobalExcel_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
@@ -1329,6 +1434,14 @@ namespace Safety_System
                                 var ws = p.Workbook.Worksheets.Add(finalSheetName);
                                 ws.Cells["A1"].LoadFromDataTable(dt, true);
                                 
+                                // 🟢 套用等比例欄寬 (假定整張 A4 橫式 Excel 可容納大約 120 字元寬)
+                                float totalGridWidth = sec.Dgv.Columns.Cast<DataGridViewColumn>().Sum(c => c.Width);
+                                for (int i = 0; i < sec.Dgv.Columns.Count; i++) {
+                                    float excelWidth = (sec.Dgv.Columns[i].Width / totalGridWidth) * 120f;
+                                    if (excelWidth < 10) excelWidth = 10;
+                                    ws.Column(i + 1).Width = excelWidth;
+                                }
+
                                 using (var range = ws.Cells[1, 1, 1, dt.Columns.Count]) {
                                     range.Style.Font.Bold = true;
                                     range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
@@ -1339,8 +1452,6 @@ namespace Safety_System
                                 var dataRange = ws.Cells[2, 1, dt.Rows.Count + 1, dt.Columns.Count];
                                 dataRange.Style.WrapText = true;
                                 dataRange.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-
-                                ws.Cells.AutoFitColumns();
                             }
                             p.SaveAs(new FileInfo(sfd.FileName));
                         }
