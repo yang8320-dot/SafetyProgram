@@ -57,7 +57,10 @@ namespace Safety_System
                     { "WorkerHealthProtect", "勞工健康保護" }, { "PublicHazardous", "公共危險物品" }, { "AirPollutionEmerg", "空污緊急應變" }, 
                     { "FactoryHazardous", "工廠危險物品申報" } 
                 })},
-                { "Nursing", ("護理", new Dictionary<string, string> { { "HealthPromotion", "健康促進活動" }, { "WorkInjuryReport", "職災申報紀錄" } })},
+                // 🟢 護理新增：員工健康關懷
+                { "Nursing", ("護理", new Dictionary<string, string> { 
+                    { "HealthPromotion", "健康促進活動" }, { "WorkInjuryReport", "職災申報紀錄" }, { "EmployeeHealthCare", "員工健康關懷" } 
+                })},
                 { "Air", ("空污", new Dictionary<string, string> { { "AirPollution", "空污申報紀錄" } })},
                 { "Water", ("水污", new Dictionary<string, string> { 
                     { "DischargeData", "納管排放數據" }, { "WaterMeterReadings", "廢水處理水量記錄" }, { "WaterChemicals", "廢水處理用藥記錄" }, 
