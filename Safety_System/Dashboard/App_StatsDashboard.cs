@@ -783,7 +783,7 @@ namespace Safety_System
                 cbAction.SelectedIndex = 0;
                 pnlBuilder.Controls.Add(cbAction);
 
-                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 140, Height = 32, Location = new Point(730, 63), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 90, Height = 32, Location = new Point(765, 8), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 pnlBuilder.Controls.Add(btnInsert);
 
@@ -801,9 +801,9 @@ namespace Safety_System
 
                 cbTb.SelectedIndexChanged += (s, e) => {
                     cbCol.Items.Clear(); cbCol.Items.Add("Id (無條件計數)");
-                    cbDateCol.Items.Clear(); cbDateCol.Items.Add("[自動判斷]");
+                    cbDateCol.Items.Clear(); cbDateCol.Items.Add("自動判斷");
                     cbRefCol.Items.Clear(); cbRefCol.Items.Add("");
-
+                    
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
                     if (db != null && tb != null && !string.IsNullOrEmpty(db.EnName) && !string.IsNullOrEmpty(tb.EnName)) {
                         var cols = DataManager.GetColumnNames(db.EnName, tb.EnName);
@@ -892,7 +892,7 @@ namespace Safety_System
 
                 btnInsert.Click += (s, e) => {
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
-                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的來源資料庫、資料表與被計算欄位！"); return; }
+                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的跨表欄位來源！"); return; }
                     
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
@@ -903,7 +903,7 @@ namespace Safety_System
                     else if (actionText.Contains("COUNT")) aggCode = "COUNT";
 
                     string baseStr = $"{aggCode}([{db.EnName}].[{tb.EnName}].[{cbCol.SelectedItem}]";
-                    string dateColStr = (cbDateCol.SelectedItem != null && cbDateCol.SelectedItem.ToString() != "[自動判斷]") ? $".[{(cbDateCol.SelectedItem)}]" : ".[自動判斷]";
+                    string dateColStr = (cbDateCol.SelectedItem != null && cbDateCol.SelectedItem.ToString() != "自動判斷") ? $".[{(cbDateCol.SelectedItem)}]" : ".[自動判斷]";
                     
                     if (!string.IsNullOrEmpty(cbRefCol.Text)) {
                         string filterStr = cbFilterVal.Text.Trim();
@@ -922,20 +922,16 @@ namespace Safety_System
                 flpEditor.Controls.Add(pnlKeys);
                 flpEditor.Controls.Add(rtbFormula);
 
+                Button btnSaveRow = new Button { Text = "💾 儲存並加入清單", Width = 900, Height = 45, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Margin = new Padding(0, 15, 0, 0), Cursor = Cursors.Hand };
+
                 pnlRight.Controls.Add(flpEditor);
                 pnlRight.Controls.Add(l2);
+                pnlRight.Controls.Add(btnSaveRow);
+                btnSaveRow.Dock = DockStyle.Bottom;
 
                 tlp.Controls.Add(pnlLeft, 0, 0);
                 tlp.Controls.Add(pnlRight, 1, 0);
-
-                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
-                Button btnSaveAll = new Button { Text = "💾 儲存全部設定並關閉", Dock = DockStyle.Right, Width = 250, BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor=Cursors.Hand };
-                
-                Button btnExp = new Button { Text = "📤 匯出設定", Dock = DockStyle.Left, Width = 130, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-                Button btnImp = new Button { Text = "📥 匯入設定", Dock = DockStyle.Left, Width = 130, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
-                
-                pnlBottom.Controls.Add(btnImp); pnlBottom.Controls.Add(btnExp); pnlBottom.Controls.Add(btnSaveAll);
-                f.Controls.Add(tlp); f.Controls.Add(pnlBottom);
+                f.Controls.Add(tlp);
 
                 var configs = new List<EditingConfig>();
                 try {
@@ -1105,8 +1101,8 @@ namespace Safety_System
                     }
                 };
 
-                btnSaveAll.Click += (s, e) => {
-                    btnSaveAll.Focus(); 
+                btnSaveRow.Click += (s, e) => {
+                    btnSaveRow.Focus(); 
                     
                     try {
                         using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
@@ -1134,6 +1130,10 @@ namespace Safety_System
                     } catch (Exception ex) { MessageBox.Show("儲存失敗：" + ex.Message); }
                 };
 
+                Panel pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(10) };
+                Button btnExp = new Button { Text = "📤 匯出設定", Dock = DockStyle.Left, Width = 130, BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                Button btnImp = new Button { Text = "📥 匯入設定", Dock = DockStyle.Left, Width = 130, BackColor = Color.SteelBlue, ForeColor = Color.White, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold) };
+                
                 btnExp.Click += (s, e) => {
                     using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = $"統計設定_{ui.ThemeName}_{DateTime.Now:yyyyMMdd}" }) {
                         if (sfd.ShowDialog() == DialogResult.OK) {
@@ -1170,6 +1170,9 @@ namespace Safety_System
                         }
                     }
                 };
+
+                pnlBottom.Controls.Add(btnImp); pnlBottom.Controls.Add(btnExp);
+                f.Controls.Add(pnlBottom);
 
                 refreshList();
                 if (dgvItems.Rows.Count > 0) dgvItems.Rows[0].Selected = true;
@@ -1250,7 +1253,7 @@ namespace Safety_System
                 List<Bitmap> bitmaps = new List<Bitmap>();
                 foreach (var sec in selectedSections) 
                 {
-                    Panel pnl = sec.MainBox;
+                    GroupBox pnl = sec.MainBox; 
                     int origHeight = pnl.Height;
                     DataGridView dgv = sec.Dgv;
                     
