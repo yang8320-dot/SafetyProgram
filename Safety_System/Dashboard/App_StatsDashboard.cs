@@ -101,9 +101,8 @@ namespace Safety_System
             masterLayout.Controls.Add(pnlHeader, 0, 0);
 
             // ================= Container =================
-            // 🟢 修正 1：改為 DockStyle.Top 讓內容撐開，解決填滿造成的大量空白
             _tlpThemesContainer = new TableLayoutPanel { 
-                Dock = DockStyle.Top, 
+                Dock = DockStyle.Fill, 
                 AutoSize = true, 
                 ColumnCount = 1,
                 Padding = new Padding(0)
@@ -179,18 +178,18 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
-            // 🟢 修正 2：GroupBox 改為 DockStyle.Top 並設定 AutoSize，完美包覆內容消除空白
+            // 確保 GroupBox 採用 Fill，並靠 AutoSize 自動撐開
             ui.MainBox = new GroupBox { 
                 Text = $"📌 {themeName}", 
                 Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
                 ForeColor = Color.DarkSlateBlue, 
-                Padding = new Padding(15, 15, 15, 20), 
+                Padding = new Padding(15), 
                 Margin = new Padding(0, 0, 0, 25), 
                 AutoSize = true,
-                Dock = DockStyle.Top 
+                Dock = DockStyle.Fill 
             };
 
-            TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
+            TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 1, RowCount = 2 };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -231,6 +230,7 @@ namespace Safety_System
             tlp.Controls.Add(flpControls, 0, 0);
 
             // ====== 第二行：資料表格 ======
+            // 🟢 強制關閉 ScrollBars，讓表格完美貼合內容高度
             ui.Dgv = new DataGridView {
                 Dock = DockStyle.Top, Height = 100, BackgroundColor = Color.White,
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
@@ -238,7 +238,8 @@ namespace Safety_System
                 AllowUserToResizeColumns = true,
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
-                BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single
+                BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single,
+                ScrollBars = ScrollBars.None
             };
             ui.Dgv.EnableHeadersVisualStyles = false;
             ui.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.SlateGray;
@@ -291,27 +292,29 @@ namespace Safety_System
             };
         }
 
-        // 🟢 修正 3：讓 Grid 的高度無縫貼合文字換行的結果，移除多餘的 +30 緩衝
+        // 🟢 徹底解決下方大片空白問題：讓 Grid 高度精確等於標題 + 內容的總和
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null) return;
-            ui.Dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
             
+            // 強制重算所有行高以確保換行文字能被正確納入
+            ui.Dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+
             int totalHeight = ui.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in ui.Dgv.Rows) {
                 totalHeight += row.Height;
             }
             
-            // 加入 3px 邊框防卷軸緩衝，徹底根除大量空白
-            ui.Dgv.Height = totalHeight > 0 ? totalHeight + 3 : 50;
+            // 只加上 2 像素邊框緩衝，移除多餘的 +30
+            ui.Dgv.Height = totalHeight > 0 ? totalHeight + 2 : 50;
         }
 
         private void ApplyColumnWidths(ThemeSectionUI ui)
         {
             var widthDict = DataManager.LoadGridConfig("StatsDashboard", ui.ThemeName, "Width");
             
-            if (ui.Dgv.Columns.Contains("項目")) ui.Dgv.Columns["項目"].Width = 200;
-            if (ui.Dgv.Columns.Contains("數據")) ui.Dgv.Columns["數據"].Width = 350;
+            if (ui.Dgv.Columns.Contains("項目")) ui.Dgv.Columns["項目"].Width = 350;
+            if (ui.Dgv.Columns.Contains("數據")) ui.Dgv.Columns["數據"].Width = 400;
             if (ui.Dgv.Columns.Contains("附件檔案")) ui.Dgv.Columns["附件檔案"].Width = 200;
             if (ui.Dgv.Columns.Contains("備註")) ui.Dgv.Columns["備註"].Width = 300;
 
@@ -704,7 +707,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // ⚙️ 設定視窗
+        // ⚙️ 設定視窗 (保留原有的 Absolute/Percent 版面結構)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -1190,7 +1193,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 全域 PDF / Excel 導出對話框與邏輯
+        // 全域 PDF / Excel 導出對話框與邏輯
         // ==========================================
         private List<ThemeSectionUI> GetSelectedThemesDialog()
         {
