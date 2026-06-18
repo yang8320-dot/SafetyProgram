@@ -42,7 +42,7 @@ namespace Safety_System
             string currentNetworkDir = "";
             bool needPrompt = false;
 
-            // 1. 檢查並讀取指向檔
+            // 1. 檢查指向檔是否存在
             if (File.Exists(pointerFilePath))
             {
                 try
@@ -53,7 +53,7 @@ namespace Safety_System
                     if (validLines.Count > 0)
                     {
                         currentNetworkDir = validLines[0].Trim();
-                        // 檢查讀取到的路徑是否有效 (若網路不通，Windows 這裡會等待幾秒鐘)
+                        // 檢查讀取到的路徑是否有效
                         if (!Directory.Exists(currentNetworkDir)) {
                             needPrompt = true; // 路徑失效，重新詢問
                         } else {
@@ -62,20 +62,22 @@ namespace Safety_System
                     }
                     else
                     {
-                        needPrompt = true; // 檔案內容為空，要求輸入
+                        // 檔案存在但內容是空的 -> 代表使用者先前選擇了「單機模式」，維持本機，不再詢問！
+                        activeRootDir = AppDir;
                     }
                 }
-                catch { needPrompt = true; }
+                catch { needPrompt = true; } // 讀取異常，重新詢問
             }
             else
             {
-                needPrompt = true; // 檔案不存在 (初次啟動)，要求輸入
+                // 檔案不存在 (第一次啟動程式)，強制詢問使用者！
+                needPrompt = true; 
             }
 
-            // 2. 如果需要引導使用者輸入 (初次啟動或網路連線失敗)
+            // 2. 引導使用者輸入 (初次啟動 或 網路連線失敗)
             if (needPrompt)
             {
-                // 彈出視窗詢問路徑 (預設帶入之前讀取到的無效路徑，或給予一個範例)
+                // 彈出視窗詢問路徑 (預設帶入之前失效的路徑，或是給一個預設範例供參考)
                 string defaultSuggestion = string.IsNullOrEmpty(currentNetworkDir) ? @"\\192.168.1.112\工安共用" : currentNetworkDir;
                 string userInput = PromptForNetworkPath(defaultSuggestion);
 
@@ -85,19 +87,19 @@ namespace Safety_System
                 }
                 else if (!string.IsNullOrWhiteSpace(userInput))
                 {
-                    // 使用者有輸入，但是路徑無效
+                    // 使用者有輸入，但是路徑無效/不通
                     MessageBox.Show($"警告：您輸入的路徑無效或網路無法連線：\n{userInput}\n\n系統將暫時切換為「本機單機模式」執行。", "網路連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     activeRootDir = AppDir;
                     userInput = ""; // 清空，稍後寫入 txt 時以空白(單機)表示
                 }
                 else
                 {
-                    // 使用者留空或點擊取消，走單機模式
+                    // 🟢 使用者點擊「單機執行」或按右上角 [X] 關閉視窗 -> 進入單機模式
                     activeRootDir = AppDir;
                     userInput = ""; 
                 }
 
-                // 3. 自動生成 / 覆寫 NetworkPath.txt，並加上預設註解
+                // 3. 自動生成 / 覆寫 NetworkPath.txt，記錄使用者的決定
                 try
                 {
                     StringBuilder sb = new StringBuilder();
@@ -110,11 +112,11 @@ namespace Safety_System
                     sb.AppendLine("# 4. 若要作為「單機版」執行，請將下方路徑保持空白即可。");
                     sb.AppendLine("# ====================================================================");
                     sb.AppendLine("");
-                    sb.AppendLine(userInput); // 寫入使用者輸入的有效路徑 (或空白)
+                    sb.AppendLine(userInput); // 寫入使用者輸入的有效路徑 (如果選擇單機/關閉視窗，這裡就是空白)
 
                     File.WriteAllText(pointerFilePath, sb.ToString(), Encoding.UTF8);
                 }
-                catch { } // 若在 C:\ 根目錄等受保護區域權限不足則忽略
+                catch { } // 若在 C:\ 等受保護區域權限不足則忽略
             }
 
             // 4. 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄
@@ -125,13 +127,12 @@ namespace Safety_System
             InitSysConfigDB();
         }
 
-        // 🟢 專為 DataManager 設計的輸入視窗 (已針對 125% 縮放修正排版與文字換行)
+        // 🟢 專為 DataManager 設計的輕量級輸入視窗 (已針對 125% 縮放修正排版與文字換行)
         private static string PromptForNetworkPath(string defaultValue)
         {
             string result = "";
             using (Form f = new Form())
             {
-                // 加大視窗寬高，給予 125% 縮放足夠的空間
                 f.Width = 620;
                 f.Height = 380;
                 f.Text = "初次啟動 - 網路資料庫共用路徑設定";
@@ -145,14 +146,12 @@ namespace Safety_System
                 Label lbl = new Label { 
                     Text = "系統偵測到未設定共用資料庫路徑，或原路徑已失效。\n請輸入共用伺服器路徑 (例如：\\\\192.168.1.112\\工安共用)\n\n※ 若要作為「單機版」執行，請直接點擊單機執行或保持空白。", 
                     AutoSize = true, 
-                    // 🟢 設定 MaximumSize 強迫標籤文字在碰到 550px 寬度時自動往下換行，解決 125% 縮放被截斷的問題
                     MaximumSize = new Size(550, 0), 
                     Location = new Point(25, 25), 
                     Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
                     ForeColor = Color.DarkSlateBlue
                 };
 
-                // 🟢 將 TextBox 與 Buttons 往下推，避免與變高換行的 Label 重疊
                 TextBox txt = new TextBox { 
                     Location = new Point(25, 170), 
                     Width = 550, 
@@ -190,7 +189,7 @@ namespace Safety_System
                 if (f.ShowDialog() == DialogResult.OK) {
                     result = txt.Text.Trim();
                 } else {
-                    result = ""; // 使用者選擇單機
+                    result = ""; // 使用者選擇單機執行，或按 [X] 關閉視窗
                 }
             }
             return result;
