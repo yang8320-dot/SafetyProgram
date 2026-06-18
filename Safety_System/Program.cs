@@ -1,3 +1,4 @@
+/// FILE: Safety_System/Program.cs ///
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -91,11 +92,14 @@ namespace Safety_System
             }
         }
 
-        // 🟢 統一的錯誤訊息顯示方法
+        // 🟢 統一的錯誤訊息顯示方法 (已優化：提取 InnerException 找出真正被系統阻擋的原因)
         private static void ShowFatalError(Exception ex)
         {
+            // 如果有內部錯誤，把它挖出來，這對 TypeInitializationException 非常重要！
+            string innerMsg = ex.InnerException != null ? $"\n\n【內部詳細錯誤 (真正原因)】：\n{ex.InnerException.Message}" : "";
+            
             string errorMsg = $"系統啟動或執行時發生嚴重錯誤！\n\n" +
-                              $"【錯誤訊息】：\n{ex.Message}\n\n" +
+                              $"【錯誤訊息】：\n{ex.Message}{innerMsg}\n\n" +
                               $"【錯誤追蹤】：\n{ex.StackTrace}";
             
             MessageBox.Show(errorMsg, "系統崩潰報告", MessageBoxButtons.OK, MessageBoxIcon.Error);
