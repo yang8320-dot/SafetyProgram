@@ -123,7 +123,14 @@ namespace Safety_System
                         cmd.ExecuteNonQuery();
                     }
                 }
+                
                 LoadThemes();
+                
+                // 🟢 修正：新增區塊後，連同舊區塊一起重新讀取資料，避免畫面跑回空殼的預設狀態
+                foreach (var ui in _sections) {
+                    _ = CalculateAndLoadGrid(ui);
+                }
+                
             } catch (Exception ex) { MessageBox.Show("新增失敗：" + ex.Message); }
         }
 
@@ -170,14 +177,6 @@ namespace Safety_System
                 AutoSize = true,
                 Dock = DockStyle.Fill 
             };
-            
-            ui.MainBox.Paint += (s, e) => {
-                if (ui.Dgv != null) {
-                    int gridH = ui.Dgv.ColumnHeadersHeight;
-                    foreach (DataGridViewRow r in ui.Dgv.Rows) gridH += r.Height;
-                    ui.Dgv.Height = gridH + 5;
-                }
-            };
 
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -223,11 +222,13 @@ namespace Safety_System
 
             // ====== 第二行：資料表格 ======
             ui.Dgv = new DataGridView {
-                Dock = DockStyle.Top, Height = 100, BackgroundColor = Color.White,
+                Dock = DockStyle.Top, 
+                Height = 150, 
+                BackgroundColor = Color.White,
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 AllowUserToResizeColumns = true,
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 確保文字多時行高會自適應
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single
             };
@@ -244,9 +245,11 @@ namespace Safety_System
             ui.Dgv.Columns["附件檔案"].DefaultCellStyle.ForeColor = Color.Blue; ui.Dgv.Columns["附件檔案"].DefaultCellStyle.Font = new Font(ui.Dgv.Font, FontStyle.Underline);
             ui.Dgv.Columns.Add("備註", "備註"); 
 
+            // 🟢 修正：當使用者調整欄寬後，馬上觸發高度重算
             ui.Dgv.ColumnWidthChanged += (s, e) => {
                 if (e.Column != null && e.Column.Width > 0) {
                     DataManager.SaveGridConfig("StatsDashboard", ui.ThemeName, "Width", e.Column.Name, e.Column.Width.ToString());
+                    AdjustGridHeight(ui);
                 }
             };
 
@@ -283,6 +286,20 @@ namespace Safety_System
             };
         }
 
+        // 🟢 新增：專屬計算高度的方法，避免跟 Paint 事件衝突鎖死
+        private void AdjustGridHeight(ThemeSectionUI ui)
+        {
+            if (ui.Dgv == null) return;
+
+            int totalHeight = ui.Dgv.ColumnHeadersHeight;
+            foreach (DataGridViewRow row in ui.Dgv.Rows) {
+                totalHeight += row.Height;
+            }
+            
+            // 🟢 依照需求：整體資料表高度展開後底部 +30
+            ui.Dgv.Height = totalHeight > 0 ? totalHeight + 30 : 100;
+        }
+
         private void ApplyColumnWidths(ThemeSectionUI ui)
         {
             var widthDict = DataManager.LoadGridConfig("StatsDashboard", ui.ThemeName, "Width");
@@ -302,7 +319,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心公式運算引擎 (🟢 修正 COUNT 邏輯與日期判斷)
+        // 核心公式運算引擎 
         // ==========================================
         private string EvaluateStatsFormula(string template, string startYM, string endYM, Dictionary<string, DataTable> tableCache)
         {
@@ -370,12 +387,10 @@ namespace Safety_System
                             }
                         }).ToList();
 
-                        // 🟢 修正：獨立 COUNT 的邏輯，只要是有資料的行數就算進去
                         if (agg == "COUNT") {
                             if (fCol == "Id (無條件計數)" || fCol == "Id" || !fDt.Columns.Contains(fCol)) {
                                 computedVal = matchedRows.Count;
                             } else {
-                                // 如果有指定欄位，只 Count 該欄位有值的列
                                 computedVal = matchedRows.Count(r => r[fCol] != DBNull.Value && !string.IsNullOrWhiteSpace(r[fCol].ToString()));
                             }
                         }
@@ -491,8 +506,16 @@ namespace Safety_System
                 }
             });
 
-            if (ui.Dgv.InvokeRequired) ui.Dgv.Invoke(new Action(() => ApplyColumnWidths(ui)));
-            else ApplyColumnWidths(ui);
+            // 🟢 修正：讀取並套用欄寬設定後，呼叫重新計算行高的涵式
+            if (ui.Dgv.InvokeRequired) {
+                ui.Dgv.Invoke(new Action(() => {
+                    ApplyColumnWidths(ui);
+                    AdjustGridHeight(ui);
+                }));
+            } else {
+                ApplyColumnWidths(ui);
+                AdjustGridHeight(ui);
+            }
 
             ui.MainBox.Invalidate(); 
             if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
@@ -544,6 +567,8 @@ namespace Safety_System
                         row.Cells["數據"].Value = newValues[itemName];
                     }
                 }
+                // 🟢 修正：重算數值可能會改變列高，因此必須呼叫調整高度的涵式
+                AdjustGridHeight(ui);
             };
 
             if (ui.Dgv.InvokeRequired) ui.Dgv.Invoke(updateGrid);
@@ -652,7 +677,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 🟢 設定視窗：調整變數生成器排版與按鈕寬度
+        // 設定視窗：調整變數生成器排版與按鈕寬度
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -702,11 +727,9 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 變數產生器 高度增加至 145，且加寬總寬度至 1000
                 GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 145, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、數值欄、日期欄 (🟢 調整間距，X座標微調)
                 pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbDb = new ComboBox { Location = new Point(45, 17), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDb);
@@ -716,16 +739,13 @@ namespace Safety_System
                 pnlBuilder.Controls.Add(cbTb);
 
                 pnlBuilder.Controls.Add(new Label { Text = "數值欄:", Location = new Point(420, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                // 🟢 加寬間距，往右推
                 ComboBox cbCol = new ComboBox { Location = new Point(490, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbCol);
 
                 pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(690, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                // 🟢 加寬間距，往右推
                 ComboBox cbDateCol = new ComboBox { Location = new Point(760, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDateCol);
 
-                // 第二排：動作、插入按鈕 (🟢 調整 Y 座標，並加寬插入按鈕為 140)
                 pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(10, 72), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbAction = new ComboBox { Location = new Point(65, 69), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
@@ -787,7 +807,7 @@ namespace Safety_System
 
                 btnInsert.Click += (s, e) => {
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
-                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇庫、表、數值欄位！"); return; }
+                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的跨表欄位來源！"); return; }
                     
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
