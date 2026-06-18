@@ -101,8 +101,9 @@ namespace Safety_System
             masterLayout.Controls.Add(pnlHeader, 0, 0);
 
             // ================= Container =================
+            // 🟢 修正 1：改為 DockStyle.Top 讓內容撐開，解決填滿造成的大量空白
             _tlpThemesContainer = new TableLayoutPanel { 
-                Dock = DockStyle.Fill, 
+                Dock = DockStyle.Top, 
                 AutoSize = true, 
                 ColumnCount = 1,
                 Padding = new Padding(0)
@@ -178,14 +179,15 @@ namespace Safety_System
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
 
+            // 🟢 修正 2：GroupBox 改為 DockStyle.Top 並設定 AutoSize，完美包覆內容消除空白
             ui.MainBox = new GroupBox { 
                 Text = $"📌 {themeName}", 
                 Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), 
                 ForeColor = Color.DarkSlateBlue, 
-                Padding = new Padding(15), 
+                Padding = new Padding(15, 15, 15, 20), 
                 Margin = new Padding(0, 0, 0, 25), 
                 AutoSize = true,
-                Dock = DockStyle.Fill 
+                Dock = DockStyle.Top 
             };
 
             TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2 };
@@ -289,18 +291,18 @@ namespace Safety_System
             };
         }
 
-        // 🟢 修正：移除下方多餘的 30px 空白，讓 DataGridView 的高度更貼合內容
+        // 🟢 修正 3：讓 Grid 的高度無縫貼合文字換行的結果，移除多餘的 +30 緩衝
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null) return;
-            // 確保高度重算時是以換行後的實際高度為基準
             ui.Dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
             
             int totalHeight = ui.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in ui.Dgv.Rows) {
                 totalHeight += row.Height;
             }
-            // 只保留 3 像素緩衝 (避免產生垂直卷軸與下方多餘空白)
+            
+            // 加入 3px 邊框防卷軸緩衝，徹底根除大量空白
             ui.Dgv.Height = totalHeight > 0 ? totalHeight + 3 : 50;
         }
 
@@ -1188,7 +1190,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 全域 PDF / Excel 導出對話框與邏輯
+        // 🟢 全域 PDF / Excel 導出對話框與邏輯
         // ==========================================
         private List<ThemeSectionUI> GetSelectedThemesDialog()
         {
@@ -1245,7 +1247,7 @@ namespace Safety_System
             return selected;
         }
 
-        // 🟢 改寫 BtnGlobalPdf_Click：套用純文字動態繪製，隱藏按鈕、背景色與導出日期
+        // 🟢 修正 4：改寫 BtnGlobalPdf_Click，套用純程式碼動態繪製 PDF，隱藏不必要的按鍵與背景顏色
         private void BtnGlobalPdf_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
@@ -1301,8 +1303,8 @@ namespace Safety_System
                                     y += 30;
 
                                     // 印出查詢區間
-                                    string startYM = $"{sec.CboStartYear.Text}/{sec.CboStartMonth.Text}";
-                                    string endYM = $"{sec.CboEndYear.Text}/{sec.CboEndMonth.Text}";
+                                    string startYM = $"{sec.CboStartYear.Text}年{sec.CboStartMonth.Text}月";
+                                    string endYM = $"{sec.CboEndYear.Text}年{sec.CboEndMonth.Text}月";
                                     g.DrawString($"查詢區間: {startYM} ~ {endYM}", fPeriod, Brushes.DimGray, x + 10, y);
                                     y += 30;
 
@@ -1387,7 +1389,7 @@ namespace Safety_System
             }
         }
 
-        // 🟢 修改 BtnGlobalExcel_Click：按比例換算 UI 欄寬到 Excel 儲存格寬度
+        // 🟢 修正 5：在匯出 Excel 的邏輯中，精準擷取 UI 寬度並等比例換算給 Excel
         private void BtnGlobalExcel_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
