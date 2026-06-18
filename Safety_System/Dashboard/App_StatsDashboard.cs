@@ -79,11 +79,26 @@ namespace Safety_System
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0,0,0,10) };
             Label lblTitle = new Label { Text = "📊 動態統計看板管理系統", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Left, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
-            Button btnAddTheme = new Button { Text = "➕ 新增主題統計區塊", Size = new Size(220, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
+            // 🟢 新增：全域匯出按鈕統一管理
+            Button btnAddTheme = new Button { Text = "➕ 新增主題區塊", Size = new Size(180, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
             btnAddTheme.FlatAppearance.BorderSize = 0;
             btnAddTheme.Click += BtnAddTheme_Click;
 
+            Button btnGlobalPdf = new Button { Text = "📄 導出選定項目 (PDF)", Size = new Size(220, 45), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
+            btnGlobalPdf.FlatAppearance.BorderSize = 0;
+            btnGlobalPdf.Click += BtnGlobalPdf_Click;
+
+            Button btnGlobalExcel = new Button { Text = "📤 導出選定項目 (Excel)", Size = new Size(230, 45), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
+            btnGlobalExcel.FlatAppearance.BorderSize = 0;
+            btnGlobalExcel.Click += BtnGlobalExcel_Click;
+
+            // 🟢 Dock = Right 的排列順序：最後加入的會在最左邊
             pnlHeader.Controls.Add(btnAddTheme);
+            pnlHeader.Controls.Add(new Panel { Width = 15, Dock = DockStyle.Right }); // 間隔
+            pnlHeader.Controls.Add(btnGlobalPdf);
+            pnlHeader.Controls.Add(new Panel { Width = 15, Dock = DockStyle.Right }); // 間隔
+            pnlHeader.Controls.Add(btnGlobalExcel);
+
             pnlHeader.Controls.Add(lblTitle);
             masterLayout.Controls.Add(pnlHeader, 0, 0);
 
@@ -204,8 +219,8 @@ namespace Safety_System
             Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
             Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
             
-            Button btnPdf = new Button { Text = "📄 導出 PDF", Size = new Size(135, 36), BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnPdf.FlatAppearance.BorderSize = 0;
-            Button btnExcel = new Button { Text = "📤 導出 Excel", Size = new Size(140, 36), BackColor = Color.MediumSeaGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnExcel.FlatAppearance.BorderSize = 0;
+            // 🟢 已移除個別的「導出 PDF」與「導出 Excel」按鈕，集中到上方全域管理
+            
             Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(80, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
             flpControls.Controls.AddRange(new Control[] {
@@ -214,7 +229,7 @@ namespace Safety_System
                 ui.CboStartMonth, new Label { Text = "月 ~ ", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 ui.CboEndYear, new Label { Text = "年", AutoSize = true, Margin = new Padding(0, 10, 5, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
                 ui.CboEndMonth, new Label { Text = "月", AutoSize = true, Margin = new Padding(0, 10, 20, 0), Font = new Font("Microsoft JhengHei UI", 12F) },
-                btnSearch, btnRecalc, btnSave, btnSettings, btnPdf, btnExcel, btnDelTheme
+                btnSearch, btnRecalc, btnSave, btnSettings, btnDelTheme
             });
             tlp.Controls.Add(flpControls, 0, 0);
 
@@ -224,7 +239,7 @@ namespace Safety_System
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 AllowUserToResizeColumns = true,
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single
             };
@@ -264,8 +279,6 @@ namespace Safety_System
             btnRecalc.Click += async (s, e) => await RecalculateGridData(ui); 
             btnSave.Click += (s, e) => SaveGridData(ui);
             btnSettings.Click += (s, e) => { OpenSettingsDialog(ui); _ = CalculateAndLoadGrid(ui); };
-            btnPdf.Click += (s, e) => ExportToPdf(ui);
-            btnExcel.Click += (s, e) => ExportToExcel(ui);
             btnDelTheme.Click += (s, e) => {
                 if (MessageBox.Show($"確定要刪除主題【{themeName}】及內部所有設定與資料嗎？", "刪除確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                     try {
@@ -310,7 +323,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心公式運算引擎 (支援多重交叉與對照欄)
+        // 核心公式運算引擎
         // ==========================================
         private string EvaluateStatsFormula(string template, string startYM, string endYM, Dictionary<string, DataTable> tableCache)
         {
@@ -359,6 +372,7 @@ namespace Safety_System
                         var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
                             if (r.RowState == DataRowState.Deleted) return false;
                             
+                            // 1. 日期區間過濾
                             if (!string.IsNullOrEmpty(dateCol)) {
                                 string dVal = r[dateCol]?.ToString().Trim() ?? "";
                                 if (string.IsNullOrEmpty(dVal)) return false;
@@ -384,6 +398,7 @@ namespace Safety_System
                                 }
                             }
 
+                            // 2. 條件篩選判斷
                             if (!string.IsNullOrEmpty(refCol) && fDt.Columns.Contains(refCol)) {
                                 string rowRefVal = r[refCol]?.ToString().Trim() ?? "";
                                 
@@ -404,6 +419,7 @@ namespace Safety_System
                             return true;
                         }).ToList();
 
+                        // 3. 聚合運算
                         if (agg == "COUNT") {
                             if (fCol == "Id (無條件計數)" || fCol == "Id" || !fDt.Columns.Contains(fCol)) {
                                 computedVal = matchedRows.Count;
@@ -754,7 +770,7 @@ namespace Safety_System
 
                 // 被計算欄間距 +25
                 pnlBuilder.Controls.Add(new Label { Text = "被計算欄:", Location = new Point(410, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbCol = new ComboBox { Location = new Point(510, 17), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbCol = new ComboBox { Location = new Point(495, 17), Width = 185, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbCol.Items.Add("Id (無條件計數)");
                 pnlBuilder.Controls.Add(cbCol);
 
@@ -766,22 +782,22 @@ namespace Safety_System
                 // 第二排：篩選條件欄、指定內容、動作、插入按鈕
                 // 篩選條件欄間距 +25
                 pnlBuilder.Controls.Add(new Label { Text = "篩選條件欄:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbRefCol = new ComboBox { Location = new Point(130, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbRefCol = new ComboBox { Location = new Point(105, 65), Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbRefCol);
 
                 // 指定內容間距 +25
-                pnlBuilder.Controls.Add(new Label { Text = "指定內容:", Location = new Point(285, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbFilterVal = new ComboBox { Location = new Point(385, 65), Width = 150, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "指定內容:", Location = new Point(265, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbFilterVal = new ComboBox { Location = new Point(345, 65), Width = 155, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbFilterVal);
 
                 // 動作間距 +10
-                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(550, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbAction = new ComboBox { Location = new Point(610, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(515, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbAction = new ComboBox { Location = new Point(565, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
                 cbAction.SelectedIndex = 0;
                 pnlBuilder.Controls.Add(cbAction);
 
-                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 140, Height = 32, Location = new Point(770, 63), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
+                Button btnInsert = new Button { Text = "插入變數 ⬇️", Width = 140, Height = 32, Location = new Point(730, 63), BackColor = Color.DarkCyan, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnInsert.FlatAppearance.BorderSize = 0;
                 pnlBuilder.Controls.Add(btnInsert);
 
@@ -825,7 +841,7 @@ namespace Safety_System
 
                 cbRefCol.SelectedIndexChanged += (s, e) => {
                     cbFilterVal.Items.Clear();
-                    cbFilterVal.Items.Add("非空值 (有輸入即算)"); // 預設加入
+                    cbFilterVal.Items.Add("非空值 (有輸入即算)"); // 🟢 預設加入
                     if (cbDb.SelectedItem != null && cbTb.SelectedItem != null && !string.IsNullOrEmpty(cbRefCol.Text)) {
                         string db = ((ItemMap)cbDb.SelectedItem).EnName;
                         string tb = ((ItemMap)cbTb.SelectedItem).EnName;
@@ -841,11 +857,11 @@ namespace Safety_System
                             }
                         } catch { }
                     }
-                    cbFilterVal.SelectedIndex = 0; // 預設選取非空值
+                    cbFilterVal.SelectedIndex = 0; // 🟢 預設選取非空值
                 };
 
                 cbAction.SelectedIndexChanged += (s, e) => {
-                    // 當動作為 COUNT 時，自動將計算目標預設為 Id(無條件計數)
+                    // 🟢 當動作為 COUNT 時，自動將計算目標預設為 Id(無條件計數)
                     if (cbAction.Text.Contains("COUNT") && cbCol.Items.Contains("Id (無條件計數)")) {
                         cbCol.SelectedItem = "Id (無條件計數)";
                     }
@@ -854,7 +870,7 @@ namespace Safety_System
                 boxBuilder.Controls.Add(pnlBuilder);
                 flpEditor.Controls.Add(boxBuilder);
 
-                // 🟢 開啟 AcceptsTab 並加上自訂 Enter 換行機制，支援多行排版
+                // 🟢 開啟 AcceptsReturn 與 AcceptsTab 讓公式框支援多行排版
                 Label lblDesc = new Label { 
                     Text = "混合圖文公式編輯區：\n(支援多行排版，請直接按 Enter 換行。純文字打在外面，需計算的公式包在 { 大括號 } 內)", 
                     AutoSize = true, 
@@ -873,7 +889,7 @@ namespace Safety_System
                     Font = new Font("Consolas", 14F), 
                     BackColor = Color.AliceBlue, 
                     Margin = new Padding(0, 5, 0, 0),
-                    AcceptsTab = true
+                    AcceptsTab = true 
                 };
                 
                 // 🟢 允許 Enter 在 RichTextBox 中換行 (因 WinForms 預設可能攔截)
@@ -1181,31 +1197,178 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 匯出 PDF 與 Excel (使用 PdfHelper 通用引擎)
+        // 全域 PDF / Excel 導出對話框與邏輯
         // ==========================================
-        private void ExportToPdf(ThemeSectionUI ui)
+        private List<ThemeSectionUI> GetSelectedThemesDialog()
         {
-            if (ui.Dgv.Rows.Count == 0) { MessageBox.Show("目前沒有數據可供導出。"); return; }
-            string dateStr = $"結算區間：{ui.CboStartYear.Text}/{ui.CboStartMonth.Text} ~ {ui.CboEndYear.Text}/{ui.CboEndMonth.Text}";
-            PdfHelper.ExportDataGridViewToPdf(ui.Dgv, $"【統計看板】{ui.ThemeName}", ui.ThemeName, false, true);
+            List<ThemeSectionUI> selected = new List<ThemeSectionUI>();
+            if (_sections.Count == 0) { MessageBox.Show("目前沒有任何統計區塊可供匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); return selected; }
+
+            using (Form f = new Form() { Width = 450, Height = 500, Text = "選擇匯出項目", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                TableLayoutPanel tlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+                tlp.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 90F));
+
+                Label lbl = new Label { Text = "請勾選欲匯出的統計主題區塊：", Dock = DockStyle.Fill, Padding = new Padding(15, 15, 10, 5), Font = new Font("Microsoft JhengHei UI", 13F, FontStyle.Bold), AutoSize = true };
+                tlp.Controls.Add(lbl, 0, 0);
+
+                CheckedListBox clb = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, Font = new Font("Microsoft JhengHei UI", 13F), Margin = new Padding(15, 5, 15, 5), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
+                
+                foreach (var sec in _sections) {
+                    clb.Items.Add(sec.ThemeName, true); 
+                }
+                tlp.Controls.Add(clb, 0, 1);
+
+                Panel pnlBottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
+                
+                Button btnSelectAll = new Button { Text = "☑️ 全選", Location = new Point(15, 5), Size = new Size(100, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button btnUnselectAll = new Button { Text = "☐ 取消全選", Location = new Point(125, 5), Size = new Size(130, 35), BackColor = Color.LightGray, Cursor = Cursors.Hand, Font = new Font("Microsoft JhengHei UI", 11F) };
+                Button btnOk = new Button { Text = "確認匯出", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.OK, BackColor = Color.IndianRed, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), Cursor = Cursors.Hand };
+                
+                btnSelectAll.Click += (s, ev) => {
+                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true);
+                };
+
+                btnUnselectAll.Click += (s, ev) => {
+                    for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false);
+                };
+
+                pnlBottom.Controls.Add(btnSelectAll);
+                pnlBottom.Controls.Add(btnUnselectAll);
+                pnlBottom.Controls.Add(btnOk);
+                
+                tlp.Controls.Add(pnlBottom, 0, 2);
+                f.Controls.Add(tlp);
+
+                if (f.ShowDialog() == DialogResult.OK) 
+                {
+                    for (int i = 0; i < clb.Items.Count; i++) {
+                        if (clb.GetItemChecked(i)) {
+                            selected.Add(_sections[i]);
+                        }
+                    }
+                }
+            }
+            return selected;
         }
 
-        private void ExportToExcel(ThemeSectionUI ui)
+        private void BtnGlobalPdf_Click(object sender, EventArgs e)
         {
-            if (ui.Dgv.Rows.Count == 0) { MessageBox.Show("目前沒有資料可供匯出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-            
-            DataTable dt = new DataTable();
-            foreach (DataGridViewColumn col in ui.Dgv.Columns) dt.Columns.Add(col.HeaderText.Replace("\n", ""));
-            
-            foreach (DataGridViewRow row in ui.Dgv.Rows) {
-                if (row.IsNewRow) continue;
-                DataRow dRow = dt.NewRow();
-                for (int i = 0; i < ui.Dgv.Columns.Count; i++) {
-                    dRow[i] = row.Cells[i].Value?.ToString() ?? "";
+            var selectedSections = GetSelectedThemesDialog();
+            if (selectedSections.Count == 0) return;
+
+            if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+
+            try 
+            {
+                Application.DoEvents(); 
+
+                List<Bitmap> bitmaps = new List<Bitmap>();
+                foreach (var sec in selectedSections) 
+                {
+                    Panel pnl = sec.MainBox;
+                    int origHeight = pnl.Height;
+                    DataGridView dgv = sec.Dgv;
+                    
+                    if (dgv != null) {
+                        int exactGridHeight = dgv.ColumnHeadersHeight;
+                        foreach(DataGridViewRow r in dgv.Rows) exactGridHeight += r.Height;
+                        pnl.Height = exactGridHeight + 110; 
+                    }
+
+                    Bitmap bmp = new Bitmap(pnl.Width, pnl.Height);
+                    pnl.DrawToBitmap(bmp, new Rectangle(0, 0, pnl.Width, pnl.Height));
+                    bitmaps.Add(bmp);
+
+                    pnl.Height = origHeight;
                 }
-                dt.Rows.Add(dRow);
+
+                string dateStr = $"導出日期：{DateTime.Now:yyyy/MM/dd HH:mm}";
+                PdfHelper.ExportDashboardToPdf(bitmaps, "統計看板綜合報表", dateStr, "統計看板綜合報表");
+            } 
+            catch (Exception ex)
+            {
+                MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            ExcelHelper.ExportToExcelOrCsv(dt, ui.ThemeName, null, null, null);
+            finally
+            {
+                if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+            }
+        }
+
+        private void BtnGlobalExcel_Click(object sender, EventArgs e)
+        {
+            var selectedSections = GetSelectedThemesDialog();
+            if (selectedSections.Count == 0) return;
+
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = $"統計看板綜合報表_{DateTime.Now:yyyyMMdd}" })
+            {
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
+
+                        using (ExcelPackage p = new ExcelPackage())
+                        {
+                            foreach (var sec in selectedSections)
+                            {
+                                if (sec.Dgv.Rows.Count == 0) continue;
+
+                                DataTable dt = new DataTable();
+                                foreach (DataGridViewColumn col in sec.Dgv.Columns) dt.Columns.Add(col.HeaderText.Replace("\n", ""));
+                                
+                                foreach (DataGridViewRow row in sec.Dgv.Rows) {
+                                    if (row.IsNewRow) continue;
+                                    DataRow dRow = dt.NewRow();
+                                    for (int i = 0; i < sec.Dgv.Columns.Count; i++) {
+                                        dRow[i] = row.Cells[i].Value?.ToString() ?? "";
+                                    }
+                                    dt.Rows.Add(dRow);
+                                }
+
+                                string safeSheetName = sec.ThemeName;
+                                foreach (char c in new[] { '*', ':', '?', '[', ']', '\\', '/' }) {
+                                    safeSheetName = safeSheetName.Replace(c.ToString(), "");
+                                }
+                                if (safeSheetName.Length > 31) safeSheetName = safeSheetName.Substring(0, 31);
+                                
+                                int duplicateCount = 1;
+                                string finalSheetName = safeSheetName;
+                                while(p.Workbook.Worksheets.Any(ws => ws.Name == finalSheetName)) {
+                                    finalSheetName = $"{safeSheetName}_{duplicateCount}";
+                                    duplicateCount++;
+                                }
+
+                                var ws = p.Workbook.Worksheets.Add(finalSheetName);
+                                ws.Cells["A1"].LoadFromDataTable(dt, true);
+                                
+                                using (var range = ws.Cells[1, 1, 1, dt.Columns.Count]) {
+                                    range.Style.Font.Bold = true;
+                                    range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                    range.Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                                    range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                }
+
+                                var dataRange = ws.Cells[2, 1, dt.Rows.Count + 1, dt.Columns.Count];
+                                dataRange.Style.WrapText = true;
+                                dataRange.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+
+                                ws.Cells.AutoFitColumns();
+                            }
+                            p.SaveAs(new FileInfo(sfd.FileName));
+                        }
+                        MessageBox.Show("Excel 綜合報表匯出成功！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex) {
+                        MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally {
+                        if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.Default;
+                    }
+                }
+            }
         }
 
         private string ShowInputBox(string prompt, string title, string defaultValue)
