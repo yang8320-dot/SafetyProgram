@@ -224,7 +224,7 @@ namespace Safety_System
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 AllowUserToResizeColumns = true,
-                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, 
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells, // 確保文字多時行高會自適應
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single
             };
@@ -310,7 +310,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // 核心公式運算引擎 (支援多重交叉與對照欄)
+        // 核心公式運算引擎 (完美支援條件篩選)
         // ==========================================
         private string EvaluateStatsFormula(string template, string startYM, string endYM, Dictionary<string, DataTable> tableCache)
         {
@@ -359,6 +359,7 @@ namespace Safety_System
                         var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
                             if (r.RowState == DataRowState.Deleted) return false;
                             
+                            // 1. 日期區間過濾
                             if (!string.IsNullOrEmpty(dateCol)) {
                                 string dVal = r[dateCol]?.ToString().Trim() ?? "";
                                 if (string.IsNullOrEmpty(dVal)) return false;
@@ -384,18 +385,35 @@ namespace Safety_System
                                 }
                             }
 
+                            // 2. 🟢 條件篩選判斷 (支援情況 A: 無條件有填寫就算 / 情況 B: 相同名稱)
                             if (!string.IsNullOrEmpty(refCol) && fDt.Columns.Contains(refCol)) {
                                 string rowRefVal = r[refCol]?.ToString().Trim() ?? "";
-                                if (rowRefVal != filterVal) return false;
+                                
+                                if (filterVal == "非空值 (有輸入即算)" || string.IsNullOrEmpty(filterVal)) {
+                                    // 情況 A：必須有填寫
+                                    if (string.IsNullOrEmpty(rowRefVal)) return false;
+                                } else {
+                                    // 情況 B：必須符合指定名稱 (支援多選逗號分隔的值)
+                                    bool isMatch = false;
+                                    var cellValues = rowRefVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                                    foreach (var v in cellValues) {
+                                        if (v.Trim().Equals(filterVal, StringComparison.OrdinalIgnoreCase)) {
+                                            isMatch = true; break;
+                                        }
+                                    }
+                                    if (!isMatch) return false;
+                                }
                             }
 
                             return true;
                         }).ToList();
 
+                        // 3. 聚合運算
                         if (agg == "COUNT") {
                             if (fCol == "Id (無條件計數)" || fCol == "Id" || !fDt.Columns.Contains(fCol)) {
                                 computedVal = matchedRows.Count;
                             } else {
+                                // 指定被計算欄位時，必須該欄位有內容才計數
                                 computedVal = matchedRows.Count(r => r[fCol] != DBNull.Value && !string.IsNullOrWhiteSpace(r[fCol].ToString()));
                             }
                         }
@@ -677,7 +695,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // ⚙️ 設定視窗 (支援變數條件過濾 + 多行編輯)
+        // ⚙️ 設定視窗 (優化標籤與預設帶入邏輯)
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -730,7 +748,7 @@ namespace Safety_System
                 GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 145, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、資料欄、日期欄
+                // 第一排：庫、表、被計算欄、日期欄 (🟢 調整標籤文字與間距)
                 pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbDb = new ComboBox { Location = new Point(45, 17), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDb);
@@ -739,8 +757,8 @@ namespace Safety_System
                 ComboBox cbTb = new ComboBox { Location = new Point(220, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbTb);
 
-                pnlBuilder.Controls.Add(new Label { Text = "資料欄:", Location = new Point(420, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbCol = new ComboBox { Location = new Point(490, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "被計算欄:", Location = new Point(420, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbCol = new ComboBox { Location = new Point(495, 17), Width = 185, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbCol.Items.Add("Id (無條件計數)");
                 pnlBuilder.Controls.Add(cbCol);
 
@@ -748,17 +766,17 @@ namespace Safety_System
                 ComboBox cbDateCol = new ComboBox { Location = new Point(760, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDateCol);
 
-                // 第二排：對照欄、條件、動作、插入按鈕
-                pnlBuilder.Controls.Add(new Label { Text = "對照欄:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbRefCol = new ComboBox { Location = new Point(75, 65), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第二排：篩選條件欄、指定內容、動作、插入按鈕 (🟢 調整標籤文字與間距)
+                pnlBuilder.Controls.Add(new Label { Text = "篩選條件欄:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbRefCol = new ComboBox { Location = new Point(105, 65), Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbRefCol);
 
-                pnlBuilder.Controls.Add(new Label { Text = "條件:", Location = new Point(270, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbFilterVal = new ComboBox { Location = new Point(325, 65), Width = 180, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "指定內容:", Location = new Point(265, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbFilterVal = new ComboBox { Location = new Point(345, 65), Width = 155, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbFilterVal);
 
-                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(520, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
-                ComboBox cbAction = new ComboBox { Location = new Point(570, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(515, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
+                ComboBox cbAction = new ComboBox { Location = new Point(565, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
                 cbAction.SelectedIndex = 0;
                 pnlBuilder.Controls.Add(cbAction);
@@ -807,7 +825,7 @@ namespace Safety_System
 
                 cbRefCol.SelectedIndexChanged += (s, e) => {
                     cbFilterVal.Items.Clear();
-                    cbFilterVal.Items.Add("");
+                    cbFilterVal.Items.Add("非空值 (有輸入即算)"); // 🟢 預設加入
                     if (cbDb.SelectedItem != null && cbTb.SelectedItem != null && !string.IsNullOrEmpty(cbRefCol.Text)) {
                         string db = ((ItemMap)cbDb.SelectedItem).EnName;
                         string tb = ((ItemMap)cbTb.SelectedItem).EnName;
@@ -822,6 +840,14 @@ namespace Safety_System
                                 foreach (var v in distinctVals) cbFilterVal.Items.Add(v);
                             }
                         } catch { }
+                    }
+                    cbFilterVal.SelectedIndex = 0; // 🟢 預設選取非空值
+                };
+
+                cbAction.SelectedIndexChanged += (s, e) => {
+                    // 🟢 當動作為 COUNT 時，自動將計算目標預設為 Id(無條件計數)
+                    if (cbAction.Text.Contains("COUNT") && cbCol.Items.Contains("Id (無條件計數)")) {
+                        cbCol.SelectedItem = "Id (無條件計數)";
                     }
                 };
 
@@ -846,7 +872,17 @@ namespace Safety_System
                     Font = new Font("Consolas", 14F), 
                     BackColor = Color.AliceBlue, 
                     Margin = new Padding(0, 5, 0, 0),
-                    AcceptsTab = true
+                    AcceptsTab = true // 注意這裡只開啟 AcceptsTab，換行由按鍵攔截器處理
+                };
+                
+                // 🟢 允許 Enter 在 RichTextBox 中換行 (覆寫預設 Enter 行為)
+                rtbFormula.KeyDown += (s, ev) => {
+                    if (ev.KeyCode == Keys.Enter) {
+                        int selectionStart = rtbFormula.SelectionStart;
+                        rtbFormula.Text = rtbFormula.Text.Insert(selectionStart, Environment.NewLine);
+                        rtbFormula.SelectionStart = selectionStart + Environment.NewLine.Length;
+                        ev.Handled = true;
+                    }
                 };
                 
                 foreach (var k in keys) {
@@ -857,7 +893,7 @@ namespace Safety_System
 
                 btnInsert.Click += (s, e) => {
                     var db = cbDb.SelectedItem as ItemMap; var tb = cbTb.SelectedItem as ItemMap;
-                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的來源資料庫、資料表與資料欄位！"); return; }
+                    if (db == null || tb == null || cbCol.SelectedItem == null) { MessageBox.Show("請選擇完整的來源資料庫、資料表與被計算欄位！"); return; }
                     
                     string actionText = cbAction.Text;
                     string aggCode = "SUM";
@@ -872,6 +908,7 @@ namespace Safety_System
                     
                     if (!string.IsNullOrEmpty(cbRefCol.Text)) {
                         string filterStr = cbFilterVal.Text.Trim();
+                        if (string.IsNullOrEmpty(filterStr)) filterStr = "非空值 (有輸入即算)";
                         baseStr += $"{dateColStr}.[{(cbRefCol.Text)}].[{filterStr}]";
                     } else if (dateColStr != ".[自動判斷]") {
                         baseStr += dateColStr;
