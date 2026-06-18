@@ -79,7 +79,6 @@ namespace Safety_System
             Panel pnlHeader = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0,0,0,10) };
             Label lblTitle = new Label { Text = "📊 動態統計看板管理系統", Font = new Font("Microsoft JhengHei UI", 24F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Dock = DockStyle.Left, TextAlign = ContentAlignment.MiddleLeft, AutoSize = true };
             
-            // 🟢 新增：全域匯出按鈕統一管理
             Button btnAddTheme = new Button { Text = "➕ 新增主題區塊", Size = new Size(180, 45), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Right };
             btnAddTheme.FlatAppearance.BorderSize = 0;
             btnAddTheme.Click += BtnAddTheme_Click;
@@ -92,11 +91,10 @@ namespace Safety_System
             btnGlobalExcel.FlatAppearance.BorderSize = 0;
             btnGlobalExcel.Click += BtnGlobalExcel_Click;
 
-            // 🟢 Dock = Right 的排列順序：最後加入的會在最左邊
             pnlHeader.Controls.Add(btnAddTheme);
-            pnlHeader.Controls.Add(new Panel { Width = 15, Dock = DockStyle.Right }); // 間隔
+            pnlHeader.Controls.Add(new Panel { Width = 15, Dock = DockStyle.Right }); 
             pnlHeader.Controls.Add(btnGlobalPdf);
-            pnlHeader.Controls.Add(new Panel { Width = 15, Dock = DockStyle.Right }); // 間隔
+            pnlHeader.Controls.Add(new Panel { Width = 15, Dock = DockStyle.Right }); 
             pnlHeader.Controls.Add(btnGlobalExcel);
 
             pnlHeader.Controls.Add(lblTitle);
@@ -116,7 +114,6 @@ namespace Safety_System
 
             LoadThemes();
 
-            // 自動執行讀取
             foreach (var ui in _sections) {
                 _ = CalculateAndLoadGrid(ui);
             }
@@ -218,8 +215,6 @@ namespace Safety_System
             Button btnRecalc = new Button { Text = "🔄 重新統計", Size = new Size(145, 36), BackColor = Color.DarkOrange, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnRecalc.FlatAppearance.BorderSize = 0;
             Button btnSave = new Button { Text = "💾 儲存", Size = new Size(100, 36), BackColor = Color.ForestGreen, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSave.FlatAppearance.BorderSize = 0;
             Button btnSettings = new Button { Text = "⚙️ 顯示設定", Size = new Size(130, 36), BackColor = Color.DimGray, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(10, 2, 0, 0) }; btnSettings.FlatAppearance.BorderSize = 0;
-            
-            // 🟢 已移除個別的「導出 PDF」與「導出 Excel」按鈕，集中到上方全域管理
             
             Button btnDelTheme = new Button { Text = "🗑️", Size = new Size(80, 36), BackColor = Color.LightCoral, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, Margin = new Padding(15, 2, 0, 0) }; btnDelTheme.FlatAppearance.BorderSize = 0;
 
@@ -372,7 +367,6 @@ namespace Safety_System
                         var matchedRows = fDt.Rows.Cast<DataRow>().Where(r => {
                             if (r.RowState == DataRowState.Deleted) return false;
                             
-                            // 1. 日期區間過濾
                             if (!string.IsNullOrEmpty(dateCol)) {
                                 string dVal = r[dateCol]?.ToString().Trim() ?? "";
                                 if (string.IsNullOrEmpty(dVal)) return false;
@@ -398,7 +392,6 @@ namespace Safety_System
                                 }
                             }
 
-                            // 2. 條件篩選判斷
                             if (!string.IsNullOrEmpty(refCol) && fDt.Columns.Contains(refCol)) {
                                 string rowRefVal = r[refCol]?.ToString().Trim() ?? "";
                                 
@@ -419,7 +412,6 @@ namespace Safety_System
                             return true;
                         }).ToList();
 
-                        // 3. 聚合運算
                         if (agg == "COUNT") {
                             if (fCol == "Id (無條件計數)" || fCol == "Id" || !fDt.Columns.Contains(fCol)) {
                                 computedVal = matchedRows.Count;
@@ -705,7 +697,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // ⚙️ 設定視窗 (優化標籤間距與高度，支援多行換行輸入)
+        // ⚙️ 設定視窗
         // ==========================================
         private void OpenSettingsDialog(ThemeSectionUI ui)
         {
@@ -755,11 +747,10 @@ namespace Safety_System
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
-                // 🟢 變數產生器：加寬並調整間距
                 GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 145, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 Panel pnlBuilder = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、被計算欄、日期欄 
+                // 第一排：庫、表、被計算欄、日期欄
                 pnlBuilder.Controls.Add(new Label { Text = "庫:", Location = new Point(10, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbDb = new ComboBox { Location = new Point(45, 17), Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDb);
@@ -768,29 +759,24 @@ namespace Safety_System
                 ComboBox cbTb = new ComboBox { Location = new Point(220, 17), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbTb);
 
-                // 被計算欄間距 +25
                 pnlBuilder.Controls.Add(new Label { Text = "被計算欄:", Location = new Point(410, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbCol = new ComboBox { Location = new Point(495, 17), Width = 185, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbCol.Items.Add("Id (無條件計數)");
                 pnlBuilder.Controls.Add(cbCol);
 
-                // 日期欄間距 +10
                 pnlBuilder.Controls.Add(new Label { Text = "日期欄:", Location = new Point(700, 20), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbDateCol = new ComboBox { Location = new Point(770, 17), Width = 190, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbDateCol);
 
                 // 第二排：篩選條件欄、指定內容、動作、插入按鈕
-                // 篩選條件欄間距 +25
                 pnlBuilder.Controls.Add(new Label { Text = "篩選條件欄:", Location = new Point(10, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbRefCol = new ComboBox { Location = new Point(105, 65), Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbRefCol);
 
-                // 指定內容間距 +25
                 pnlBuilder.Controls.Add(new Label { Text = "指定內容:", Location = new Point(265, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbFilterVal = new ComboBox { Location = new Point(345, 65), Width = 155, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                 pnlBuilder.Controls.Add(cbFilterVal);
 
-                // 動作間距 +10
                 pnlBuilder.Controls.Add(new Label { Text = "動作:", Location = new Point(515, 68), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) });
                 ComboBox cbAction = new ComboBox { Location = new Point(565, 65), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbAction.Items.AddRange(new string[] { "加總 (SUM)", "平均值 (AVG)", "最大值 (MAX)", "最小值 (MIN)", "計數 (COUNT)" }); 
@@ -841,7 +827,7 @@ namespace Safety_System
 
                 cbRefCol.SelectedIndexChanged += (s, e) => {
                     cbFilterVal.Items.Clear();
-                    cbFilterVal.Items.Add("非空值 (有輸入即算)"); // 🟢 預設加入
+                    cbFilterVal.Items.Add("非空值 (有輸入即算)");
                     if (cbDb.SelectedItem != null && cbTb.SelectedItem != null && !string.IsNullOrEmpty(cbRefCol.Text)) {
                         string db = ((ItemMap)cbDb.SelectedItem).EnName;
                         string tb = ((ItemMap)cbTb.SelectedItem).EnName;
@@ -857,11 +843,10 @@ namespace Safety_System
                             }
                         } catch { }
                     }
-                    cbFilterVal.SelectedIndex = 0; // 🟢 預設選取非空值
+                    cbFilterVal.SelectedIndex = 0; 
                 };
 
                 cbAction.SelectedIndexChanged += (s, e) => {
-                    // 🟢 當動作為 COUNT 時，自動將計算目標預設為 Id(無條件計數)
                     if (cbAction.Text.Contains("COUNT") && cbCol.Items.Contains("Id (無條件計數)")) {
                         cbCol.SelectedItem = "Id (無條件計數)";
                     }
@@ -870,7 +855,6 @@ namespace Safety_System
                 boxBuilder.Controls.Add(pnlBuilder);
                 flpEditor.Controls.Add(boxBuilder);
 
-                // 🟢 開啟 AcceptsReturn 與 AcceptsTab 讓公式框支援多行排版
                 Label lblDesc = new Label { 
                     Text = "混合圖文公式編輯區：\n(支援多行排版，請直接按 Enter 換行。純文字打在外面，需計算的公式包在 { 大括號 } 內)", 
                     AutoSize = true, 
@@ -882,7 +866,6 @@ namespace Safety_System
                 FlowLayoutPanel pnlKeys = new FlowLayoutPanel { Width=1000, Height = 40, WrapContents = false };
                 string[] keys = { "+", "-", "*", "/", "(", ")", "{", "}" };
                 
-                // 🟢 高度加高 30px (175 -> 205)
                 RichTextBox rtbFormula = new RichTextBox { 
                     Width = 1000, 
                     Height = 205, 
@@ -892,7 +875,6 @@ namespace Safety_System
                     AcceptsTab = true 
                 };
                 
-                // 🟢 允許 Enter 在 RichTextBox 中換行 (因 WinForms 預設可能攔截)
                 rtbFormula.KeyDown += (s, ev) => {
                     if (ev.KeyCode == Keys.Enter) {
                         int selectionStart = rtbFormula.SelectionStart;
@@ -1336,7 +1318,7 @@ namespace Safety_System
                                 
                                 int duplicateCount = 1;
                                 string finalSheetName = safeSheetName;
-                                while(p.Workbook.Worksheets.Any(ws => ws.Name == finalSheetName)) {
+                                while(p.Workbook.Worksheets.Any(sheet => sheet.Name == finalSheetName)) {
                                     finalSheetName = $"{safeSheetName}_{duplicateCount}";
                                     duplicateCount++;
                                 }
