@@ -11,7 +11,6 @@ using System.Windows.Forms;
 
 namespace Safety_System
 {
-    // 🟢 支援小數點位數與四捨五入模式
     public class ColumnFormulaDef {
         public int Id { get; set; }
         public string TargetCol { get; set; }
@@ -20,22 +19,63 @@ namespace Safety_System
         public string EndDate { get; set; }
         public string FormulaType { get; set; } 
         public string Formula { get; set; }
-        public int DecimalPlaces { get; set; } = 4; // 預設 4 位
-        public string RoundingMode { get; set; } = "四捨五入"; // 預設四捨五入
+        public int DecimalPlaces { get; set; } = 4; 
+        public string RoundingMode { get; set; } = "四捨五入"; 
     }
 
     public static class DataManager
     {
         private static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
-        public static readonly string SysConfigDbPath = Path.Combine(AppDir, "SystemConfig.sqlite");
-
-        public static string BasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB");
-        public static string AttachmentBasePath { get; private set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "附件");
+        
+        public static string SysConfigDbPath { get; private set; }
+        public static string BasePath { get; private set; } 
+        public static string AttachmentBasePath { get; private set; } 
 
         private static readonly object _syncLock = new object();
 
         static DataManager()
         {
+            // 🟢 核心機制：讀取「網路指向檔 (NetworkPath.txt)」
+            string pointerFilePath = Path.Combine(AppDir, "NetworkPath.txt");
+            string activeRootDir = AppDir; // 預設使用本機目錄
+
+            if (File.Exists(pointerFilePath))
+            {
+                try
+                {
+                    // 讀取檔案的所有行
+                    string[] lines = File.ReadAllLines(pointerFilePath);
+                    
+                    // 過濾掉空白行與純註解行(以 # 或 // 開頭)
+                    var validLines = lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.Trim().StartsWith("#") && !l.Trim().StartsWith("//")).ToList();
+
+                    if (validLines.Count > 0)
+                    {
+                        // 抓取第一行有效字串作為路徑 (這讓您可以把註解寫在它上面)
+                        string networkDir = validLines[0].Trim();
+                        
+                        // 檢查網路磁碟機/伺服器路徑是否有效
+                        if (Directory.Exists(networkDir))
+                        {
+                            activeRootDir = networkDir;
+                        }
+                        else
+                        {
+                            MessageBox.Show($"警告：無法連線至 NetworkPath.txt 中指定的網路路徑：\n{networkDir}\n\n可能原因：您不在公司區網內，或權限不足。\n系統將暫時切換回「本機單機模式」執行。", "網路連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"讀取 NetworkPath.txt 失敗：{ex.Message}", "系統錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+
+            // 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄 (網路或本機)
+            SysConfigDbPath = Path.Combine(activeRootDir, "SystemConfig.sqlite");
+            BasePath = Path.Combine(activeRootDir, "DB");
+            AttachmentBasePath = Path.Combine(activeRootDir, "附件");
+
             InitSysConfigDB();
         }
 
@@ -58,11 +98,7 @@ namespace Safety_System
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DropdownConfigs (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, ParentColName TEXT, ParentValue TEXT, Options TEXT, UNIQUE(TableName, ColName, ParentColName, ParentValue));"; cmd.ExecuteNonQuery();
                     cmd.CommandText = "CREATE TABLE IF NOT EXISTS AppLinks (Id INTEGER PRIMARY KEY AUTOINCREMENT, [選單名稱] TEXT, [執行路徑] TEXT);"; cmd.ExecuteNonQuery();
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS System_DeleteLogs (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, RecordId INTEGER, DeletedBy TEXT, DeletedTime TEXT);"; cmd.ExecuteNonQuery();
-
-                    // 🟢 修正：強制將 MultiSelectConfigs (組合文字) 寫入正確的系統設定檔
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS MultiSelectConfigs (Id INTEGER PRIMARY KEY AUTOINCREMENT, TableName TEXT, ColName TEXT, Options TEXT, UNIQUE(TableName, ColName));"; cmd.ExecuteNonQuery();
-                    
-                    // 🟢 修正：強制將 ReferenceDropdownConfigs (跨表參照) 寫入正確的系統設定檔
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ReferenceDropdownConfigs (Id INTEGER PRIMARY KEY AUTOINCREMENT, TargetDb TEXT, TargetTb TEXT, TargetCol TEXT, SourceDb TEXT, SourceTb TEXT, SourceCol TEXT, UNIQUE(TargetDb, TargetTb, TargetCol));"; cmd.ExecuteNonQuery();
 
                     cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ColumnFormulas (Id INTEGER PRIMARY KEY AUTOINCREMENT, DbName TEXT, TableName TEXT, TargetCol TEXT, MatchCol TEXT, StartDate TEXT, EndDate TEXT, Formula TEXT);"; 
