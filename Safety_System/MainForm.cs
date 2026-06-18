@@ -219,6 +219,8 @@ namespace Safety_System
             menuNursing.DropDownItems.Add(new ToolStripSeparator());
             menuNursing.DropDownItems.Add(CreateItem("D21 健康促進活動", () => new App_CoreTable("Nursing", "HealthPromotion", "健康促進活動", new DefaultLogic()).GetView()));
             menuNursing.DropDownItems.Add(CreateItem("D22 職災申報紀錄", () => new App_CoreTable("Nursing", "WorkInjuryReport", "職災申報紀錄", new DefaultLogic()).GetView()));
+            // 🟢 新增：D23 員工健康關懷
+            menuNursing.DropDownItems.Add(CreateItem("D23 員工健康關懷", () => new App_CoreTable("Nursing", "EmployeeHealthCare", "員工健康關懷", new DefaultLogic()).GetView()));
 
             var menuAirWaterWaste = new ToolStripMenuItem("空水廢");
 
