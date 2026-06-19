@@ -354,23 +354,26 @@ namespace Safety_System
             memReleaseItem.Click += (s, e) => MemoryOptimizer.Execute();
             menuApp.DropDownItems.Add(memReleaseItem);
 
+            // ==============================================================
+            // 🟢 個人隱藏選單 (指向各自獨立的 Dashboard 檔案)
+            // ==============================================================
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
             _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView()));
             _menu1.DropDownItems.Add(new ToolStripSeparator());
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
-            _menu2.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu2DB").GetView()));
+            _menu2.DropDownItems.Add(CreateItem("統計看板", () => new App_Menu2StatsDashboard("Menu2DB").GetView())); // 🟢 指向選單 2
             _menu2.DropDownItems.Add(new ToolStripSeparator());
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu3 = new ToolStripMenuItem("選單3") { Visible = false };
-            _menu3.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu3DB").GetView()));
+            _menu3.DropDownItems.Add(CreateItem("統計看板", () => new App_Menu3StatsDashboard("Menu3DB").GetView())); // 🟢 指向選單 3
             _menu3.DropDownItems.Add(new ToolStripSeparator());
             _menu3.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu3DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
-            _menu4.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu4DB").GetView()));
+            _menu4.DropDownItems.Add(CreateItem("統計看板", () => new App_Menu4StatsDashboard("Menu4DB").GetView())); // 🟢 指向選單 4
             _menu4.DropDownItems.Add(new ToolStripSeparator());
             _menu4.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu4DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
