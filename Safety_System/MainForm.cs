@@ -358,7 +358,7 @@ namespace Safety_System
             // 🟢 個人隱藏選單 (指向各自獨立的 Dashboard 檔案)
             // ==============================================================
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
-            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_StatsDashboard("Menu1DB").GetView()));
+            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_Menu1StatsDashboard("Menu1DB").GetView())); // 🟢 指向選單 1
             _menu1.DropDownItems.Add(new ToolStripSeparator());
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
