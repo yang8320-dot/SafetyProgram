@@ -743,6 +743,7 @@ namespace Safety_System
                 pnlLeft.Controls.Add(btnAddNew);
                 pnlLeft.Controls.Add(pnlLeftActions);
 
+                // ============== 右側編輯區 ==============
                 Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
                 Label l2 = new Label { Text = "編輯選取項目的內容公式", Font = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold), ForeColor = Color.SaddleBrown, Dock = DockStyle.Top, Height = 40 };
 
@@ -750,14 +751,17 @@ namespace Safety_System
                 
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "項目名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
+                // 🟢 調整 1：項目名稱文字框加寬 100px (350 -> 450)
                 TextBox txtName = new TextBox { Width = 450, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
+                // 🟢 變數產生器
                 GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 135, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 
                 Panel pnlBuilderInner = new Panel { Dock = DockStyle.Fill };
                 
+                // 第一排：庫、表、被計算欄、日期欄 (Y=10)
                 ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -769,17 +773,22 @@ namespace Safety_System
                 Label lblCol = new Label { Text = "被計算欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblDateCol = new Label { Text = "日期欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
 
+                // 🟢 調整 2 & 3：第一排座標重新分配，下拉選單間距+20
                 lblDb.Location = new Point(5, 13);
                 cbDb.Location = new Point(40, 10);
+                
                 lblTb.Location = new Point(190, 13);
                 cbTb.Location = new Point(225, 10);
+                
                 lblCol.Location = new Point(415, 13);
-                cbCol.Location = new Point(510, 10);
+                cbCol.Location = new Point(510, 10); // 增加 20 間距
+                
                 lblDateCol.Location = new Point(700, 13);
-                cbDateCol.Location = new Point(780, 10); 
+                cbDateCol.Location = new Point(780, 10); // 增加 20 間距
 
                 pnlBuilderInner.Controls.AddRange(new Control[] { lblDb, cbDb, lblTb, cbTb, lblCol, cbCol, lblDateCol, cbDateCol });
 
+                // 第二排：篩選條件欄、內容、動作、插入按鈕 (Y=60)
                 ComboBox cbRefCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 ComboBox cbFilterVal = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
@@ -794,16 +803,17 @@ namespace Safety_System
                 Label lblFilterVal = new Label { Text = "內容:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblAction = new Label { Text = "動作:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
 
+                // 🟢 調整 4, 5, 6：第二排座標重新分配，下拉選單間距+20
                 lblRefCol.Location = new Point(5, 63);
-                cbRefCol.Location = new Point(115, 60); 
+                cbRefCol.Location = new Point(115, 60); // 增加 20 間距
 
                 lblFilterVal.Location = new Point(275, 63);
-                cbFilterVal.Location = new Point(335, 60); 
+                cbFilterVal.Location = new Point(335, 60); // 增加 20 間距
 
                 lblAction.Location = new Point(505, 63);
-                cbAction.Location = new Point(565, 60); 
+                cbAction.Location = new Point(565, 60); // 增加 20 間距
 
-                btnInsert.Location = new Point(720, 58); 
+                btnInsert.Location = new Point(720, 58); // 按鈕往右推
 
                 pnlBuilderInner.Controls.AddRange(new Control[] { lblRefCol, cbRefCol, lblFilterVal, cbFilterVal, lblAction, cbAction, btnInsert });
 
@@ -1203,7 +1213,10 @@ namespace Safety_System
             }
         }
 
-        private List<ThemeSectionUI> GetSelectedExportPanels()
+        // ==========================================
+        // 🟢 全域 PDF / Excel 導出對話框與邏輯
+        // ==========================================
+        private List<ThemeSectionUI> GetSelectedThemesDialog()
         {
             List<ThemeSectionUI> selected = new List<ThemeSectionUI>();
             if (_sections.Count == 0) { MessageBox.Show("目前沒有任何統計區塊可供匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information); return selected; }
@@ -1263,7 +1276,7 @@ namespace Safety_System
             var selectedSections = GetSelectedThemesDialog();
             if (selectedSections.Count == 0) return;
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"選單2_動態看板報表_{DateTime.Now:yyyyMMdd}" })
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "PDF 檔案 (*.pdf)|*.pdf", FileName = $"選單4_動態看板報表_{DateTime.Now:yyyyMMdd}" })
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
@@ -1414,7 +1427,7 @@ namespace Safety_System
             var selectedSections = GetSelectedThemesDialog();
             if (selectedSections.Count == 0) return;
 
-            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = $"選單2_動態看板報表_{DateTime.Now:yyyyMMdd}" })
+            using (SaveFileDialog sfd = new SaveFileDialog { Filter = "Excel 活頁簿 (*.xlsx)|*.xlsx", FileName = $"選單4_動態看板報表_{DateTime.Now:yyyyMMdd}" })
             {
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
