@@ -26,12 +26,12 @@ namespace Safety_System
         private const string TblConfigs = "StatsDashboard_Configs";
         private const string TblRecords = "StatsDashboard_Records";
 
-        // 動態區塊的 UI 封裝 (🟢 已修改結構)
+        // 動態區塊的 UI 封裝
         private class ThemeSectionUI
         {
             public int ThemeId { get; set; }
             public string ThemeName { get; set; }
-            public Panel MainBox { get; set; } // 改為 Panel，作為容納兩個 GroupBox 的外框
+            public Panel MainBox { get; set; } 
             public ComboBox CboStartYear, CboStartMonth, CboEndYear, CboEndMonth;
             public DataGridView Dgv { get; set; }
             public FlowLayoutPanel FlpControls { get; set; } 
@@ -175,7 +175,6 @@ namespace Safety_System
             }
         }
 
-        // 🟢 核心修改 1：將一個大的 GroupBox 拆解為兩個框 (查詢框、資料表框)，並預留底部 Padding
         private void BuildThemeSection(int themeId, string themeName)
         {
             ThemeSectionUI ui = new ThemeSectionUI { ThemeId = themeId, ThemeName = themeName };
@@ -239,7 +238,7 @@ namespace Safety_System
                 ForeColor = Color.Teal,
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                Padding = new Padding(10, 15, 10, 20) // 🟢 底部保留 20px 空間，避免延伸後貼邊
+                Padding = new Padding(10, 15, 10, 20) 
             };
 
             ui.Dgv = new DataGridView {
@@ -250,7 +249,7 @@ namespace Safety_System
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single,
-                ScrollBars = ScrollBars.None, // 確保關閉內部捲軸
+                ScrollBars = ScrollBars.None, 
                 Margin = new Padding(0)
             };
             ui.Dgv.EnableHeadersVisualStyles = false;
@@ -278,7 +277,6 @@ namespace Safety_System
 
             boxGrid.Controls.Add(ui.Dgv);
 
-            // 加入 MainBox 容器 (注意：Dock=Top 是由下往上推擠，先加 Grid 再加 Query)
             ui.MainBox.Controls.Add(boxGrid);
             ui.MainBox.Controls.Add(boxQuery);
             
@@ -307,7 +305,6 @@ namespace Safety_System
             };
         }
 
-        // 🟢 精準控制 DGV 的外框高度，依靠自動包裝模式讓外部的 Box 動態延伸
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null || ui.MainBox == null) return;
@@ -319,7 +316,6 @@ namespace Safety_System
                 dgvHeight += row.Height;
             }
             
-            // DGV 高度剛好等於 標頭 + 所有列總和 + 2px 邊框緩衝
             ui.Dgv.Height = dgvHeight > 0 ? dgvHeight + 2 : 50;
         }
 
@@ -767,7 +763,8 @@ namespace Safety_System
                 
                 Panel pName = new Panel { Width = 1000, Height = 45 };
                 pName.Controls.Add(new Label { Text = "項目名稱：", AutoSize = true, Location = new Point(0, 10), Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold) });
-                TextBox txtName = new TextBox { Width = 350, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
+                // 🟢 調整 1：項目名稱文字框加寬 100px (350 -> 450)
+                TextBox txtName = new TextBox { Width = 450, Location = new Point(120, 7), Font = new Font("Microsoft JhengHei UI", 12F) }; 
                 pName.Controls.Add(txtName);
                 flpEditor.Controls.Add(pName);
 
@@ -777,17 +774,18 @@ namespace Safety_System
                 Panel pnlBuilderInner = new Panel { Dock = DockStyle.Fill };
                 
                 // 第一排：庫、表、被計算欄、日期欄 (Y=10)
-                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(135, 10) };
-                ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(275, 10) };
-                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(465, 10) };
+                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 cbCol.Items.Add("Id (無條件計數)");
-                ComboBox cbDateCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(750, 10) };
+                ComboBox cbDateCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
 
                 Label lblDb = new Label { Text = "庫:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblTb = new Label { Text = "表:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblCol = new Label { Text = "被計算欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblDateCol = new Label { Text = "日期欄:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
 
+                // 🟢 調整 2 & 3：第一排座標重新分配，下拉選單間距+20
                 lblDb.Location = new Point(5, 13);
                 cbDb.Location = new Point(40, 10);
                 
@@ -795,10 +793,10 @@ namespace Safety_System
                 cbTb.Location = new Point(225, 10);
                 
                 lblCol.Location = new Point(415, 13);
-                cbCol.Location = new Point(495, 10);
+                cbCol.Location = new Point(510, 10); // 增加 20 間距
                 
-                lblDateCol.Location = new Point(685, 13);
-                cbDateCol.Location = new Point(750, 10);
+                lblDateCol.Location = new Point(700, 13);
+                cbDateCol.Location = new Point(780, 10); // 增加 20 間距
 
                 pnlBuilderInner.Controls.AddRange(new Control[] { lblDb, cbDb, lblTb, cbTb, lblCol, cbCol, lblDateCol, cbDateCol });
 
@@ -817,16 +815,17 @@ namespace Safety_System
                 Label lblFilterVal = new Label { Text = "內容:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblAction = new Label { Text = "動作:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
 
+                // 🟢 調整 4, 5, 6：第二排座標重新分配，下拉選單間距+20
                 lblRefCol.Location = new Point(5, 63);
-                cbRefCol.Location = new Point(100, 60);
+                cbRefCol.Location = new Point(115, 60); // 增加 20 間距
 
-                lblFilterVal.Location = new Point(260, 63);
-                cbFilterVal.Location = new Point(310, 60);
+                lblFilterVal.Location = new Point(275, 63);
+                cbFilterVal.Location = new Point(335, 60); // 增加 20 間距
 
-                lblAction.Location = new Point(480, 63);
-                cbAction.Location = new Point(530, 60);
+                lblAction.Location = new Point(505, 63);
+                cbAction.Location = new Point(565, 60); // 增加 20 間距
 
-                btnInsert.Location = new Point(680, 58);
+                btnInsert.Location = new Point(720, 58); // 按鈕往右推
 
                 pnlBuilderInner.Controls.AddRange(new Control[] { lblRefCol, cbRefCol, lblFilterVal, cbFilterVal, lblAction, cbAction, btnInsert });
 
