@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Drawing;
+using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -249,7 +250,7 @@ namespace Safety_System
                 ForeColor = Color.Teal,
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                Padding = new Padding(10, 15, 10, 20) // 底部保留 20px
+                Padding = new Padding(10, 15, 10, 20) 
             };
 
             ui.Dgv = new DataGridView {
@@ -1216,7 +1217,7 @@ namespace Safety_System
         }
 
         // ==========================================
-        // PDF / Excel 導出邏輯
+        // 🟢 全域 PDF / Excel 導出對話框與邏輯
         // ==========================================
         private List<ThemeSectionUI> GetSelectedThemesDialog()
         {
@@ -1273,6 +1274,11 @@ namespace Safety_System
             return selected;
         }
 
+        private int _pdfCurrentSectionIdx = 0;
+        private int _pdfCurrentRowIdx = 0;
+        private int _pdfPageNumber = 1;
+        private bool _pdfDrawSectionHeader = true;
+
         private void BtnGlobalPdf_Click(object sender, EventArgs e)
         {
             var selectedSections = GetSelectedThemesDialog();
@@ -1284,38 +1290,138 @@ namespace Safety_System
                 {
                     if (Form.ActiveForm != null) Form.ActiveForm.Cursor = Cursors.WaitCursor;
 
-                    try 
+                    try
                     {
-                        Application.DoEvents(); 
+                        _pdfCurrentSectionIdx = 0;
+                        _pdfCurrentRowIdx = 0;
+                        _pdfPageNumber = 1;
+                        _pdfDrawSectionHeader = true;
 
-                        List<Bitmap> bitmaps = new List<Bitmap>();
-                        string dateRanges = "";
+                        PrintDocument pd = new PrintDocument();
+                        pd.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                        pd.PrinterSettings.PrintToFile = true;
+                        pd.PrinterSettings.PrintFileName = sfd.FileName;
+                        pd.DefaultPageSettings.Landscape = true; 
+                        pd.DefaultPageSettings.Margins = new Margins(40, 40, 40, 40);
 
-                        foreach (var sec in selectedSections) 
+                        pd.PrintPage += (s, ev) =>
                         {
-                            var boxGrid = sec.MainBox.Controls.OfType<GroupBox>().FirstOrDefault(g => g.Text.Contains("統計數據資料表"));
-                            if (boxGrid != null)
+                            Graphics g = ev.Graphics;
+                            float x = ev.MarginBounds.Left;
+                            float y = ev.MarginBounds.Top;
+                            float w = ev.MarginBounds.Width;
+
+                            Font fMainTitle = new Font("Microsoft JhengHei UI", 20F, FontStyle.Bold);
+                            Font fTheme = new Font("Microsoft JhengHei UI", 14F, FontStyle.Bold);
+                            Font fPeriod = new Font("Microsoft JhengHei UI", 11F);
+                            Font fHead = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold);
+                            Font fBody = new Font("Microsoft JhengHei UI", 11F);
+                            Font fFooter = new Font("Microsoft JhengHei UI", 10F);
+
+                            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                            StringFormat sfWrap = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+
+                            // 只有新的一頁才畫大標題
+                            g.DrawString($"{_menuTitle} - 動態統計看板", fMainTitle, Brushes.Black, new RectangleF(x, y, w, 35), sfCenter);
+                            y += 50;
+
+                            while (_pdfCurrentSectionIdx < selectedSections.Count)
                             {
-                                int origHeight = boxGrid.Height;
-                                int dgvHeight = sec.Dgv.ColumnHeadersHeight;
-                                foreach (DataGridViewRow r in sec.Dgv.Rows) dgvHeight += r.Height;
-                                
-                                boxGrid.Height = dgvHeight + 50; 
+                                var sec = selectedSections[_pdfCurrentSectionIdx];
+                                var dgv = sec.Dgv;
 
-                                Bitmap bmp = new Bitmap(boxGrid.Width, boxGrid.Height);
-                                boxGrid.DrawToBitmap(bmp, new Rectangle(0, 0, boxGrid.Width, boxGrid.Height));
-                                bitmaps.Add(bmp);
-
-                                boxGrid.Height = origHeight;
-                                
-                                if (string.IsNullOrEmpty(dateRanges)) {
-                                    dateRanges = $"區間: {sec.CboStartYear.Text}/{sec.CboStartMonth.Text} ~ {sec.CboEndYear.Text}/{sec.CboEndMonth.Text}";
+                                // 取得可見欄位
+                                var visCols = dgv.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToList();
+                                if (visCols.Count == 0) {
+                                    _pdfCurrentSectionIdx++;
+                                    continue;
                                 }
+
+                                if (_pdfDrawSectionHeader)
+                                {
+                                    // 檢查空間是否足夠畫表頭 + 至少一行
+                                    if (y + 120 > ev.MarginBounds.Bottom) {
+                                        g.DrawString($"- {_pdfPageNumber} -", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, w, 20), sfCenter);
+                                        _pdfPageNumber++;
+                                        ev.HasMorePages = true;
+                                        return;
+                                    }
+
+                                    g.DrawString($"■ {sec.ThemeName}", fTheme, new SolidBrush(_themeColor), x, y);
+                                    y += 30;
+
+                                    string startYM = $"{sec.CboStartYear.Text}年{sec.CboStartMonth.Text}月";
+                                    string endYM = $"{sec.CboEndYear.Text}年{sec.CboEndMonth.Text}月";
+                                    g.DrawString($"區間: {startYM} ~ {endYM}", fPeriod, Brushes.DimGray, x + 15, y);
+                                    y += 30;
+
+                                    float currX = x;
+                                    float totalGridWidth = visCols.Sum(c => c.Width);
+                                    float[] colWidths = new float[visCols.Count];
+
+                                    for (int i = 0; i < visCols.Count; i++) {
+                                        colWidths[i] = (visCols[i].Width / totalGridWidth) * w;
+                                        RectangleF rHead = new RectangleF(currX, y, colWidths[i], 40);
+                                        g.FillRectangle(Brushes.LightGray, rHead);
+                                        g.DrawRectangle(Pens.Black, Rectangle.Round(rHead));
+                                        g.DrawString(visCols[i].HeaderText, fHead, Brushes.Black, rHead, sfCenter);
+                                        currX += colWidths[i];
+                                    }
+                                    y += 40;
+                                    _pdfDrawSectionHeader = false;
+                                }
+
+                                float tW = visCols.Sum(c => c.Width);
+                                float[] cW = new float[visCols.Count];
+                                for (int i = 0; i < visCols.Count; i++) cW[i] = (visCols[i].Width / tW) * w;
+
+                                while (_pdfCurrentRowIdx < dgv.Rows.Count)
+                                {
+                                    DataGridViewRow row = dgv.Rows[_pdfCurrentRowIdx];
+                                    float maxH = 35; // 最小行高
+
+                                    // 計算所需行高
+                                    for (int i = 0; i < visCols.Count; i++) {
+                                        string val = row.Cells[visCols[i].Index].Value?.ToString() ?? "";
+                                        SizeF sz = g.MeasureString(val, fBody, (int)cW[i], sfWrap);
+                                        if (sz.Height + 15 > maxH) maxH = sz.Height + 15;
+                                    }
+
+                                    if (y + maxH > ev.MarginBounds.Bottom - 30) {
+                                        g.DrawString($"- {_pdfPageNumber} -", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, w, 20), sfCenter);
+                                        _pdfPageNumber++;
+                                        ev.HasMorePages = true;
+                                        return;
+                                    }
+
+                                    float rX = x;
+                                    for (int i = 0; i < visCols.Count; i++) {
+                                        RectangleF rCell = new RectangleF(rX, y, cW[i], maxH);
+                                        // 不要底色，畫框線
+                                        g.DrawRectangle(Pens.Black, Rectangle.Round(rCell));
+                                        string val = row.Cells[visCols[i].Index].Value?.ToString() ?? "";
+                                        RectangleF textRect = new RectangleF(rCell.X + 5, rCell.Y + 2, rCell.Width - 10, rCell.Height - 4);
+                                        g.DrawString(val, fBody, Brushes.Black, textRect, sfWrap);
+                                        rX += cW[i];
+                                    }
+
+                                    y += maxH;
+                                    _pdfCurrentRowIdx++;
+                                }
+
+                                y += 30; // 區塊間距
+                                _pdfCurrentSectionIdx++;
+                                _pdfCurrentRowIdx = 0;
+                                _pdfDrawSectionHeader = true;
                             }
-                        }
-                        
-                        PdfHelper.ExportDashboardToPdf(bitmaps, $"{_menuTitle} - 動態統計看板", dateRanges, $"{_prefix}動態看板報表");
-                    } 
+
+                            g.DrawString($"- {_pdfPageNumber} -", fFooter, Brushes.Black, new RectangleF(x, ev.MarginBounds.Bottom, w, 20), sfCenter);
+                            ev.HasMorePages = false;
+                        };
+
+                        pd.Print();
+                        MessageBox.Show("PDF 報表匯出完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
                     catch (Exception ex)
                     {
                         MessageBox.Show("PDF 匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
