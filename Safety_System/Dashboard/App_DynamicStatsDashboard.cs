@@ -258,6 +258,7 @@ namespace Safety_System
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 AllowUserToResizeColumns = true,
+                // 🟢 強制允許資料列高度自動伸展
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
                 RowHeadersVisible = false, Font = new Font("Microsoft JhengHei UI", 12F),
                 BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.Single,
@@ -268,7 +269,12 @@ namespace Safety_System
             ui.Dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.SlateGray;
             ui.Dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             ui.Dgv.ColumnHeadersHeight = 40;
+            // 🟢 強制允許標題列文字折行與自動調整高度
+            ui.Dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            ui.Dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+
             ui.Dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.WhiteSmoke;
+            // 🟢 確保資料格內容也可以折行
             ui.Dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
             ui.Dgv.Columns.Add("項目", "項目"); ui.Dgv.Columns["項目"].ReadOnly = true; 
@@ -280,7 +286,7 @@ namespace Safety_System
             ui.Dgv.ColumnWidthChanged += (s, e) => {
                 if (e.Column != null && e.Column.Width > 0) {
                     DataManager.SaveGridConfig(_gridConfigKey, ui.ThemeName, "Width", e.Column.Name, e.Column.Width.ToString());
-                    AdjustGridHeight(ui);
+                    AdjustGridHeight(ui); // 欄寬改變可能導致折行變化，需重算高度
                 }
             };
 
@@ -317,18 +323,22 @@ namespace Safety_System
             };
         }
 
+        // 🟢 動態高度精算 (含標題列)
         private void AdjustGridHeight(ThemeSectionUI ui)
         {
             if (ui.Dgv == null || ui.MainBox == null) return;
             
+            // 強制重算所有儲存格與標題列的高度
             ui.Dgv.AutoResizeRows(DataGridViewAutoSizeRowsMode.AllCells);
+            ui.Dgv.AutoResizeColumnHeadersHeight();
 
             int dgvHeight = ui.Dgv.ColumnHeadersHeight;
             foreach (DataGridViewRow row in ui.Dgv.Rows) {
                 dgvHeight += row.Height;
             }
             
-            ui.Dgv.Height = dgvHeight > 0 ? dgvHeight + 2 : 50;
+            // 加上 5px 緩衝避免出現捲軸
+            ui.Dgv.Height = dgvHeight > 0 ? dgvHeight + 5 : 50;
         }
 
         private void ApplyColumnWidths(ThemeSectionUI ui)
@@ -528,7 +538,13 @@ namespace Safety_System
 
                         string rem = r["Remarks"]?.ToString() ?? "";
                         if (!string.IsNullOrWhiteSpace(rem)) {
-                            mergedHistory[itemName].Rems.Add(rem.Trim());
+                            // 🟢 智慧補齊區間標籤：讓使用者能識別該備註是屬於哪一個月份紀錄的
+                            string periodTag = $"[{recS} ~ {recE}]";
+                            if (!rem.Contains(periodTag)) {
+                                mergedHistory[itemName].Rems.Add($"{periodTag}\r\n{rem.Trim()}");
+                            } else {
+                                mergedHistory[itemName].Rems.Add(rem.Trim());
+                            }
                         }
                     }
                 }
@@ -546,6 +562,7 @@ namespace Safety_System
                     string finalRemarks = "";
                     if (mergedHistory.ContainsKey(itemName)) {
                         finalAttach = string.Join("|", mergedHistory[itemName].Atts);
+                        // 合併時加入適當的換行區隔
                         finalRemarks = string.Join("\r\n\r\n", mergedHistory[itemName].Rems);
                     }
 
@@ -768,16 +785,16 @@ namespace Safety_System
                 flpEditor.Controls.Add(pName);
 
                 // 變數產生器
-                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width = 1000, Height = 135, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
+                GroupBox boxBuilder = new GroupBox { Text = "變數產生器 (自動產生跨表聚合公式)", Width=1000, Height = 135, Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold), Padding = new Padding(10) };
                 
                 Panel pnlBuilderInner = new Panel { Dock = DockStyle.Fill };
                 
-                // 第一排：庫、表、被計算欄、日期欄 (Y=10)
-                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
-                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                // 第一排：庫、表、被計算欄、日期欄
+                ComboBox cbDb = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(135, 10) };
+                ComboBox cbTb = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(275, 10) };
+                ComboBox cbCol = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(465, 10) };
                 cbCol.Items.Add("Id (無條件計數)");
-                ComboBox cbDateCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
+                ComboBox cbDateCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F), Location = new Point(655, 10) };
 
                 Label lblDb = new Label { Text = "庫:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
                 Label lblTb = new Label { Text = "表:", AutoSize = true, Font = new Font("Microsoft JhengHei UI", 11F) };
@@ -795,7 +812,7 @@ namespace Safety_System
 
                 pnlBuilderInner.Controls.AddRange(new Control[] { lblDb, cbDb, lblTb, cbTb, lblCol, cbCol, lblDateCol, cbDateCol });
 
-                // 第二排：篩選條件欄、內容、動作、插入按鈕 (Y=60)
+                // 第二排：篩選條件欄、內容、動作、插入按鈕
                 ComboBox cbRefCol = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 11F) };
                 ComboBox cbFilterVal = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDown, Font = new Font("Microsoft JhengHei UI", 11F) };
                 
