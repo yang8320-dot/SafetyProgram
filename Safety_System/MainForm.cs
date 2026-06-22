@@ -358,22 +358,22 @@ namespace Safety_System
             // 🟢 個人隱藏選單 (使用整合後的 App_DynamicStatsDashboard)
             // ==============================================================
             _menu1 = new ToolStripMenuItem("選單1") { Visible = false };   
-            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu1DB").GetView())); // 🟢 指向選單 1
+            _menu1.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu1DB").GetView())); 
             _menu1.DropDownItems.Add(new ToolStripSeparator());
             _menu1.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu1DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu2 = new ToolStripMenuItem("選單2") { Visible = false };
-            _menu2.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu2DB").GetView())); // 🟢 指向選單 2
+            _menu2.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu2DB").GetView())); 
             _menu2.DropDownItems.Add(new ToolStripSeparator());
             _menu2.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu2DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu3 = new ToolStripMenuItem("選單3") { Visible = false };
-            _menu3.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu3DB").GetView())); // 🟢 指向選單 3
+            _menu3.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu3DB").GetView())); 
             _menu3.DropDownItems.Add(new ToolStripSeparator());
             _menu3.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu3DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
             _menu4 = new ToolStripMenuItem("選單4") { Visible = false };
-            _menu4.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu4DB").GetView())); // 🟢 指向選單 4
+            _menu4.DropDownItems.Add(CreateItem("統計看板", () => new App_DynamicStatsDashboard("Menu4DB").GetView())); 
             _menu4.DropDownItems.Add(new ToolStripSeparator());
             _menu4.DropDownItems.Add(CreateItem("WorkItems", () => new App_CoreTable("Menu4DB", "WorkItems", "WorkItems", new DefaultLogic()).GetView()));
 
@@ -528,7 +528,8 @@ namespace Safety_System
                 string currentUser = Environment.UserName.Trim();
                 HashSet<string> hiddenMenus = new HashSet<string>();
 
-                string dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
+                // 🟢 核心修復：統一吃 SysConfigDbPath
+                string dbPath = DataManager.SysConfigDbPath;
                 if (!File.Exists(dbPath)) return;
 
                 using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
@@ -659,15 +660,26 @@ namespace Safety_System
                 foreach (var kvp in dbMap) {
                     cboDb.Items.Add(new App_DbConfig.ItemMap { EnName = kvp.Key, ChName = kvp.Value.ChDbName });
                 }
+                
+                // 🟢 加入 SystemConfig 以支援選擇性還原設定庫
+                cboDb.Items.Add(new App_DbConfig.ItemMap { EnName = "SystemConfig", ChName = "系統共用設定庫 (SystemConfig)" });
+
                 if (cboDb.Items.Count > 0) cboDb.SelectedIndex = 0;
 
                 cboDb.SelectedIndexChanged += (s, e) => {
                     cboTb.Items.Clear();
                     cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = "*", ChName = "-- 還原整個資料庫 --" });
                     
-                    if (cboDb.SelectedItem is App_DbConfig.ItemMap map && !string.IsNullOrEmpty(map.EnName) && dbMap.ContainsKey(map.EnName)) {
-                        foreach (var tbl in dbMap[map.EnName].Tables) {
-                            cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                    if (cboDb.SelectedItem is App_DbConfig.ItemMap map && !string.IsNullOrEmpty(map.EnName)) {
+                        if (map.EnName == "SystemConfig") {
+                            // 提供部分重要的設定表供還原
+                            string[] confTbs = { "CustomMenus", "SysSettings", "AppLinks", "DropdownConfigs", "MultiSelectConfigs", "ReferenceDropdownConfigs" };
+                            foreach (var ct in confTbs) cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = ct, ChName = ct });
+                        }
+                        else if (dbMap.ContainsKey(map.EnName)) {
+                            foreach (var tbl in dbMap[map.EnName].Tables) {
+                                cboTb.Items.Add(new App_DbConfig.ItemMap { EnName = tbl.Key, ChName = tbl.Value });
+                            }
                         }
                     }
                     cboTb.SelectedIndex = 0;
@@ -716,10 +728,6 @@ namespace Safety_System
                                 {
                                     string destFile = Path.Combine(destDir, Path.GetFileName(file));
                                     File.Copy(file, destFile, true);
-                                }
-                                string sysConfigBackup = Path.Combine(sourceDir, "SystemConfig.sqlite");
-                                if (File.Exists(sysConfigBackup)) {
-                                    File.Copy(sysConfigBackup, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite"), true);
                                 }
                             } 
                             else 
