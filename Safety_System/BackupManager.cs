@@ -102,11 +102,8 @@ namespace Safety_System
                     SafeBackupSQLite(file, destFile);
                 }
 
-                string sysDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SystemConfig.sqlite");
-                if (File.Exists(sysDbPath))
-                {
-                    SafeBackupSQLite(sysDbPath, Path.Combine(targetDir, "SystemConfig.sqlite"));
-                }
+                // 🟢 核心修復：SystemConfig.sqlite 現在已經包含在 DataManager.BasePath ("DB" 資料夾) 的 *.sqlite 迴圈中
+                // 已經自動備份了，無須再針對根目錄硬寫額外的複製邏輯！
 
                 UpdateConfigDate(DateTime.Today);
                 CleanupOldBackups();
