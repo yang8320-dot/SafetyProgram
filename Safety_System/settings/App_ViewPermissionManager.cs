@@ -204,6 +204,7 @@ namespace Safety_System
 
             // 2. 從資料庫讀取該使用者的「黑名單」，並將其取消打勾
             try {
+                // 🟢 核心修復：統一吃 SysConfigDbPath
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
                     using (var cmd = new SQLiteCommand("SELECT MenuText FROM HiddenUserMenus WHERE UserName=@U", conn)) {
@@ -247,6 +248,7 @@ namespace Safety_System
             GetUncheckedNodes(_tvMenus.Nodes, hiddenMenus);
 
             try {
+                // 🟢 核心修復：統一吃 SysConfigDbPath
                 using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                     conn.Open();
                     using (var trans = conn.BeginTransaction()) {
