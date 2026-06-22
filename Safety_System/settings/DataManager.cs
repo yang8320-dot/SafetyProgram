@@ -1,4 +1,4 @@
-/// FILE: Safety_System/DataManager.cs ///
+/// FILE: Safety_System/settings/DataManager.cs ///
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -108,7 +108,8 @@ namespace Safety_System
                     sb.AppendLine("# ====================================================================");
                     sb.AppendLine("# 1. 系統啟動時會自動讀取此檔案，尋找第一行「沒有被 # 或 // 標記」的路徑。");
                     sb.AppendLine("# 2. 透過此設定，您可以讓放置在本機的 .exe 程式，連線到公司伺服器的共用資料庫。");
-                    sb.AppendLine("# 3. 建議使用 UNC 絕對路徑 (例如 L:\工安共用\工安系統)。");
+                    // 🟢 修正：增加反斜線跳脫，解決 CS1009 編譯錯誤
+                    sb.AppendLine("# 3. 建議使用 UNC 絕對路徑 (例如 L:\\工安共用\\工安系統)。");
                     sb.AppendLine("# 4. 若要作為「單機版」執行，請將下方路徑保持空白即可。");
                     sb.AppendLine("# ====================================================================");
                     sb.AppendLine("");
