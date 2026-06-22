@@ -108,7 +108,6 @@ namespace Safety_System
                     sb.AppendLine("# ====================================================================");
                     sb.AppendLine("# 1. 系統啟動時會自動讀取此檔案，尋找第一行「沒有被 # 或 // 標記」的路徑。");
                     sb.AppendLine("# 2. 透過此設定，您可以讓放置在本機的 .exe 程式，連線到公司伺服器的共用資料庫。");
-                    // 🟢 修正：增加反斜線跳脫，解決 CS1009 編譯錯誤
                     sb.AppendLine("# 3. 建議使用 UNC 絕對路徑 (例如 L:\\工安共用\\工安系統)。");
                     sb.AppendLine("# 4. 若要作為「單機版」執行，請將下方路徑保持空白即可。");
                     sb.AppendLine("# ====================================================================");
@@ -121,9 +120,19 @@ namespace Safety_System
             }
 
             // 4. 將所有核心資料庫與附件路徑，綁定至決定好的目標目錄
-            SysConfigDbPath = Path.Combine(activeRootDir, "SystemConfig.sqlite");
             BasePath = Path.Combine(activeRootDir, "DB");
             AttachmentBasePath = Path.Combine(activeRootDir, "附件");
+
+            // 🟢 核心修復：統一將 SystemConfig.sqlite 放置在 DB 資料夾中，消滅根目錄的重複庫
+            if (!Directory.Exists(BasePath)) Directory.CreateDirectory(BasePath);
+            SysConfigDbPath = Path.Combine(BasePath, "SystemConfig.sqlite");
+
+            // 🟢 無縫轉移舊資料：若根目錄還有舊版的 SystemConfig.sqlite，自動搬移進 DB 資料夾，避免設定遺失
+            string oldSysConfigPath = Path.Combine(activeRootDir, "SystemConfig.sqlite");
+            if (File.Exists(oldSysConfigPath) && !File.Exists(SysConfigDbPath))
+            {
+                try { File.Move(oldSysConfigPath, SysConfigDbPath); } catch { }
+            }
 
             InitSysConfigDB();
         }
