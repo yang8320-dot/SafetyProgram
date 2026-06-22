@@ -175,15 +175,12 @@ namespace Safety_System
 
             GroupBox boxAudit = new GroupBox { Text = "操作軌跡追蹤 (查閱最後修改人與時間)", Dock = DockStyle.Top, Height = 650, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), ForeColor = Color.DarkSlateBlue, Padding = new Padding(15) };
 
-            // 🟢 需求修正：選擇料庫與下拉選單間距 +10px (140 -> 150)
             Label lblAuditDb = new Label { Text = "選擇資料庫:", Location = new Point(30, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboAuditDb = new ComboBox { Location = new Point(150, 58), Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
             
-            // 🟢 需求修正：選擇資料表與下拉選單間距 +10px (原本標籤在350，下拉在460。現在整體往右移，確保間距完美)
             Label lblAuditTable = new Label { Text = "選擇資料表:", Location = new Point(360, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 12F), ForeColor = Color.Black };
             _cboAuditTable = new ComboBox { Location = new Point(480, 58), Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Microsoft JhengHei UI", 12F) };
 
-            // 因為前面元件往右移，這裡稍微配合向右調整避免擠在一起
             _chkShowDeletedLogs = new CheckBox { Text = "☑️ 僅查詢該表「被刪除的資料」軌跡", Location = new Point(760, 60), AutoSize = true, Font = new Font("Microsoft JhengHei UI", 10F), ForeColor = Color.Crimson, Cursor = Cursors.Hand };
 
             Button btnSearchAudit = new Button { Text = "🔍 查詢操作紀錄", Location = new Point(760, 110), Size = new Size(180, 35), BackColor = Color.DarkSlateBlue, ForeColor = Color.White, Font = new Font("Microsoft JhengHei UI", 12F, FontStyle.Bold), Cursor = Cursors.Hand };
@@ -229,6 +226,7 @@ namespace Safety_System
                 if (_chkShowDeletedLogs.Checked)
                 {
                     DataTable dtDel = new DataTable();
+                    // 🟢 核心修復：統一吃 SysConfigDbPath
                     using (var conn = new SQLiteConnection($"Data Source={DataManager.SysConfigDbPath};Version=3;")) {
                         conn.Open();
                         string sql = "SELECT RecordId AS [原系統流水號(Id)], DeletedBy AS [執行刪除者], DeletedTime AS [刪除時間] FROM System_DeleteLogs WHERE DbName=@DB AND TableName=@TB ORDER BY DeletedTime DESC";
