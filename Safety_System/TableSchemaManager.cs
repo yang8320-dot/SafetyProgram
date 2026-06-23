@@ -81,7 +81,7 @@ namespace Safety_System
             { "SDS_Inventory", "[日期] TEXT, [廠內編號] TEXT, [化學物質名稱] TEXT, [其它化學物質名稱] TEXT, [危害標示] TEXT, [CAS_No] TEXT, [危害成份] TEXT, [危害分類] TEXT, [供應商] TEXT, [供應商地址] TEXT, [供應商電話] TEXT, [SDS版本日期] TEXT, [使用單位] TEXT, [使用地點] TEXT, [使用平均量] TEXT, [使用最大量] TEXT, [貯存地點] TEXT, [平均貯存量] TEXT, [最大貯存量] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireResponsible", "[單位] TEXT, [場所區域] TEXT, [防火負責人] TEXT, [火源責任人] TEXT, [責任代理人] TEXT, [更新日期] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "FireEquip", "[日期] TEXT, [責任單位] TEXT, [柱子] TEXT, [編號] TEXT, [位置] TEXT, [具體位置] TEXT, [中繼器] TEXT, [狀態列表] TEXT, [室內消防栓] TEXT, [戶外消防栓] TEXT, [消防水帶有效期限] TEXT, [火警綜合盤] TEXT, [緊急照明燈] TEXT, [逃生指示燈_右] TEXT, [逃生指示燈_左] TEXT, [逃生指示燈_出口] TEXT, [滅火器] TEXT, [滅火器有效期限] TEXT, [附件檔案] TEXT, [備註] TEXT" },
-            { "FireSelfInspection", "[日期] TEXT, [檢點表名稱] TEXT, [單位] TEXT, [檢查人] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
+            { "FireSelfInspection", "[年月] TEXT, [檢點表名稱] TEXT, [單位] TEXT, [檢查人] TEXT, [檢查結果] TEXT, [缺失描述] TEXT, [改善對策] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             { "訓練時數", "[日期] TEXT, [員工姓名] TEXT, [受訓項目] TEXT, [課程名稱] TEXT, [訓練時數] TEXT, [HR外訓申請] TEXT, [附件檔案] TEXT, [備註] TEXT" },
             
 			//檢測數據
