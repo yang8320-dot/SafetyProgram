@@ -2,7 +2,6 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -10,18 +9,10 @@ namespace Safety_System
 {
     /// <summary>
     /// 系統記憶體深度釋放與最佳化引擎
-    /// (已修正：為避免防毒軟體誤判為惡意程式，改為僅針對「本程式自身」進行記憶體壓縮與優化)
+    /// (已優化：為避免防毒軟體(Apex One)誤判，徹底移除所有底層 API DllImport 呼叫)
     /// </summary>
     public static class MemoryOptimizer
     {
-        // 🟢 匯入 Windows 底層核心 API：強制作業系統收回實體記憶體
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimumWorkingSetSize, IntPtr maximumWorkingSetSize);
-
-        /// <summary>
-        /// 執行深度記憶體釋放 (針對自身 Process)
-        /// </summary>
         public static void Execute()
         {
             using (Form pForm = new Form())
@@ -57,7 +48,7 @@ namespace Safety_System
                 {
                     Location = new Point(25, 110),
                     Size = new Size(380, 25),
-                    Style = ProgressBarStyle.Marquee, // 改為跑馬燈模式
+                    Style = ProgressBarStyle.Marquee,
                     MarqueeAnimationSpeed = 30
                 };
 
@@ -69,21 +60,22 @@ namespace Safety_System
                 {
                     Application.UseWaitCursor = true;
                     
-                    // 紀錄優化前的本程式記憶體
                     Process currentProcess = Process.GetCurrentProcess();
                     long myMemBefore = currentProcess.WorkingSet64;
 
-                    await Task.Run(() =>
+                    await Task.Run(async () =>
                     {
                         try
                         {
-                            // 1. 強制 .NET 進行完整的垃圾回收 (清理幽靈陣列與控制項)
+                            // 延遲一下讓進度條跑動，給使用者視覺回饋
+                            await Task.Delay(800);
+
+                            // 100% 安全的 .NET 內建記憶體回收，防毒絕對不會叫
                             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
                             GC.WaitForPendingFinalizers();
                             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-
-                            // 2. 🟢 安全優化：只針對「本程式」進行 Windows 記憶體分頁壓縮，絕不碰觸其他程序
-                            SetProcessWorkingSetSize(currentProcess.Handle, (IntPtr)(-1), (IntPtr)(-1));
+                            
+                            await Task.Delay(400);
                         }
                         catch { }
                     });
