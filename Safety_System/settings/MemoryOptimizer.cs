@@ -9,7 +9,8 @@ using System.Windows.Forms;
 namespace Safety_System
 {
     /// <summary>
-    /// 系統記憶體深度釋放與最佳化引擎 (System-wide RAM Optimizer)
+    /// 系統記憶體深度釋放與最佳化引擎
+    /// (已修正：為避免防毒軟體誤判為惡意程式，改為僅針對「本程式自身」進行記憶體壓縮與優化)
     /// </summary>
     public static class MemoryOptimizer
     {
@@ -18,16 +19,11 @@ namespace Safety_System
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimumWorkingSetSize, IntPtr maximumWorkingSetSize);
 
-        // 🟢 匯入 API：清空記憶體分頁
-        [DllImport("psapi.dll")]
-        static extern int EmptyWorkingSet(IntPtr hwProc);
-
         /// <summary>
-        /// 執行深度記憶體釋放 (包含進度條與非同步掃描)
+        /// 執行深度記憶體釋放 (針對自身 Process)
         /// </summary>
         public static void Execute()
         {
-            // 建立一個進度視窗讓使用者「有感」
             using (Form pForm = new Form())
             {
                 pForm.Text = "系統記憶體最佳化工具";
@@ -37,7 +33,7 @@ namespace Safety_System
                 pForm.MaximizeBox = false;
                 pForm.MinimizeBox = false;
                 pForm.BackColor = Color.White;
-                pForm.ControlBox = false; // 阻擋右上角關閉
+                pForm.ControlBox = false; 
 
                 Label lblTitle = new Label
                 {
@@ -50,7 +46,7 @@ namespace Safety_System
 
                 Label lblStatus = new Label
                 {
-                    Text = "準備掃描系統程序...",
+                    Text = "正在壓縮本系統資源...",
                     Font = new Font("Microsoft JhengHei UI", 11F),
                     ForeColor = Color.DimGray,
                     Location = new Point(25, 70),
@@ -61,7 +57,8 @@ namespace Safety_System
                 {
                     Location = new Point(25, 110),
                     Size = new Size(380, 25),
-                    Style = ProgressBarStyle.Continuous
+                    Style = ProgressBarStyle.Marquee, // 改為跑馬燈模式
+                    MarqueeAnimationSpeed = 30
                 };
 
                 pForm.Controls.Add(lblTitle);
@@ -71,12 +68,10 @@ namespace Safety_System
                 pForm.Shown += async (s, e) =>
                 {
                     Application.UseWaitCursor = true;
-                    int successCount = 0;
-                    int failCount = 0;
-                    long totalMemoryFreed = 0;
                     
                     // 紀錄優化前的本程式記憶體
-                    long myMemBefore = Process.GetCurrentProcess().WorkingSet64;
+                    Process currentProcess = Process.GetCurrentProcess();
+                    long myMemBefore = currentProcess.WorkingSet64;
 
                     await Task.Run(() =>
                     {
@@ -87,68 +82,25 @@ namespace Safety_System
                             GC.WaitForPendingFinalizers();
                             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
 
-                            // 2. 獲取系統所有正在執行的程序
-                            Process[] processes = Process.GetProcesses();
-                            int totalProcesses = processes.Length;
-
-                            for (int i = 0; i < totalProcesses; i++)
-                            {
-                                Process p = processes[i];
-
-                                // 更新進度條
-                                int percent = (int)((double)(i + 1) / totalProcesses * 100);
-                                pForm.Invoke(new Action(() => 
-                                { 
-                                    pb.Value = percent; 
-                                    lblStatus.Text = $"正在壓縮程序 ({i}/{totalProcesses}): {p.ProcessName}";
-                                }));
-
-                                try
-                                {
-                                    if (p.HasExited) continue;
-
-                                    long memBefore = p.WorkingSet64;
-
-                                    // 🟢 核心技術 1：強制作業系統將該程序的未活躍記憶體分頁移出 (Page Out)
-                                    SetProcessWorkingSetSize(p.Handle, (IntPtr)(-1), (IntPtr)(-1));
-                                    
-                                    // 🟢 核心技術 2：進一步清空 Working Set
-                                    EmptyWorkingSet(p.Handle);
-
-                                    p.Refresh();
-                                    long memAfter = p.WorkingSet64;
-                                    
-                                    if (memBefore > memAfter)
-                                    {
-                                        totalMemoryFreed += (memBefore - memAfter);
-                                    }
-                                    successCount++;
-                                }
-                                catch
-                                {
-                                    // 通常會拋出 Access Denied，這是正常的，因為防毒軟體或系統核心不允許動它。
-                                    failCount++;
-                                }
-                            }
+                            // 2. 🟢 安全優化：只針對「本程式」進行 Windows 記憶體分頁壓縮，絕不碰觸其他程序
+                            SetProcessWorkingSetSize(currentProcess.Handle, (IntPtr)(-1), (IntPtr)(-1));
                         }
                         catch { }
                     });
 
                     Application.UseWaitCursor = false;
-                    long myMemAfter = Process.GetCurrentProcess().WorkingSet64;
-                    double freedMB = (double)totalMemoryFreed / (1024 * 1024);
+                    currentProcess.Refresh();
+                    long myMemAfter = currentProcess.WorkingSet64;
+                    
                     double myFreedMB = (double)(myMemBefore - myMemAfter) / (1024 * 1024);
                     if (myFreedMB < 0) myFreedMB = 0;
 
                     pForm.DialogResult = DialogResult.OK;
 
-                    // 顯示精美的成果報告
                     MessageBox.Show(
-                        $"🚀 系統記憶體深度最佳化完成！\n\n" +
-                        $"🔍 共掃描並壓縮了 {successCount} 個背景程序 (略過 {failCount} 個受保護核心)。\n\n" +
-                        $"💻 您的電腦總共釋放了： {freedMB:N0} MB 的實體記憶體！\n" +
-                        $"⚙️ 本系統 (Safety_System) 釋放了： {myFreedMB:N0} MB\n\n" +
-                        $"已成功將閒置的系統資源全數歸還給作業系統。", 
+                        $"🚀 系統記憶體最佳化完成！\n\n" +
+                        $"⚙️ 本系統 (Safety_System) 成功釋放了： {myFreedMB:N1} MB 的記憶體！\n\n" +
+                        $"已成功將閒置的資源歸還給作業系統，確保系統流暢運行。", 
                         "效能最佳化報告", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 };
 
